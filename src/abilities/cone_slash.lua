@@ -15,7 +15,9 @@ local ConeSlash = {
     -- Visual State
     visual = {
         active = false,
-        angle = 0
+        angle = 0,
+        targetAngle = 0,
+        rotationSpeed = 60  -- Velocidade de rotação (ajuste conforme necessário)
     },
     
     -- Slash Animation
@@ -46,12 +48,25 @@ function ConeSlash:update(dt)
         self.cooldownRemaining = math.max(0, self.cooldownRemaining - dt * self.owner.attackSpeed)
     end
     
-    -- Update visual if active
-    if self.visual.active then
-        local mouseX, mouseY = love.mouse.getPosition()
-        local dx = mouseX - self.owner.positionX
-        local dy = mouseY - self.owner.positionY
-        self.visual.angle = math.atan2(dy, dx)
+    -- Update target angle to follow mouse
+    local mouseX, mouseY = love.mouse.getPosition()
+    -- Converte a posição do mouse para coordenadas do mundo
+    local worldX = (mouseX + camera.x) / camera.scale
+    local worldY = (mouseY + camera.y) / camera.scale
+    local dx = worldX - self.owner.positionX
+    local dy = worldY - self.owner.positionY
+    
+    -- Tratamento especial para alinhamentos exatos
+    if math.abs(dx) < 0.1 then  -- Mouse alinhado verticalmente
+        self.visual.angle = dy > 0 and math.pi/2 or -math.pi/2
+    elseif math.abs(dy) < 0.1 then  -- Mouse alinhado horizontalmente
+        self.visual.angle = dx > 0 and 0 or math.pi
+    else
+        -- Caso normal, calcula o ângulo usando math.atan
+        self.visual.angle = math.atan(dy/dx)
+        if dx < 0 then
+            self.visual.angle = self.visual.angle + math.pi
+        end
     end
     
     -- Update slash animation
@@ -106,9 +121,14 @@ function ConeSlash:cast(x, y)
     if self.cooldownRemaining > 0 then return false end
     
     -- Calculate angle to target
-    local dx = x - self.owner.positionX
-    local dy = y - self.owner.positionY
-    local angle = math.atan2(dy, dx)
+    local worldX = (x + camera.x) / camera.scale
+    local worldY = (y + camera.y) / camera.scale
+    local dx = worldX - self.owner.positionX
+    local dy = worldY - self.owner.positionY
+    local angle = math.atan(dy/dx)
+    if dx < 0 then
+        angle = angle + math.pi
+    end
     
     -- Update visual angle
     self.visual.angle = angle

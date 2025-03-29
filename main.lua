@@ -6,6 +6,7 @@ shove = require("libs/shove")
 local Warrior = require("src.classes.warrior")
 local Player = require("src.entities.player")
 local HUD = require("src.ui.hud")
+local Camera = require("src.config.camera")
 local GameConfig = require("src.config.game")
 
 --[[
@@ -29,6 +30,9 @@ function love.load()
     
     -- Initialize player with Warrior class
     Player:init(Warrior)
+
+    -- Initialize camera
+    camera = Camera:new()
 end
 
 --[[
@@ -38,6 +42,7 @@ end
 ]]
 function love.update(dt)
     Player:update(dt)
+    camera:follow(Player, dt)
 end
 
 --[[
@@ -45,15 +50,17 @@ end
     Draws all visual elements to the screen
 ]]
 function love.draw()
-    shove.beginDraw()
-        -- Clear screen with background color
-        love.graphics.setColor(GameConfig.colors.background)
-        love.graphics.clear()
-        
-        -- Draw game elements
-        Player:draw()
-        HUD:draw(Player)
-    shove.endDraw()
+    -- Clear screen with background color
+    love.graphics.setColor(GameConfig.colors.background)
+    love.graphics.clear()
+    
+    -- Draw game elements
+    camera:attach()
+    Player:draw()
+    camera:detach()
+
+    -- Draw HUD without camera transformation (fixed on screen)
+    HUD:draw(Player)
 end
 
 --[[
