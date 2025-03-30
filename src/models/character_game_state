@@ -1,0 +1,65 @@
+--[[
+    Characters State
+    Manages characters's current state and status
+]]
+
+local CharacterGameState = {
+    currentHealth = 0;
+    maxHealth = 0;
+
+    --[[
+        Initialize character state
+        @param maxHealth Maximum health value
+    ]]
+    init = function(self, maxHealth)
+        self.currentHealth = maxHealth
+        self.maxHealth = maxHealth
+    end;
+
+    --[[
+        Take damage
+        @param damage Amount of damage to take
+        @return boolean Whether the player died from this damage
+    ]]
+    takeDamage = function(self, damage)
+        if not self.isAlive then return false end
+
+        local actualDamage = math.max(1, damage)
+        self.currentHealth = math.max(0, self.currentHealth - actualDamage)
+    end;
+
+    --[[
+        Heal character
+        @param amount Amount of health to restore
+    ]]
+    heal = function(self, amount)
+        self.currentHealth = math.min(self.currentHealth + amount, self.maxHealth)
+    end;
+
+    --[[
+        Get current health percentage
+        @return number Health percentage (0 to 1)
+    ]]
+    getHealthPercentage = function(self)
+        return self.currentHealth / self.maxHealth
+    end;
+
+    --[[
+        Increase max health
+        @param amount Amount of health to increase
+    ]]
+    increaseMaxHealth = function(self, amount)
+        self.maxHealth = self.maxHealth + amount
+        self.currentHealth = math.min(self.currentHealth, self.maxHealth)
+    end;
+
+    --[[
+        Check if character is alive
+        @return boolean Whether the character is alive
+    ]]
+    isAlive = function(self)
+        return self.currentHealth > 0
+    end;
+}
+
+return CharacterGameState

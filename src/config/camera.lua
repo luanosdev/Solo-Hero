@@ -12,7 +12,7 @@ function Camera:new()
     return o
 end
 
-function Camera:follow(target, dt)
+function Camera:follow(target)
     -- Suavização da câmera
     local smoothSpeed = 0.1
     
@@ -21,8 +21,8 @@ function Camera:follow(target, dt)
     local windowHeight = love.graphics.getHeight()
     
     -- Calcula a posição alvo (centro da tela)
-    local targetX = target.positionX - (windowWidth / 2)
-    local targetY = target.positionY - (windowHeight / 2)
+    local targetX = target.positionX - (windowWidth / (2 * self.scale))
+    local targetY = target.positionY - (windowHeight / (2 * self.scale))
     
     -- Interpola suavemente para a posição alvo
     self.x = self.x + (targetX - self.x) * smoothSpeed

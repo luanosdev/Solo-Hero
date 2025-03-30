@@ -4,7 +4,6 @@
 ]]
 
 local PlayerState = require("src.entities.player_state")
-local Warrior = require("src.classes.warrior")
 
 local Player = {
     -- Position
