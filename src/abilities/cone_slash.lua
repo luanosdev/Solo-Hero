@@ -158,4 +158,4 @@ function ConeSlash:getCooldownRemaining()
     return self.cooldownRemaining
 end
 
-return ConeSlash 
+return ConeSlash

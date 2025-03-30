@@ -39,4 +39,4 @@ function Warrior:getInitialAbility()
     return ConeSlash
 end
 
-return Warrior 
+return Warrior
