@@ -3,8 +3,6 @@
     A cone-shaped area of effect attack that serves as the character's primary attack method
 ]]
 
-local EnemyManager = require("src.entities.enemy_manager")
-
 local ConeSlash = {
     -- Ability Properties
     name = "Cone Slash",
@@ -38,37 +36,6 @@ local ConeSlash = {
 function ConeSlash:init(owner)
     self.owner = owner
     self.cooldownRemaining = 0
-end
-
---[[
-    Check if a point is inside the cone
-    @param x Point X position
-    @param y Point Y position
-    @return boolean Whether the point is inside the cone
-]]
-function ConeSlash:isPointInCone(x, y)
-    -- Calcula a distância do ponto ao centro do cone
-    local dx = x - self.owner.positionX
-    local dy = y - self.owner.positionY
-    local distance = math.sqrt(dx * dx + dy * dy)
-    
-    -- Se estiver fora do alcance, retorna false
-    if distance > self.range then return false end
-    
-    -- Calcula o ângulo do ponto em relação ao centro
-    local pointAngle = math.atan(dy/dx)
-    if dx < 0 then
-        pointAngle = pointAngle + math.pi
-    end
-    
-    -- Calcula a diferença de ângulo
-    local angleDiff = math.abs(pointAngle - self.visual.angle)
-    if angleDiff > math.pi then
-        angleDiff = 2 * math.pi - angleDiff
-    end
-    
-    -- Retorna true se o ângulo estiver dentro do cone
-    return angleDiff <= self.coneAngle/2
 end
 
 --[[
@@ -169,13 +136,6 @@ function ConeSlash:cast(x, y)
     -- Start slash animation
     self.slash.active = true
     self.slash.time = 0
-    
-    -- Causa dano aos inimigos dentro do cone
-    for _, enemy in ipairs(EnemyManager:getEnemies()) do
-        if self:isPointInCone(enemy.positionX, enemy.positionY) then
-            enemy:takeDamage(self.damage)
-        end
-    end
     
     -- Set cooldown
     self.cooldownRemaining = self.cooldown

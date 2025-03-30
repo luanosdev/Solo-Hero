@@ -6,7 +6,6 @@ lick = require("libs/lick")
 shove = require("libs/shove")
 local Warrior = require("src.classes.warrior")
 local Player = require("src.entities.player")
-local EnemyManager = require("src.entities.enemy_manager")
 local HUD = require("src.ui.hud")
 local Camera = require("src.config.camera")
 local GameConfig = require("src.config.game")
@@ -32,19 +31,11 @@ function love.load()
         {resizable = GameConfig.window.resizable}
     )
     
-    -- Initialize camera
-    camera = Camera:new()
-    
     -- Initialize player with Warrior class
     Player:init(Warrior)
-    
-    -- Initialize enemy manager
-    EnemyManager:init()
-    
-    -- Spawn initial enemies
-    for i = 1, 3 do
-        EnemyManager:spawnEnemy(Player)
-    end
+
+    -- Initialize camera
+    camera = Camera:new()
 end
 
 --[[
@@ -53,14 +44,8 @@ end
     Handles player movement and speed calculations
 ]]
 function love.update(dt)
-    -- Atualiza o jogador primeiro
     Player:update(dt)
-    
-    -- Atualiza a câmera para seguir o jogador
-    camera:follow(Player)
-    
-    -- Atualiza os inimigos
-    EnemyManager:update(dt, Player)
+    camera:follow(Player, dt)
 end
 
 --[[
@@ -75,7 +60,6 @@ function love.draw()
     -- Draw game elements
     camera:attach()
     Player:draw()
-    EnemyManager:draw()
     camera:detach()
 
     -- Draw HUD without camera transformation (fixed on screen)
