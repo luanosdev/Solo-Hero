@@ -14,7 +14,7 @@ function EnemyManager:init()
     self.spawnTimer = 0
 end
 
-function EnemyManager:update(dt, playerX, playerY)
+function EnemyManager:update(dt, player)
     -- Atualiza o timer de spawn
     self.spawnTimer = self.spawnTimer + dt
     
@@ -27,7 +27,7 @@ function EnemyManager:update(dt, playerX, playerY)
     -- Atualiza todos os inimigos
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
-        enemy:update(dt, playerX, playerY)
+        enemy:update(dt, player, self.enemies)
         
         -- Remove inimigos mortos
         if not enemy.isAlive then
