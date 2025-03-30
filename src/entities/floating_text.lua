@@ -13,7 +13,7 @@ local FloatingText = {
     offsetY = 0 -- Offset vertical em relação ao inimigo
 }
 
-function FloatingText:new(x, y, text, isCritical, target)
+function FloatingText:new(x, y, text, isCritical, target, customColor)
     local floatingText = setmetatable({}, { __index = self })
     floatingText.positionX = x
     floatingText.positionY = y
@@ -22,12 +22,19 @@ function FloatingText:new(x, y, text, isCritical, target)
     floatingText.target = target
     floatingText.offsetY = -20 -- Começa 20 pixels acima do inimigo
     
-    -- Ajusta propriedades baseado se é crítico ou não
-    if isCritical then
-        floatingText.color = {1, 0.5, 0} -- Laranja
-        floatingText.scale = 1.5
-        floatingText.velocityY = -10 -- Movimento mais rápido
-        floatingText.lifetime = 0.7 -- Vida mais curta
+    -- Define a cor do texto
+    if customColor then
+        floatingText.color = customColor
+    else
+        -- Ajusta propriedades baseado se é crítico ou não
+        if isCritical then
+            floatingText.color = {1, 0.5, 0} -- Laranja para críticos
+            floatingText.scale = 1.5
+            floatingText.velocityY = -80 -- Movimento mais rápido
+            floatingText.lifetime = 0.8 -- Vida mais curta
+        else
+            floatingText.color = {1, 1, 1} -- Branco para dano normal
+        end
     end
     
     return floatingText

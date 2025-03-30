@@ -53,8 +53,6 @@ function Player:init(playerClass)
     self.defense = baseStats.defense
     self.baseSpeed = baseStats.speed
     self.attackSpeed = baseStats.attackSpeed
-    self.criticalChance = baseStats.criticalChance or 0.15 -- Chance padrão de 15% se não especificada
-    self.criticalMultiplier = baseStats.criticalMultiplier or 1.5 -- Multiplicador padrão de 1.5x se não especificado
     
     -- Initialize ability
     local AbilityClass = self.class:getInitialAbility()

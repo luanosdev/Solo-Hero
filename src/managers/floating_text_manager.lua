@@ -24,8 +24,8 @@ function FloatingTextManager:draw()
     end
 end
 
-function FloatingTextManager:addText(x, y, text, isCritical, target)
-    local floatingText = FloatingText:new(x, y, text, isCritical, target)
+function FloatingTextManager:addText(x, y, text, isCritical, target, customColor)
+    local floatingText = FloatingText:new(x, y, text, isCritical, target, customColor)
     table.insert(self.texts, floatingText)
 end
 

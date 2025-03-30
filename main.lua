@@ -51,7 +51,7 @@ function love.update(dt)
     camera:follow(Player, dt)
     
     -- Update managers
-    EnemyManager:update(dt, Player.positionX, Player.positionY)
+    EnemyManager:update(dt, Player)
     FloatingTextManager:update(dt)
 end
 
