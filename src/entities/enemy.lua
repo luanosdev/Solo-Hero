@@ -28,7 +28,7 @@ function Enemy:new(x, y)
     return enemy
 end
 
-function Enemy:update(dt, player, enemies)
+function Enemy:update(dt, player, enemies, map)
     if not self.isAlive then return end
     
     -- Calcula a direção para o jogador
@@ -46,18 +46,27 @@ function Enemy:update(dt, player, enemies)
     local newX = self.positionX + dx * self.speed * dt
     local newY = self.positionY + dy * self.speed * dt
     
-    -- Verifica se a nova posição colide com algum outro inimigo
+    -- Verifica se a nova posição colide com algum outro inimigo ou com o mapa
     local canMove = true
-    for _, other in ipairs(enemies) do
-        if other ~= self and other.isAlive then
-            local distance = math.sqrt(
-                (other.positionX - newX) * (other.positionX - newX) + 
-                (other.positionY - newY) * (other.positionY - newY)
-            )
-            
-            if distance < (self.radius + other.radius) then
-                canMove = false
-                break
+    
+    -- Verifica colisão com o mapa
+    if map:checkCollision(newX, newY, self.radius) then
+        canMove = false
+    end
+    
+    -- Verifica colisão com outros inimigos
+    if canMove then
+        for _, other in ipairs(enemies) do
+            if other ~= self and other.isAlive then
+                local distance = math.sqrt(
+                    (other.positionX - newX) * (other.positionX - newX) + 
+                    (other.positionY - newY) * (other.positionY - newY)
+                )
+                
+                if distance < (self.radius + other.radius) then
+                    canMove = false
+                    break
+                end
             end
         end
     end

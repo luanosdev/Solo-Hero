@@ -9,18 +9,19 @@ local FloatingTextManager = require("src.managers.floating_text_manager")
 
 local Player = {
     -- Position
-    positionX = 200,
-    positionY = 150,
+    positionX = 0,
+    positionY = 0,
     
     -- Movement
     currentSpeed = 0,
-    radius = 10,
+    radius = 8,
     
     -- Class
     class = nil,
     
     -- Base Stats (will be set by class)
-    maxHealth = 0,
+    maxHealth = 100,
+    currentHealth = 100,
     damage = 0,
     defense = 0,
     baseSpeed = 0,
@@ -35,7 +36,11 @@ local Player = {
     attackAbility = nil,
     
     -- Auto Attack
-    autoAttack = false
+    autoAttack = false,
+    
+    -- Damage cooldown
+    lastDamageTime = 0,
+    damageCooldown = 0.5
 }
 
 --[[
@@ -62,13 +67,21 @@ function Player:init(playerClass)
     -- Initialize state
     self.state = PlayerState
     self.state:init(self.maxHealth)
+    
+    -- Set initial position
+    self.positionX = 400 -- Posição inicial X
+    self.positionY = 300 -- Posição inicial Y
+    self.currentHealth = self.maxHealth
+    self.isAlive = true
+    self.lastDamageTime = 0
 end
 
 --[[
     Update player movement and speed
     @param dt Delta time (time between frames)
+    @param map Map object
 ]]
-function Player:update(dt)
+function Player:update(dt, map)
     if not self.state.isAlive then return end
     
     -- Update ability
@@ -84,33 +97,33 @@ function Player:update(dt)
         end
     end
     
-    -- Movement vectors
+    -- Atualiza o tempo do último dano
+    self.lastDamageTime = self.lastDamageTime + dt
+    
+    -- Movimento do jogador
     local moveX, moveY = 0, 0
     
-    -- WASD movement control
-    if love.keyboard.isDown("w") then
-        moveY = moveY - 1
-    end
-    if love.keyboard.isDown("s") then
-        moveY = moveY + 1
-    end
-    if love.keyboard.isDown("a") then
-        moveX = moveX - 1
-    end
-    if love.keyboard.isDown("d") then
-        moveX = moveX + 1
+    if love.keyboard.isDown("w") then moveY = moveY - 1 end
+    if love.keyboard.isDown("s") then moveY = moveY + 1 end
+    if love.keyboard.isDown("a") then moveX = moveX - 1 end
+    if love.keyboard.isDown("d") then moveX = moveX + 1 end
+    
+    -- Normaliza o vetor de movimento
+    if moveX ~= 0 or moveY ~= 0 then
+        local length = math.sqrt(moveX * moveX + moveY * moveY)
+        moveX = moveX / length
+        moveY = moveY / length
     end
     
-    -- Normalize diagonal movement to maintain consistent speed
-    if moveX ~= 0 and moveY ~= 0 then
-        local vectorLength = math.sqrt(moveX * moveX + moveY * moveY)
-        moveX = moveX / vectorLength
-        moveY = moveY / vectorLength
-    end
+    -- Calcula a nova posição
+    local newX = self.positionX + moveX * self.baseSpeed * dt
+    local newY = self.positionY + moveY * self.baseSpeed * dt
     
-    -- Update player position
-    self.positionX = self.positionX + moveX * self.baseSpeed * dt
-    self.positionY = self.positionY + moveY * self.baseSpeed * dt
+    -- Verifica colisão com o mapa
+    if not map:checkCollision(newX, newY, self.radius) then
+        self.positionX = newX
+        self.positionY = newY
+    end
     
     -- Calculate current player speed
     self.currentSpeed = math.sqrt(moveX * moveX + moveY * moveY) * self.baseSpeed

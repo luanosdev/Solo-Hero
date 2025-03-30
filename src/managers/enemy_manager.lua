@@ -1,9 +1,10 @@
 local Enemy = require("src.entities.enemy")
+local MapConfig = require("src.config.map_config")
 
 local EnemyManager = {
     enemies = {},
     spawnTimer = 0,
-    spawnInterval = 2, -- Tempo entre spawns em segundos
+    spawnInterval = 2, -- Intervalo entre spawns em segundos
     maxEnemies = 10,
     mapWidth = 800,  -- Largura do mapa
     mapHeight = 600  -- Altura do mapa
@@ -14,49 +15,46 @@ function EnemyManager:init()
     self.spawnTimer = 0
 end
 
-function EnemyManager:update(dt, player)
+function EnemyManager:update(dt, player, map)
     -- Atualiza o timer de spawn
     self.spawnTimer = self.spawnTimer + dt
     
-    -- Tenta spawnar um novo inimigo se o timer atingir o intervalo
+    -- Spawn de novos inimigos
     if self.spawnTimer >= self.spawnInterval and #self.enemies < self.maxEnemies then
-        self:spawnEnemy()
+        self:spawnEnemy(player, map)
         self.spawnTimer = 0
     end
     
-    -- Atualiza todos os inimigos
+    -- Atualiza e remove inimigos mortos
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
-        enemy:update(dt, player, self.enemies)
-        
-        -- Remove inimigos mortos
+        enemy:update(dt, player, self.enemies, map)
         if not enemy.isAlive then
             table.remove(self.enemies, i)
         end
     end
 end
 
-function EnemyManager:spawnEnemy()
-    -- Escolhe uma borda aleatória para spawnar
-    local side = math.random(1, 4) -- 1: topo, 2: direita, 3: baixo, 4: esquerda
-    local x, y = 0, 0
+function EnemyManager:spawnEnemy(player, map)
+    -- Escolhe uma posição aleatória dentro dos limites do mapa
+    local spawnX, spawnY
+    local attempts = 0
+    local maxAttempts = 10
     
-    if side == 1 then -- Topo
-        x = math.random(0, self.mapWidth)
-        y = -20
-    elseif side == 2 then -- Direita
-        x = self.mapWidth + 20
-        y = math.random(0, self.mapHeight)
-    elseif side == 3 then -- Baixo
-        x = math.random(0, self.mapWidth)
-        y = self.mapHeight + 20
-    else -- Esquerda
-        x = -20
-        y = math.random(0, self.mapHeight)
+    repeat
+        -- Gera uma posição aleatória dentro dos limites do mapa
+        spawnX = math.random(1, map.width - 1) * MapConfig.tileSize
+        spawnY = math.random(1, map.height - 1) * MapConfig.tileSize
+        attempts = attempts + 1
+    until not map:isWall(spawnX, spawnY) or attempts >= maxAttempts
+    
+    -- Se não encontrou uma posição válida, não spawna o inimigo
+    if attempts >= maxAttempts then
+        return
     end
     
-    -- Cria e adiciona o novo inimigo
-    local enemy = Enemy:new(x, y)
+    -- Cria o inimigo na posição válida
+    local enemy = Enemy:new(spawnX, spawnY)
     table.insert(self.enemies, enemy)
 end
 

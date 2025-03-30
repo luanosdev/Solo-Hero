@@ -10,6 +10,8 @@ local Camera = require("src.config.camera")
 local GameConfig = require("src.config.game")
 local EnemyManager = require("src.managers.enemy_manager")
 local FloatingTextManager = require("src.managers.floating_text_manager")
+local Map = require("src.entities.map")
+local MapConfig = require("src.config.map_config")
 
 --[[
     Game initialization
@@ -39,6 +41,9 @@ function love.load()
     -- Initialize managers
     EnemyManager:init()
     FloatingTextManager:init()
+    
+    -- Initialize map
+    map = Map:new(MapConfig.matrix)
 end
 
 --[[
@@ -47,11 +52,11 @@ end
     Handles player movement and speed calculations
 ]]
 function love.update(dt)
-    Player:update(dt)
+    Player:update(dt, map)
     camera:follow(Player, dt)
     
     -- Update managers
-    EnemyManager:update(dt, Player)
+    EnemyManager:update(dt, Player, map)
     FloatingTextManager:update(dt)
 end
 
@@ -66,6 +71,7 @@ function love.draw()
     
     -- Draw game elements
     camera:attach()
+    map:draw()
     Player:draw()
     EnemyManager:draw()
     FloatingTextManager:draw()
