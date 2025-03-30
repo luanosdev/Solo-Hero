@@ -2,15 +2,12 @@
 local love = love
 
 -- Import required modules
-lick = require("libs/lick")
 shove = require("libs/shove")
 local Warrior = require("src.classes.warrior")
 local Player = require("src.entities.player")
 local HUD = require("src.ui.hud")
 local Camera = require("src.config.camera")
 local GameConfig = require("src.config.game")
-
-lick.reset = true
 
 --[[
     Game initialization

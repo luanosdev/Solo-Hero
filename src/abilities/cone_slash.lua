@@ -10,7 +10,7 @@ local ConeSlash = {
     damage = 30,     -- Base damage
     coneAngle = math.pi / 3,  -- 60 degrees in radians
     range = 100,     -- Range in pixels
-    color = {1, 1, 1, 0.1},  -- black with transparency
+    color = {1, 1, 1, 0.1},  -- Orange with transparency
     
     -- Visual State
     visual = {
