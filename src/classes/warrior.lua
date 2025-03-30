@@ -11,7 +11,7 @@ local Warrior = {
     baseDamage = 20,
     baseSpeed = 200,
     baseDefense = 10,
-    attackSpeed = 1.0,  -- Attacks per second
+    attackSpeed = 0.7,  -- Attacks per second
     
     -- Class Name
     name = "Warrior"

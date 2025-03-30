@@ -4,6 +4,7 @@
 ]]
 
 local PlayerState = require("src.entities.player_state")
+local EnemyManager = require("src.managers.enemy_manager")
 
 local Player = {
     -- Position
@@ -238,7 +239,25 @@ end
     @return boolean Whether the ability was cast successfully
 ]]
 function Player:castAbility(x, y)
-    return self.attackAbility:cast(x, y)
+    local success = self.attackAbility:cast(x, y)
+    if success then
+        -- Verifica colisão com inimigos
+        local enemies = EnemyManager:getEnemies()
+        for _, enemy in ipairs(enemies) do
+            if enemy.isAlive then
+                -- Calcula distância entre o jogador e o inimigo
+                local dx = enemy.positionX - self.positionX
+                local dy = enemy.positionY - self.positionY
+                local distance = math.sqrt(dx * dx + dy * dy)
+                
+                -- Se o inimigo estiver dentro do alcance da habilidade
+                if distance <= self.attackAbility.range then
+                    enemy:takeDamage(self.damage)
+                end
+            end
+        end
+    end
+    return success
 end
 
 --[[
