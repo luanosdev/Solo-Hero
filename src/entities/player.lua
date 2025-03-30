@@ -5,6 +5,7 @@
 
 local PlayerState = require("src.entities.player_state")
 local EnemyManager = require("src.managers.enemy_manager")
+local FloatingTextManager = require("src.managers.floating_text_manager")
 
 local Player = {
     -- Position
@@ -24,6 +25,8 @@ local Player = {
     defense = 0,
     baseSpeed = 0,
     attackSpeed = 0,
+    criticalChance = 0, -- Chance de crítico
+    criticalMultiplier = 1.5, -- Multiplicador de dano crítico
     
     -- State
     state = nil,
@@ -50,6 +53,8 @@ function Player:init(playerClass)
     self.defense = baseStats.defense
     self.baseSpeed = baseStats.speed
     self.attackSpeed = baseStats.attackSpeed
+    self.criticalChance = baseStats.criticalChance or 0.15 -- Chance padrão de 15% se não especificada
+    self.criticalMultiplier = baseStats.criticalMultiplier or 1.5 -- Multiplicador padrão de 1.5x se não especificado
     
     -- Initialize ability
     local AbilityClass = self.class:getInitialAbility()
@@ -252,7 +257,15 @@ function Player:castAbility(x, y)
                 
                 -- Se o inimigo estiver dentro do alcance da habilidade
                 if distance <= self.attackAbility.range then
-                    enemy:takeDamage(self.damage)
+                    -- Calcula se o dano é crítico
+                    local isCritical = math.random() < self.criticalChance
+                    local finalDamage = self.damage
+                    if isCritical then
+                        finalDamage = math.floor(self.damage * self.criticalMultiplier)
+                    end
+                    
+                    -- Aplica o dano
+                    enemy:takeDamage(finalDamage, isCritical)
                 end
             end
         end

@@ -1,3 +1,5 @@
+local FloatingTextManager = require("src.managers.floating_text_manager")
+
 local Enemy = {
     positionX = 0,
     positionY = 0,
@@ -5,7 +7,8 @@ local Enemy = {
     speed = 70,
     maxHealth = 50,
     currentHealth = 50,
-    isAlive = true
+    isAlive = true,
+    criticalChance = 0.15 -- 15% de chance de crítico
 }
 
 function Enemy:new(x, y)
@@ -67,8 +70,19 @@ function Enemy:draw()
     )
 end
 
-function Enemy:takeDamage(damage)
+function Enemy:takeDamage(damage, isCritical)
+    -- Aplica o dano
     self.currentHealth = self.currentHealth - damage
+    
+    -- Mostra o número de dano
+    FloatingTextManager:addText(
+        self.positionX,
+        self.positionY - self.radius - 10,
+        tostring(damage),
+        isCritical,
+        self -- Passa a referência do inimigo
+    )
+    
     if self.currentHealth <= 0 then
         self.currentHealth = 0
         self.isAlive = false

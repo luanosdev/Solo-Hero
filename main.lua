@@ -9,6 +9,7 @@ local HUD = require("src.ui.hud")
 local Camera = require("src.config.camera")
 local GameConfig = require("src.config.game")
 local EnemyManager = require("src.managers.enemy_manager")
+local FloatingTextManager = require("src.managers.floating_text_manager")
 
 --[[
     Game initialization
@@ -35,8 +36,9 @@ function love.load()
     -- Initialize camera
     camera = Camera:new()
     
-    -- Initialize enemy manager
+    -- Initialize managers
     EnemyManager:init()
+    FloatingTextManager:init()
 end
 
 --[[
@@ -48,8 +50,9 @@ function love.update(dt)
     Player:update(dt)
     camera:follow(Player, dt)
     
-    -- Update enemies
+    -- Update managers
     EnemyManager:update(dt, Player.positionX, Player.positionY)
+    FloatingTextManager:update(dt)
 end
 
 --[[
@@ -65,6 +68,7 @@ function love.draw()
     camera:attach()
     Player:draw()
     EnemyManager:draw()
+    FloatingTextManager:draw()
     camera:detach()
 
     -- Draw HUD without camera transformation (fixed on screen)

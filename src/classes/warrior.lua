@@ -12,7 +12,8 @@ local Warrior = {
     baseSpeed = 200,
     baseDefense = 10,
     attackSpeed = 0.7,  -- Attacks per second
-    
+    criticalChance = 0.2, -- 20% de chance de crítico
+    criticalMultiplier = 1.8, -- 80% de dano crítico
     -- Class Name
     name = "Warrior"
 }
@@ -27,7 +28,9 @@ function Warrior:getBaseStats()
         damage = self.baseDamage,
         speed = self.baseSpeed,
         defense = self.baseDefense,
-        attackSpeed = self.attackSpeed
+        attackSpeed = self.attackSpeed,
+        criticalChance = self.criticalChance,
+        criticalMultiplier = self.criticalMultiplier
     }
 end
 
