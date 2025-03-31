@@ -2,16 +2,16 @@
 local love = love
 
 -- Import required modules
-lick = require("libs/lick")
 shove = require("libs/shove")
 local Warrior = require("src.classes.warrior")
 local Player = require("src.entities.player")
-local EnemyManager = require("src.entities.enemy_manager")
 local HUD = require("src.ui.hud")
 local Camera = require("src.config.camera")
 local GameConfig = require("src.config.game")
-
-lick.reset = true
+local EnemyManager = require("src.managers.enemy_manager")
+local FloatingTextManager = require("src.managers.floating_text_manager")
+local Map = require("src.entities.map")
+local MapConfig = require("src.config.map_config")
 
 --[[
     Game initialization
@@ -32,19 +32,18 @@ function love.load()
         {resizable = GameConfig.window.resizable}
     )
     
+    -- Initialize player with Warrior class
+    Player:init(Warrior)
+
     -- Initialize camera
     camera = Camera:new()
     
-    -- Initialize player with Warrior class
-    Player:init(Warrior)
-    
-    -- Initialize enemy manager
+    -- Initialize managers
     EnemyManager:init()
+    FloatingTextManager:init()
     
-    -- Spawn initial enemies
-    for i = 1, 3 do
-        EnemyManager:spawnEnemy(Player)
-    end
+    -- Initialize map
+    map = Map:new(MapConfig.matrix)
 end
 
 --[[
@@ -53,14 +52,12 @@ end
     Handles player movement and speed calculations
 ]]
 function love.update(dt)
-    -- Atualiza o jogador primeiro
-    Player:update(dt)
+    Player:update(dt, map)
+    camera:follow(Player, dt)
     
-    -- Atualiza a câmera para seguir o jogador
-    camera:follow(Player)
-    
-    -- Atualiza os inimigos
-    EnemyManager:update(dt, Player)
+    -- Update managers
+    EnemyManager:update(dt, Player, map)
+    FloatingTextManager:update(dt)
 end
 
 --[[
@@ -74,8 +71,10 @@ function love.draw()
     
     -- Draw game elements
     camera:attach()
+    map:draw()
     Player:draw()
     EnemyManager:draw()
+    FloatingTextManager:draw()
     camera:detach()
 
     -- Draw HUD without camera transformation (fixed on screen)
