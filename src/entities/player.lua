@@ -25,7 +25,7 @@ local Player = {
     defense = 0,
     baseSpeed = 0,
     attackSpeed = 0,
-    criticalChance = 0, -- Chance de crítico
+    criticalChance = 20, -- Chance de crítico
     criticalMultiplier = 1.5, -- Multiplicador de dano crítico
     
     -- State

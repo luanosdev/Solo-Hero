@@ -1,10 +1,15 @@
-local Enemy = require("src.entities.enemy")
+local FastEnemy = require("src.classes.enemies.fast_enemy")
+local TankEnemy = require("src.classes.enemies.tank_enemy")
 
 local EnemyManager = {
     enemies = {},
     spawnTimer = 0,
     spawnInterval = 2, -- Intervalo entre spawns em segundos
     maxEnemies = 10,
+    enemyTypes = {
+        {class = FastEnemy, weight = 5},    -- Mais comum
+        {class = TankEnemy, weight = 2},    -- Menos comum
+    }
 }
 
 function EnemyManager:init()
@@ -37,6 +42,7 @@ function EnemyManager:spawnEnemy(player)
     local border = math.random(1, 4) -- 1: topo, 2: direita, 3: baixo, 4: esquerda
     
     -- Define a posição de spawn baseada na borda escolhida
+    local spawnX, spawnY
     if border == 1 then -- Topo
         spawnX = math.random(0, love.graphics.getWidth())
         spawnY = -50 -- Fora da tela, acima
@@ -51,8 +57,25 @@ function EnemyManager:spawnEnemy(player)
         spawnY = math.random(0, love.graphics.getHeight())
     end
     
+    -- Escolhe o tipo de inimigo baseado nos pesos
+    local totalWeight = 0
+    for _, enemyType in ipairs(self.enemyTypes) do
+        totalWeight = totalWeight + enemyType.weight
+    end
+    
+    local randomValue = math.random() * totalWeight
+    local selectedEnemyType
+    
+    for _, enemyType in ipairs(self.enemyTypes) do
+        randomValue = randomValue - enemyType.weight
+        if randomValue <= 0 then
+            selectedEnemyType = enemyType.class
+            break
+        end
+    end
+    
     -- Cria o inimigo na posição válida
-    local enemy = Enemy:new(spawnX, spawnY)
+    local enemy = selectedEnemyType:new(spawnX, spawnY)
     table.insert(self.enemies, enemy)
 end
 
