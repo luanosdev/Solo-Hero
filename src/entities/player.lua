@@ -290,13 +290,8 @@ function Player:castAbility(x, y)
         local enemies = EnemyManager:getEnemies()
         for _, enemy in ipairs(enemies) do
             if enemy.isAlive then
-                -- Calcula distância entre o jogador e o inimigo
-                local dx = enemy.positionX - self.positionX
-                local dy = enemy.positionY - self.positionY
-                local distance = math.sqrt(dx * dx + dy * dy)
-                
-                -- Se o inimigo estiver dentro do alcance da habilidade
-                if distance <= self.attackAbility.range then
+                -- Verifica se o inimigo está dentro do cone
+                if self.attackAbility:isPointInCone(enemy.positionX, enemy.positionY) then
                     -- Calcula se o dano é crítico
                     local isCritical = math.random() < self.criticalChance
                     local finalDamage = self.damage

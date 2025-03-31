@@ -112,6 +112,45 @@ function ConeSlash:draw()
 end
 
 --[[
+    Check if a point is inside the cone
+    @param x Point X position
+    @param y Point Y position
+    @return boolean Whether the point is inside the cone
+]]
+function ConeSlash:isPointInCone(x, y)
+    -- Calculate distance to point
+    local dx = x - self.owner.positionX
+    local dy = y - self.owner.positionY
+    local distance = math.sqrt(dx * dx + dy * dy)
+    
+    -- Check if point is within range
+    if distance > self.range then return false end
+    
+    -- Calculate angle to point
+    local pointAngle = math.atan2(dy, dx)
+    
+    -- Normalize angles to 0-2π range
+    local normalizedPointAngle = pointAngle
+    if normalizedPointAngle < 0 then
+        normalizedPointAngle = normalizedPointAngle + 2 * math.pi
+    end
+    
+    local normalizedConeAngle = self.visual.angle
+    if normalizedConeAngle < 0 then
+        normalizedConeAngle = normalizedConeAngle + 2 * math.pi
+    end
+    
+    -- Calculate angle difference
+    local angleDiff = math.abs(normalizedPointAngle - normalizedConeAngle)
+    if angleDiff > math.pi then
+        angleDiff = 2 * math.pi - angleDiff
+    end
+    
+    -- Check if point is within cone angle
+    return angleDiff <= self.coneAngle / 2
+end
+
+--[[
     Cast the ability
     @param x Target X position
     @param y Target Y position
@@ -125,10 +164,7 @@ function ConeSlash:cast(x, y)
     local worldY = (y + camera.y) / camera.scale
     local dx = worldX - self.owner.positionX
     local dy = worldY - self.owner.positionY
-    local angle = math.atan(dy/dx)
-    if dx < 0 then
-        angle = angle + math.pi
-    end
+    local angle = math.atan2(dy, dx)
     
     -- Update visual angle
     self.visual.angle = angle
