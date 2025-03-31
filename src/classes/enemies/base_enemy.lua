@@ -1,4 +1,5 @@
 local FloatingTextManager = require("src.managers.floating_text_manager")
+local PrismManager = require("src.managers.prism_manager")
 
 local BaseEnemy = {
     positionX = 0,
@@ -12,7 +13,8 @@ local BaseEnemy = {
     lastDamageTime = 0,
     damageCooldown = 1,
     color = {1, 0, 0}, -- Cor padrão vermelha
-    name = "BaseEnemy"
+    name = "BaseEnemy",
+    experienceValue = 10 -- Experiência base para todos os inimigos
 }
 
 function BaseEnemy:new(x, y)
@@ -146,6 +148,10 @@ function BaseEnemy:takeDamage(damage, isCritical)
     if self.currentHealth <= 0 then
         self.currentHealth = 0
         self.isAlive = false
+        
+        -- Dropa o prisma de experiência
+        PrismManager:addPrism(self.positionX, self.positionY, self.experienceValue)
+        
         return true
     end
     return false

@@ -9,6 +9,7 @@ FastEnemy.damage = 5
 FastEnemy.damageCooldown = 0.5
 FastEnemy.color = {1, 0.5, 0} -- Laranja
 FastEnemy.name = "FastEnemy"
+FastEnemy.experienceValue = 15 -- Mais experiência por ser mais difícil de acertar
 
 function FastEnemy:new(x, y)
     local enemy = BaseEnemy.new(self, x, y)

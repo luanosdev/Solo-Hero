@@ -9,6 +9,7 @@ TankEnemy.damage = 15
 TankEnemy.damageCooldown = 1.5
 TankEnemy.color = {0.5, 0.5, 0.5} -- Cinza
 TankEnemy.name = "TankEnemy"
+TankEnemy.experienceValue = 25 -- Mais experiência por ter mais vida e ser mais difícil de matar
 
 function TankEnemy:new(x, y)
     local enemy = BaseEnemy.new(self, x, y)

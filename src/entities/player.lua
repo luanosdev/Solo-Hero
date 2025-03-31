@@ -14,6 +14,7 @@ local Player = {
     
     -- Movement
     radius = 8,
+    collectionRadius = 20, -- Raio base para coletar prismas
     
     -- Class
     class = nil,
@@ -27,6 +28,12 @@ local Player = {
     attackSpeed = 0,
     criticalChance = 20, -- Chance de crítico
     criticalMultiplier = 1.5, -- Multiplicador de dano crítico
+    
+    -- Level System
+    level = 1,
+    experience = 0,
+    experienceToNextLevel = 100,
+    experienceMultiplier = 1.5, -- Multiplicador de experiência para o próximo nível
     
     -- State
     state = nil,
@@ -141,6 +148,35 @@ function Player:draw()
     
     -- Calculate dynamic width based on max health
     local healthBarWidth = baseWidth + (maxWidth - baseWidth) * (self.state.maxHealth / 200)
+    
+    -- Draw level circle (agora à esquerda da barra de vida)
+    local levelCircleRadius = 8
+    local experiencePercentage = self.experience / self.experienceToNextLevel
+    
+    -- Posição do círculo de nível
+    local levelCircleX = self.positionX - healthBarWidth/2 - levelCircleRadius - 5
+    local levelCircleY = self.positionY - self.radius - 10 + healthBarHeight/2
+    
+    -- Fundo do círculo de nível
+    love.graphics.setColor(0.2, 0.2, 0.2)
+    love.graphics.circle("line", levelCircleX, levelCircleY, levelCircleRadius)
+    
+    -- Preenchimento do círculo de nível
+    love.graphics.setColor(0.5, 0, 0.5) -- Cor roxa para experiência
+    love.graphics.arc("fill", "open", levelCircleX, levelCircleY, levelCircleRadius, -math.pi/2, -math.pi/2 + (2 * math.pi * experiencePercentage))
+    
+    -- Número do nível
+    love.graphics.setColor(1, 1, 1)
+    local levelText = tostring(self.level)
+    local font = love.graphics.getFont()
+    local textWidth = font:getWidth(levelText) * 0.8 -- 0.8 é a escala do texto
+    local textHeight = font:getHeight() * 0.8
+    
+    -- Calcula a posição central do texto
+    local textX = levelCircleX - textWidth/2
+    local textY = levelCircleY - textHeight/2
+    
+    love.graphics.print(levelText, textX, textY, 0, 0.8)
     
     -- Health bar background
     love.graphics.setColor(0.2, 0.2, 0.2)
@@ -320,6 +356,40 @@ function Player:mousepressed(x, y, button)
     if button == 1 then -- Left click
         self:castAbility(x, y)
     end
+end
+
+function Player:addExperience(amount)
+    self.experience = self.experience + amount
+    
+    -- Verifica se subiu de nível
+    while self.experience >= self.experienceToNextLevel do
+        self:levelUp()
+    end
+end
+
+function Player:levelUp()
+    self.level = self.level + 1
+    self.experience = self.experience - self.experienceToNextLevel
+    self.experienceToNextLevel = math.floor(self.experienceToNextLevel * self.experienceMultiplier)
+    
+    -- Aumenta os atributos base
+    self.maxHealth = math.floor(self.maxHealth * 1.1) -- +10% de vida
+    self.damage = math.floor(self.damage * 1.1) -- +10% de dano
+    self.defense = math.floor(self.defense * 1.1) -- +10% de defesa
+    self.collectionRadius = math.floor(self.collectionRadius * 1.05) -- +5% de raio de coleta
+    
+    -- Restaura a vida ao subir de nível
+    self.currentHealth = self.maxHealth
+    
+    -- Mostra texto de level up
+    FloatingTextManager:addText(
+        self.positionX,
+        self.positionY - self.radius - 30,
+        "LEVEL UP!",
+        true,
+        self,
+        {1, 1, 0}
+    )
 end
 
 return Player
