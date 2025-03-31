@@ -293,7 +293,7 @@ function Player:castAbility(x, y)
                 -- Verifica se o inimigo está dentro do cone
                 if self.attackAbility:isPointInCone(enemy.positionX, enemy.positionY) then
                     -- Calcula se o dano é crítico
-                    local isCritical = math.random() < self.criticalChance
+                    local isCritical = math.random(1, 100) <= self.criticalChance
                     local finalDamage = self.damage
                     if isCritical then
                         finalDamage = math.floor(self.damage * self.criticalMultiplier)
