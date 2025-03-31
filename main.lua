@@ -2,7 +2,6 @@
 local love = love
 
 -- Import required modules
-shove = require("libs/shove")
 local Warrior = require("src.classes.warrior")
 local Player = require("src.entities.player")
 local HUD = require("src.ui.hud")
@@ -17,21 +16,7 @@ local MapConfig = require("src.config.map_config")
     Game initialization
     Sets up game resolution and window
 ]]
-function love.load()
-    -- Initialize Shöve with fixed resolution and scaling options
-    shove.setResolution(
-        GameConfig.resolution.width,
-        GameConfig.resolution.height,
-        {fitMethod = GameConfig.resolution.fitMethod}
-    )
-
-    -- Set up a resizable window
-    shove.setWindowMode(
-        GameConfig.window.width,
-        GameConfig.window.height,
-        {resizable = GameConfig.window.resizable}
-    )
-    
+function love.load()   
     -- Initialize player with Warrior class
     Player:init(Warrior)
 
