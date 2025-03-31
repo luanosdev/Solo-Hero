@@ -1,13 +1,10 @@
 local Enemy = require("src.entities.enemy")
-local MapConfig = require("src.config.map_config")
 
 local EnemyManager = {
     enemies = {},
     spawnTimer = 0,
     spawnInterval = 2, -- Intervalo entre spawns em segundos
     maxEnemies = 10,
-    mapWidth = 800,  -- Largura do mapa
-    mapHeight = 600  -- Altura do mapa
 }
 
 function EnemyManager:init()
@@ -15,42 +12,43 @@ function EnemyManager:init()
     self.spawnTimer = 0
 end
 
-function EnemyManager:update(dt, player, map)
+function EnemyManager:update(dt, player)
     -- Atualiza o timer de spawn
     self.spawnTimer = self.spawnTimer + dt
     
     -- Spawn de novos inimigos
     if self.spawnTimer >= self.spawnInterval and #self.enemies < self.maxEnemies then
-        self:spawnEnemy(player, map)
+        self:spawnEnemy(player)
         self.spawnTimer = 0
     end
     
     -- Atualiza e remove inimigos mortos
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
-        enemy:update(dt, player, self.enemies, map)
+        enemy:update(dt, player, self.enemies)
         if not enemy.isAlive then
             table.remove(self.enemies, i)
         end
     end
 end
 
-function EnemyManager:spawnEnemy(player, map)
-    -- Escolhe uma posição aleatória dentro dos limites do mapa
-    local spawnX, spawnY
-    local attempts = 0
-    local maxAttempts = 10
+function EnemyManager:spawnEnemy(player)
+    -- Escolhe aleatoriamente uma das bordas da tela
+    local border = math.random(1, 4) -- 1: topo, 2: direita, 3: baixo, 4: esquerda
     
-    repeat
-        -- Gera uma posição aleatória dentro dos limites do mapa
-        spawnX = math.random(1, map.width - 1) * MapConfig.tileSize
-        spawnY = math.random(1, map.height - 1) * MapConfig.tileSize
-        attempts = attempts + 1
-    until not map:isWall(spawnX, spawnY) or attempts >= maxAttempts
-    
-    -- Se não encontrou uma posição válida, não spawna o inimigo
-    if attempts >= maxAttempts then
-        return
+    -- Define a posição de spawn baseada na borda escolhida
+    if border == 1 then -- Topo
+        spawnX = math.random(0, love.graphics.getWidth())
+        spawnY = -50 -- Fora da tela, acima
+    elseif border == 2 then -- Direita
+        spawnX = love.graphics.getWidth() + 50
+        spawnY = math.random(0, love.graphics.getHeight())
+    elseif border == 3 then -- Baixo
+        spawnX = math.random(0, love.graphics.getWidth())
+        spawnY = love.graphics.getHeight() + 50
+    else -- Esquerda
+        spawnX = -50
+        spawnY = math.random(0, love.graphics.getHeight())
     end
     
     -- Cria o inimigo na posição válida

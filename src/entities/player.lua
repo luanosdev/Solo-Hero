@@ -13,7 +13,6 @@ local Player = {
     positionY = 0,
     
     -- Movement
-    currentSpeed = 0,
     radius = 8,
     
     -- Class
@@ -79,9 +78,8 @@ end
 --[[
     Update player movement and speed
     @param dt Delta time (time between frames)
-    @param map Map object
 ]]
-function Player:update(dt, map)
+function Player:update(dt)
     if not self.state.isAlive then return end
     
     -- Update ability
@@ -119,14 +117,9 @@ function Player:update(dt, map)
     local newX = self.positionX + moveX * self.baseSpeed * dt
     local newY = self.positionY + moveY * self.baseSpeed * dt
     
-    -- Verifica colisão com o mapa
-    if not map:checkCollision(newX, newY, self.radius) then
-        self.positionX = newX
-        self.positionY = newY
-    end
-    
-    -- Calculate current player speed
-    self.currentSpeed = math.sqrt(moveX * moveX + moveY * moveY) * self.baseSpeed
+    -- Atualiza a posição do jogador
+    self.positionX = newX
+    self.positionY = newY
 end
 
 --[[
