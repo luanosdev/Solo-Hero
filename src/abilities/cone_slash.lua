@@ -3,39 +3,29 @@
     A cone-shaped area of effect attack that serves as the character's primary attack method
 ]]
 
-local ConeSlash = {
-    -- Ability Properties
-    name = "Cone Slash",
-    cooldown = 3.0,  -- Base cooldown in seconds
-    damage = 30,     -- Base damage
-    coneAngle = math.pi / 3,  -- 60 degrees in radians
-    range = 100,     -- Range in pixels
-    color = {1, 1, 1, 0.1},  -- Orange with transparency
-    
-    -- Visual State
-    visual = {
-        active = false,
-        angle = 0,
-        targetAngle = 0,
-        rotationSpeed = 60  -- Velocidade de rotação (ajuste conforme necessário)
-    },
-    
-    -- Slash Animation
-    slash = {
-        active = false,
-        duration = 0.3,  -- Duration in seconds
-        time = 0,
-        color = {1, 1, 1, 0.8}  -- White with high opacity
-    }
+local BaseAbility = require("src.abilities.base_ability")
+
+local ConeSlash = setmetatable({}, { __index = BaseAbility })
+
+ConeSlash.name = "Cone Slash"
+ConeSlash.cooldown = 1.0
+ConeSlash.damage = 30
+ConeSlash.damageType = "physical"
+ConeSlash.color = {1, 1, 1, 0.1}
+
+ConeSlash.coneAngle = math.pi / 3
+ConeSlash.range = 100
+
+-- Animação de ataque
+ConeSlash.slash = {
+    active = false,
+    duration = 0.3,
+    time = 0,
+    color = {1, 1, 1, 0.8}
 }
 
---[[
-    Initialize the ability
-    @param owner The entity that owns this ability
-]]
 function ConeSlash:init(owner)
-    self.owner = owner
-    self.cooldownRemaining = 0
+    BaseAbility.init(self, owner)
 end
 
 --[[
@@ -43,32 +33,8 @@ end
     @param dt Delta time
 ]]
 function ConeSlash:update(dt)
-    -- Update cooldown
-    if self.cooldownRemaining > 0 then
-        self.cooldownRemaining = math.max(0, self.cooldownRemaining - dt * self.owner.attackSpeed)
-    end
-    
-    -- Update target angle to follow mouse
-    local mouseX, mouseY = love.mouse.getPosition()
-    -- Converte a posição do mouse para coordenadas do mundo
-    local worldX = (mouseX + camera.x) / camera.scale
-    local worldY = (mouseY + camera.y) / camera.scale
-    local dx = worldX - self.owner.positionX
-    local dy = worldY - self.owner.positionY
-    
-    -- Tratamento especial para alinhamentos exatos
-    if math.abs(dx) < 0.1 then  -- Mouse alinhado verticalmente
-        self.visual.angle = dy > 0 and math.pi/2 or -math.pi/2
-    elseif math.abs(dy) < 0.1 then  -- Mouse alinhado horizontalmente
-        self.visual.angle = dx > 0 and 0 or math.pi
-    else
-        -- Caso normal, calcula o ângulo usando math.atan
-        self.visual.angle = math.atan(dy/dx)
-        if dx < 0 then
-            self.visual.angle = self.visual.angle + math.pi
-        end
-    end
-    
+    BaseAbility.update(self, dt)
+
     -- Update slash animation
     if self.slash.active then
         self.slash.time = self.slash.time + dt
@@ -117,7 +83,7 @@ end
     @param y Point Y position
     @return boolean Whether the point is inside the cone
 ]]
-function ConeSlash:isPointInCone(x, y)
+function ConeSlash:isPointInArea(x, y)
     -- Calculate distance to point
     local dx = x - self.owner.positionX
     local dy = y - self.owner.positionY

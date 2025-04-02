@@ -286,24 +286,20 @@ end
 function Player:castAbility(x, y)
     local success = self.attackAbility:cast(x, y)
     if success then
-        -- Verifica colisão com inimigos
-        local enemies = EnemyManager:getEnemies()
-        for _, enemy in ipairs(enemies) do
-            if enemy.isAlive then
-                -- Verifica se o inimigo está dentro do cone
-                if self.attackAbility:isPointInCone(enemy.positionX, enemy.positionY) then
-                    -- Calcula se o dano é crítico
-                    local isCritical = math.random(1, 100) <= self.criticalChance
-                    local finalDamage = self.damage
-                    if isCritical then
-                        finalDamage = math.floor(self.damage * self.criticalMultiplier)
+        -- Verifica se é uma habilidade instantânea (como ConeSlash)
+        if self.attackAbility.damageType == "physical" then
+            -- Verifica colisão com inimigos
+            local enemies = EnemyManager:getEnemies()
+            for _, enemy in ipairs(enemies) do
+                if enemy.isAlive then
+                    -- Verifica se o inimigo está dentro da área de efeito da habilidade
+                    if self.attackAbility:isPointInArea(enemy.positionX, enemy.positionY) then
+                        self.attackAbility:applyDamage(enemy)
                     end
-                    
-                    -- Aplica o dano
-                    enemy:takeDamage(finalDamage, isCritical)
                 end
             end
         end
+        -- Para habilidades de projétil (como LinearProjectile), o dano é aplicado na colisão
     end
     return success
 end

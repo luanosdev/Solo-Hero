@@ -4,8 +4,8 @@ local TankEnemy = require("src.classes.enemies.tank_enemy")
 local EnemyManager = {
     enemies = {},
     spawnTimer = 0,
-    spawnInterval = 2, -- Intervalo entre spawns em segundos
-    maxEnemies = 10,
+    spawnInterval = 0.5, -- Intervalo entre spawns em segundos
+    maxEnemies = 100,
     enemyTypes = {
         {class = FastEnemy, weight = 5},    -- Mais comum
         {class = TankEnemy, weight = 2},    -- Menos comum
@@ -89,4 +89,4 @@ function EnemyManager:getEnemies()
     return self.enemies
 end
 
-return EnemyManager 
+return EnemyManager

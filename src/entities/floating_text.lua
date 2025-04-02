@@ -79,4 +79,4 @@ function FloatingText:draw()
     love.graphics.pop()
 end
 
-return FloatingText 
+return FloatingText

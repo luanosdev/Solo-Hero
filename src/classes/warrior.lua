@@ -4,6 +4,7 @@
 ]]
 
 local ConeSlash = require("src.abilities.cone_slash")
+local LinearProjectile = require("src.abilities.linear_projectile")
 
 local Warrior = {
     -- Base Stats
@@ -39,7 +40,7 @@ end
     @return table Initial ability data
 ]]
 function Warrior:getInitialAbility()
-    return ConeSlash
+    return LinearProjectile 
 end
 
 return Warrior
