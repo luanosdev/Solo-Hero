@@ -9,8 +9,8 @@ local EnemyManager = require("src.managers.enemy_manager")
 local LinearProjectile = setmetatable({}, { __index = BaseAbility })
 
 LinearProjectile.name = "Linear Projectile"
-LinearProjectile.cooldown = 2.0
-LinearProjectile.damage = 50
+LinearProjectile.cooldown = 0.8
+LinearProjectile.damage = 40
 LinearProjectile.damageType = "projectile"
 LinearProjectile.color = {1, 0.8, 0, 1}
 
