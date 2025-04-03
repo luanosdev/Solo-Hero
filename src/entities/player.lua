@@ -67,7 +67,7 @@ function Player:init(playerClass)
     
     -- Initialize ability
     local AbilityClass = self.class:getInitialAbility()
-    self.attackAbility = AbilityClass
+    self.attackAbility = setmetatable({}, { __index = AbilityClass })
     self.attackAbility:init(self)
     
     -- Initialize state
@@ -284,6 +284,9 @@ end
     @return boolean Whether the ability was cast successfully
 ]]
 function Player:castAbility(x, y)
+    -- Passa a referência do mundo para a habilidade
+    self.attackAbility.owner.world = { enemies = EnemyManager:getEnemies() }
+    
     local success = self.attackAbility:cast(x, y)
     if success then
         -- Verifica se é uma habilidade instantânea (como ConeSlash)
@@ -347,6 +350,16 @@ function Player:mousepressed(x, y, button)
     if button == 1 then -- Left click
         self:castAbility(x, y)
     end
+end
+
+--[[
+    Handle mouse movement
+    @param x Mouse X position
+    @param y Mouse Y position
+]]
+function Player:mousemoved(x, y)
+    -- Atualiza a visualização da habilidade
+    self.attackAbility:updateVisual(x, y)
 end
 
 function Player:addExperience(amount)

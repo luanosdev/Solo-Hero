@@ -1,5 +1,6 @@
 local FastEnemy = require("src.classes.enemies.fast_enemy")
 local TankEnemy = require("src.classes.enemies.tank_enemy")
+local RangedEnemy = require("src.classes.enemies.ranged_enemy")
 
 local EnemyManager = {
     enemies = {},
@@ -7,8 +8,9 @@ local EnemyManager = {
     spawnInterval = 0.5, -- Intervalo entre spawns em segundos
     maxEnemies = 100,
     enemyTypes = {
-        {class = FastEnemy, weight = 5},    -- Mais comum
-        {class = TankEnemy, weight = 2},    -- Menos comum
+        {class = FastEnemy, weight = 1},    -- Mais comum
+        {class = TankEnemy, weight = 1},    -- Menos comum
+        {class = RangedEnemy, weight = 10},  -- Inimigo à distância
     }
 }
 

@@ -40,7 +40,7 @@ end
     @return table Initial ability data
 ]]
 function Warrior:getInitialAbility()
-    return LinearProjectile 
+    return ConeSlash 
 end
 
 return Warrior

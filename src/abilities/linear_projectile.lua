@@ -1,10 +1,9 @@
 --[[
     Linear Projectile Ability
-    Um projétil que se move em linha reta até uma distância máxima
+    A projectile that travels in a straight line and deals damage on impact
 ]]
 
 local BaseAbility = require("src.abilities.base_ability")
-local EnemyManager = require("src.managers.enemy_manager")
 
 local LinearProjectile = setmetatable({}, { __index = BaseAbility })
 
@@ -14,145 +13,189 @@ LinearProjectile.damage = 40
 LinearProjectile.damageType = "projectile"
 LinearProjectile.color = {1, 0.8, 0, 1}
 
-LinearProjectile.projectileSpeed = 400
-LinearProjectile.projectileRadius = 4
-
--- Estado do Projétil
-LinearProjectile.projectile = {
-    active = false,
-    x = 0,
-    y = 0,
-    angle = 0,
-    distanceTraveled = 0,
-    maxDistance = 200 -- TODO: Alterar futuramente para compartilhar com RANGE do player (todas as habilidades)
-}
+LinearProjectile.speed = 200
+LinearProjectile.maxDistance = 300
 
 function LinearProjectile:init(owner)
     BaseAbility.init(self, owner)
+    
+    -- Estado do projétil
+    self.projectile = {
+        active = false,
+        x = 0,
+        y = 0,
+        angle = 0,
+        distance = 0,
+        radius = 5
+    }
+    
+    -- Estado da visualização
+    self.visual = {
+        active = false,
+        targetX = 0,
+        targetY = 0,
+        angle = 0
+    }
 end
 
+--[[
+    Update the ability state
+    @param dt Delta time
+]]
 function LinearProjectile:update(dt)
     BaseAbility.update(self, dt)
     
-    -- Atualiza o projétil se estiver ativo
+    -- Update projectile if active
     if self.projectile.active then
-        -- Calcula o movimento do projétil
-        local moveX = math.cos(self.projectile.angle) * self.projectileSpeed * dt
-        local moveY = math.sin(self.projectile.angle) * self.projectileSpeed * dt
+        -- Calculate movement
+        local dx = math.cos(self.projectile.angle) * self.speed * dt
+        local dy = math.sin(self.projectile.angle) * self.speed * dt
         
-        -- Atualiza a posição
-        self.projectile.x = self.projectile.x + moveX
-        self.projectile.y = self.projectile.y + moveY
+        -- Update position
+        self.projectile.x = self.projectile.x + dx
+        self.projectile.y = self.projectile.y + dy
         
-        -- Atualiza a distância percorrida
-        self.projectile.distanceTraveled = self.projectile.distanceTraveled + 
-            math.sqrt(moveX * moveX + moveY * moveY)
+        -- Update distance
+        self.projectile.distance = self.projectile.distance + math.sqrt(dx * dx + dy * dy)
         
-        -- Verifica colisão com inimigos
-        local enemies = EnemyManager:getEnemies()
-        for _, enemy in ipairs(enemies) do
-            if enemy.isAlive then
-                -- Calcula a distância entre o projétil e o inimigo
-                local dx = enemy.positionX - self.projectile.x
-                local dy = enemy.positionY - self.projectile.y
+        -- Check for collisions
+        if self.owner.world then
+            -- Se o dono é um inimigo, verifica colisão com o jogador
+            if self.owner.player then
+                local player = self.owner.player
+                local dx = player.positionX - self.projectile.x
+                local dy = player.positionY - self.projectile.y
                 local distance = math.sqrt(dx * dx + dy * dy)
                 
-                -- Se a distância for menor que a soma dos raios, houve colisão
-                if distance <= (self.projectileRadius + enemy.radius) then
-                    -- Aplica o dano usando o método da classe base
-                    self:applyDamage(enemy)
-                    
-                    -- Desativa o projétil após atingir um inimigo
-                    self.projectile.active = false
-                    break
+                if distance <= (player.radius + 5) then -- 5 é o raio do projétil
+                    -- Aplica o dano no jogador
+                    if player:takeDamage(self.damage) then
+                        -- Se o jogador morreu, remove o projétil
+                        self.projectile.active = false
+                    end
+                end
+            else
+                -- Se o dono é o jogador, verifica colisão com inimigos
+                local enemies = self.owner.world.enemies or {}
+                for _, enemy in ipairs(enemies) do
+                    if enemy.isAlive then
+                        local dx = enemy.positionX - self.projectile.x
+                        local dy = enemy.positionY - self.projectile.y
+                        local distance = math.sqrt(dx * dx + dy * dy)
+                        
+                        if distance <= (enemy.radius + self.projectile.radius) then -- 5 é o raio do projétil
+                            -- Aplica o dano no inimigo
+                            self:applyDamage(enemy)
+                            self.projectile.active = false
+                            break
+                        end
+                    end
                 end
             end
         end
         
-        -- Desativa o projétil se atingiu a distância máxima
-        if self.projectile.distanceTraveled >= self.projectile.maxDistance then
+        -- Check if reached max distance
+        if self.projectile.distance >= self.maxDistance then
             self.projectile.active = false
         end
     end
 end
 
+--[[
+    Draw the ability visual
+]]
 function LinearProjectile:draw()
-    -- Desenha a linha que o projétil irá percorrer
+    -- Draw preview line if active
     if self.visual.active then
-        -- Calcula o ponto final da linha baseado no ângulo e distância máxima
-        local endX = self.owner.positionX + math.cos(self.visual.angle) * self.projectile.maxDistance
-        local endY = self.owner.positionY + math.sin(self.visual.angle) * self.projectile.maxDistance
-        
-        -- Desenha a linha de mira
-        love.graphics.setColor(self.color[1], self.color[2], self.color[3], 0.3)
-        love.graphics.line(self.owner.positionX, self.owner.positionY, endX, endY)
-    end
-
-    -- Desenha o projétil se estiver ativo
-    if self.projectile.active then
         love.graphics.setColor(self.color)
-        love.graphics.circle("fill", self.projectile.x, self.projectile.y, self.projectileRadius)
+        
+        -- Calcula o ponto final da linha baseado no ângulo e distância máxima
+        local endX = self.owner.positionX + math.cos(self.visual.angle) * self.maxDistance
+        local endY = self.owner.positionY + math.sin(self.visual.angle) * self.maxDistance
+        
+        love.graphics.line(
+            self.owner.positionX,
+            self.owner.positionY,
+            endX,
+            endY
+        )
+    end
+    
+    -- Draw projectile if active
+    if self.projectile.active then
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.circle("fill", self.projectile.x, self.projectile.y, self.projectile.radius)
     end
 end
 
-function LinearProjectile:isPointInArea(x, y)
-    if not self.projectile.active then return false end
+--[[
+    Cast the ability
+    @param x Target X position or angle (if isAngle is true)
+    @param y Target Y position or nil (if isAngle is true)
+    @param isAngle Whether x is an angle in radians
+    @return boolean Whether the ability was cast successfully
+]]
+function LinearProjectile:cast(x, y, isAngle)
+    if self.cooldownRemaining > 0 then return false end
     
-    -- Calcula o vetor do projétil
-    local projX = self.projectile.x
-    local projY = self.projectile.y
-    local projAngle = self.projectile.angle
-    
-    -- Calcula o vetor do ponto alvo até o projétil
-    local dx = x - projX
-    local dy = y - projY
-    
-    -- Calcula a distância do ponto até o projétil
-    local distance = math.sqrt(dx * dx + dy * dy)
-    
-    -- Se o ponto estiver muito longe, retorna falso
-    if distance > self.projectile.maxDistance then return false end
-    
-    -- Calcula o ângulo entre o vetor do projétil e o vetor até o ponto
-    local pointAngle = math.atan2(dy, dx)
-    
-    -- Normaliza os ângulos para 0-2π
-    if pointAngle < 0 then pointAngle = pointAngle + 2 * math.pi end
-    if projAngle < 0 then projAngle = projAngle + 2 * math.pi end
-    
-    -- Calcula a diferença entre os ângulos
-    local angleDiff = math.abs(pointAngle - projAngle)
-    if angleDiff > math.pi then
-        angleDiff = 2 * math.pi - angleDiff
+    local angle
+    if isAngle then
+        -- Se x já é um ângulo, usa diretamente
+        angle = x
+    else
+        -- Calcula o ângulo para o alvo
+        local worldX = (x + camera.x) / camera.scale
+        local worldY = (y + camera.y) / camera.scale
+        local dx = worldX - self.owner.positionX
+        local dy = worldY - self.owner.positionY
+        angle = math.atan2(dy, dx)
     end
     
-    -- Se o ângulo for muito grande, o ponto não está na trajetória
-    if angleDiff > math.pi/4 then return false end
+    -- Initialize projectile
+    self.projectile.active = true
+    self.projectile.x = self.owner.positionX
+    self.projectile.y = self.owner.positionY
+    self.projectile.angle = angle
+    self.projectile.distance = 0
     
-    -- Calcula a distância perpendicular do ponto até a linha do projétil
-    local perpendicularDist = distance * math.sin(angleDiff)
+    -- Atualiza o ângulo da visualização
+    self.visual.angle = angle
     
-    -- Se a distância perpendicular for menor que o raio do projétil, está na trajetória
-    return perpendicularDist <= self.projectileRadius
+    -- Set cooldown
+    self.cooldownRemaining = self.cooldown
+    
+    return true
 end
 
-function LinearProjectile:cast(x, y)
-    if not BaseAbility.cast(self, x, y) then return false end
+--[[
+    Toggle ability visual
+]]
+function LinearProjectile:toggleVisual()
+    self.visual.active = not self.visual.active
+end
+
+--[[
+    Get remaining cooldown
+    @return number Remaining cooldown time
+]]
+function LinearProjectile:getCooldownRemaining()
+    return self.cooldownRemaining
+end
+
+--[[
+    Update visual angle based on mouse position
+    @param x Mouse X position
+    @param y Mouse Y position
+]]
+function LinearProjectile:updateVisual(x, y)
+    if not self.visual.active then return end
     
-    -- Calcula o ângulo do projétil
+    -- Calcula o ângulo para o mouse
     local worldX = (x + camera.x) / camera.scale
     local worldY = (y + camera.y) / camera.scale
     local dx = worldX - self.owner.positionX
     local dy = worldY - self.owner.positionY
-    self.projectile.angle = math.atan2(dy, dx)
-    
-    -- Inicializa o projétil
-    self.projectile.x = self.owner.positionX
-    self.projectile.y = self.owner.positionY
-    self.projectile.distanceTraveled = 0
-    self.projectile.active = true
-    
-    return true
+    self.visual.angle = math.atan2(dy, dx)
 end
 
 return LinearProjectile
