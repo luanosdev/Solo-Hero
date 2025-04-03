@@ -90,15 +90,15 @@ function BaseEnemy:checkPlayerCollision(dt, player)
     -- Atualiza o tempo do último dano
     self.lastDamageTime = self.lastDamageTime + dt
     
-    -- Verifica se pode causar dano
-    if self.lastDamageTime >= self.damageCooldown then
-        -- Calcula distância entre o inimigo e o jogador
-        local dx = player.positionX - self.positionX
-        local dy = player.positionY - self.positionY
-        local distance = math.sqrt(dx * dx + dy * dy)
-        
-        -- Se houver colisão (distância menor que a soma dos raios)
-        if distance <= (self.radius + player.radius) then
+    -- Calcula distância entre o inimigo e o jogador
+    local dx = player.positionX - self.positionX
+    local dy = player.positionY - self.positionY
+    local distance = math.sqrt(dx * dx + dy * dy)
+    
+    -- Se houver colisão (distância menor que a soma dos raios)
+    if distance <= (self.radius + player.radius) then
+        -- Verifica se pode causar dano (cooldown)
+        if self.lastDamageTime >= self.damageCooldown then
             -- Causa dano ao jogador
             if player:takeDamage(self.damage) then
                 -- Se o jogador morreu, remove o inimigo
