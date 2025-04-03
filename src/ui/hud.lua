@@ -45,15 +45,25 @@ function HUD:draw(player)
         love.graphics.setColor(1, 0, 0, 0.8)  -- Red when inactive
     end
     love.graphics.print(autoAttackText, startX, startY + lineHeight * 4, 0, 1)
+
+    -- Auto-aim status
+    local autoAimText = "Z - Auto Aim: OFF"
+    if player.autoAimEnabled then
+        love.graphics.setColor(0, 1, 0, 0.8)  -- Green when active
+        autoAimText = "Z - Auto Aim: ON"
+    else
+        love.graphics.setColor(1, 0, 0, 0.8)  -- Red when inactive
+    end
+    love.graphics.print(autoAimText, startX, startY + lineHeight * 5, 0, 1)
     
     -- Test controls
     love.graphics.setColor(1, 1, 1, 0.8)
-    love.graphics.print("Test Controls:", startX, startY + lineHeight * 5, 0, 1)
-    love.graphics.print("H - Heal 20 HP", startX, startY + lineHeight * 6, 0, 1)
-    love.graphics.print("Q - Increase Max Health", startX, startY + lineHeight * 7, 0, 1)
-    love.graphics.print("G - Take 30 Damage", startX, startY + lineHeight * 8, 0, 1)
-    love.graphics.print("V - Toggle Ability Visual", startX, startY + lineHeight * 9, 0, 1)
-    love.graphics.print("X - Toggle Auto Attack", startX, startY + lineHeight * 10, 0, 1)
+    love.graphics.print("Test Controls:", startX, startY + lineHeight * 6, 0, 1)
+    love.graphics.print("H - Heal 20 HP", startX, startY + lineHeight * 7, 0, 1)
+    love.graphics.print("Q - Increase Max Health", startX, startY + lineHeight * 8, 0, 1)
+    love.graphics.print("G - Take 30 Damage", startX, startY + lineHeight * 9, 0, 1)
+    love.graphics.print("V - Toggle Ability Visual", startX, startY + lineHeight * 10, 0, 1)
+    love.graphics.print("X - Toggle Auto Attack", startX, startY + lineHeight * 11, 0, 1)
 end
 
 return HUD

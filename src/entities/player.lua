@@ -43,10 +43,17 @@ local Player = {
     
     -- Auto Attack
     autoAttack = false,
+    autoAttackEnabled = false,
+    autoAim = false,
+    autoAimEnabled = false,
     
     -- Damage cooldown
     lastDamageTime = 0,
-    damageCooldown = 0.5
+    damageCooldown = 0.5,
+    
+    -- Mouse tracking
+    lastMouseX = 0,
+    lastMouseY = 0,
 }
 
 --[[
@@ -93,13 +100,20 @@ function Player:update(dt)
     self.attackAbility:update(dt)
     
     -- Auto Attack logic
-    if self.autoAttack then
+    if self.autoAttack or love.mouse.isDown(1) then
         local cooldown = self.attackAbility:getCooldownRemaining()
         if cooldown <= 0 then
-            -- Get mouse position for attack direction
-            local mouseX, mouseY = love.mouse.getPosition()
-            self:castAbility(mouseX, mouseY)
+            local targetX, targetY = self:getTargetPosition()
+            if targetX and targetY then
+                self:castAbility(targetX, targetY)
+            end
         end
+    end
+    
+    -- Atualiza a prévia da mira
+    local targetX, targetY = self:getTargetPosition()
+    if targetX and targetY then
+        self.attackAbility:updateVisual(targetX, targetY)
     end
     
     -- Atualiza o tempo do último dano
@@ -311,7 +325,8 @@ end
     Toggle ability auto-cast
 ]]
 function Player:toggleAbilityAutoCast()
-    self.autoAttack = not self.autoAttack
+    self.autoAttackEnabled = not self.autoAttackEnabled
+    self.autoAttack = self.autoAttackEnabled
 end
 
 --[[
@@ -319,6 +334,24 @@ end
 ]]
 function Player:toggleAbilityVisual()
     self.attackAbility:toggleVisual()
+end
+
+--[[
+    Handle mouse movement
+    @param x Mouse X position
+    @param y Mouse Y position
+]]
+function Player:mousemoved(x, y)
+    self.lastMouseX = x
+    self.lastMouseY = y
+end
+
+--[[
+    Toggle auto aim
+]]
+function Player:toggleAutoAim()
+    self.autoAimEnabled = not self.autoAimEnabled
+    self.autoAim = self.autoAimEnabled
 end
 
 --[[
@@ -337,6 +370,8 @@ function Player:keypressed(key)
         self:toggleAbilityAutoCast() -- Toggle ability auto-cast
     elseif key == "v" then
         self:toggleAbilityVisual() -- Toggle ability visual
+    elseif key == "z" then
+        self:toggleAutoAim() -- Toggle auto aim
     end
 end
 
@@ -348,18 +383,22 @@ end
 ]]
 function Player:mousepressed(x, y, button)
     if button == 1 then -- Left click
+        -- Realiza um único ataque
         self:castAbility(x, y)
     end
 end
 
 --[[
-    Handle mouse movement
+    Handle mouse release
     @param x Mouse X position
     @param y Mouse Y position
+    @param button Mouse button released
 ]]
-function Player:mousemoved(x, y)
-    -- Atualiza a visualização da habilidade
-    self.attackAbility:updateVisual(x, y)
+function Player:mousereleased(x, y, button)
+    if button == 1 then -- Left click
+        -- Reativa o auto aim se estiver habilitado
+        self.autoAim = self.autoAimEnabled
+    end
 end
 
 function Player:addExperience(amount)
@@ -394,6 +433,48 @@ function Player:levelUp()
         self,
         {1, 1, 0}
     )
+end
+
+--[[
+    Get target position for auto aim
+    @return number, number Target X and Y coordinates, or nil if no target found
+]]
+function Player:getTargetPosition()
+    -- Se o auto aim não estiver ativado ou o botão do mouse estiver pressionado, usa a posição do mouse
+    if not self.autoAim or love.mouse.isDown(1) then
+        return love.mouse.getPosition()
+    end
+    
+    local enemies = EnemyManager:getEnemies()
+    local closestEnemy = nil
+    local closestDistance = math.huge
+    
+    for _, enemy in ipairs(enemies) do
+        if enemy.isAlive then
+            local dx = enemy.positionX - self.positionX
+            local dy = enemy.positionY - self.positionY
+            local distance = math.sqrt(dx * dx + dy * dy)
+            
+            if distance < closestDistance then
+                closestDistance = distance
+                closestEnemy = enemy
+            end
+        end
+    end
+    
+    if closestEnemy then
+        -- Converte as coordenadas do mundo para coordenadas da tela
+        local screenX = closestEnemy.positionX * camera.scale - camera.x
+        local screenY = closestEnemy.positionY * camera.scale - camera.y
+        
+        -- Adiciona um pequeno offset para centralizar no inimigo
+        screenX = screenX + closestEnemy.radius * camera.scale
+        screenY = screenY + closestEnemy.radius * camera.scale
+        
+        return screenX, screenY
+    end
+    
+    return love.mouse.getPosition()
 end
 
 return Player
