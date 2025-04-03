@@ -40,24 +40,15 @@ function EnemyManager:update(dt, player)
 end
 
 function EnemyManager:spawnEnemy(player)
-    -- Escolhe aleatoriamente uma das bordas da tela
-    local border = math.random(1, 4) -- 1: topo, 2: direita, 3: baixo, 4: esquerda
+    -- Define o raio mínimo de spawn (fora da tela)
+    local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
     
-    -- Define a posição de spawn baseada na borda escolhida
-    local spawnX, spawnY
-    if border == 1 then -- Topo
-        spawnX = math.random(0, love.graphics.getWidth())
-        spawnY = -50 -- Fora da tela, acima
-    elseif border == 2 then -- Direita
-        spawnX = love.graphics.getWidth() + 50
-        spawnY = math.random(0, love.graphics.getHeight())
-    elseif border == 3 then -- Baixo
-        spawnX = math.random(0, love.graphics.getWidth())
-        spawnY = love.graphics.getHeight() + 50
-    else -- Esquerda
-        spawnX = -50
-        spawnY = math.random(0, love.graphics.getHeight())
-    end
+    -- Gera um ângulo aleatório em radianos
+    local angle = math.random() * 2 * math.pi
+    
+    -- Calcula a posição de spawn baseada no ângulo e raio
+    local spawnX = player.positionX + math.cos(angle) * minSpawnRadius
+    local spawnY = player.positionY + math.sin(angle) * minSpawnRadius
     
     -- Escolhe o tipo de inimigo baseado nos pesos
     local totalWeight = 0
@@ -76,7 +67,7 @@ function EnemyManager:spawnEnemy(player)
         end
     end
     
-    -- Cria o inimigo na posição válida
+    -- Cria o inimigo na posição calculada
     local enemy = selectedEnemyType:new(spawnX, spawnY)
     table.insert(self.enemies, enemy)
 end

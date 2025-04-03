@@ -3,7 +3,7 @@ local BaseEnemy = require("src.classes.enemies.base_enemy")
 local FastEnemy = setmetatable({}, { __index = BaseEnemy })
 
 FastEnemy.radius = 6
-FastEnemy.speed = 120
+FastEnemy.speed = 70
 FastEnemy.maxHealth = 30
 FastEnemy.damage = 5
 FastEnemy.damageCooldown = 0.5

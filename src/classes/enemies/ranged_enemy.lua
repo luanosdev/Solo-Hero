@@ -10,7 +10,7 @@ local RangedEnemy = setmetatable({}, { __index = BaseEnemy })
 
 RangedEnemy.name = "Ranged Enemy"
 RangedEnemy.radius = 10
-RangedEnemy.speed = 60
+RangedEnemy.speed = 55
 RangedEnemy.maxHealth = 40
 RangedEnemy.damage = 15
 RangedEnemy.attackRange = 200  -- Distância ideal para atacar
