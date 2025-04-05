@@ -11,14 +11,14 @@ local Player = {
     -- Position
     positionX = 0,
     positionY = 0,
-    
+
     -- Movement
     radius = 8,
     collectionRadius = 20, -- Raio base para coletar prismas
-    
+
     -- Class
     class = nil,
-    
+
     -- Base Stats (will be set by class)
     maxHealth = 100,
     currentHealth = 100,
@@ -66,11 +66,14 @@ function Player:init(playerClass)
     local baseStats = self.class:getBaseStats()
     
     -- Apply base stats
-    self.maxHealth = baseStats.health
-    self.damage = baseStats.damage
-    self.defense = baseStats.defense
-    self.baseSpeed = baseStats.speed
-    self.attackSpeed = baseStats.attackSpeed
+    self.maxHealth = baseStats.baseHealth
+    self.damage = baseStats.baseDamage
+    self.defense = baseStats.baseDefense
+    self.baseSpeed = baseStats.baseSpeed
+    self.attackSpeed = baseStats.baseAttackSpeed
+    self.criticalChance = baseStats.baseCriticalChance
+    self.criticalMultiplier = baseStats.baseCriticalMultiplier
+    self.healthRegen = baseStats.baseHealthRegen
     
     -- Initialize ability
     local AbilityClass = self.class:getInitialAbility()
