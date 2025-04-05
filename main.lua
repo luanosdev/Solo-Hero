@@ -2,7 +2,7 @@
 local love = love
 
 -- Import required modules
-local Warrior = require("src.classes.characters.warrior")
+local Warrior = require("src.classes.warrior")
 local Player = require("src.entities.player")
 local HUD = require("src.ui.hud")
 local Camera = require("src.config.camera")

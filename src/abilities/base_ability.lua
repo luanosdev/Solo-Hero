@@ -37,7 +37,7 @@ end
 ]]
 function BaseAbility:update(dt)
     if self.cooldownRemaining > 0 then
-        self.cooldownRemaining = math.max(0, self.cooldownRemaining - dt * self.owner.baseAttackSpeed)
+        self.cooldownRemaining = math.max(0, self.cooldownRemaining - dt * self.owner.attackSpeed)
     end
 
     -- Update target angle to follow mouse
@@ -116,10 +116,10 @@ end
 ]]
 function BaseAbility:applyDamage(enemy)
     -- Calcula se o dano é crítico
-    local isCritical = math.random(1, 100) <= self.owner.baseCriticalChance
+    local isCritical = math.random(1, 100) <= self.owner.criticalChance
     local finalDamage = self.owner.damage + (self.damage or 0)
     if isCritical then
-        finalDamage = math.floor(finalDamage * self.owner.baseCriticalMultiplier)
+        finalDamage = math.floor(finalDamage * self.owner.criticalMultiplier)
     end
     
     -- Aplica o dano
