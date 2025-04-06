@@ -352,6 +352,13 @@ function Player:toggleAbilityVisual()
 end
 
 --[[
+    Return the ability visual
+]]
+function Player:getAbilityVisual()
+    return self.attackAbility:getVisual()
+end
+
+--[[
     Handle mouse movement
     @param x Mouse X position
     @param y Mouse Y position

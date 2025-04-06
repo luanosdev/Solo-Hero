@@ -129,7 +129,7 @@ function HUD:draw(player)
 
     -- Taxa de Crítico
     if player.criticalChance then
-        drawPlayerStatus(statusX, statusY, "Crítico:", string.format("%.1f%%", player.criticalChance * 100), colors.text_highlight)
+        drawPlayerStatus(statusX, statusY, "Chance de Crítico:", string.format("%.1f%%", player.criticalChance * 1), colors.text_highlight)
         statusY = statusY + statusSpacing
     end
 
@@ -139,20 +139,37 @@ function HUD:draw(player)
     end
 
     -- Status de Auto-Ataque e Auto-Aim
-    local autoX = screenW - 200
-    local autoY = screenH - 60
-    local autoSpacing = 20
+    local autoX = screenW - 250
+    local autoY = screenH - 100  -- Movido um pouco mais para baixo
+    local autoSpacing = 25
+    local autoWindowW = 230
+    local autoWindowH = 100  -- Aumentado de 85 para 100
+
+    -- Fundo da janela de Auto-Ataque/Auto-Aim
+    love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.8)
+    love.graphics.rectangle("fill", autoX - 10, autoY - 10, autoWindowW, autoWindowH, 5, 5)
+    love.graphics.setColor(colors.window_border)
+    love.graphics.rectangle("line", autoX - 10, autoY - 10, autoWindowW, autoWindowH, 5, 5)
+
+    -- Título da janela
+    love.graphics.setFont(fonts.hud)
+    love.graphics.setColor(colors.text_highlight)
+    love.graphics.printf("Controles", autoX - 10, autoY - 5, autoWindowW, "center")
 
     -- Auto-Ataque
-    love.graphics.setFont(fonts.main_small)
-    local autoAttackText = "Auto-Ataque: " .. (player.autoAttackEnabled and "ON" or "OFF")
+    local autoAttackText = "[X] Auto-Ataque: " .. (player.autoAttackEnabled and "ON" or "OFF")
     love.graphics.setColor(player.autoAttackEnabled and colors.heal or colors.damage_player)
-    love.graphics.printf(autoAttackText, autoX, autoY, 0, "left")
+    love.graphics.printf(autoAttackText, autoX, autoY + 15, autoWindowW - 20, "left")
 
     -- Auto-Aim
-    local autoAimText = "Auto-Aim: " .. (player.autoAimEnabled and "ON" or "OFF")
+    local autoAimText = "[Z] Auto-Aim: " .. (player.autoAimEnabled and "ON" or "OFF")
     love.graphics.setColor(player.autoAimEnabled and colors.heal or colors.damage_player)
-    love.graphics.printf(autoAimText, autoX, autoY + autoSpacing, 0, "left")
+    love.graphics.printf(autoAimText, autoX, autoY + 15 + autoSpacing, autoWindowW - 20, "left")
+
+    -- Visualização da habilidade
+    local abilityText = "[V] Previa da habilidade: " .. (player:getAbilityVisual() and "ON" or "OFF")
+    love.graphics.setColor(player:getAbilityVisual() and colors.heal or colors.damage_player)
+    love.graphics.printf(abilityText, autoX, autoY + 15 + autoSpacing * 2, autoWindowW - 20, "left")
 end
 
 return HUD

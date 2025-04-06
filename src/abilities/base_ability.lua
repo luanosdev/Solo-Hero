@@ -110,6 +110,13 @@ function BaseAbility:toggleVisual()
 end
 
 --[[
+    Return the ability visual
+]]
+function BaseAbility:getVisual()
+    return self.visual.active
+end
+
+--[[
     Aplica dano a um inimigo
     @param enemy O inimigo que receberá o dano
     @return boolean Se o inimigo morreu
