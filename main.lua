@@ -10,19 +10,36 @@ local GameConfig = require("src.config.game")
 local EnemyManager = require("src.managers.enemy_manager")
 local FloatingTextManager = require("src.managers.floating_text_manager")
 local PrismManager = require("src.managers.prism_manager")
+local fonts = require("src.ui.fonts")
+local elements = require("src.ui.ui_elements")
 
 --[[
     Game initialization
     Sets up game resolution and window
 ]]
 function love.load()   
-    -- Initialize player with Warrior class
+    -- Configura a janela para tela cheia
+    love.window.setFullscreen(true, "desktop")
+    
+    -- Carrega fontes
+    fonts.load()
+    
+    -- Carrega shader de glow
+    local success, err = pcall(function()
+        local glowShader = love.graphics.newShader("src/ui/shaders/simple_glow.fs")
+        elements.setGlowShader(glowShader)
+    end)
+    if not success then
+        print("Erro ao carregar shader glow:", err)
+    end
+
+    -- Inicializa player com Warrior class
     Player:init(Warrior)
 
-    -- Initialize camera
+    -- Inicializa camera
     camera = Camera:new()
     
-    -- Initialize managers
+    -- Inicializa managers
     EnemyManager:init()
     FloatingTextManager:init()
     PrismManager:init()
@@ -72,6 +89,9 @@ end
 function love.keypressed(key)
     if key == "escape" then 
         love.event.quit() 
+    elseif key == "f11" then
+        -- Toggle fullscreen
+        love.window.setFullscreen(not love.window.getFullscreen(), "desktop")
     else
         Player:keypressed(key)
     end

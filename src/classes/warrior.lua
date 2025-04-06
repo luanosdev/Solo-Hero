@@ -8,7 +8,7 @@ local LinearProjectile = require("src.abilities.player.linear_projectile")
 
 local Warrior = {
     -- Base Stats
-    baseHealth = 100,
+    baseHealth = 200,
     baseDamage = 20,
     baseSpeed = 100,
     baseDefense = 10,
@@ -40,7 +40,7 @@ end
     @return table Initial ability data
 ]]
 function Warrior:getInitialAbility()
-    return ConeSlash 
+    return LinearProjectile
 end
 
 return Warrior

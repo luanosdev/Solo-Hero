@@ -35,6 +35,11 @@ local Player = {
     experienceToNextLevel = 100,
     experienceMultiplier = 1.5, -- Multiplicador de experiência para o próximo nível
     
+    -- Game Stats
+    gameTime = 0,
+    kills = 0,
+    gold = 0,
+    
     -- State
     state = nil,
     
@@ -95,6 +100,9 @@ end
 ]]
 function Player:update(dt)
     if not self.state.isAlive then return end
+    
+    -- Atualiza o tempo de jogo
+    self.gameTime = self.gameTime + dt
     
     -- Update ability
     self.attackAbility:update(dt)
@@ -311,7 +319,14 @@ function Player:castAbility(x, y)
                 if enemy.isAlive then
                     -- Verifica se o inimigo está dentro da área de efeito da habilidade
                     if self.attackAbility:isPointInArea(enemy.positionX, enemy.positionY) then
-                        self.attackAbility:applyDamage(enemy)
+                        local isCritical = math.random() < self.criticalChance
+                        local damage = self.damage * (isCritical and self.criticalMultiplier or 1)
+                        
+                        if enemy:takeDamage(damage, isCritical) then
+                            self.kills = self.kills + 1
+                            self:addExperience(enemy.experienceValue)
+                            self.gold = self.gold + math.random(1, 5) -- Adiciona 1-5 de ouro por kill
+                        end
                     end
                 end
             end
