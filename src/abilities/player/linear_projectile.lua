@@ -13,7 +13,7 @@ LinearProjectile.damage = 40
 LinearProjectile.damageType = "projectile"
 LinearProjectile.color = {1, 0.8, 0, 1}
 
-LinearProjectile.speed = 200
+LinearProjectile.speed = 600
 LinearProjectile.maxDistance = 300
 
 function LinearProjectile:init(owner)
