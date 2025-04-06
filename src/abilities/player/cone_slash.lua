@@ -24,8 +24,13 @@ ConeSlash.slash = {
     color = {1, 1, 1, 0.8}
 }
 
+
 function ConeSlash:init(owner)
     BaseAbility.init(self, owner)
+    self.visual = {
+        active = false,
+        angle = 0
+    }
 end
 
 --[[
@@ -117,30 +122,26 @@ function ConeSlash:isPointInArea(x, y)
 end
 
 --[[
+    Update visual angle based on mouse position
+    @param x Mouse X position
+    @param y Mouse Y position
+]]
+function ConeSlash:updateVisual(x, y)
+    BaseAbility.updateVisual(self, x, y)
+end
+
+--[[
     Cast the ability
     @param x Target X position
     @param y Target Y position
     @return boolean Whether the ability was cast successfully
 ]]
 function ConeSlash:cast(x, y)
-    if self.cooldownRemaining > 0 then return false end
-    
-    -- Calculate angle to target
-    local worldX = (x + camera.x) / camera.scale
-    local worldY = (y + camera.y) / camera.scale
-    local dx = worldX - self.owner.positionX
-    local dy = worldY - self.owner.positionY
-    local angle = math.atan2(dy, dx)
-    
-    -- Update visual angle
-    self.visual.angle = angle
+    if not BaseAbility.cast(self, x, y) then return false end
     
     -- Start slash animation
     self.slash.active = true
     self.slash.time = 0
-    
-    -- Set cooldown
-    self.cooldownRemaining = self.cooldown
     
     return true
 end
