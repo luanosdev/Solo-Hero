@@ -4,7 +4,7 @@
 ]]
 
 local BaseEnemy = require("src.classes.enemies.base_enemy")
-local LinearProjectile = require("src.abilities.linear_projectile")
+local EnemyProjectile = require("src.abilities.enemies.enemy_projectile")
 
 local RangedEnemy = setmetatable({}, { __index = BaseEnemy })
 
@@ -25,14 +25,12 @@ function RangedEnemy:new(x, y)
     setmetatable(enemy, { __index = self })
     
     -- Cria uma nova instância da habilidade de ataque
-    enemy.attackAbility = setmetatable({}, { __index = LinearProjectile })
+    enemy.attackAbility = setmetatable({}, { __index = EnemyProjectile })
     enemy.attackAbility:init(enemy)
     
     -- Ajusta os atributos da habilidade para o inimigo
     enemy.attackAbility.cooldown = self.attackCooldown
     enemy.attackAbility.damage = self.damage
-    enemy.attackAbility.speed = 100 -- Velocidade do projétil
-    enemy.attackAbility.maxDistance = 300 -- Distância máxima do projétil
     
     return enemy
 end
@@ -106,16 +104,8 @@ function RangedEnemy:attack(player)
     -- Passa a referência do jogador para a habilidade
     self.attackAbility.owner.player = player
     
-    -- Passa a referência do mundo para a habilidade
-    self.attackAbility.owner.world = { enemies = self.enemies }
-    
-    -- Calcula o ângulo para o jogador
-    local dx = player.positionX - self.positionX
-    local dy = player.positionY - self.positionY
-    local angle = math.atan2(dy, dx)
-    
-    -- Usa a habilidade de projétil para atacar o jogador com o ângulo calculado
-    self.attackAbility:cast(angle, nil, true)
+    -- Usa a habilidade de projétil para atacar o jogador
+    self.attackAbility:cast(player.positionX, player.positionY)
 end
 
 return RangedEnemy 

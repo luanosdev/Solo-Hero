@@ -132,24 +132,16 @@ end
     @param y Target Y position
 ]]
 function BaseAbility:updateVisual(x, y)
+    if not self.visual.active then return end
+
     -- Converte a posição do alvo para coordenadas do mundo
     local worldX = (x + camera.x) / camera.scale
     local worldY = (y + camera.y) / camera.scale
+
     local dx = worldX - self.owner.positionX
     local dy = worldY - self.owner.positionY
 
-    -- Tratamento especial para alinhamentos exatos
-    if math.abs(dx) < 0.1 then  -- Alvo alinhado verticalmente
-        self.visual.angle = dy > 0 and math.pi/2 or -math.pi/2
-    elseif math.abs(dy) < 0.1 then  -- Alvo alinhado horizontalmente
-        self.visual.angle = dx > 0 and 0 or math.pi
-    else
-        -- Caso normal, calcula o ângulo usando math.atan
-        self.visual.angle = math.atan(dy/dx)
-        if dx < 0 then
-            self.visual.angle = self.visual.angle + math.pi
-        end
-    end
+    self.visual.angle = math.atan2(dy, dx)
 end
 
-return BaseAbility 
+return BaseAbility

@@ -18,7 +18,7 @@ LinearProjectile.maxDistance = 300
 
 function LinearProjectile:init(owner)
     BaseAbility.init(self, owner)
-    
+
     -- Estado do projétil
     self.projectile = {
         active = false,
@@ -28,7 +28,7 @@ function LinearProjectile:init(owner)
         distance = 0,
         radius = 5
     }
-    
+
     -- Estado da visualização
     self.visual = {
         active = false,
@@ -50,50 +50,31 @@ function LinearProjectile:update(dt)
         -- Calculate movement
         local dx = math.cos(self.projectile.angle) * self.speed * dt
         local dy = math.sin(self.projectile.angle) * self.speed * dt
-        
+
         -- Update position
         self.projectile.x = self.projectile.x + dx
         self.projectile.y = self.projectile.y + dy
-        
+
         -- Update distance
         self.projectile.distance = self.projectile.distance + math.sqrt(dx * dx + dy * dy)
-        
-        -- Check for collisions
-        if self.owner.world then
-            -- Se o dono é um inimigo, verifica colisão com o jogador
-            if self.owner.player then
-                local player = self.owner.player
-                local dx = player.positionX - self.projectile.x
-                local dy = player.positionY - self.projectile.y
-                local distance = math.sqrt(dx * dx + dy * dy)
-                
-                if distance <= (player.radius + 5) then -- 5 é o raio do projétil
-                    -- Aplica o dano no jogador
-                    if player:takeDamage(self.damage) then
-                        -- Se o jogador morreu, remove o projétil
+
+        -- Check for collisions with enemies
+        if self.owner.world and self.owner.world.enemies then
+            for _, enemy in ipairs(self.owner.world.enemies) do
+                if enemy.isAlive then
+                    local dx = enemy.positionX - self.projectile.x
+                    local dy = enemy.positionY - self.projectile.y
+                    local distance = math.sqrt(dx * dx + dy * dy)
+                    
+                    if distance <= (enemy.radius + self.projectile.radius) then
+                        self:applyDamage(enemy)
                         self.projectile.active = false
-                    end
-                end
-            else
-                -- Se o dono é o jogador, verifica colisão com inimigos
-                local enemies = self.owner.world.enemies or {}
-                for _, enemy in ipairs(enemies) do
-                    if enemy.isAlive then
-                        local dx = enemy.positionX - self.projectile.x
-                        local dy = enemy.positionY - self.projectile.y
-                        local distance = math.sqrt(dx * dx + dy * dy)
-                        
-                        if distance <= (enemy.radius + self.projectile.radius) then -- 5 é o raio do projétil
-                            -- Aplica o dano no inimigo
-                            self:applyDamage(enemy)
-                            self.projectile.active = false
-                            break
-                        end
+                        break
                     end
                 end
             end
         end
-        
+
         -- Check if reached max distance
         if self.projectile.distance >= self.maxDistance then
             self.projectile.active = false
@@ -108,11 +89,11 @@ function LinearProjectile:draw()
     -- Draw preview line if active
     if self.visual.active then
         love.graphics.setColor(self.color)
-        
+
         -- Calcula o ponto final da linha baseado no ângulo e distância máxima
         local endX = self.owner.positionX + math.cos(self.visual.angle) * self.maxDistance
         local endY = self.owner.positionY + math.sin(self.visual.angle) * self.maxDistance
-        
+
         love.graphics.line(
             self.owner.positionX,
             self.owner.positionY,
@@ -120,7 +101,7 @@ function LinearProjectile:draw()
             endY
         )
     end
-    
+
     -- Draw projectile if active
     if self.projectile.active then
         love.graphics.setColor(1, 1, 1, 0.8)
