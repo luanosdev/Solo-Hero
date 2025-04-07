@@ -6,6 +6,7 @@
 local PlayerState = require("src.entities.player_state")
 local EnemyManager = require("src.managers.enemy_manager")
 local FloatingTextManager = require("src.managers.floating_text_manager")
+local LevelUpModal = require("src.ui.level_up_modal")
 
 local Player = {
     -- Position
@@ -427,7 +428,7 @@ function Player:addExperience(amount)
     self.experience = self.experience + amount
     
     -- Verifica se subiu de nível
-    while self.experience >= self.experienceToNextLevel do
+    if self.experience >= self.experienceToNextLevel then
         self:levelUp()
     end
 end
@@ -436,15 +437,6 @@ function Player:levelUp()
     self.level = self.level + 1
     self.experience = self.experience - self.experienceToNextLevel
     self.experienceToNextLevel = math.floor(self.experienceToNextLevel * self.experienceMultiplier)
-    
-    -- Aumenta os atributos base
-    self.maxHealth = math.floor(self.maxHealth * 1.1) -- +10% de vida
-    self.damage = math.floor(self.damage * 1.1) -- +10% de dano
-    self.defense = math.floor(self.defense * 1.1) -- +10% de defesa
-    self.collectionRadius = math.floor(self.collectionRadius * 1.05) -- +5% de raio de coleta
-    
-    -- Restaura a vida ao subir de nível
-    self.currentHealth = self.maxHealth
     
     -- Mostra texto de level up
     FloatingTextManager:addText(
@@ -455,6 +447,9 @@ function Player:levelUp()
         self,
         {1, 1, 0}
     )
+    
+    -- Mostra o modal de level up
+    LevelUpModal:show()
 end
 
 --[[

@@ -10,6 +10,7 @@ local GameConfig = require("src.config.game")
 local EnemyManager = require("src.managers.enemy_manager")
 local FloatingTextManager = require("src.managers.floating_text_manager")
 local PrismManager = require("src.managers.prism_manager")
+local LevelUpModal = require("src.ui.level_up_modal")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 
@@ -43,6 +44,9 @@ function love.load()
     EnemyManager:init()
     FloatingTextManager:init()
     PrismManager:init()
+    
+    -- Inicializa modal de level up
+    LevelUpModal:init(Player)
 end
 
 --[[
@@ -51,6 +55,12 @@ end
     Handles player movement and speed calculations
 ]]
 function love.update(dt)
+    -- Verifica se o modal de level up está visível
+    if LevelUpModal.visible then
+        LevelUpModal:update(dt)
+        return -- Pausa o jogo enquanto o modal estiver aberto
+    end
+    
     Player:update(dt)
     camera:follow(Player, dt)
     
@@ -79,6 +89,9 @@ function love.draw()
 
     -- Draw HUD without camera transformation (fixed on screen)
     HUD:draw(Player)
+    
+    -- Draw level up modal if visible
+    LevelUpModal:draw()
 end
 
 --[[
@@ -104,5 +117,11 @@ end
     @param button Mouse button pressed
 ]]
 function love.mousepressed(x, y, button)
+    -- Se o modal de level up estiver visível, passa o evento para ele
+    if LevelUpModal.visible then
+        LevelUpModal:mousepressed(x, y, button)
+        return
+    end
+    
     Player:mousepressed(x, y, button)
 end
