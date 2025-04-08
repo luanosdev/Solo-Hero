@@ -24,7 +24,7 @@ local Player = {
     level = 1,
     experience = 0,
     experienceToNextLevel = 100,
-    experienceMultiplier = 1.5, -- Multiplicador de experiência para o próximo nível
+    experienceMultiplier = 1.1, -- Multiplicador de experiência para o próximo nível
     
     -- Game Stats
     gameTime = 0,
