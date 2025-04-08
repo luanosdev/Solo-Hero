@@ -14,22 +14,25 @@ local EnemyManager = {
     }
 }
 
+local HordeManager = {
+    hordes = {},
+    currentHordeIndex = 1,
+    hordeTimer = 0,
+    hordeInterval = 30, -- Intervalo entre hordas em segundos
+}
+
 function EnemyManager:init()
     self.enemies = {}
     self.spawnTimer = 0
+    HordeManager:init()
 end
 
 function EnemyManager:update(dt, player)
-    -- Atualiza o timer de spawn
     self.spawnTimer = self.spawnTimer + dt
-    
-    -- Spawn de novos inimigos
     if self.spawnTimer >= self.spawnInterval and #self.enemies < self.maxEnemies then
         self:spawnEnemy(player)
         self.spawnTimer = 0
     end
-    
-    -- Atualiza e remove inimigos mortos
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
         enemy:update(dt, player, self.enemies)
@@ -37,6 +40,7 @@ function EnemyManager:update(dt, player)
             table.remove(self.enemies, i)
         end
     end
+    HordeManager:update(dt, player)
 end
 
 function EnemyManager:spawnEnemy(player)
@@ -80,6 +84,42 @@ end
 
 function EnemyManager:getEnemies()
     return self.enemies
+end
+
+function HordeManager:init()
+    self.hordes = {
+        {time = 30, enemies = {{class = FastEnemy, count = 5}, {class = TankEnemy, count = 2}}},
+        {time = 60, enemies = {{class = FastEnemy, count = 10}, {class = RangedEnemy, count = 5}}},
+        {time = 120, enemies = {{class = FastEnemy, count = 15}, {class = TankEnemy, count = 5}, {class = RangedEnemy, count = 10}}},
+        {time = 180, enemies = {{class = FastEnemy, count = 20}, {class = TankEnemy, count = 10}, {class = RangedEnemy, count = 15}}},
+        {time = 240, enemies = {{class = FastEnemy, count = 25}, {class = TankEnemy, count = 15}, {class = RangedEnemy, count = 20}}},
+        -- Adicione mais hordas conforme necessário
+    }
+    self.currentHordeIndex = 1
+    self.hordeTimer = 0
+end
+
+function HordeManager:update(dt, player)
+    self.hordeTimer = self.hordeTimer + dt
+    local currentHorde = self.hordes[self.currentHordeIndex]
+    if currentHorde and self.hordeTimer >= currentHorde.time then
+        for _, enemyInfo in ipairs(currentHorde.enemies) do
+            for i = 1, enemyInfo.count do
+                EnemyManager:spawnSpecificEnemy(enemyInfo.class, player)
+            end
+        end
+        self.hordeTimer = 0
+        self.currentHordeIndex = self.currentHordeIndex + 1
+    end
+end
+
+function EnemyManager:spawnSpecificEnemy(enemyClass, player)
+    local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
+    local angle = math.random() * 2 * math.pi
+    local spawnX = player.positionX + math.cos(angle) * minSpawnRadius
+    local spawnY = player.positionY + math.sin(angle) * minSpawnRadius
+    local enemy = enemyClass:new(spawnX, spawnY)
+    table.insert(self.enemies, enemy)
 end
 
 return EnemyManager
