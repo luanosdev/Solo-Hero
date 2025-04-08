@@ -127,14 +127,13 @@ end
 
 function LevelUpModal:applyUpgrade(attribute)
     if attribute == "vida_maxima" then
-        self.player.maxHealth = self.player.maxHealth + 10
-        self.player.currentHealth = self.player.maxHealth
+        self.player.state:addAttributeBonus("health", 10) -- Aumenta a vida máxima em 10%
     elseif attribute == "dano" then
-        self.player.damage = self.player.damage + 2
+        self.player.state:addAttributeBonus("damage", 5) -- Aumenta o dano em 5%
     elseif attribute == "velocidade" then
-        self.player.baseSpeed = self.player.baseSpeed + 10
+        self.player.state:addAttributeBonus("speed", 5) -- Aumenta a velocidade em 5%
     elseif attribute == "defesa" then
-        self.player.defense = self.player.defense + 1
+        self.player.state:addAttributeBonus("defense", 5) -- Aumenta a defesa em 5%
     end
 end
 

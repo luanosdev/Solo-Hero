@@ -20,16 +20,6 @@ local Player = {
     -- Class
     class = nil,
     
-    -- Base Stats (will be set by class)
-    maxHealth = 100,
-    currentHealth = 100,
-    damage = 0,
-    defense = 0,
-    baseSpeed = 0,
-    attackSpeed = 0,
-    criticalChance = 20, -- Chance de crítico
-    criticalMultiplier = 1.5, -- Multiplicador de dano crítico
-    
     -- Level System
     level = 1,
     experience = 0,
@@ -71,26 +61,18 @@ function Player:init(playerClass)
     self.class = playerClass
     local baseStats = self.class:getBaseStats()
     
-    -- Apply base stats
-    self.maxHealth = baseStats.health
-    self.damage = baseStats.damage
-    self.defense = baseStats.defense
-    self.baseSpeed = baseStats.speed
-    self.attackSpeed = baseStats.attackSpeed
+    -- Initialize state with base stats
+    self.state = PlayerState
+    self.state:init(baseStats)
     
     -- Initialize ability
     local AbilityClass = self.class:getInitialAbility()
     self.attackAbility = setmetatable({}, { __index = AbilityClass })
     self.attackAbility:init(self)
     
-    -- Initialize state
-    self.state = PlayerState
-    self.state:init(self.maxHealth)
-    
     -- Set initial position
     self.positionX = 400 -- Posição inicial X
     self.positionY = 300 -- Posição inicial Y
-    self.currentHealth = self.maxHealth
     self.isAlive = true
     self.lastDamageTime = 0
 end
@@ -144,8 +126,8 @@ function Player:update(dt)
     end
     
     -- Calcula a nova posição
-    local newX = self.positionX + moveX * self.baseSpeed * dt
-    local newY = self.positionY + moveY * self.baseSpeed * dt
+    local newX = self.positionX + moveX * self.state:getTotalSpeed() * dt
+    local newY = self.positionY + moveY * self.state:getTotalSpeed() * dt
     
     -- Atualiza a posição do jogador
     self.positionX = newX
@@ -170,7 +152,7 @@ function Player:draw()
     local healthPercentage = self.state:getHealthPercentage()
     
     -- Calculate dynamic width based on max health
-    local healthBarWidth = baseWidth + (maxWidth - baseWidth) * (self.state.maxHealth / 200)
+    local healthBarWidth = baseWidth + (maxWidth - baseWidth) * (self.state:getTotalHealth() / 200)
     
     -- Draw level circle (agora à esquerda da barra de vida)
     local levelCircleRadius = 8
@@ -281,7 +263,7 @@ end
     @return boolean Whether the player died from this damage
 ]]
 function Player:takeDamage(damage)
-    return self.state:takeDamage(damage, self.defense)
+    return self.state:takeDamage(damage)
 end
 
 --[[
@@ -320,8 +302,8 @@ function Player:castAbility(x, y)
                 if enemy.isAlive then
                     -- Verifica se o inimigo está dentro da área de efeito da habilidade
                     if self.attackAbility:isPointInArea(enemy.positionX, enemy.positionY) then
-                        local isCritical = math.random() < self.criticalChance
-                        local damage = self.damage * (isCritical and self.criticalMultiplier or 1)
+                        local isCritical = math.random() < self.state:getTotalCriticalChance()
+                        local damage = self.state:getTotalDamage() * (isCritical and self.state:getTotalCriticalMultiplier() or 1)
                         
                         if enemy:takeDamage(damage, isCritical) then
                             self.kills = self.kills + 1
@@ -332,7 +314,6 @@ function Player:castAbility(x, y)
                 end
             end
         end
-        -- Para habilidades de projétil (como LinearProjectile), o dano é aplicado na colisão
     end
     return success
 end

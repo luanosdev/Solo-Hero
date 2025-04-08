@@ -3,7 +3,7 @@
     A projectile that travels in a straight line and deals damage on impact
 ]]
 
-local BaseAbility = require("src.abilities.base_ability")
+local BaseAbility = require("src.abilities.player._base_ability")
 
 local LinearProjectile = setmetatable({}, { __index = BaseAbility })
 
@@ -11,7 +11,7 @@ LinearProjectile.name = "Linear Projectile"
 LinearProjectile.cooldown = 0.8
 LinearProjectile.damage = 40
 LinearProjectile.damageType = "projectile"
-LinearProjectile.color = {1, 0.8, 0, 1}
+LinearProjectile.color = {1, 1, 1, 0.1}
 
 LinearProjectile.speed = 800
 LinearProjectile.maxDistance = 300

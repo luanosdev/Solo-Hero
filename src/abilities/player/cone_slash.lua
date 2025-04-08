@@ -3,7 +3,7 @@
     A cone-shaped area of effect attack that serves as the character's primary attack method
 ]]
 
-local BaseAbility = require("src.abilities.base_ability")
+local BaseAbility = require("src.abilities.player._base_ability")
 
 local ConeSlash = setmetatable({}, { __index = BaseAbility })
 

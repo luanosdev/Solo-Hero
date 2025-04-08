@@ -3,9 +3,9 @@
     A projectile ability specifically designed for ranged enemies
 ]]
 
-local BaseAbility = require("src.abilities.base_ability")
+local EnemyBaseAbility = require("src.abilities.enemies._base_ability")
 
-local EnemyProjectile = setmetatable({}, { __index = BaseAbility })
+local EnemyProjectile = setmetatable({}, { __index = EnemyBaseAbility })
 
 EnemyProjectile.name = "Enemy Projectile"
 EnemyProjectile.cooldown = 1.5
@@ -17,7 +17,7 @@ EnemyProjectile.speed = 180
 EnemyProjectile.maxDistance = 400
 
 function EnemyProjectile:init(owner)
-    BaseAbility.init(self, owner)
+    EnemyBaseAbility.init(self, owner)
     
     self.projectile = {
         active = false,
@@ -30,7 +30,7 @@ function EnemyProjectile:init(owner)
 end
 
 function EnemyProjectile:update(dt)
-    BaseAbility.update(self, dt)
+    EnemyBaseAbility.update(self, dt)
     
     if self.projectile.active then
         local dx = math.cos(self.projectile.angle) * self.speed * dt

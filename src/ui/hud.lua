@@ -87,11 +87,11 @@ function HUD:draw(player)
     local hudBarY_hp = screenH - 100
 
     -- Barra de HP
-    local hpPercent = (player.state.currentHealth or 0) / (player.state.maxHealth or 100)
+    local hpPercent = (player.state.currentHealth or 0) / (player.state:getTotalHealth() or 100)
     
     -- Desenha a barra de HP
     elements.drawResourceBar(hudBarX, hudBarY_hp, hudBarW, hudBarH, hpPercent, colors.bar_bg, colors.hp_fill, "HP", 
-        string.format("%d/%d", player.state.currentHealth or 0, player.state.maxHealth or 100))
+        string.format("%d/%d", player.state.currentHealth or 0, player.state:getTotalHealth() or 100))
 
     -- Status do Player (Atributos) - Agora em uma janela separada
     local statusWindowW = 250
@@ -116,26 +116,26 @@ function HUD:draw(player)
     local statusSpacing = 25
 
     -- Ataque
-    drawPlayerStatus(statusX, statusY, "Ataque:", string.format("%.1f", player.damage or 0), colors.text_highlight)
+    drawPlayerStatus(statusX, statusY, "Ataque:", string.format("%.1f", player.state:getTotalDamage() or 0), colors.text_highlight)
     statusY = statusY + statusSpacing
 
     -- Defesa
-    drawPlayerStatus(statusX, statusY, "Defesa:", string.format("%.1f", player.defense or 0), colors.text_highlight)
+    drawPlayerStatus(statusX, statusY, "Defesa:", string.format("%.1f", player.state:getTotalDefense() or 0), colors.text_highlight)
     statusY = statusY + statusSpacing
 
     -- Velocidade
-    drawPlayerStatus(statusX, statusY, "Velocidade:", string.format("%.1f", player.baseSpeed or 0), colors.text_highlight)
+    drawPlayerStatus(statusX, statusY, "Velocidade:", string.format("%.1f", player.state:getTotalSpeed() or 0), colors.text_highlight)
     statusY = statusY + statusSpacing
 
     -- Taxa de Crítico
-    if player.criticalChance then
-        drawPlayerStatus(statusX, statusY, "Chance de Crítico:", string.format("%.1f%%", player.criticalChance * 1), colors.text_highlight)
+    if player.state:getTotalCriticalChance() then
+        drawPlayerStatus(statusX, statusY, "Chance de Crítico:", string.format("%.1f%%", player.state:getTotalCriticalChance() * 100), colors.text_highlight)
         statusY = statusY + statusSpacing
     end
 
     -- Dano Crítico
-    if player.criticalMultiplier then
-        drawPlayerStatus(statusX, statusY, "Dano Crítico:", string.format("%.1fx", player.criticalMultiplier), colors.text_highlight)
+    if player.state:getTotalCriticalMultiplier() then
+        drawPlayerStatus(statusX, statusY, "Dano Crítico:", string.format("%.1fx", player.state:getTotalCriticalMultiplier()), colors.text_highlight)
     end
 
     -- Status de Auto-Ataque e Auto-Aim
