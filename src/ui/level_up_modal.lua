@@ -16,25 +16,43 @@ local ATTRIBUTES = {
         name = "vida_maxima",
         displayName = "Vida Máxima",
         description = "Aumenta a vida máxima em 10%",
-        icon = "❤️"
+        icon = "♥"
     },
     {
         name = "dano",
         displayName = "Dano",
-        description = "Aumenta o dano em 2%",
-        icon = "⚔️"
+        description = "Aumenta o dano em 5%",
+        icon = "⚔"
     },
     {
         name = "velocidade",
         displayName = "Velocidade",
-        description = "Aumenta a velocidade em 10%",
-        icon = "🏃"
+        description = "Aumenta a velocidade em 5%",
+        icon = "→"
     },
     {
         name = "defesa",
         displayName = "Defesa",
-        description = "Aumenta a defesa em 1%",
-        icon = "🛡️"
+        description = "Aumenta a defesa em 5%",
+        icon = "■"
+    },
+    {
+        name = "velocidade_ataque",
+        displayName = "Velocidade de Ataque",
+        description = "Aumenta a velocidade de ataque em 5%",
+        icon = "⚡"
+    },
+    {
+        name = "chance_critico",
+        displayName = "Chance Crítico",
+        description = "Aumenta a chance de acerto crítico em 5%",
+        icon = "🎯"
+    },
+    {
+        name = "multiplicador_critico",
+        displayName = "Multiplicador Crítico",
+        description = "Aumenta o dano crítico em 5%",
+        icon = "💥"
     }
 }
 
@@ -127,13 +145,19 @@ end
 
 function LevelUpModal:applyUpgrade(attribute)
     if attribute == "vida_maxima" then
-        self.player.state:addAttributeBonus("health", 10) -- Aumenta a vida máxima em 10%
+        self.player.state:addAttributeBonus("health", 10)
     elseif attribute == "dano" then
-        self.player.state:addAttributeBonus("damage", 5) -- Aumenta o dano em 5%
+        self.player.state:addAttributeBonus("damage", 5)
     elseif attribute == "velocidade" then
-        self.player.state:addAttributeBonus("speed", 5) -- Aumenta a velocidade em 5%
+        self.player.state:addAttributeBonus("speed", 5)
     elseif attribute == "defesa" then
-        self.player.state:addAttributeBonus("defense", 5) -- Aumenta a defesa em 5%
+        self.player.state:addAttributeBonus("defense", 5)
+    elseif attribute == "velocidade_ataque" then
+        self.player.state:addAttributeBonus("attackSpeed", 5)
+    elseif attribute == "chance_critico" then
+        self.player.state:addAttributeBonus("criticalChance", 5)
+    elseif attribute == "multiplicador_critico" then
+        self.player.state:addAttributeBonus("criticalMultiplier", 5)
     end
 end
 
