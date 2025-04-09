@@ -5,141 +5,209 @@ local CommonEnemy = require("src.classes.enemies.common_enemy")
 local HordeConfigManager = require("src.managers.horde_config_manager")
 
 local EnemyManager = {
-    enemies = {},
-    spawnTimer = 0,             -- Timer para spawns aleatórios
-    spawnInterval = 2,          -- Intervalo entre spawns aleatórios (aumentado para dar mais espaço às hordas)
-    maxEnemies = 100,
-    -- Removido: enemyTypes hardcoded
+    enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos
+    maxEnemies = 100,           -- Número máximo de inimigos permitidos na tela simultaneamente
     
-    -- Estado das Hordas e Spawns Aleatórios
-    currentHordeList = nil,     -- Lista de hordas do arquivo de config
-    currentRandomSpawns = nil, -- Lista de spawns aleatórios do arquivo de config
-    currentHordeIndex = 1,
-    gameTimer = 0,              -- Timer global do jogo para hordas
+    -- Estado de Ciclo e Tempo
+    worldConfig = nil,          -- Configuração carregada para o mundo (contém a lista de 'cycles')
+    currentCycleIndex = 1,    -- Índice (base 1) do ciclo atual sendo executado (da lista worldConfig.cycles)
+    gameTimer = 0,              -- Tempo total de jogo decorrido desde o início (em segundos)
+    timeInCurrentCycle = 0,     -- Tempo decorrido dentro do ciclo atual (em segundos)
+
+    -- Timers de Spawn (baseados no gameTimer)
+    nextMajorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn grande (Major Spawn)
+    nextMinorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn pequeno (Minor Spawn)
 }
 
+-- Inicializa o gerenciador de inimigos para um mundo específico
 function EnemyManager:init(worldId)
-    worldId = worldId or "default"
-    self.enemies = {}
-    self.spawnTimer = 0
-    self.gameTimer = 0
+    worldId = worldId or "default" -- Usa 'default' se nenhum ID de mundo for fornecido
+    self.enemies = {}             -- Limpa a lista de inimigos
+    self.gameTimer = 0            -- Reinicia o timer global
+    self.timeInCurrentCycle = 0   -- Reinicia o timer do ciclo
+    self.currentCycleIndex = 1  -- Começa no primeiro ciclo
     
-    -- Carrega a configuração completa (hordas e spawns aleatórios)
-    local fullConfig = HordeConfigManager.loadHordes(worldId)
-    if not fullConfig or not fullConfig.hordes or not fullConfig.randomSpawns then
-        error("Erro: Configuração de hordas inválida ou incompleta para o mundo: " .. worldId)
+    -- Carrega a configuração de ciclos para o mundo especificado
+    self.worldConfig = HordeConfigManager.loadHordes(worldId)
+    if not self.worldConfig or not self.worldConfig.cycles or #self.worldConfig.cycles == 0 then
+        error("Erro: Configuração de ciclos inválida ou vazia para o mundo: " .. worldId)
     end
     
-    self.currentHordeList = fullConfig.hordes
-    self.currentRandomSpawns = fullConfig.randomSpawns
-    self.currentHordeIndex = 1
-    
-    print(string.format("EnemyManager inicializado para '%s'. %d hordas e %d tipos de spawn aleatório carregados.", 
-                       worldId, #self.currentHordeList, #self.currentRandomSpawns))
+    -- Agenda os tempos iniciais de spawn com base nas regras do primeiro ciclo
+    local firstCycle = self.worldConfig.cycles[1]
+    if not firstCycle then error("Erro: Primeiro ciclo não encontrado na configuração.") end
+    self.nextMajorSpawnTime = firstCycle.majorSpawn.interval -- O primeiro Major Spawn ocorre após o intervalo inicial
+    self.nextMinorSpawnTime = self:calculateMinorSpawnInterval(firstCycle) -- O primeiro Minor Spawn ocorre após o intervalo inicial calculado
+
+    print(string.format("EnemyManager inicializado para '%s'. %d ciclo(s) carregados.", worldId, #self.worldConfig.cycles))
 end
 
+-- Atualiza o estado do gerenciador de inimigos e todos os inimigos ativos
 function EnemyManager:update(dt, player)
-    -- Atualiza timer global
     self.gameTimer = self.gameTimer + dt
-    
-    -- 1. Verifica Spawns de Hordas
-    local nextHordeData = self.currentHordeList and self.currentHordeList[self.currentHordeIndex]
-    if nextHordeData and self.gameTimer >= nextHordeData.time then
-        print(string.format("Disparando Horda %d no tempo %.2f", self.currentHordeIndex, self.gameTimer))
+    self.timeInCurrentCycle = self.timeInCurrentCycle + dt
+
+    -- 1. Determina o Ciclo Atual e Verifica Transições
+    local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
+    if not currentCycle then
+        -- Se não houver mais ciclos definidos, os spawns param.
+        print("Fim dos ciclos definidos.") 
+        goto update_enemies_only -- Pula a lógica de spawn
+    end
+
+    -- Verifica se a duração do ciclo atual foi excedida para avançar para o próximo
+    if self.timeInCurrentCycle >= currentCycle.duration and self.currentCycleIndex < #self.worldConfig.cycles then
+        self.currentCycleIndex = self.currentCycleIndex + 1         -- Avança o índice do ciclo
+        self.timeInCurrentCycle = self.timeInCurrentCycle - currentCycle.duration -- Ajusta o tempo para o novo ciclo
+        currentCycle = self.worldConfig.cycles[self.currentCycleIndex] -- Atualiza a referência para o ciclo atual
+        print(string.format("Entrando no Ciclo %d no tempo %.2f", self.currentCycleIndex, self.gameTimer))
+        
+        -- Recalcula e reagenda os próximos tempos de spawn com base nas regras do NOVO ciclo
+        self.nextMajorSpawnTime = self.gameTimer + currentCycle.majorSpawn.interval 
+        self.nextMinorSpawnTime = self.gameTimer + self:calculateMinorSpawnInterval(currentCycle)
+    end
+
+    -- 2. Verifica Major Spawns (Grandes ondas cronometradas)
+    if self.gameTimer >= self.nextMajorSpawnTime then
+        local spawnConfig = currentCycle.majorSpawn 
+        local minutesPassed = self.gameTimer / 60   
+        
+        -- Calcula a quantidade de inimigos a spawnar:
+        -- Base + (Base * PorcentagemDeEscala * MinutosPassados)
+        local countToSpawn = math.floor(spawnConfig.baseCount + (spawnConfig.baseCount * spawnConfig.countScalePerMin * minutesPassed))
+        
+        print(string.format("Major Spawn (Ciclo %d) no tempo %.2f: Tentando spawnar %d inimigos.", self.currentCycleIndex, self.gameTimer, countToSpawn))
         local spawnedCount = 0
-        for _, enemyInfo in ipairs(nextHordeData.enemies) do
-            for i = 1, enemyInfo.count do
-                if #self.enemies < self.maxEnemies then
-                    self:spawnSpecificEnemy(enemyInfo.class, player)
+        -- Tenta spawnar a quantidade calculada
+        for i = 1, countToSpawn do
+            if #self.enemies < self.maxEnemies then -- Verifica o limite global de inimigos
+                local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies) -- Seleciona um inimigo permitido neste ciclo
+                if enemyClass then
+                    self:spawnSpecificEnemy(enemyClass, player)
                     spawnedCount = spawnedCount + 1
-                else
-                    print("Limite máximo de inimigos atingido durante spawn da horda.")
-                    goto horde_spawn_limit_reached -- Sai dos loops aninhados se o limite for atingido
                 end
+            else
+                print("Limite máximo de inimigos atingido durante Major Spawn.")
+                break -- Interrompe o spawn se o limite for atingido
             end
         end
-        ::horde_spawn_limit_reached::
-        print(string.format("Horda %d concluída. %d inimigos spawnados.", self.currentHordeIndex, spawnedCount))
-        self.currentHordeIndex = self.currentHordeIndex + 1 -- Avança para a próxima horda
+        print(string.format("Major Spawn concluído. %d inimigos spawnados.", spawnedCount))
+        
+        -- Agenda o próximo Major Spawn para daqui a 'spawnConfig.interval' segundos
+        self.nextMajorSpawnTime = self.gameTimer + spawnConfig.interval
     end
 
-    -- 2. Verifica Spawns Aleatórios (usando a lista carregada)
-    self.spawnTimer = self.spawnTimer + dt
-    if self.spawnTimer >= self.spawnInterval then
-        if #self.enemies < self.maxEnemies and self.currentRandomSpawns and #self.currentRandomSpawns > 0 then
-            self:spawnEnemy(player) -- Spawn aleatório usando a lista do config
+    -- 3. Verifica Minor Spawns (Pequenos spawns aleatórios contínuos)
+    if self.gameTimer >= self.nextMinorSpawnTime then
+        local spawnConfig = currentCycle.minorSpawn -- Pega a configuração do Minor Spawn para o ciclo atual
+        local countToSpawn = spawnConfig.count      -- Quantidade de inimigos por Minor Spawn (geralmente 1)
+        
+        print(string.format("Minor Spawn (Ciclo %d) no tempo %.2f", self.currentCycleIndex, self.gameTimer)) -- Debug
+        -- Tenta spawnar a quantidade definida
+        for i = 1, countToSpawn do
+            if #self.enemies < self.maxEnemies then -- Verifica o limite global de inimigos
+                 local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies) -- Seleciona um inimigo permitido neste ciclo
+                 if enemyClass then
+                    self:spawnSpecificEnemy(enemyClass, player)
+                 end
+            else
+                 print("Limite máximo de inimigos atingido durante Minor Spawn.")
+                 break -- Interrompe se o limite for atingido
+            end
         end
-        self.spawnTimer = 0 -- Reinicia o timer de spawn aleatório independentemente de ter spawnado ou não
+
+        -- Agenda o próximo Minor Spawn usando o intervalo calculado (que diminui com o tempo)
+        local nextInterval = self:calculateMinorSpawnInterval(currentCycle)
+        self.nextMinorSpawnTime = self.gameTimer + nextInterval
     end
 
-    -- 3. Atualiza Inimigos Existentes
+    -- Label usado pelo 'goto' para pular a lógica de spawn se não houver mais ciclos
+    ::update_enemies_only::
+
+    -- 4. Atualiza Inimigos Existentes (sempre executa)
+    -- Itera de trás para frente para permitir remoção segura
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
-        enemy:update(dt, player, self.enemies)
+        enemy:update(dt, player, self.enemies) -- Atualiza a lógica do inimigo
         if not enemy.isAlive then
-            table.remove(self.enemies, i)
+            table.remove(self.enemies, i) -- Remove inimigos mortos da lista
         end
     end
 end
 
-function EnemyManager:spawnEnemy(player)
-    -- Define o raio mínimo de spawn (fora da tela)
-    local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
-    
-    -- Gera um ângulo aleatório em radianos
-    local angle = math.random() * 2 * math.pi
-    
-    -- Calcula a posição de spawn baseada no ângulo e raio
-    local spawnX = player.positionX + math.cos(angle) * minSpawnRadius
-    local spawnY = player.positionY + math.sin(angle) * minSpawnRadius
-    
-    -- Escolhe o tipo de inimigo baseado nos pesos da lista currentRandomSpawns
-    if not self.currentRandomSpawns or #self.currentRandomSpawns == 0 then
-        print("Aviso: Tentando spawn aleatório, mas a lista currentRandomSpawns está vazia ou não definida.")
-        return -- Não spawna nada se não houver tipos definidos
+-- Função auxiliar: Calcula o intervalo para o próximo Minor Spawn com base na configuração do ciclo atual e no tempo de jogo.
+-- O intervalo diminui ao longo do tempo, até um limite mínimo.
+function EnemyManager:calculateMinorSpawnInterval(cycleConfig)
+    local spawnConfig = cycleConfig.minorSpawn
+    local minutesPassed = self.gameTimer / 60
+    local interval = spawnConfig.baseInterval - (spawnConfig.intervalReductionPerMin * minutesPassed)
+    -- Garante que o intervalo não seja menor que o mínimo definido no ciclo
+    return math.max(interval, spawnConfig.minInterval) 
+end
+
+-- Função auxiliar: Seleciona aleatoriamente uma classe de inimigo de uma lista fornecida, respeitando os pesos definidos.
+function EnemyManager:selectEnemyFromList(enemyList)
+    if not enemyList or #enemyList == 0 then
+        print("Aviso: Tentando selecionar inimigo de uma lista vazia ou inválida.")
+        return nil
     end
 
+    -- Calcula o peso total da lista
     local totalWeight = 0
-    for _, enemyType in ipairs(self.currentRandomSpawns) do
-        totalWeight = totalWeight + enemyType.weight
+    for _, enemyType in ipairs(enemyList) do
+        totalWeight = totalWeight + (enemyType.weight or 1) -- Assume peso 1 se não estiver definido
     end
     
+    -- Lida com caso de peso total inválido (ou lista com apenas pesos zero)
+    if totalWeight <= 0 then 
+        print("Aviso: Peso total zero ou negativo na lista de inimigos.")
+        return #enemyList > 0 and enemyList[1].class or nil -- Retorna o primeiro como fallback
+    end
+
+    -- Sorteia um valor aleatório dentro do peso total
     local randomValue = math.random() * totalWeight
-    local selectedEnemyType
     
-    for _, enemyType in ipairs(self.currentRandomSpawns) do
-        randomValue = randomValue - enemyType.weight
+    -- Itera pela lista subtraindo os pesos até encontrar o inimigo correspondente ao valor sorteado
+    for _, enemyType in ipairs(enemyList) do
+        randomValue = randomValue - (enemyType.weight or 1)
         if randomValue <= 0 then
-            selectedEnemyType = enemyType.class
-            break
+            return enemyType.class -- Retorna a classe do inimigo selecionado
         end
     end
-    
-    if selectedEnemyType then
-        -- Cria o inimigo na posição calculada
-        local enemy = selectedEnemyType:new(spawnX, spawnY)
-        table.insert(self.enemies, enemy)
-    else
-        print("Aviso: Não foi possível selecionar um tipo de inimigo para spawn aleatório. Verifique os pesos em currentRandomSpawns.")
-    end
+
+    -- Fallback (não deve acontecer com pesos positivos, mas por segurança)
+    print("Aviso: Falha ao selecionar inimigo por peso, retornando o primeiro da lista.")
+    return #enemyList > 0 and enemyList[1].class or nil 
 end
 
+-- Desenha todos os inimigos ativos na tela
 function EnemyManager:draw()
     for _, enemy in ipairs(self.enemies) do
         enemy:draw()
     end
 end
 
+-- Retorna a lista atual de inimigos ativos (para colisões, etc.)
 function EnemyManager:getEnemies()
     return self.enemies
 end
 
+-- Cria e adiciona um inimigo de uma classe específica em uma posição aleatória fora da tela
 function EnemyManager:spawnSpecificEnemy(enemyClass, player)
+    if not enemyClass then
+       print("Erro: Tentativa de spawnar inimigo com classe nula.")
+       return
+    end
+    -- Calcula um raio de spawn fora da área visível da tela
     local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
+    -- Gera um ângulo aleatório
     local angle = math.random() * 2 * math.pi
+    -- Calcula as coordenadas X e Y com base no ângulo e raio a partir da posição do jogador
     local spawnX = player.positionX + math.cos(angle) * minSpawnRadius
     local spawnY = player.positionY + math.sin(angle) * minSpawnRadius
+    -- Cria a nova instância do inimigo
     local enemy = enemyClass:new(spawnX, spawnY)
+    -- Adiciona o inimigo à lista de inimigos ativos
     table.insert(self.enemies, enemy)
 end
 

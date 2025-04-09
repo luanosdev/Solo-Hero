@@ -15,25 +15,25 @@ local ATTRIBUTES = {
     {
         name = "vida_maxima",
         displayName = "Vida Máxima",
-        description = "Aumenta a vida máxima em 10",
+        description = "Aumenta a vida máxima em 10%",
         icon = "❤️"
     },
     {
         name = "dano",
         displayName = "Dano",
-        description = "Aumenta o dano em 2",
+        description = "Aumenta o dano em 2%",
         icon = "⚔️"
     },
     {
         name = "velocidade",
         displayName = "Velocidade",
-        description = "Aumenta a velocidade em 10",
+        description = "Aumenta a velocidade em 10%",
         icon = "🏃"
     },
     {
         name = "defesa",
         displayName = "Defesa",
-        description = "Aumenta a defesa em 1",
+        description = "Aumenta a defesa em 1%",
         icon = "🛡️"
     }
 }
