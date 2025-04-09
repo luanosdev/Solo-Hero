@@ -1,7 +1,3 @@
-local FastEnemy = require("src.classes.enemies.fast_enemy")
-local TankEnemy = require("src.classes.enemies.tank_enemy")
-local RangedEnemy = require("src.classes.enemies.ranged_enemy")
-local CommonEnemy = require("src.classes.enemies.common_enemy")
 local HordeConfigManager = require("src.managers.horde_config_manager")
 
 local EnemyManager = {

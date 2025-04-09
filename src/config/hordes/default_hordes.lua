@@ -7,6 +7,9 @@ local CommonEnemy = require("src.classes.enemies.common_enemy")
 local FastEnemy = require("src.classes.enemies.fast_enemy")
 local TankEnemy = require("src.classes.enemies.tank_enemy")
 local RangedEnemy = require("src.classes.enemies.ranged_enemy")
+local DiagonalEnemy = require("src.classes.enemies.diagonal_enemy")
+local PuddleEnemy = require("src.classes.enemies.puddle_enemy")
+local SplitterEnemy = require("src.classes.enemies.splitter_enemy")
 
 -- Estrutura principal que contém a configuração dos ciclos para um "mundo" específico.
 local worldCycles = {
@@ -14,16 +17,16 @@ local worldCycles = {
     cycles = {
         -- Cada tabela interna representa um ciclo ou fase do jogo.
         
-        -- === Ciclo 1: Primeiros 5 Minutos (Apenas CommonEnemy) [~+50% density] ===
+        -- === Ciclo 1: Primeiros 3 Minutos (Apenas CommonEnemy)
         {
             -- Duração deste ciclo em segundos.
-            duration = 60 * 5, 
+            duration = 60 * 3, 
             
             -- Lista de inimigos permitidos neste ciclo e seus pesos relativos para spawn.
             -- Usado tanto para Major Spawns quanto para Minor Spawns.
             -- 'weight' maior significa maior chance de ser escolhido.
             allowedEnemies = { 
-                {class = CommonEnemy, weight = 1} 
+                {class = SplitterEnemy, weight = 1} 
             },
             
             -- Configuração para os spawns grandes e cronometrados ("Major Spawns").
@@ -51,9 +54,9 @@ local worldCycles = {
             }
         },
         
-        -- === Ciclo 2: Próximos 5 Minutos (Introduz FastEnemy) [~+50% density] ===
+        -- === Ciclo 2: Próximos 3 Minutos (Introduz FastEnemy) [~+50% density] ===
         {
-            duration = 300, 
+            duration = 60 * 3, 
             allowedEnemies = { 
                 {class = CommonEnemy, weight = 3}, -- CommonEnemy ainda é mais provável
                 {class = FastEnemy, weight = 1}  -- FastEnemy começa a aparecer
@@ -72,14 +75,16 @@ local worldCycles = {
             }
         },
 
-        -- === Ciclo 3: Exemplo (Introduz Tank e Ranged) [~+50% density] ===
+        -- === Ciclo 3: Exemplo (Introduz Tank, Ranged, Diagonal e Puddle) [~+50% density] ===
         {
             duration = 600, -- Este ciclo dura 10 minutos
             allowedEnemies = { 
-                {class = CommonEnemy, weight = 5}, 
+                {class = CommonEnemy, weight = 3}, -- Ajuste de peso
                 {class = FastEnemy, weight = 3},
                 {class = TankEnemy, weight = 1},
                 {class = RangedEnemy, weight = 2},
+                {class = DiagonalEnemy, weight = 2},
+                {class = PuddleEnemy, weight = 2} -- Adicionado PuddleEnemy
             },
             majorSpawn = {
                 interval = 45,      -- Spawns grandes mais frequentes neste ciclo

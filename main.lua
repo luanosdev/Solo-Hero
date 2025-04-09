@@ -10,6 +10,7 @@ local GameConfig = require("src.config.game")
 local EnemyManager = require("src.managers.enemy_manager")
 local FloatingTextManager = require("src.managers.floating_text_manager")
 local PrismManager = require("src.managers.prism_manager")
+local PuddleManager = require("src.managers.puddle_manager")
 local LevelUpModal = require("src.ui.level_up_modal")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
@@ -47,6 +48,7 @@ function love.load()
     EnemyManager:init() -- Inicializa com a configuração de mundo "default"
     FloatingTextManager:init()
     PrismManager:init()
+    PuddleManager:init()
     
     -- Inicializa o modal de Level Up (passando a referência do Player)
     LevelUpModal:init(Player)
@@ -73,6 +75,7 @@ function love.update(dt)
     EnemyManager:update(dt, Player) -- Atualiza inimigos e lógica de spawn
     FloatingTextManager:update(dt) -- Atualiza textos flutuantes (dano, etc.)
     PrismManager:update(dt, Player) -- Atualiza prismas de experiência e coleta
+    PuddleManager:update(dt, Player)
 end
 
 --[[ 
@@ -87,6 +90,7 @@ function love.draw()
     -- Aplica a transformação da câmera para desenhar o mundo do jogo
     camera:attach()
     -- Desenha os elementos do mundo (afetados pela câmera)
+    PuddleManager:draw()
     Player:draw()
     EnemyManager:draw()
     PrismManager:draw()
