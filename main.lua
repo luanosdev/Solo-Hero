@@ -111,7 +111,7 @@ end
 ]]
 function love.keypressed(key)
     -- Fecha o jogo ao pressionar Escape
-    if key == "escape" then 
+    if key == "escape" then
         love.event.quit() 
     -- Alterna tela cheia com F11
     elseif key == "f11" then

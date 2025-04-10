@@ -3,6 +3,15 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local glowShader = nil
 
+-- Tabela para armazenar o último valor de vida de cada entidade
+elements.lastHealth = {}
+
+-- Tabela para armazenar o valor da barra de cache
+elements.cacheHealth = {}
+
+-- Velocidade de diminuição da barra de cache
+elements.cacheSpeed = 0.5
+
 function elements.setGlowShader(shader)
     glowShader = shader
 end
@@ -38,23 +47,85 @@ function elements.drawWindowFrame(x, y, w, h, title)
     end
 end
 
-function elements.drawResourceBar(x, y, w, h, percent, bgColor, fillColor, label, valueText)
-    percent = math.max(0, math.min(1, percent))
-    love.graphics.setColor(bgColor or colors.bar_bg)
-    love.graphics.rectangle("fill", x, y, w, h, 3, 3)
-    love.graphics.setColor(fillColor or colors.white)
-    love.graphics.rectangle("fill", x + 1, y + 1, (w - 2) * percent, h - 2, 2, 2)
-    love.graphics.setColor(colors.bar_border)
-    love.graphics.rectangle("line", x, y, w, h, 3, 3)
+function elements.drawResourceBar(x, y, width, height, current, max, color, bgColor, borderColor, showText, textColor, textFormat)
+    -- Garante que os valores sejam números válidos
+    current = tonumber(current) or 0
+    max = tonumber(max) or 1
+    width = tonumber(width) or 100
+    height = tonumber(height) or 20
 
-    if label or valueText then
-        love.graphics.setFont(fonts.main_small)
-        love.graphics.setColor(colors.white)
-        local fullText = label and valueText and (label .. ": " .. valueText) or label or valueText or ""
-        love.graphics.setColor(0,0,0,0.7)
-        love.graphics.printf(fullText, x + 1, y + h/2 - fonts.main_small:getHeight()/2 + 1, w - 2, "center")
-        love.graphics.setColor(colors.white)
-        love.graphics.printf(fullText, x, y + h/2 - fonts.main_small:getHeight()/2, w - 2, "center")
+    -- Garante que os valores estejam dentro de limites razoáveis
+    current = math.max(0, math.min(current, max))
+    max = math.max(1, max)
+
+    -- Inicializa o cache para esta entidade se não existir
+    local entityId = tostring(x) .. tostring(y) -- Identificador único para a entidade
+    if not elements.lastHealth[entityId] then
+        elements.lastHealth[entityId] = current
+        elements.cacheHealth[entityId] = current
+    end
+
+    -- Atualiza o cache se a vida atual for menor que o cache
+    if current < elements.cacheHealth[entityId] then
+        elements.cacheHealth[entityId] = elements.cacheHealth[entityId] - elements.cacheSpeed
+        if elements.cacheHealth[entityId] < current then
+            elements.cacheHealth[entityId] = current
+        end
+    else
+        elements.cacheHealth[entityId] = current
+    end
+
+    -- Atualiza o último valor de vida
+    elements.lastHealth[entityId] = current
+
+    -- Calcula as porcentagens
+    local currentPercent = current / max
+    local cachePercent = elements.cacheHealth[entityId] / max
+
+    -- Garante que as cores sejam números
+    local bgColor = bgColor or colors.bar_bg
+    local color = color or colors.hp_fill
+    local borderColor = borderColor or colors.bar_border
+    local textColor = textColor or colors.text_main
+
+    -- Desenha o fundo da barra
+    love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
+    love.graphics.rectangle("fill", x, y, width, height)
+
+    -- Desenha a barra de cache (parte que diminui suavemente)
+    local darkerColor = {
+        color[1] * 0.4,  -- Red
+        color[2] * 0.4,  -- Green
+        color[3] * 0.4,  -- Blue
+        (color[4] or 1) * 0.8  -- Alpha
+    }
+    love.graphics.setColor(darkerColor)
+    love.graphics.rectangle("fill", x, y, width * cachePercent, height)
+
+    -- Desenha a barra de vida atual
+    love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
+    love.graphics.rectangle("fill", x, y, width * currentPercent, height)
+
+    -- Desenha a borda
+    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 1)
+    love.graphics.rectangle("line", x, y, width, height)
+
+    -- Desenha o texto se necessário
+    if showText then
+        local text = textFormat and string.format(textFormat, current, max) or string.format("%d/%d", current, max)
+        local font = love.graphics.getFont()
+        local textWidth = font:getWidth(text)
+        local textHeight = font:getHeight()
+        local textX = x + (width - textWidth) / 2
+        local textY = y + (height - textHeight) / 2
+
+        -- Desenha a sombra do texto
+        love.graphics.setColor(0, 0, 0, 0.5)
+        love.graphics.print(text, textX + 1, textY + 1)
+
+        -- Desenha o texto principal
+        love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
+        love.graphics.print(text, textX, textY)
     end
 end
 

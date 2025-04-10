@@ -10,16 +10,24 @@ local RangedEnemy = require("src.classes.enemies.ranged_enemy")
 local DiagonalEnemy = require("src.classes.enemies.diagonal_enemy")
 local PuddleEnemy = require("src.classes.enemies.puddle_enemy")
 local SplitterEnemy = require("src.classes.enemies.splitter_enemy")
+local ExampleBoss = require("src.classes.bosses.example_boss")
 
 -- Estrutura principal que contém a configuração dos ciclos para um "mundo" específico.
 local worldCycles = {
     -- Configurações globais do mundo
     mvpConfig = {
-        spawnInterval = 45,      -- Intervalo entre spawns de MVPs (em segundos)
-        statusMultiplier = 10,   -- Multiplicador de status para MVPs
+        spawnInterval = 30,      -- Intervalo entre spawns de MVPs (em segundos)
+        statusMultiplier = 20,   -- Multiplicador de status para MVPs
         speedMultiplier = 1.2,   -- Multiplicador de velocidade para MVPs
         sizeMultiplier = 1.3,    -- Multiplicador de tamanho para MVPs
-        experienceMultiplier = 10 -- Multiplicador de experiência para MVPs
+        experienceMultiplier = 20 -- Multiplicador de experiência para MVPs
+    },
+
+    -- Configurações de bosses
+    bossConfig = {
+        spawnTimes = { -- Tempos em segundos para spawnar cada boss
+            {time = 3, boss = ExampleBoss, powerLevel = 4} -- Primeiro boss após 5 minutos
+        }
     },
 
     -- Tabela contendo a sequência de ciclos de spawn.
@@ -35,7 +43,7 @@ local worldCycles = {
             -- Usado tanto para Major Spawns quanto para Minor Spawns.
             -- 'weight' maior significa maior chance de ser escolhido.
             allowedEnemies = { 
-                {class = SplitterEnemy, weight = 1} 
+                {class = CommonEnemy, weight = 1} 
             },
             
             -- Configuração para os spawns grandes e cronometrados ("Major Spawns").
@@ -46,7 +54,7 @@ local worldCycles = {
                 baseCount = 20,      
                 -- Porcentagem (em decimal) do baseCount a ser adicionada como inimigos extras para cada minuto de jogo decorrido.
                 -- Ex: 0.1 = +10% do baseCount por minuto.
-                countScalePerMin = 0.20  -- Era 50 (valor absoluto)
+                countScalePerMin = 0.20
             },
             
             -- Configuração para os spawns pequenos e contínuos ("Minor Spawns").

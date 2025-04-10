@@ -1,4 +1,5 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
+local BossHealthBar = require("src.ui.boss_health_bar")
 
 local EnemyManager = {
     enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos
@@ -14,6 +15,7 @@ local EnemyManager = {
     nextMajorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn grande (Major Spawn)
     nextMinorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn pequeno (Minor Spawn)
     nextMVPSpawnTime = 0,       -- Tempo de jogo global agendado para o próximo spawn de MVP
+    nextBossIndex = 1,          -- Índice do próximo boss a ser spawnado
 }
 
 -- Inicializa o gerenciador de inimigos para um mundo específico
@@ -23,6 +25,9 @@ function EnemyManager:init(worldId)
     self.gameTimer = 0            -- Reinicia o timer global
     self.timeInCurrentCycle = 0   -- Reinicia o timer do ciclo
     self.currentCycleIndex = 1  -- Começa no primeiro ciclo
+    
+    -- Inicializa a barra de vida do boss
+    BossHealthBar:init()
     
     -- Carrega a configuração de ciclos para o mundo especificado
     self.worldConfig = HordeConfigManager.loadHordes(worldId)
@@ -49,6 +54,15 @@ function EnemyManager:update(dt, player)
     if self.gameTimer >= self.nextMVPSpawnTime then
         self:spawnMVP(player)
         self.nextMVPSpawnTime = self.gameTimer + self.worldConfig.mvpConfig.spawnInterval
+    end
+
+    -- Verifica se é hora de spawnar um boss
+    if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
+        local nextBoss = self.worldConfig.bossConfig.spawnTimes[self.nextBossIndex]
+        if nextBoss and self.gameTimer >= nextBoss.time then
+            self:spawnBoss(nextBoss.boss, player, nextBoss.powerLevel)
+            self.nextBossIndex = self.nextBossIndex + 1
+        end
     end
 
     -- 1. Determina o Ciclo Atual e Verifica Transições
@@ -186,6 +200,15 @@ end
 
 -- Desenha todos os inimigos ativos na tela
 function EnemyManager:draw()
+    -- Desenha a barra de vida do boss se houver um boss ativo
+    for _, enemy in ipairs(self.enemies) do
+        if enemy.isBoss and enemy.isAlive then
+            BossHealthBar:show(enemy)
+            break
+        end
+    end
+
+    -- Desenha os inimigos (dentro da transformação da câmera)
     for _, enemy in ipairs(self.enemies) do
         enemy:draw()
         
@@ -270,6 +293,26 @@ function EnemyManager:spawnMVP(player)
     if #self.enemies > 0 then
         self:transformToMVP(self.enemies[#self.enemies])
     end
+end
+
+function EnemyManager:spawnBoss(bossClass, player, powerLevel)
+    if #self.enemies >= self.maxEnemies then
+        print("Limite máximo de inimigos atingido, não é possível spawnar boss.")
+        return
+    end
+
+    -- Calcula posição de spawn (fora da tela)
+    local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
+    local angle = math.random() * 2 * math.pi
+    local spawnX = player.positionX + math.cos(angle) * minSpawnRadius
+    local spawnY = player.positionY + math.sin(angle) * minSpawnRadius
+
+    -- Cria o boss com o nível de poder especificado
+    local boss = bossClass:new(spawnX, spawnY)
+    boss.powerLevel = powerLevel or 3 -- Usa 3 como padrão se não for especificado
+    table.insert(self.enemies, boss)
+
+    print(string.format("Boss %s (Nível %d) spawnado!", boss.name, boss.powerLevel))
 end
 
 return EnemyManager

@@ -7,6 +7,7 @@ local HUD = {}
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
+local BossHealthBar = require("src.ui.boss_health_bar")
 
 -- Função auxiliar para formatar tempo
 local function formatTime(s)
@@ -43,18 +44,30 @@ function HUD:draw(player)
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
 
+    -- Desenha a barra de vida do boss se houver um boss ativo
+    BossHealthBar:draw()
+
     -- Barra de XP (Centralizada)
     local xpPercent = (player.experience or 0) / (player.experienceToNextLevel or 100)
     local barW = screenW * 0.4
     local barH = 18
     local barX = (screenW - barW) / 2 -- Centraliza horizontalmente
     local barY = 20 -- Posição fixa no topo
-
-    elements.drawResourceBar(barX, barY, barW, barH, xpPercent, colors.bar_bg, colors.xp_fill)
-    love.graphics.setFont(fonts.main_small)
-    love.graphics.setColor(colors.white)
-    love.graphics.printf(string.format("XP: %d / %d", player.experience or 0, player.experienceToNextLevel or 100),
-                        barX, barY + barH/2 - fonts.main_small:getHeight()/2, barW, "center")
+    
+    elements.drawResourceBar(
+        barX,
+        barY,
+        barW,
+        barH,
+        player.experience or 0,
+        player.experienceToNextLevel or 100,
+        colors.xp_fill,
+        colors.bar_bg,
+        colors.bar_border,
+        true,
+        colors.text_main,
+        "%.0f/%.0f"
+    )
 
     -- Nível do Player (abaixo da barra de XP)
     love.graphics.setFont(fonts.hud)
@@ -80,18 +93,26 @@ function HUD:draw(player)
 
     drawPlayerStatus(textX, textY, "Ouro:", tostring(player.gold or 0), colors.text_gold)
 
-    -- Barras de HP e MP (Centralizadas)
+    -- Barra de HP
     local hudBarW = 300
     local hudBarH = 20
     local hudBarX = (screenW - hudBarW) / 2
     local hudBarY_hp = screenH - 100
-
-    -- Barra de HP
-    local hpPercent = (player.state.currentHealth or 0) / (player.state:getTotalHealth() or 100)
     
-    -- Desenha a barra de HP
-    elements.drawResourceBar(hudBarX, hudBarY_hp, hudBarW, hudBarH, hpPercent, colors.bar_bg, colors.hp_fill, "HP", 
-        string.format("%d/%d", player.state.currentHealth or 0, player.state:getTotalHealth() or 100))
+    elements.drawResourceBar(
+        hudBarX,
+        hudBarY_hp,
+        hudBarW,
+        hudBarH,
+        player.state.currentHealth or 0,
+        player.state:getTotalHealth() or 100,
+        colors.hp_fill,
+        colors.bar_bg,
+        colors.bar_border,
+        true,
+        colors.text_main,
+        "%.0f/%.0f"
+    )
 
     -- Status do Player (Atributos) - Agora em uma janela separada
     local statusWindowW = 250
