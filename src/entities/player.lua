@@ -23,8 +23,8 @@ local Player = {
     -- Level System
     level = 1,
     experience = 0,
-    experienceToNextLevel = 100,
-    experienceMultiplier = 1.1, -- Multiplicador de experiência para o próximo nível
+    experienceToNextLevel = 50,
+    experienceMultiplier = 1.10, -- Multiplicador de experiência para o próximo nível
     
     -- Game Stats
     gameTime = 0,
@@ -302,10 +302,7 @@ function Player:castAbility(x, y)
                 if enemy.isAlive then
                     -- Verifica se o inimigo está dentro da área de efeito da habilidade
                     if self.attackAbility:isPointInArea(enemy.positionX, enemy.positionY) then
-                        local isCritical = math.random() < self.state:getTotalCriticalChance()
-                        local damage = self.state:getTotalDamage() * (isCritical and self.state:getTotalCriticalMultiplier() or 1)
-                        
-                        if enemy:takeDamage(damage, isCritical) then
+                        if self.attackAbility:applyDamage(enemy) then
                             self.kills = self.kills + 1
                             self:addExperience(enemy.experienceValue)
                             self.gold = self.gold + math.random(1, 5) -- Adiciona 1-5 de ouro por kill
@@ -416,8 +413,9 @@ end
 
 function Player:levelUp()
     self.level = self.level + 1
-    self.experience = self.experience - self.experienceToNextLevel
-    self.experienceToNextLevel = math.floor(self.experienceToNextLevel * self.experienceMultiplier)
+    -- Calcula o novo valor necessário para o próximo nível de forma acumulativa
+    local previousRequired = self.experienceToNextLevel
+    self.experienceToNextLevel = previousRequired + math.floor(previousRequired * self.experienceMultiplier)
     
     -- Mostra texto de level up
     FloatingTextManager:addText(

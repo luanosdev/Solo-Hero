@@ -5,6 +5,8 @@
 
 local FloatingTextManager = require("src.managers.floating_text_manager")
 local PrismManager = require("src.managers.prism_manager")
+local elements = require("src.ui.ui_elements")
+local colors = require("src.ui.colors")
 
 local BaseEnemy = {
     positionX = 0,
@@ -20,7 +22,8 @@ local BaseEnemy = {
     attackSpeed = 1,
     color = {1, 0, 0}, -- Cor padrão vermelha
     name = "BaseEnemy",
-    experienceValue = 10 -- Experiência base para todos os inimigos
+    experienceValue = 10, -- Experiência base para todos os inimigos
+    healthBarWidth = 30 -- Largura padrão da barra de vida
 }
 
 function BaseEnemy:new(x, y)
@@ -128,27 +131,22 @@ function BaseEnemy:draw()
     love.graphics.setColor(self.color)
     love.graphics.circle("fill", self.positionX, self.positionY, self.radius)
     
-    -- Desenha a barra de vida
-    local healthBarWidth = self.healthBarWidth or 30 -- Usa 30 como padrão se não estiver definido
+    -- Desenha a barra de vida usando o elements.drawResourceBar
+    local healthBarX = self.positionX - self.healthBarWidth/2
+    local healthBarY = self.positionY - self.radius - 8
     local healthBarHeight = 4
-    local healthPercentage = self.currentHealth / self.maxHealth
     
-    -- Fundo da barra de vida
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.rectangle("fill", 
-        self.positionX - healthBarWidth/2, 
-        self.positionY - self.radius - 8,
-        healthBarWidth, 
-        healthBarHeight
-    )
-    
-    -- Barra de vida
-    love.graphics.setColor(self.color)
-    love.graphics.rectangle("fill", 
-        self.positionX - healthBarWidth/2, 
-        self.positionY - self.radius - 8,
-        healthBarWidth * healthPercentage, 
-        healthBarHeight
+    elements.drawResourceBar(
+        healthBarX,
+        healthBarY,
+        self.healthBarWidth,
+        healthBarHeight,
+        self.currentHealth,
+        self.maxHealth,
+        self.color,
+        colors.bar_bg,
+        colors.bar_border,
+        false
     )
 end
 

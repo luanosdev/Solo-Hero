@@ -123,7 +123,7 @@ end
 ]]
 function BaseAbility:applyDamage(enemy)
     -- Calcula se o dano é crítico
-    local isCritical = math.random(1, 100) <= self.owner.state:getTotalCriticalChance()
+    local isCritical = math.random() <= self.owner.state:getTotalCriticalChance()
     local finalDamage = self.owner.state:getTotalDamage() + (self.damage or 0)
     if isCritical then
         finalDamage = math.floor(finalDamage * self.owner.state:getTotalCriticalMultiplier())

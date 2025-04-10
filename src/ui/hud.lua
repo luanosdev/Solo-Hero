@@ -48,26 +48,41 @@ function HUD:draw(player)
     BossHealthBar:draw()
 
     -- Barra de XP (Centralizada)
-    local xpPercent = (player.experience or 0) / (player.experienceToNextLevel or 100)
+    -- Calcula a experiência necessária apenas para o próximo nível
+    local experienceForNextLevel = player.experienceToNextLevel - (player.level > 1 and player.experienceToNextLevel / (1 + player.experienceMultiplier) or 0)
+    local currentExperience = player.experience - (player.level > 1 and player.experienceToNextLevel / (1 + player.experienceMultiplier) or 0)
+    local xpPercent = currentExperience / experienceForNextLevel
     local barW = screenW * 0.4
     local barH = 18
     local barX = (screenW - barW) / 2 -- Centraliza horizontalmente
     local barY = 20 -- Posição fixa no topo
     
+    -- Desenha a barra de progresso
     elements.drawResourceBar(
         barX,
         barY,
         barW,
         barH,
-        player.experience or 0,
-        player.experienceToNextLevel or 100,
+        currentExperience,
+        experienceForNextLevel,
         colors.xp_fill,
         colors.bar_bg,
         colors.bar_border,
-        true,
-        colors.text_main,
-        "%.0f/%.0f"
+        false  -- Não mostra o texto padrão
     )
+    
+    -- Desenha o texto da XP separadamente
+    local text = string.format("%.0f/%.0f", player.experience, player.experienceToNextLevel)
+    love.graphics.setFont(fonts.hud)  -- Define explicitamente a fonte
+    local textHeight = fonts.hud:getHeight()
+    
+    -- Desenha a sombra do texto
+    love.graphics.setColor(0, 0, 0, 0.5)
+    love.graphics.printf(text, barX, barY + (barH - textHeight) / 2 + 1, barW, "center")
+    
+    -- Desenha o texto principal
+    love.graphics.setColor(colors.text_main)
+    love.graphics.printf(text, barX, barY + (barH - textHeight) / 2, barW, "center")
 
     -- Nível do Player (abaixo da barra de XP)
     love.graphics.setFont(fonts.hud)

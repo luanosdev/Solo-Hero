@@ -73,7 +73,7 @@ end
     @return number Total damage
 ]]
 function PlayerState:getTotalDamage()
-    return self.baseDamage * (1 + self.levelBonus.damage / 100)
+    return math.floor(self.baseDamage * (1 + self.levelBonus.damage / 100))
 end
 
 --[[
@@ -81,7 +81,7 @@ end
     @return number Total defense
 ]]
 function PlayerState:getTotalDefense()
-    return self.baseDefense * (1 + self.levelBonus.defense / 100)
+    return math.floor(self.baseDefense * (1 + self.levelBonus.defense / 100))
 end
 
 --[[
@@ -124,7 +124,7 @@ end
 function PlayerState:takeDamage(damage)
     if not self.isAlive then return false end
     
-    local actualDamage = math.max(1, damage - self:getTotalDefense())
+    local actualDamage = math.max(1, math.floor(damage - self:getTotalDefense()))
     self.currentHealth = math.max(0, self.currentHealth - actualDamage)
     
     if self.currentHealth <= 0 then
