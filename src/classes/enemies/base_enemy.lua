@@ -127,27 +127,60 @@ end
 function BaseEnemy:draw()
     if not self.isAlive then return end
     
+    local healthBarHeight = 4
+    
+    -- Se for MVP, adiciona efeitos especiais
+    if self.isMVP then
+        healthBarHeight = 8
+        -- Aumenta o tamanho da barra de vida
+        self.healthBarWidth = 60 -- Barra de vida maior para MVPs
+    
+        -- Efeito de pulso para a borda
+        local pulseTime = love.timer.getTime() * 2
+        local pulseScale = 1 + math.sin(pulseTime) * 0.1
+        
+        -- Círculo de brilho externo
+        local glowColor = {
+            self.color[1] * 0.6,
+            self.color[2] * 0.6,
+            self.color[3] * 0.6,
+            0.6
+        }
+        love.graphics.setColor(glowColor)
+        love.graphics.circle("fill", self.positionX, self.positionY, self.radius * 1.5 * pulseScale)
+        
+        -- Borda principal
+        local lighterColor = {
+            self.color[1] * 0.8,
+            self.color[2] * 0.8,
+            self.color[3] * 0.8,
+            1
+        }
+        love.graphics.setColor(lighterColor)
+        love.graphics.circle("line", self.positionX, self.positionY, self.radius * pulseScale)
+
+        -- Desenha a barra de vida usando o elements.drawResourceBar
+        local healthBarX = self.positionX - self.healthBarWidth/2
+        local healthBarY = self.positionY - self.radius - 18
+        
+        elements.drawResourceBar(
+            healthBarX,
+            healthBarY,
+            self.healthBarWidth,
+            healthBarHeight,
+            self.currentHealth,
+            self.maxHealth,
+            self.color,
+            colors.bar_bg,
+            colors.bar_border,
+            false
+        )
+    end
+    
     -- Desenha o corpo do inimigo
     love.graphics.setColor(self.color)
     love.graphics.circle("fill", self.positionX, self.positionY, self.radius)
     
-    -- Desenha a barra de vida usando o elements.drawResourceBar
-    local healthBarX = self.positionX - self.healthBarWidth/2
-    local healthBarY = self.positionY - self.radius - 8
-    local healthBarHeight = 4
-    
-    elements.drawResourceBar(
-        healthBarX,
-        healthBarY,
-        self.healthBarWidth,
-        healthBarHeight,
-        self.currentHealth,
-        self.maxHealth,
-        self.color,
-        colors.bar_bg,
-        colors.bar_border,
-        false
-    )
 end
 
 function BaseEnemy:takeDamage(damage, isCritical)

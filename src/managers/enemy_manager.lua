@@ -211,15 +211,6 @@ function EnemyManager:draw()
     -- Desenha os inimigos (dentro da transformação da câmera)
     for _, enemy in ipairs(self.enemies) do
         enemy:draw()
-        
-        -- Desenha efeito de brilho para MVPs usando a cor original do inimigo
-        if enemy.isMVP and enemy.glowEffect then
-            -- Usa a cor original do inimigo com transparência
-            local r, g, b = unpack(enemy.color)
-            love.graphics.setColor(r, g, b, 0.3)
-            -- Desenha um círculo ligeiramente maior que o inimigo
-            love.graphics.circle("fill", enemy.positionX, enemy.positionY, enemy.radius * 1.2)
-        end
     end
 end
 
@@ -261,14 +252,8 @@ function EnemyManager:transformToMVP(enemy)
     enemy.radius = enemy.radius * mvpConfig.sizeMultiplier
     enemy.experienceValue = enemy.experienceValue * mvpConfig.experienceMultiplier
     
-    -- Marca como MVP e guarda a cor original
+    -- Marca como MVP
     enemy.isMVP = true
-    
-    -- Define uma cor especial para MVPs (dourado com brilho)
-    enemy.glowEffect = true
-    
-    -- Aumenta o tamanho da barra de vida
-    enemy.healthBarWidth = 60 -- Barra de vida maior para MVPs
 end
 
 -- Função para spawnar um MVP

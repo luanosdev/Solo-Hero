@@ -16,7 +16,7 @@ local ExampleBoss = require("src.classes.bosses.example_boss")
 local worldCycles = {
     -- Configurações globais do mundo
     mvpConfig = {
-        spawnInterval = 30,      -- Intervalo entre spawns de MVPs (em segundos)
+        spawnInterval = 10,      -- Intervalo entre spawns de MVPs (em segundos)
         statusMultiplier = 20,   -- Multiplicador de status para MVPs
         speedMultiplier = 1.2,   -- Multiplicador de velocidade para MVPs
         sizeMultiplier = 1.3,    -- Multiplicador de tamanho para MVPs
