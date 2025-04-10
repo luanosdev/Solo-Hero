@@ -2,7 +2,7 @@ local HordeConfigManager = require("src.managers.horde_config_manager")
 
 local EnemyManager = {
     enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos
-    maxEnemies = 100,           -- Número máximo de inimigos permitidos na tela simultaneamente
+    maxEnemies = 300,           -- Número máximo de inimigos permitidos na tela simultaneamente
     
     -- Estado de Ciclo e Tempo
     worldConfig = nil,          -- Configuração carregada para o mundo (contém a lista de 'cycles')
@@ -13,6 +13,7 @@ local EnemyManager = {
     -- Timers de Spawn (baseados no gameTimer)
     nextMajorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn grande (Major Spawn)
     nextMinorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn pequeno (Minor Spawn)
+    nextMVPSpawnTime = 0,       -- Tempo de jogo global agendado para o próximo spawn de MVP
 }
 
 -- Inicializa o gerenciador de inimigos para um mundo específico
@@ -34,6 +35,7 @@ function EnemyManager:init(worldId)
     if not firstCycle then error("Erro: Primeiro ciclo não encontrado na configuração.") end
     self.nextMajorSpawnTime = firstCycle.majorSpawn.interval -- O primeiro Major Spawn ocorre após o intervalo inicial
     self.nextMinorSpawnTime = self:calculateMinorSpawnInterval(firstCycle) -- O primeiro Minor Spawn ocorre após o intervalo inicial calculado
+    self.nextMVPSpawnTime = self.worldConfig.mvpConfig.spawnInterval -- O primeiro MVP spawna após o intervalo inicial
 
     print(string.format("EnemyManager inicializado para '%s'. %d ciclo(s) carregados.", worldId, #self.worldConfig.cycles))
 end
@@ -42,6 +44,12 @@ end
 function EnemyManager:update(dt, player)
     self.gameTimer = self.gameTimer + dt
     self.timeInCurrentCycle = self.timeInCurrentCycle + dt
+
+    -- Verifica se é hora de spawnar um MVP
+    if self.gameTimer >= self.nextMVPSpawnTime then
+        self:spawnMVP(player)
+        self.nextMVPSpawnTime = self.gameTimer + self.worldConfig.mvpConfig.spawnInterval
+    end
 
     -- 1. Determina o Ciclo Atual e Verifica Transições
     local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
@@ -180,6 +188,15 @@ end
 function EnemyManager:draw()
     for _, enemy in ipairs(self.enemies) do
         enemy:draw()
+        
+        -- Desenha efeito de brilho para MVPs usando a cor original do inimigo
+        if enemy.isMVP and enemy.glowEffect then
+            -- Usa a cor original do inimigo com transparência
+            local r, g, b = unpack(enemy.color)
+            love.graphics.setColor(r, g, b, 0.3)
+            -- Desenha um círculo ligeiramente maior que o inimigo
+            love.graphics.circle("fill", enemy.positionX, enemy.positionY, enemy.radius * 1.2)
+        end
     end
 end
 
@@ -205,6 +222,54 @@ function EnemyManager:spawnSpecificEnemy(enemyClass, player)
     local enemy = enemyClass:new(spawnX, spawnY)
     -- Adiciona o inimigo à lista de inimigos ativos
     table.insert(self.enemies, enemy)
+end
+
+-- Função para transformar um inimigo em MVP
+function EnemyManager:transformToMVP(enemy)
+    if not enemy or not enemy.isAlive then return end
+    
+    local mvpConfig = self.worldConfig.mvpConfig
+    
+    -- Aumenta os status do inimigo usando as configurações do mundo
+    enemy.maxHealth = enemy.maxHealth * mvpConfig.statusMultiplier
+    enemy.currentHealth = enemy.maxHealth
+    enemy.damage = enemy.damage * mvpConfig.statusMultiplier
+    enemy.speed = enemy.speed * mvpConfig.speedMultiplier
+    enemy.radius = enemy.radius * mvpConfig.sizeMultiplier
+    enemy.experienceValue = enemy.experienceValue * mvpConfig.experienceMultiplier
+    
+    -- Marca como MVP e guarda a cor original
+    enemy.isMVP = true
+    
+    -- Define uma cor especial para MVPs (dourado com brilho)
+    enemy.glowEffect = true
+    
+    -- Aumenta o tamanho da barra de vida
+    enemy.healthBarWidth = 60 -- Barra de vida maior para MVPs
+end
+
+-- Função para spawnar um MVP
+function EnemyManager:spawnMVP(player)
+    if #self.enemies >= self.maxEnemies then
+        print("Limite máximo de inimigos atingido, não é possível spawnar MVP.")
+        return
+    end
+    
+    -- Seleciona um tipo de inimigo aleatório do ciclo atual
+    local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
+    if not currentCycle then return end
+    
+    local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
+    if not enemyClass then return end
+    
+    -- Spawna o inimigo normalmente
+    local enemy = enemyClass:new(player.positionX, player.positionY)
+    self:spawnSpecificEnemy(enemyClass, player)
+    
+    -- Transforma o último inimigo spawnado em MVP
+    if #self.enemies > 0 then
+        self:transformToMVP(self.enemies[#self.enemies])
+    end
 end
 
 return EnemyManager

@@ -129,7 +129,7 @@ function BaseEnemy:draw()
     love.graphics.circle("fill", self.positionX, self.positionY, self.radius)
     
     -- Desenha a barra de vida
-    local healthBarWidth = 30
+    local healthBarWidth = self.healthBarWidth or 30 -- Usa 30 como padrão se não estiver definido
     local healthBarHeight = 4
     local healthPercentage = self.currentHealth / self.maxHealth
     

@@ -13,6 +13,15 @@ local SplitterEnemy = require("src.classes.enemies.splitter_enemy")
 
 -- Estrutura principal que contém a configuração dos ciclos para um "mundo" específico.
 local worldCycles = {
+    -- Configurações globais do mundo
+    mvpConfig = {
+        spawnInterval = 45,      -- Intervalo entre spawns de MVPs (em segundos)
+        statusMultiplier = 10,   -- Multiplicador de status para MVPs
+        speedMultiplier = 1.2,   -- Multiplicador de velocidade para MVPs
+        sizeMultiplier = 1.3,    -- Multiplicador de tamanho para MVPs
+        experienceMultiplier = 10 -- Multiplicador de experiência para MVPs
+    },
+
     -- Tabela contendo a sequência de ciclos de spawn.
     cycles = {
         -- Cada tabela interna representa um ciclo ou fase do jogo.
