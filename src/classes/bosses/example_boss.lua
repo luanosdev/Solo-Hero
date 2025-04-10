@@ -15,18 +15,18 @@ ExampleBoss.abilityCooldown = 3 -- Cooldown entre habilidades em segundos
 
 -- Configurações da habilidade de ataque giratório
 ExampleBoss.spinAttackConfig = {
-    chargeTime = 1.5, -- Tempo de carregamento antes do ataque
+    chargeTime = 1, -- Tempo de carregamento antes do ataque
     spinSpeed = 500,  -- Velocidade de rotação durante o ataque
-    spinDuration = 2, -- Duração do ataque giratório
+    spinDuration = 1, -- Duração do ataque giratório
     lineWidth = 20,    -- Largura da linha vermelha
-    minDistance = 200 -- Distância mínima para iniciar o ataque
+    lineLength = 300,  -- Comprimento fixo da linha de ataque
+    damageMultiplier = 0.1 -- Multiplicador de dano baseado na velocidade
 }
 
 -- Habilidades do boss
 ExampleBoss.abilities = {
     {
         name = "Ataque Giratório",
-        minDistance = 200, -- Distância mínima para usar esta habilidade
         cast = function(boss, player, enemies)
             -- Verifica se o player existe
             if not player or not player.positionX or not player.positionY then
@@ -45,9 +45,9 @@ ExampleBoss.abilities = {
             local dy = player.positionY - boss.positionY
             local distance = math.sqrt(dx * dx + dy * dy)
             
-            -- Se estiver muito perto, não usa a habilidade
-            if distance < boss.spinAttackConfig.minDistance then
-                print("Boss muito próximo do jogador para usar ataque giratório!")
+            -- Se o jogador estiver fora do alcance da habilidade, não usa
+            if distance > boss.spinAttackConfig.lineLength then
+                print("Jogador fora do alcance do ataque giratório!")
                 return false
             end
             
@@ -62,7 +62,8 @@ ExampleBoss.abilities = {
                 targetY = player.positionY,
                 startX = boss.positionX,
                 startY = boss.positionY,
-                rotation = 0
+                rotation = 0,
+                damageDealt = false -- Flag para controlar se o dano já foi aplicado
             }
             return true
         end
@@ -131,8 +132,32 @@ function ExampleBoss:update(dt, player, enemies)
         -- Calcula a posição ao longo da linha
         local progress = self.spinAttack.spinTimer / self.spinAttackConfig.spinDuration
         if progress <= 1 then
-            self.positionX = self.spinAttack.startX + (self.spinAttack.targetX - self.spinAttack.startX) * progress
-            self.positionY = self.spinAttack.startY + (self.spinAttack.targetY - self.spinAttack.startY) * progress
+            -- Calcula a direção normalizada
+            local dx = self.spinAttack.targetX - self.spinAttack.startX
+            local dy = self.spinAttack.targetY - self.spinAttack.startY
+            local length = math.sqrt(dx * dx + dy * dy)
+            dx = dx / length * self.spinAttackConfig.lineLength
+            dy = dy / length * self.spinAttackConfig.lineLength
+            
+            -- Atualiza a posição
+            self.positionX = self.spinAttack.startX + dx * progress
+            self.positionY = self.spinAttack.startY + dy * progress
+            
+            -- Verifica colisão com o player e aplica dano
+            if not self.spinAttack.damageDealt and player and player.isAlive then
+                local playerDx = player.positionX - self.positionX
+                local playerDy = player.positionY - self.positionY
+                local playerDistance = math.sqrt(playerDx * playerDx + playerDy * playerDy)
+                
+                if playerDistance < self.radius + player.radius then
+                    -- Calcula o dano baseado na velocidade
+                    local speed = self.spinAttackConfig.spinSpeed * dt
+                    local damage = math.floor(self.damage * (1 + speed * self.spinAttackConfig.damageMultiplier))
+                    player:takeDamage(damage)
+                    self.spinAttack.damageDealt = true
+                    print("Boss acertou o jogador com ataque giratório!")
+                end
+            end
         else
             -- Termina o ataque
             self.spinAttack = nil
@@ -163,11 +188,20 @@ function ExampleBoss:draw()
     if self.spinAttack and self.spinAttack.isCharging then
         love.graphics.setColor(1, 0, 0, 0.5)
         love.graphics.setLineWidth(self.spinAttackConfig.lineWidth)
+        
+        -- Calcula a direção normalizada
+        local dx = self.spinAttack.targetX - self.spinAttack.startX
+        local dy = self.spinAttack.targetY - self.spinAttack.startY
+        local length = math.sqrt(dx * dx + dy * dy)
+        dx = dx / length * self.spinAttackConfig.lineLength
+        dy = dy / length * self.spinAttackConfig.lineLength
+        
+        -- Desenha a linha até o limite máximo
         love.graphics.line(
             self.spinAttack.startX,
             self.spinAttack.startY,
-            self.spinAttack.targetX,
-            self.spinAttack.targetY
+            self.spinAttack.startX + dx,
+            self.spinAttack.startY + dy
         )
         love.graphics.setLineWidth(1)
     end
