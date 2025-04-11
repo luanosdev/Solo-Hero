@@ -9,9 +9,12 @@ local Camera = require("src.config.camera")
 local GameConfig = require("src.config.game")
 local EnemyManager = require("src.managers.enemy_manager")
 local FloatingTextManager = require("src.managers.floating_text_manager")
-local PrismManager = require("src.managers.prism_manager")
+local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local PuddleManager = require("src.managers.puddle_manager")
+local RuneManager = require("src.managers.rune_manager")
+local DropManager = require("src.managers.drop_manager")
 local LevelUpModal = require("src.ui.level_up_modal")
+local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 
@@ -47,11 +50,14 @@ function love.load()
     -- Inicializa os diferentes gerenciadores do jogo
     EnemyManager:init() -- Inicializa com a configuração de mundo "default"
     FloatingTextManager:init()
-    PrismManager:init()
+    ExperienceOrbManager:init()
     PuddleManager:init()
+    RuneManager:init(Player) -- Inicializa o gerenciador de runas
+    DropManager:init(Player, EnemyManager.worldConfig) -- Inicializa o gerenciador de drops
     
-    -- Inicializa o modal de Level Up (passando a referência do Player)
+    -- Inicializa os modais
     LevelUpModal:init(Player)
+    RuneChoiceModal:init(Player) -- Inicializa o modal de escolha de runas
 end
 
 --[[ 
@@ -60,9 +66,15 @@ end
     @param dt Tempo (em segundos) desde o último frame (delta time).
 ]]
 function love.update(dt)
-    -- Pausa a lógica principal do jogo se o modal de level up estiver ativo
+    -- Pausa as atualizações do jogo se o modal de level up estiver ativo
     if LevelUpModal.visible then
-        LevelUpModal:update(dt) -- Atualiza apenas o modal
+        LevelUpModal:update(dt) -- Atualiza apenas o modal de level up
+        return -- Interrompe a atualização do resto do jogo
+    end
+
+    -- Pausa as atualizações do jogo se o modal de runa estiver ativo
+    if RuneChoiceModal.visible then
+        RuneChoiceModal:update(dt) -- Atualiza apenas o modal de runa
         return -- Interrompe a atualização do resto do jogo
     end
     
@@ -74,8 +86,10 @@ function love.update(dt)
     -- Atualiza os gerenciadores
     EnemyManager:update(dt, Player) -- Atualiza inimigos e lógica de spawn
     FloatingTextManager:update(dt) -- Atualiza textos flutuantes (dano, etc.)
-    PrismManager:update(dt, Player) -- Atualiza prismas de experiência e coleta
+    ExperienceOrbManager:update(dt, Player) -- Atualiza prismas de experiência e coleta
     PuddleManager:update(dt, Player)
+    RuneManager:update(dt) -- Atualiza o gerenciador de runas
+    DropManager:update(dt) -- Atualiza os drops
 end
 
 --[[ 
@@ -93,16 +107,18 @@ function love.draw()
     PuddleManager:draw()
     Player:draw()
     EnemyManager:draw()
-    PrismManager:draw()
+    ExperienceOrbManager:draw()
     FloatingTextManager:draw()
+    DropManager:draw() -- Desenha os drops
     -- Libera a transformação da câmera
     camera:detach()
 
     -- Desenha a Interface do Usuário (HUD) por cima, sem transformação da câmera
     HUD:draw(Player)
     
-    -- Desenha o modal de level up se estiver visível
+    -- Desenha os modais
     LevelUpModal:draw()
+    RuneChoiceModal:draw() -- Desenha o modal de escolha de runas
 end
 
 --[[ 
@@ -132,6 +148,12 @@ function love.mousepressed(x, y, button)
     -- Se o modal de level up estiver visível, ele recebe o clique
     if LevelUpModal.visible then
         LevelUpModal:mousepressed(x, y, button)
+        return -- Impede que o clique afete outros elementos
+    end
+    
+    -- Se o modal de runa estiver visível, ele recebe o clique
+    if RuneChoiceModal.visible then
+        RuneChoiceModal:mousepressed(x, y, button)
         return -- Impede que o clique afete outros elementos
     end
     

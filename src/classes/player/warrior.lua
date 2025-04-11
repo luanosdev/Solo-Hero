@@ -3,8 +3,8 @@
     Defines base stats for the Warrior class
 ]]
 
-local ConeSlash = require("src.abilities.player.cone_slash")
-local LinearProjectile = require("src.abilities.player.linear_projectile")
+local ConeSlash = require("src.abilities.player.attacks.cone_slash")
+local LinearProjectile = require("src.abilities.player.attacks.linear_projectile")
 
 local Warrior = {
     -- Base Stats

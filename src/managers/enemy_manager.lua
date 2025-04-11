@@ -1,5 +1,6 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
+local DropManager = require("src.managers.drop_manager")
 
 local EnemyManager = {
     enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos
@@ -148,6 +149,10 @@ function EnemyManager:update(dt, player)
         local enemy = self.enemies[i]
         enemy:update(dt, player, self.enemies) -- Atualiza a lógica do inimigo
         if not enemy.isAlive then
+            -- Se for um boss, processa os drops antes de remover
+            if enemy.isBoss then
+                DropManager:processBossDrops(enemy)
+            end
             table.remove(self.enemies, i) -- Remove inimigos mortos da lista
         end
     end

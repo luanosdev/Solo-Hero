@@ -30,7 +30,7 @@ function HordeConfigManager.loadHordes(worldId)
     
     print("Carregando configuração de hordas de: " .. configPath)
     local success, configData = pcall(require, configPath)
-    
+
     if success and type(configData) == "table" then
         loadedConfigs[worldId] = configData
         return configData
@@ -40,7 +40,7 @@ function HordeConfigManager.loadHordes(worldId)
         if worldId ~= "default" then
             return HordeConfigManager.loadHordes("default") 
         else
-            error("Erro crítico ao carregar configuração de hordas padrão.")
+            error("Erro crítico ao carregar configuração de hordas padrão." ..worldId )
         end
     end
 end

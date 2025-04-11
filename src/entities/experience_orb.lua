@@ -1,4 +1,9 @@
-local ExperiencePrism = {
+--[[
+    Experience Orb
+    Representa um orbe de experiência que pode ser coletado pelo jogador
+]]
+
+local ExperienceOrb = {
     positionX = 0,
     positionY = 0,
     radius = 5,
@@ -11,19 +16,19 @@ local ExperiencePrism = {
     initialY = 0, -- Posição Y inicial
 }
 
-function ExperiencePrism:new(x, y, exp)
-    local prism = setmetatable({}, { __index = self })
-    prism.positionX = x
-    prism.positionY = y
-    prism.initialX = x
-    prism.initialY = y
-    prism.experience = exp
-    prism.collected = false
-    prism.collectionProgress = 0
-    return prism
+function ExperienceOrb:new(x, y, exp)
+    local orb = setmetatable({}, { __index = self })
+    orb.positionX = x
+    orb.positionY = y
+    orb.initialX = x
+    orb.initialY = y
+    orb.experience = exp
+    orb.collected = false
+    orb.collectionProgress = 0
+    return orb
 end
 
-function ExperiencePrism:update(dt, player)
+function ExperienceOrb:update(dt, player)
     if self.collected then return end
     
     -- Calcula a distância até o jogador
@@ -36,7 +41,7 @@ function ExperiencePrism:update(dt, player)
         -- Inicia a animação de coleta
         self.collectionProgress = self.collectionProgress + dt * self.collectionSpeed
         
-        -- Atualiza a posição do prisma
+        -- Atualiza a posição do orbe
         local t = self.collectionProgress
         -- Função de easing para movimento suave
         local easeOutQuad = 1 - (1 - t) * (1 - t)
@@ -55,10 +60,10 @@ function ExperiencePrism:update(dt, player)
     return false
 end
 
-function ExperiencePrism:draw()
+function ExperienceOrb:draw()
     if self.collected then return end
     
-    -- Desenha o prisma
+    -- Desenha o orbe
     love.graphics.setColor(self.color)
     love.graphics.circle("fill", self.positionX, self.positionY, self.radius)
     
@@ -67,21 +72,4 @@ function ExperiencePrism:draw()
     love.graphics.circle("fill", self.positionX, self.positionY, self.radius * 0.7)
 end
 
-function ExperiencePrism:checkCollection(player)
-    if self.collected then return false end
-    
-    -- Calcula a distância entre o prisma e o jogador
-    local dx = player.positionX - self.positionX
-    local dy = player.positionY - self.positionY
-    local distance = math.sqrt(dx * dx + dy * dy)
-    
-    -- Se estiver dentro do raio de coleta do jogador
-    if distance <= player.collectionRadius then
-        self.collected = true
-        return true
-    end
-    
-    return false
-end
-
-return ExperiencePrism 
+return ExperienceOrb 

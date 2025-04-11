@@ -9,14 +9,13 @@ local TankEnemy = require("src.classes.enemies.tank_enemy")
 local RangedEnemy = require("src.classes.enemies.ranged_enemy")
 local DiagonalEnemy = require("src.classes.enemies.diagonal_enemy")
 local PuddleEnemy = require("src.classes.enemies.puddle_enemy")
-local SplitterEnemy = require("src.classes.enemies.splitter_enemy")
 local ExampleBoss = require("src.classes.bosses.example_boss")
 
 -- Estrutura principal que contém a configuração dos ciclos para um "mundo" específico.
 local worldCycles = {
     -- Configurações globais do mundo
     mvpConfig = {
-        spawnInterval = 10,      -- Intervalo entre spawns de MVPs (em segundos)
+        spawnInterval = 30,      -- Intervalo entre spawns de MVPs (em segundos)
         statusMultiplier = 20,   -- Multiplicador de status para MVPs
         speedMultiplier = 1.2,   -- Multiplicador de velocidade para MVPs
         sizeMultiplier = 1.3,    -- Multiplicador de tamanho para MVPs
@@ -26,7 +25,29 @@ local worldCycles = {
     -- Configurações de bosses
     bossConfig = {
         spawnTimes = { -- Tempos em segundos para spawnar cada boss
-            {time = 3, boss = ExampleBoss, powerLevel = 4} -- Primeiro boss após 5 minutos
+            {time = 30, boss = ExampleBoss, powerLevel = 4} -- Primeiro boss após 5 minutos
+        },
+        
+        -- Configuração de drops para cada boss
+        drops = {
+            -- Drops do ExampleBoss
+            [ExampleBoss] = {
+                -- Lista de drops possíveis com suas probabilidades
+                drops = {
+                    {
+                        type = "rune", -- Tipo de drop (rune, item, etc)
+                        rarity = "epic", -- Raridade do drop (opcional)
+                        weight = 1, -- Peso para cálculo de probabilidade
+                        guaranteed = true -- Se o drop é garantido
+                    },
+                    {
+                        type = "gold",
+                        amount = {min = 50, max = 100}, -- Quantidade de ouro
+                        weight = 1,
+                        guaranteed = true
+                    }
+                }
+            }
         }
     },
 

@@ -12,6 +12,7 @@ ExampleBoss.damage = 30
 ExampleBoss.powerLevel = 3 -- Nível de poder do boss (1-5)
 ExampleBoss.color = {0.8, 0.2, 0.2} -- Vermelho (#FF0000)
 ExampleBoss.abilityCooldown = 3 -- Cooldown entre habilidades em segundos
+ExampleBoss.class = ExampleBoss -- Define a classe do boss
 
 -- Configurações da habilidade de ataque giratório
 ExampleBoss.spinAttackConfig = {

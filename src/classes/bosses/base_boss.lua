@@ -20,6 +20,7 @@ function BaseBoss:new(x, y)
     -- Inicializa o sistema de habilidades
     boss.abilityTimer = 0
     boss.currentAbilityIndex = 1
+    boss.class = self -- Define a classe do boss
     
     return boss
 end

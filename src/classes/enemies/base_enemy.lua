@@ -4,7 +4,7 @@
 ]]
 
 local FloatingTextManager = require("src.managers.floating_text_manager")
-local PrismManager = require("src.managers.prism_manager")
+local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 
@@ -200,8 +200,8 @@ function BaseEnemy:takeDamage(damage, isCritical)
         self.currentHealth = 0
         self.isAlive = false
         
-        -- Dropa o prisma de experiência
-        PrismManager:addPrism(self.positionX, self.positionY, self.experienceValue)
+        -- Dropa o orbe de experiência
+        ExperienceOrbManager:addOrb(self.positionX, self.positionY, self.experienceValue)
         
         return true -- Retorna true se o inimigo morreu
     end

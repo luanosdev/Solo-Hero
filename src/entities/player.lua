@@ -35,7 +35,8 @@ local Player = {
     state = nil,
     
     -- Abilities
-    attackAbility = nil,
+    runes = {}, -- Lista de habilidades de runas
+    attackAbility = nil, -- Habilidade principal de ataque
     
     -- Auto Attack
     autoAttack = false,
@@ -78,6 +79,22 @@ function Player:init(playerClass)
 end
 
 --[[
+    Add a new rune ability to the player
+    @param rune The rune ability to add
+]]
+function Player:addRune(rune)
+    if not rune then return end
+    
+    -- Adiciona a runa à lista de runas
+    table.insert(self.runes, rune)
+    
+    -- Inicializa a runa se necessário
+    if rune.init then
+        rune:init(self)
+    end
+end
+
+--[[
     Update player movement and speed
     @param dt Delta time (time between frames)
 ]]
@@ -87,8 +104,18 @@ function Player:update(dt)
     -- Atualiza o tempo de jogo
     self.gameTime = self.gameTime + dt
     
-    -- Update ability
+    -- Update main ability
     self.attackAbility:update(dt)
+
+    -- Update all rune abilities
+    for _, rune in ipairs(self.runes) do
+        rune:update(dt)
+        
+        -- Executa a runa automaticamente se o cooldown zerar
+        if rune.cooldownRemaining <= 0 then
+            rune:cast(self.positionX, self.positionY)
+        end
+    end
     
     -- Auto Attack logic
     if self.autoAttack or love.mouse.isDown(1) then
@@ -138,8 +165,13 @@ end
     Draw the player on screen
 ]]
 function Player:draw()
-    -- Draw ability visual
+    -- Draw main ability
     self.attackAbility:draw()
+
+    -- Draw all rune abilities
+    for _, rune in ipairs(self.runes) do
+        rune:draw()
+    end
     
     -- Draw player body
     love.graphics.setColor(0.918, 0.059, 0.573)
