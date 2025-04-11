@@ -89,6 +89,17 @@ function PlayerState:getTotalDefense()
 end
 
 --[[
+    Get damage reduction percentage
+    @return number Damage reduction percentage (0 to 0.8)
+]]
+function PlayerState:getDamageReduction()
+    local defense = self:getTotalDefense()
+    local K = 52
+    local reduction = defense / (defense + K)
+    return math.min(0.8, reduction) -- Limita a redução em 80%
+end
+
+--[[
     Get total speed (base + bonus)
     @return number Total speed
 ]]
@@ -136,7 +147,10 @@ end
 function PlayerState:takeDamage(damage)
     if not self.isAlive then return false end
     
-    local actualDamage = math.max(1, math.floor(damage - self:getTotalDefense()))
+    -- Calcula a redução de dano
+    local reduction = self:getDamageReduction()
+    local actualDamage = math.max(1, math.floor(damage * (1 - reduction)))
+    
     self.currentHealth = math.max(0, self.currentHealth - actualDamage)
     
     if self.currentHealth <= 0 then
