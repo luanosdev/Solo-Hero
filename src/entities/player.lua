@@ -46,7 +46,13 @@ local Player = {
     
     -- Damage cooldown
     lastDamageTime = 0,
-    damageCooldown = 0.5,
+    damageCooldown = 5.0, -- Tempo de espera após receber dano para começar a regenerar
+    
+    -- Health regeneration
+    lastRegenTime = 0,
+    regenInterval = 1.0, -- Intervalo de regeneração em segundos
+    regenAmount = 1, -- Quantidade fixa de HP recuperado
+    accumulatedRegen = 0, -- HP acumulado para regeneração
     
     -- Mouse tracking
     lastMouseX = 0,
@@ -104,6 +110,31 @@ function Player:update(dt)
     -- Atualiza o tempo de jogo
     self.gameTime = self.gameTime + dt
     
+    -- Atualiza o tempo desde o último dano
+    self.lastDamageTime = self.lastDamageTime + dt
+    
+    -- Atualiza a regeneração de vida
+    if self.state.currentHealth < self.state.maxHealth and self.lastDamageTime >= self.damageCooldown then
+        local hpPerSecond = self.state:getTotalHealthRegen()
+        self.accumulatedRegen = self.accumulatedRegen + (hpPerSecond * dt)
+        
+        -- Se acumulou pelo menos 1 HP, recupera
+        if self.accumulatedRegen >= 1 then
+            FloatingTextManager:addText(
+                self.positionX,
+                self.positionY - self.radius - 40,
+                "+1",
+                false,
+                self,
+                {0, 1, 0}
+            )
+            self:heal(1)
+            self.accumulatedRegen = self.accumulatedRegen - 1
+        end
+    else
+        self.accumulatedRegen = 0 -- Reseta o acumulado quando a vida está cheia ou em cooldown
+    end
+    
     -- Update main ability
     self.attackAbility:update(dt)
 
@@ -133,9 +164,6 @@ function Player:update(dt)
     if targetX and targetY then
         self.attackAbility:updateVisual(targetX, targetY)
     end
-    
-    -- Atualiza o tempo do último dano
-    self.lastDamageTime = self.lastDamageTime + dt
     
     -- Movimento do jogador
     local moveX, moveY = 0, 0
@@ -295,6 +323,7 @@ end
     @return boolean Whether the player died from this damage
 ]]
 function Player:takeDamage(damage)
+    self.lastDamageTime = 0 -- Reseta o tempo desde o último dano
     return self.state:takeDamage(damage)
 end
 

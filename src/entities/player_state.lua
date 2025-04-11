@@ -16,6 +16,7 @@ local PlayerState = {
     baseAttackSpeed = 0,
     baseCriticalChance = 0,
     baseCriticalMultiplier = 0,
+    baseHealthRegen = 0, -- Nova propriedade: regeneração de vida base
     
     -- Bônus por nível (em porcentagem)
     levelBonus = {
@@ -25,7 +26,8 @@ local PlayerState = {
         speed = 0,
         attackSpeed = 0,
         criticalChance = 0,
-        criticalMultiplier = 0
+        criticalMultiplier = 0,
+        healthRegen = 0 -- Novo bônus: regeneração de vida
     }
 }
 
@@ -42,6 +44,7 @@ function PlayerState:init(baseStats)
     self.baseAttackSpeed = baseStats.attackSpeed
     self.baseCriticalChance = baseStats.criticalChance or 20
     self.baseCriticalMultiplier = baseStats.criticalMultiplier or 1.5
+    self.baseHealthRegen = baseStats.healthRegen or 0 -- Inicializa regeneração de vida base
     
     -- Inicializa bônus de nível
     self.levelBonus = {
@@ -51,7 +54,8 @@ function PlayerState:init(baseStats)
         speed = 0,
         attackSpeed = 0,
         criticalChance = 0,
-        criticalMultiplier = 0
+        criticalMultiplier = 0,
+        healthRegen = 0 -- Inicializa bônus de regeneração de vida
     }
     
     -- Inicializa vida atual e máxima
@@ -114,6 +118,14 @@ end
 ]]
 function PlayerState:getTotalCriticalMultiplier()
     return self.baseCriticalMultiplier * (1 + self.levelBonus.criticalMultiplier / 100)
+end
+
+--[[
+    Get total health regeneration (base + bonus)
+    @return number Quantidade de HP recuperado por segundo
+]]
+function PlayerState:getTotalHealthRegen()
+    return self.baseHealthRegen * (1 + self.levelBonus.healthRegen / 100)
 end
 
 --[[
