@@ -73,6 +73,7 @@ function Rune:getRandomAbilities(rarity)
     -- Lista de todas as habilidades disponíveis
     local availableAbilities = {
         require("src.runes.aura"),
+        require("src.runes.orbital"),
         -- Adicione mais habilidades aqui conforme forem criadas
     }
     

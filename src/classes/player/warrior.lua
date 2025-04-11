@@ -9,7 +9,7 @@ local LinearProjectile = require("src.abilities.player.attacks.linear_projectile
 local Warrior = {
     -- Base Stats
     baseHealth = 100,
-    baseDamage = 20,
+    baseDamage = 999,
     baseSpeed = 200,
     baseDefense = 10,
     attackSpeed = 0.7,  -- Attacks per second
