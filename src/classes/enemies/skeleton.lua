@@ -37,8 +37,20 @@ function Skeleton:new(x, y)
         }
     })
     
+    -- Inicializa o estado de morte
+    enemy.isDying = false
+    enemy.isDeathAnimationComplete = false
+    enemy.deathTimer = 0
+    enemy.deathDuration = 2.0 -- Tempo em segundos para remover após a animação
+    
     -- Sobrescreve a metatable para usar o __index desta classe
     return setmetatable(enemy, { __index = self })
+end
+
+-- Função para iniciar a animação de morte
+function Skeleton:startDeathAnimation()
+    -- Inicia a animação de morte
+    AnimatedSkeleton.startDeath(self.sprite)
 end
 
 -- Sobrescreve a função takeDamage da classe BaseEnemy
@@ -56,9 +68,18 @@ end
 
 -- Sobrescreve a função update da classe BaseEnemy
 function Skeleton:update(dt, player, enemies)
+    -- Se estiver morto, apenas atualiza a animação de morte
     if not self.isAlive then
-        -- Se estiver morto, apenas atualiza a animação de morte
         AnimatedSkeleton.update(self.sprite, dt, self.sprite.x, self.sprite.y)
+        
+        -- Incrementa o timer de morte
+        self.deathTimer = self.deathTimer + dt
+        
+        -- Se o tempo de morte passou, marca para remoção
+        if self.deathTimer >= self.deathDuration then
+            self.shouldRemove = true
+        end
+        
         return
     end
     
@@ -75,8 +96,13 @@ end
 
 -- Sobrescreve a função draw da classe BaseEnemy
 function Skeleton:draw()
+    -- Se estiver marcado para remoção, não desenha nada
+    if self.shouldRemove then
+        return
+    end
+    
+    -- Se estiver morto, desenha apenas a animação de morte
     if not self.isAlive then
-        -- Se estiver morto, apenas desenha a animação de morte
         AnimatedSkeleton.draw(self.sprite)
         return
     end

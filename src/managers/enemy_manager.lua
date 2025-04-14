@@ -151,12 +151,32 @@ function EnemyManager:update(dt, player)
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
         enemy:update(dt, player, self.enemies) -- Atualiza a lógica do inimigo
-        if not enemy.isAlive then
-            -- Se for um boss, processa os drops antes de remover
-            if enemy.isBoss then
-                DropManager:processBossDrops(enemy)
+        
+        -- Se o inimigo estiver morto e não estiver em animação de morte
+        if not enemy.isAlive and not enemy.isDying then
+            -- Marca como em processo de morte
+            enemy.isDying = true
+            
+            -- Inicia a animação de morte
+            if enemy.startDeathAnimation then
+                enemy:startDeathAnimation()
             end
-            table.remove(self.enemies, i) -- Remove inimigos mortos da lista
+            
+            -- Debug: Mostra que o inimigo está morrendo
+            print(string.format(
+                "\n=== DEBUG MORTE INIMIGO ===\n" ..
+                "Inimigo: %s\n" ..
+                "Posição: (%.1f, %.1f)\n" ..
+                "Iniciando animação de morte",
+                enemy.name,
+                enemy.positionX,
+                enemy.positionY
+            ))
+        end
+        
+        -- Remove o inimigo se estiver marcado para remoção
+        if enemy.shouldRemove then
+            table.remove(self.enemies, i)
         end
     end
 end

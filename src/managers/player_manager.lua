@@ -307,7 +307,7 @@ function PlayerManager.draw()
         PlayerManager.class.name,
         PlayerManager.state.currentHealth,
         PlayerManager.state:getTotalHealth(),
-        PlayerManager.state:getTotalDamage(),
+        PlayerManager.state:getTotalDamage(0),
         PlayerManager.state:getTotalSpeed(),
         PlayerManager.state:getTotalDefense(),
         PlayerManager.state:getTotalAttackSpeed(),
@@ -430,22 +430,54 @@ function PlayerManager.attack(x, y)
         -- Inicia a animação de ataque do sprite
         SpritePlayer.startAttackAnimation(PlayerManager.player)
 
-        if PlayerManager.equippedWeapon.attackInstance.damageType == "melee" then
-            local enemies = EnemyManager:getEnemies()
-            for _, enemy in ipairs(enemies) do
-                if enemy.isAlive then
-                    if PlayerManager.equippedWeapon.attackInstance:isPointInArea(enemy.positionX, enemy.positionY) then
-                        if PlayerManager.equippedWeapon.attackInstance:applyDamage(enemy) then
-                            PlayerManager.kills = PlayerManager.kills + 1
-                            PlayerManager.addExperience(enemy.experienceValue)
-                            PlayerManager.gold = PlayerManager.gold + math.random(1, 5)
-                        else
-                            error("[Erro] [PlayerManager.attack] Falha ao aplicar dano")
-                        end
+        -- Verifica colisão com inimigos
+        local enemies = EnemyManager:getEnemies()
+        local enemiesHit = 0
+        local totalEnemies = 0
+        
+        print("\n=== DEBUG POSIÇÕES ===")
+        print("Posição do jogador:", PlayerManager.player.x, PlayerManager.player.y)
+        print("Posição do cone:", PlayerManager.equippedWeapon.attackInstance.area.x, PlayerManager.equippedWeapon.attackInstance.area.y)
+        print("Ângulo do cone:", math.deg(PlayerManager.equippedWeapon.attackInstance.area.angle))
+        print("Alcance do cone:", PlayerManager.equippedWeapon.attackInstance.area.range)
+        
+        for _, enemy in ipairs(enemies) do
+            if enemy.isAlive then
+                totalEnemies = totalEnemies + 1
+                -- Verifica se o inimigo está dentro da área de ataque usando isPointInArea
+                local isInArea = PlayerManager.equippedWeapon.attackInstance:isPointInArea(enemy.positionX, enemy.positionY)
+                
+                print(string.format(
+                    "Inimigo %d: (%.1f, %.1f) - %s",
+                    totalEnemies,
+                    enemy.positionX,
+                    enemy.positionY,
+                    isInArea and "DENTRO" or "FORA"
+                ))
+                
+                if isInArea then
+                    enemiesHit = enemiesHit + 1
+                    -- Aplica o dano e verifica se o inimigo morreu
+                    if PlayerManager.equippedWeapon.attackInstance:applyDamage(enemy) then
+                        -- Se o inimigo morreu, atualiza as estatísticas do jogador
+                        PlayerManager.kills = PlayerManager.kills + 1
+                        PlayerManager.addExperience(enemy.experienceValue)
+                        PlayerManager.gold = PlayerManager.gold + math.random(1, 5)
                     end
                 end
             end
         end
+        
+        -- Debug: Mostra informações sobre os inimigos atingidos
+        print(string.format(
+            "\n=== DEBUG ATAQUE ===\n" ..
+            "Total de inimigos: %d\n" ..
+            "Inimigos atingidos: %d\n" ..
+            "Porcentagem: %.1f%%",
+            totalEnemies,
+            enemiesHit,
+            totalEnemies > 0 and (enemiesHit / totalEnemies) * 100 or 0
+        ))
     end
 
     return success

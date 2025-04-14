@@ -182,15 +182,6 @@ function AnimatedSkeleton.draw(config)
             config.scale,        -- Scale X
             config.scale         -- Scale Y
         )
-        
-        -- Debug: mostra informações da animação
-        if config.animation.isDead then
-            love.graphics.setColor(1, 0, 0, 0.5)
-            love.graphics.print(
-                string.format("Morte: Frame %d/7", config.animation.currentFrame),
-                -20, -30
-            )
-        end
     else
         -- Debug: desenha um retângulo se não encontrar a imagem
         love.graphics.setColor(1, 0, 0, 1)

@@ -3,9 +3,11 @@ local PlayerManager = require("src.managers.player_manager")
 local Camera = require("src.config.camera")
 local InputManager = require("src.managers.input_manager")
 local EnemyManager = require("src.managers.enemy_manager")
+local FloatingText = require("src.entities.floating_text")
 
 -- Variáveis globais
 local camera
+local floatingTexts = {}
 
 function love.load()
     -- Window settings - Fullscreen
@@ -51,6 +53,13 @@ function love.update(dt)
         radius = PlayerManager.radius
     })
     
+    -- Atualiza os textos flutuantes
+    for i = #floatingTexts, 1, -1 do
+        if not floatingTexts[i]:update(dt) then
+            table.remove(floatingTexts, i)
+        end
+    end
+    
     -- Se pressionar espaço, causa dano a todos os inimigos (para teste)
     if love.keyboard.isDown('space') then
         local enemies = EnemyManager:getEnemies()
@@ -75,6 +84,11 @@ function love.draw()
     
     -- Desenha os inimigos através do EnemyManager
     EnemyManager:draw()
+    
+    -- Desenha os textos flutuantes
+    for _, floatingText in ipairs(floatingTexts) do
+        floatingText:draw()
+    end
     
     Camera:detach()
     
@@ -190,4 +204,10 @@ end
 
 function love.mousereleased(x, y, button)
     InputManager.mousereleased(x, y, button)
+end
+
+-- Função para adicionar um novo texto flutuante
+function addFloatingText(x, y, text, isCritical, target, customColor)
+    local newText = FloatingText:new(x, y, text, isCritical, target, customColor)
+    table.insert(floatingTexts, newText)
 end

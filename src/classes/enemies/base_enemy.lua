@@ -5,6 +5,7 @@
 
 local FloatingTextManager = require("src.managers.floating_text_manager")
 local ExperienceOrbManager = require("src.managers.experience_orb_manager")
+local PlayerManager = require("src.managers.player_manager")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 
@@ -44,9 +45,12 @@ end
 function BaseEnemy:update(dt, player, enemies)
     if not self.isAlive then return end
     
-    -- Calcula a direção para o jogador
-    local dx = player.positionX - self.positionX
-    local dy = player.positionY - self.positionY
+    -- Obtém a posição de colisão do jogador
+    local playerCollision = PlayerManager.getCollisionPosition()
+    
+    -- Calcula a direção para o jogador usando a posição de colisão
+    local dx = playerCollision.x - self.positionX
+    local dy = (playerCollision.y - self.positionY) * 2 -- Ajusta para o modo isométrico
     
     -- Normaliza o vetor de direção
     local length = math.sqrt(dx * dx + dy * dy)
@@ -58,6 +62,22 @@ function BaseEnemy:update(dt, player, enemies)
     -- Calcula a nova posição
     local newX = self.positionX + dx * self.speed * dt
     local newY = self.positionY + dy * self.speed * dt
+    
+    -- Debug: Mostra informações sobre o movimento
+    print(string.format(
+        "\n=== DEBUG MOVIMENTO INIMIGO ===\n" ..
+        "Posição do inimigo: (%.1f, %.1f)\n" ..
+        "Posição de colisão do jogador: (%.1f, %.1f)\n" ..
+        "Direção: (%.1f, %.1f)\n" ..
+        "Velocidade: %.1f",
+        self.positionX,
+        self.positionY,
+        playerCollision.x,
+        playerCollision.y,
+        dx,
+        dy,
+        self.speed
+    ))
     
     -- Verifica se a nova posição colide com algum outro inimigo
     local canMove = true
@@ -85,36 +105,56 @@ function BaseEnemy:update(dt, player, enemies)
         self.positionY = newY
     end
     
-    -- Verifica colisão com o jogador
-    self:checkPlayerCollision(dt, player)
+    -- Verifica colisão com o jogador usando a posição de colisão
+    self:checkPlayerCollision(dt, playerCollision)
 end
 
-function BaseEnemy:checkPlayerCollision(dt, player)
+function BaseEnemy:checkPlayerCollision(dt, playerCollision)
     -- Atualiza o tempo do último dano
     self.lastDamageTime = self.lastDamageTime + dt
     
-    -- Calcula distância entre o inimigo e o jogador
-    local dx = player.positionX - self.positionX
-    local dy = player.positionY - self.positionY
+    -- Calcula distância entre o inimigo e a posição de colisão do jogador
+    local dx = playerCollision.x - self.positionX
+    local dy = (playerCollision.y - self.positionY) * 2 -- Ajusta para o modo isométrico
+    
     local distance = math.sqrt(dx * dx + dy * dy)
     
+    -- Debug: Mostra informações sobre a colisão
+    print(string.format(
+        "\n=== DEBUG COLISÃO INIMIGO ===\n" ..
+        "Posição do inimigo: (%.1f, %.1f)\n" ..
+        "Posição de colisão do jogador: (%.1f, %.1f)\n" ..
+        "Distância: %.1f\n" ..
+        "Raio do inimigo: %.1f\n" ..
+        "Raio do jogador: %.1f\n" ..
+        "Soma dos raios: %.1f",
+        self.positionX,
+        self.positionY,
+        playerCollision.x,
+        playerCollision.y,
+        distance,
+        self.radius,
+        playerCollision.radius,
+        self.radius + playerCollision.radius
+    ))
+    
     -- Se houver colisão (distância menor que a soma dos raios)
-    if distance <= (self.radius + player.radius) then
+    if distance <= (self.radius + playerCollision.radius) then
         -- Verifica se pode causar dano (cooldown)
         if self.lastDamageTime >= self.damageCooldown then
-            -- Causa dano ao jogador
-            if player:takeDamage(self.damage) then
+            -- Causa dano ao jogador usando o PlayerManager
+            if PlayerManager.takeDamage(self.damage) then
                 -- Se o jogador morreu, remove o inimigo
                 self.isAlive = false
             end
             
             -- Mostra o número de dano
             FloatingTextManager:addText(
-                player.positionX,
-                player.positionY - player.radius - 10,
+                playerCollision.x,
+                playerCollision.y - playerCollision.radius - 10,
                 "-" .. tostring(self.damage),
                 false, -- Sempre falso pois inimigos não causam dano crítico
-                player,
+                PlayerManager.player,
                 {1, 0, 0} -- Cor vermelha para dano ao jogador
             )
             
@@ -152,20 +192,33 @@ function BaseEnemy:draw()
 end
 
 function BaseEnemy:takeDamage(damage, isCritical)
+    print(string.format(
+        "\n=== DEBUG RECEBENDO DANO ===\n" ..
+        "Inimigo: %s\n" ..
+        "Vida atual: %.1f\n" ..
+        "Dano recebido: %.1f\n" ..
+        "Dano crítico: %s",
+        self.name,
+        self.currentHealth,
+        damage,
+        isCritical and "Sim" or "Não"
+    ))
+    
     -- Aplica o dano
     self.currentHealth = self.currentHealth - damage
     
     -- Mostra o número de dano
-    FloatingTextManager:addText(
+    addFloatingText(
         self.positionX,
         self.positionY - self.radius - 10,
         tostring(damage),
-        isCritical,
-        self
+        isCritical
     )
     
     if self.currentHealth <= 0 then
         self.currentHealth = 0
+        
+        -- Marca o inimigo como morto, mas não o remove ainda
         self.isAlive = false
         
         -- Dropa o orbe de experiência

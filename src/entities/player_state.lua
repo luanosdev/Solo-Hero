@@ -74,10 +74,11 @@ end
 
 --[[
     Get total damage (base + bonus)
+    @param baseDamage Valor base do dano
     @return number Total damage
 ]]
-function PlayerState:getTotalDamage()
-    return math.floor(self.baseDamage * (1 + self.levelBonus.damage / 100))
+function PlayerState:getTotalDamage(baseDamage)
+    return math.floor(baseDamage * (1 + self.levelBonus.damage / 100))
 end
 
 --[[

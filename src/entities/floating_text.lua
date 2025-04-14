@@ -75,7 +75,21 @@ function FloatingText:draw()
     love.graphics.push()
     love.graphics.translate(self.positionX, self.positionY)
     love.graphics.scale(self.scale)
+    
+    -- Desenha a borda preta
+    love.graphics.setColor(0, 0, 0, self.alpha)
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            if dx ~= 0 or dy ~= 0 then
+                love.graphics.print(self.text, -textWidth/2 + dx, -textHeight/2 + dy)
+            end
+        end
+    end
+    
+    -- Desenha o texto principal
+    love.graphics.setColor(self.color[1], self.color[2], self.color[3], self.alpha)
     love.graphics.print(self.text, -textWidth/2, -textHeight/2)
+    
     love.graphics.pop()
 end
 

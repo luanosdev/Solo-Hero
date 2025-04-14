@@ -6,7 +6,7 @@ local GoldSword = BaseWeapon:new({
     description = "Uma espada luxuosa feita de ouro puro",
     damage = 15,
     attackSpeed = 1.2,
-    range = 100,
+    range = 200,
     -- Cores do ataque (tons dourados)
     previewColor = {1, 0.84, 0, 0.2}, -- Dourado claro
     attackColor = {0.85, 0.6, 0, 0.6}, -- Dourado escuro

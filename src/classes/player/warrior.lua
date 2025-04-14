@@ -10,7 +10,7 @@ local IronSword = require("src.items.weapons.iron_sword")
 local Warrior = {
     -- Base Stats
     baseHealth = 100,
-    baseDamage = 999,
+    baseDamage = 15,
     baseSpeed = 100,
     baseDefense = 10,
     attackSpeed = 0.7,  -- Attacks per second

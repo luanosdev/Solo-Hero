@@ -22,6 +22,9 @@ local BaseAbility = {
         angle = 0,
         targetAngle = 0,
     },
+
+    -- New property
+    radius = 0,
 }
 
 --[[
@@ -125,7 +128,7 @@ end
 function BaseAbility:applyDamage(enemy)
     -- Calcula se o dano é crítico
     local isCritical = math.random() <= self.owner.state:getTotalCriticalChance()
-    local finalDamage = self.owner.state:getTotalDamage() + (self.damage or 0)
+    local finalDamage = self.owner.state:getTotalDamage(0) + (self.damage or 0)
     if isCritical then
         finalDamage = math.floor(finalDamage * self.owner.state:getTotalCriticalMultiplier())
     end
