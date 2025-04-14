@@ -49,7 +49,7 @@ local PlayerManager = {
     accumulatedRegen = 0, -- HP acumulado para regeneração
     
     -- Collection
-    radius = 8,
+    radius = 25,
     collectionRadius = 20, -- Raio base para coletar prismas
     
     -- Mouse tracking
@@ -140,7 +140,26 @@ function PlayerManager.draw()
     -- Aplica transformação da câmera
     Camera:attach()
     
-    -- Desenha o sprite do player primeiro
+    -- Desenha o círculo de colisão primeiro (embaixo de tudo)
+    local circleY = PlayerManager.player.y + 25 -- Ajusta para ficar nos pés do sprite
+    
+    -- Salva o estado atual de transformação
+    love.graphics.push()
+    
+    -- Aplica transformação isométrica no círculo
+    love.graphics.translate(PlayerManager.player.x, circleY)
+    love.graphics.scale(1, 0.5) -- Achata o círculo verticalmente para efeito isométrico
+    
+    -- Desenha o círculo com efeito isométrico
+    love.graphics.setColor(0, 0.5, 1, 0.3) -- Azul semi-transparente
+    love.graphics.circle("fill", 0, 0, PlayerManager.radius)
+    love.graphics.setColor(0, 0.7, 1, 0.5) -- Azul mais escuro para a borda
+    love.graphics.circle("line", 0, 0, PlayerManager.radius)
+    
+    -- Restaura o estado de transformação
+    love.graphics.pop()
+    
+    -- Desenha o sprite do player
     love.graphics.setColor(1, 1, 1, 1)
     SpritePlayer.draw(PlayerManager.player)
     
@@ -580,6 +599,15 @@ end
 
 function PlayerManager.leftMouseReleased(x, y)
     -- Nada a fazer aqui por enquanto
+end
+
+-- Retorna a posição de colisão do player (nos pés do sprite)
+function PlayerManager.getCollisionPosition()
+    return {
+        x = PlayerManager.player.x,
+        y = PlayerManager.player.y + 25,
+        radius = PlayerManager.radius
+    }
 end
 
 return PlayerManager 
