@@ -3,6 +3,8 @@
     Classe base abstrata para todas as habilidades
 ]]
 
+local Camera = require("src.config.camera")
+
 local BaseAbility = {
     -- Propriedades que devem ser sobrescritas
     name = "Base Ability",
@@ -44,10 +46,9 @@ function BaseAbility:update(dt)
     local mouseX, mouseY = love.mouse.getPosition()
 
     -- Converte a posição do mouse para coordenadas do mundo
-    local worldX = (mouseX + camera.x) / camera.scale
-    local worldY = (mouseY + camera.y) / camera.scale
-    local dx = worldX - self.owner.positionX
-    local dy = worldY - self.owner.positionY
+    local worldX, worldY = Camera:screenToWorld(mouseX, mouseY)
+    local dx = worldX - self.owner.player.x
+    local dy = worldY - self.owner.player.y
 
     -- Tratamento especial para alinhamentos exatos
     if math.abs(dx) < 0.1 then  -- Mouse alinhado verticalmente
@@ -142,11 +143,9 @@ function BaseAbility:updateVisual(x, y)
     if not self.visual.active then return end
 
     -- Converte a posição do alvo para coordenadas do mundo
-    local worldX = (x + camera.x) / camera.scale
-    local worldY = (y + camera.y) / camera.scale
-
-    local dx = worldX - self.owner.positionX
-    local dy = worldY - self.owner.positionY
+    local worldX, worldY = Camera:screenToWorld(x, y)
+    local dx = worldX - self.owner.player.x
+    local dy = worldY - self.owner.player.y
 
     self.visual.angle = math.atan2(dy, dx)
 end

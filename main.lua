@@ -1,162 +1,140 @@
----@diagnostic disable-next-line: undefined-global
-local love = love
-
--- Import required modules (Gerenciadores, Entidades, UI, Configurações)
-local Warrior = require("src.classes.player.warrior")
-local Player = require("src.entities.player")
-local HUD = require("src.ui.hud")
+-- Main game configuration and initialization
+local PlayerManager = require("src.managers.player_manager")
 local Camera = require("src.config.camera")
-local GameConfig = require("src.config.game")
-local EnemyManager = require("src.managers.enemy_manager")
-local FloatingTextManager = require("src.managers.floating_text_manager")
-local ExperienceOrbManager = require("src.managers.experience_orb_manager")
-local PuddleManager = require("src.managers.puddle_manager")
-local RuneManager = require("src.managers.rune_manager")
-local DropManager = require("src.managers.drop_manager")
-local LevelUpModal = require("src.ui.level_up_modal")
-local RuneChoiceModal = require("src.ui.rune_choice_modal")
-local fonts = require("src.ui.fonts")
-local elements = require("src.ui.ui_elements")
+local InputManager = require("src.managers.input_manager")
 
---[[ 
-    Função principal de inicialização do LÖVE.
-    Chamada uma única vez quando o jogo começa.
-]]
-function love.load()   
-    -- Configura a janela do jogo (tela cheia inicial)
-    love.window.setFullscreen(true, "desktop")
+function love.load()
+    -- Window settings - Fullscreen
+    love.window.setMode(0, 0, {fullscreen = true})
     
-    -- Carrega as fontes usadas no jogo
-    fonts.load()
+    -- Inicializa o player manager
+    PlayerManager.init()
     
-    -- Tenta carregar o shader de "glow" (se existir)
-    local success, err = pcall(function()
-        -- Nota: Esta linha ainda tenta carregar um shader que estava causando problemas.
-        -- Pode ser necessário remover ou ajustar se o shader não estiver funcional.
-        local glowShader = love.graphics.newShader("src/ui/shaders/simple_glow.fs") 
-        elements.setGlowShader(glowShader)
-    end)
-    if not success then
-        print("Aviso: Não foi possível carregar o shader 'simple_glow.fs'. Erro:", err) 
-        -- O jogo continuará sem o shader de glow.
-    end
-
-    -- Inicializa a entidade Player usando a classe Warrior
-    Player:init(Warrior)
-
-    -- Inicializa a câmera que segue o jogador
-    camera = Camera:new()
+    -- Isometric grid configuration
+    grid = {
+        size = 128,       -- Aumentado: tamanho de cada célula do grid
+        rows = 100,       -- Aumentado: número de linhas
+        columns = 100,    -- Aumentado: número de colunas
+        color = {0.3, 0.3, 0.3, 0.2}  -- Grid line color and transparency
+    }
     
-    -- Inicializa os diferentes gerenciadores do jogo
-    EnemyManager:init() -- Inicializa com a configuração de mundo "default"
-    FloatingTextManager:init()
-    ExperienceOrbManager:init()
-    PuddleManager:init()
-    RuneManager:init(Player) -- Inicializa o gerenciador de runas
-    DropManager:init(Player, EnemyManager.worldConfig) -- Inicializa o gerenciador de drops
-    
-    -- Inicializa os modais
-    LevelUpModal:init(Player)
-    RuneChoiceModal:init(Player) -- Inicializa o modal de escolha de runas
+    -- Debug info
+    print("Jogo iniciado")
+    print("Posição inicial do jogador:", PlayerManager.player.x, PlayerManager.player.y)
 end
 
---[[ 
-    Função principal de atualização do LÖVE.
-    Chamada a cada frame antes do desenho.
-    @param dt Tempo (em segundos) desde o último frame (delta time).
-]]
 function love.update(dt)
-    -- Pausa as atualizações do jogo se o modal de level up estiver ativo
-    if LevelUpModal.visible then
-        LevelUpModal:update(dt) -- Atualiza apenas o modal de level up
-        return -- Interrompe a atualização do resto do jogo
-    end
-
-    -- Pausa as atualizações do jogo se o modal de runa estiver ativo
-    if RuneChoiceModal.visible then
-        RuneChoiceModal:update(dt) -- Atualiza apenas o modal de runa
-        return -- Interrompe a atualização do resto do jogo
-    end
+    -- Atualiza o input manager
+    InputManager.update(dt)
     
-    -- Atualiza a lógica do jogador (movimento, ataques, etc.)
-    Player:update(dt)
-    -- Faz a câmera seguir suavemente o jogador
-    camera:follow(Player, dt)
-    
-    -- Atualiza os gerenciadores
-    EnemyManager:update(dt, Player) -- Atualiza inimigos e lógica de spawn
-    FloatingTextManager:update(dt) -- Atualiza textos flutuantes (dano, etc.)
-    ExperienceOrbManager:update(dt, Player) -- Atualiza prismas de experiência e coleta
-    PuddleManager:update(dt, Player)
-    RuneManager:update(dt) -- Atualiza o gerenciador de runas
-    DropManager:update(dt) -- Atualiza os drops
+    -- Atualiza o player
+    PlayerManager.update(dt)
 end
 
---[[ 
-    Função principal de desenho do LÖVE.
-    Chamada a cada frame após a atualização.
-]]
 function love.draw()
-    -- Limpa a tela com a cor de fundo definida em GameConfig
-    love.graphics.setColor(GameConfig.colors.background)
-    love.graphics.clear(GameConfig.colors.background)
+    -- Clear the screen with a very light background color
+    love.graphics.setBackgroundColor(0.95, 0.95, 0.95)
     
-    -- Aplica a transformação da câmera para desenhar o mundo do jogo
-    camera:attach()
-    -- Desenha os elementos do mundo (afetados pela câmera)
-    PuddleManager:draw()
-    Player:draw()
-    EnemyManager:draw()
-    ExperienceOrbManager:draw()
-    FloatingTextManager:draw()
-    DropManager:draw() -- Desenha os drops
-    -- Libera a transformação da câmera
-    camera:detach()
-
-    -- Desenha a Interface do Usuário (HUD) por cima, sem transformação da câmera
-    HUD:draw(Player)
+    -- Draw the isometric grid
+    drawIsometricGrid()
     
-    -- Desenha os modais
-    LevelUpModal:draw()
-    RuneChoiceModal:draw() -- Desenha o modal de escolha de runas
+    -- Draw player and related elements
+    PlayerManager.draw()
+    
+    -- Draw HUD
+    drawHUD()
 end
 
---[[ 
-    Callback do LÖVE para teclas pressionadas.
-    @param key String identificando a tecla pressionada.
-]]
+-- Draw the isometric grid pattern
+function drawIsometricGrid()
+    local iso_scale = 0.5  -- Isometric perspective scale
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    
+    -- Calculate visible grid area
+    -- Aumentamos a área de cálculo para garantir cobertura total
+    local cellsX = math.ceil(screenWidth / (grid.size/2)) + 20  -- Mais células horizontais
+    local cellsY = math.ceil(screenHeight / (grid.size/2 * iso_scale)) + 20  -- Mais células verticais
+    
+    local startX = math.floor(Camera.x / (grid.size/2)) - cellsX/2
+    local startY = math.floor(Camera.y / (grid.size/2 * iso_scale)) - cellsY/2
+    local endX = startX + cellsX
+    local endY = startY + cellsY
+    
+    -- Apply camera transformation
+    Camera:attach()
+    
+    -- Draw the grid with thicker lines
+    love.graphics.setLineWidth(2)  -- Linha mais grossa para melhor visibilidade
+    
+    for i = startX, endX do
+        for j = startY, endY do
+            -- Calculate grid point positions
+            local x = (i - j) * (grid.size/2)
+            local y = (i + j) * (grid.size/2 * iso_scale)
+            
+            -- Draw grid points
+            love.graphics.setColor(grid.color[1], grid.color[2], grid.color[3], grid.color[4])
+            love.graphics.circle('fill', x, y, 3)
+            
+            -- Draw horizontal grid lines
+            if i > startX then
+                love.graphics.line(
+                    x, y,
+                    x + grid.size/2, y - grid.size/2 * iso_scale
+                )
+            end
+            
+            -- Draw vertical grid lines
+            if j > startY then
+                love.graphics.line(
+                    x, y,
+                    x - grid.size/2, y - grid.size/2 * iso_scale
+                )
+            end
+        end
+    end
+    
+    -- Reset line width
+    love.graphics.setLineWidth(1)
+    
+    Camera:detach()
+end
+
+-- Draw the heads-up display (HUD)
+function drawHUD()
+    local screenWidth = love.graphics.getWidth()
+    
+    -- Draw health bar background
+    love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+    love.graphics.rectangle('fill', screenWidth - 210, 10, 200, 30)
+    
+    -- Draw health bar fill
+    love.graphics.setColor(0.2, 0.9, 0.3)
+    love.graphics.rectangle('fill', screenWidth - 208, 12, 196, 26)
+    
+    -- Draw health percentage
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("100%", screenWidth - 205, 15)
+end
+
+-- Handle key press events
 function love.keypressed(key)
-    -- Fecha o jogo ao pressionar Escape
-    if key == "escape" then
-        love.event.quit() 
-    -- Alterna tela cheia com F11
-    elseif key == "f11" then
-        love.window.setFullscreen(not love.window.getFullscreen(), "desktop")
-    -- Passa outras teclas para o handler do Player
-    else
-        Player:keypressed(key)
-    end
+    InputManager.keypressed(key)
 end
 
---[[ 
-    Callback do LÖVE para cliques do mouse.
-    @param x Posição X do mouse.
-    @param y Posição Y do mouse.
-    @param button Número do botão do mouse (1 = esquerdo, 2 = direito, etc.).
-]]
+function love.keyreleased(key)
+    InputManager.keyreleased(key)
+end
+
+function love.mousemoved(x, y, dx, dy)
+    InputManager.mousemoved(x, y, dx, dy)
+end
+
 function love.mousepressed(x, y, button)
-    -- Se o modal de level up estiver visível, ele recebe o clique
-    if LevelUpModal.visible then
-        LevelUpModal:mousepressed(x, y, button)
-        return -- Impede que o clique afete outros elementos
-    end
-    
-    -- Se o modal de runa estiver visível, ele recebe o clique
-    if RuneChoiceModal.visible then
-        RuneChoiceModal:mousepressed(x, y, button)
-        return -- Impede que o clique afete outros elementos
-    end
-    
-    -- Caso contrário, passa o clique para o handler do Player
-    Player:mousepressed(x, y, button)
+    InputManager.mousepressed(x, y, button)
+end
+
+function love.mousereleased(x, y, button)
+    InputManager.mousereleased(x, y, button)
 end
