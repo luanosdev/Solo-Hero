@@ -36,11 +36,15 @@ function BaseWeapon:equip(owner)
         attackInstance.damage = self.damage
         attackInstance.attackSpeed = self.attackSpeed
         attackInstance.range = self.range
+        attackInstance.previewColor = self.previewColor
+        attackInstance.attackColor = self.attackColor
         
         print("Propriedades do ataque:")
         print("- Dano:", attackInstance.damage)
         print("- Velocidade:", attackInstance.attackSpeed)
         print("- Alcance:", attackInstance.range)
+        print("- Cor de preview:", attackInstance.previewColor)
+        print("- Cor de ataque:", attackInstance.attackColor)
         
         -- Inicializa o ataque com o dono
         attackInstance:init(owner)

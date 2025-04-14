@@ -7,6 +7,12 @@ local FloatingTextManager = require("src.managers.floating_text_manager")
 local LevelUpModal = require("src.ui.level_up_modal")
 local Camera = require("src.config.camera")
 local InputManager = require("src.managers.input_manager")
+local IronSword = require("src.items.weapons.iron_sword")
+local GoldSword = require("src.items.weapons.gold_sword")
+local SteelSword = require("src.items.weapons.steel_sword")
+local BronzeSword = require("src.items.weapons.bronze_sword")
+local elements = require("src.ui.ui_elements")
+local colors = require("src.ui.colors")
 
 local PlayerManager = {
     -- Referência ao player sprite
@@ -58,7 +64,16 @@ local PlayerManager = {
     
     -- Mouse pressed tracking
     previousAutoAttack = false,
-    previousAutoAim = false
+    previousAutoAim = false,
+    
+    -- Weapons
+    equippedWeapon = nil,
+    availableWeapons = {
+        [1] = IronSword,
+        [2] = GoldSword,
+        [3] = SteelSword,
+        [4] = BronzeSword,
+    }
 }
 
 -- Inicializa o player manager
@@ -174,83 +189,31 @@ function PlayerManager.draw()
     end
     
     -- Draw health bar
-    local baseWidth = 40
-    local maxWidth = 60
-    local healthBarHeight = 5
-    local healthPercentage = PlayerManager.state:getHealthPercentage()
-    
-    -- Calculate dynamic width based on max health
-    local healthBarWidth = baseWidth + (maxWidth - baseWidth) * (PlayerManager.state:getTotalHealth() / 200)
-    
-    -- Draw level circle
-    local levelCircleRadius = 8
-    local experiencePercentage = PlayerManager.experience / PlayerManager.experienceToNextLevel
-    
-    -- Posição do círculo de nível
-    local levelCircleX = PlayerManager.player.x - healthBarWidth/2 - levelCircleRadius - 5
-    local levelCircleY = PlayerManager.player.y - PlayerManager.radius - 10 + healthBarHeight/2
-    
-    -- Fundo do círculo de nível
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.circle("line", levelCircleX, levelCircleY, levelCircleRadius)
-    
-    -- Preenchimento do círculo de nível
-    love.graphics.setColor(0.5, 0, 0.5)
-    love.graphics.arc("fill", "open", levelCircleX, levelCircleY, levelCircleRadius, -math.pi/2, -math.pi/2 + (2 * math.pi * experiencePercentage))
-    
-    -- Número do nível
-    love.graphics.setColor(1, 1, 1)
-    local levelText = tostring(PlayerManager.level)
-    local font = love.graphics.getFont()
-    local textWidth = font:getWidth(levelText) * 0.8
-    local textHeight = font:getHeight() * 0.8
-    
-    local textX = levelCircleX - textWidth/2
-    local textY = levelCircleY - textHeight/2
-    
-    love.graphics.print(levelText, textX, textY, 0, 0.8)
-    
-    -- Health bar background
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.rectangle("fill", 
-        PlayerManager.player.x - healthBarWidth/2, 
-        PlayerManager.player.y - PlayerManager.radius - 10,
-        healthBarWidth, 
-        healthBarHeight
-    )
-    
-    -- Health bar fill
-    love.graphics.setColor(0, 1, 0)
-    love.graphics.rectangle("fill", 
-        PlayerManager.player.x - healthBarWidth/2, 
-        PlayerManager.player.y - PlayerManager.radius - 10,
-        healthBarWidth * healthPercentage, 
-        healthBarHeight
-    )
-    
-    -- Draw health bar segments
-    love.graphics.setColor(0, 0, 0, 0.3)
-    local segmentCount = 5
-    local segmentWidth = healthBarWidth / segmentCount
-    
-    for i = 1, segmentCount - 1 do
-        local x = PlayerManager.player.x - healthBarWidth/2 + segmentWidth * i
-        love.graphics.line(
-            x,
-            PlayerManager.player.y - PlayerManager.radius - 10,
-            x,
-            PlayerManager.player.y - PlayerManager.radius - 5
-        )
-    end
-    
-    -- Draw health bar border
-    love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.rectangle("line", 
-        PlayerManager.player.x - healthBarWidth/2, 
-        PlayerManager.player.y - PlayerManager.radius - 10,
-        healthBarWidth, 
-        healthBarHeight
-    )
+    local healthBarWidth = 60
+    local healthBarHeight = 8
+    local healthBarX = PlayerManager.player.x - healthBarWidth/2
+    local healthBarY = PlayerManager.player.y - PlayerManager.radius - 10
+
+    elements.drawResourceBar({
+        x = healthBarX,
+        y = healthBarY,
+        height = healthBarHeight,
+        current = PlayerManager.state.currentHealth,
+        max = PlayerManager.state:getTotalHealth(),
+        color = colors.hp_fill,
+        bgColor = colors.bar_bg,
+        borderColor = colors.bar_border,
+        showShadow = true,
+        segmentInterval = 20, -- Segmentos a cada 20 pontos de vida
+        glow = true,
+        -- Configurações opcionais de largura dinâmica
+        dynamicWidth = true,
+        baseWidth = 60,
+        maxWidth = 120,
+        scaleFactor = 0.5,
+        minValue = 100,
+        maxValue = 2000
+    })
     
     -- Draw cooldown bar
     if PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance then
@@ -277,13 +240,6 @@ function PlayerManager.draw()
             )
         end
     end
-    
-    -- Draw class name
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print(PlayerManager.class.name, 
-        PlayerManager.player.x - 20, 
-        PlayerManager.player.y - PlayerManager.radius - 25, 
-        0, 0.8)
     
     Camera:detach()
     
@@ -608,6 +564,38 @@ function PlayerManager.getCollisionPosition()
         y = PlayerManager.player.y + 25,
         radius = PlayerManager.radius
     }
+end
+
+-- Função para equipar uma nova arma
+function PlayerManager.equipWeapon(weaponClass)
+    if PlayerManager.equippedWeapon then
+        -- Reseta a instância atual
+        PlayerManager.equippedWeapon.attackInstance = nil
+    end
+    
+    -- Cria uma nova instância da arma
+    PlayerManager.equippedWeapon = setmetatable({}, { __index = weaponClass })
+    PlayerManager.equippedWeapon:equip(PlayerManager)
+    
+    -- Exibe mensagem informativa
+    print(string.format("Arma trocada para: %s", PlayerManager.equippedWeapon.name))
+end
+
+-- Função para trocar arma por índice
+function PlayerManager.switchWeapon(index)
+    local weapon = PlayerManager.availableWeapons[index]
+    if weapon then
+        PlayerManager.equipWeapon(weapon)
+    end
+end
+
+-- Adiciona ao final da função love.keypressed
+function PlayerManager.keypressed(key)
+    -- Teclas numéricas para trocar armas
+    if key >= "1" and key <= "9" then
+        local index = tonumber(key)
+        PlayerManager.switchWeapon(index)
+    end
 end
 
 return PlayerManager 

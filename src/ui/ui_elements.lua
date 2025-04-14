@@ -47,84 +47,155 @@ function elements.drawWindowFrame(x, y, w, h, title)
     end
 end
 
-function elements.drawResourceBar(x, y, width, height, current, max, color, bgColor, borderColor, showText, textColor, textFormat)
+function elements.drawResourceBar(config)
+    -- Valores padrão
+    local defaults = {
+        x = 0,
+        y = 0,
+        width = 100,
+        height = 20,
+        current = 0,
+        max = 1,
+        color = colors.hp_fill,
+        bgColor = colors.bar_bg,
+        borderColor = colors.bar_border,
+        showText = false,
+        textColor = colors.text_main,
+        textFormat = "%d/%d",
+        showShadow = true,
+        shadowColor = {0, 0, 0, 0.5},
+        segments = 0,
+        segmentInterval = 0, -- Intervalo entre os segmentos (em unidades do recurso)
+        segmentColor = nil, -- Se nil, usa a cor da borda
+        glow = false,
+        glowColor = nil,
+        glowRadius = 4.0,
+        -- Configurações opcionais para largura dinâmica
+        dynamicWidth = false, -- Ativa/desativa largura dinâmica
+        baseWidth = 60, -- Largura base da barra
+        maxWidth = 120, -- Largura máxima da barra
+        scaleFactor = 0.5, -- Fator de escala para o crescimento da barra
+        minValue = 100, -- Valor mínimo para começar a crescer
+        maxValue = 2000 -- Valor máximo para parar de crescer
+    }
+
+    -- Mescla as configurações com os valores padrão
+    config = setmetatable(config or {}, { __index = defaults })
+
     -- Garante que os valores sejam números válidos
-    current = tonumber(current) or 0
-    max = tonumber(max) or 1
-    width = tonumber(width) or 100
-    height = tonumber(height) or 20
+    config.current = tonumber(config.current) or 0
+    config.max = tonumber(config.max) or 1
+    config.width = tonumber(config.width) or 100
+    config.height = tonumber(config.height) or 20
 
     -- Garante que os valores estejam dentro de limites razoáveis
-    current = math.max(0, math.min(current, max))
-    max = math.max(1, max)
+    config.current = math.max(0, math.min(config.current, config.max))
+    config.max = math.max(1, config.max)
+
+    -- Calcula a largura dinâmica se ativado
+    if config.dynamicWidth then
+        local valueScale = math.min(1, math.max(0, (config.max - config.minValue) / (config.maxValue - config.minValue)))
+        local dynamicWidth = config.baseWidth + (config.maxWidth - config.baseWidth) * valueScale * config.scaleFactor
+        config.width = dynamicWidth
+    end
 
     -- Inicializa o cache para esta entidade se não existir
-    local entityId = tostring(x) .. tostring(y) -- Identificador único para a entidade
+    local entityId = tostring(config.x) .. tostring(config.y)
     if not elements.lastHealth[entityId] then
-        elements.lastHealth[entityId] = current
-        elements.cacheHealth[entityId] = current
+        elements.lastHealth[entityId] = config.current
+        elements.cacheHealth[entityId] = config.current
     end
 
     -- Atualiza o cache se a vida atual for menor que o cache
-    if current < elements.cacheHealth[entityId] then
+    if config.current < elements.cacheHealth[entityId] then
         elements.cacheHealth[entityId] = elements.cacheHealth[entityId] - elements.cacheSpeed
-        if elements.cacheHealth[entityId] < current then
-            elements.cacheHealth[entityId] = current
+        if elements.cacheHealth[entityId] < config.current then
+            elements.cacheHealth[entityId] = config.current
         end
     else
-        elements.cacheHealth[entityId] = current
+        elements.cacheHealth[entityId] = config.current
     end
 
     -- Atualiza o último valor de vida
-    elements.lastHealth[entityId] = current
+    elements.lastHealth[entityId] = config.current
 
     -- Calcula as porcentagens
-    local currentPercent = current / max
-    local cachePercent = elements.cacheHealth[entityId] / max
-
-    -- Garante que as cores sejam números
-    local bgColor = bgColor or colors.bar_bg
-    local color = color or colors.hp_fill
-    local borderColor = borderColor or colors.bar_border
-    local textColor = textColor or colors.text_main
+    local currentPercent = config.current / config.max
+    local cachePercent = elements.cacheHealth[entityId] / config.max
 
     -- Desenha o fundo da barra
-    love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
-    love.graphics.rectangle("fill", x, y, width, height)
+    love.graphics.setColor(config.bgColor[1], config.bgColor[2], config.bgColor[3], config.bgColor[4] or 1)
+    love.graphics.rectangle("fill", config.x, config.y, config.width, config.height)
 
     -- Desenha a barra de cache (parte que diminui suavemente)
     local darkerColor = {
-        color[1] * 0.4,  -- Red
-        color[2] * 0.4,  -- Green
-        color[3] * 0.4,  -- Blue
-        (color[4] or 1) * 0.8  -- Alpha
+        config.color[1] * 0.4,
+        config.color[2] * 0.4,
+        config.color[3] * 0.4,
+        (config.color[4] or 1) * 0.8
     }
     love.graphics.setColor(darkerColor)
-    love.graphics.rectangle("fill", x, y, width * cachePercent, height)
+    love.graphics.rectangle("fill", config.x, config.y, config.width * cachePercent, config.height)
 
     -- Desenha a barra de vida atual
-    love.graphics.setColor(color[1], color[2], color[3], color[4] or 1)
-    love.graphics.rectangle("fill", x, y, width * currentPercent, height)
+    love.graphics.setColor(config.color[1], config.color[2], config.color[3], config.color[4] or 1)
+    love.graphics.rectangle("fill", config.x, config.y, config.width * currentPercent, config.height)
+
+    -- Desenha os segmentos se necessário
+    if config.segments > 0 or config.segmentInterval > 0 then
+        local segmentColor = config.segmentColor or config.borderColor
+        love.graphics.setColor(segmentColor[1], segmentColor[2], segmentColor[3], segmentColor[4] or 1)
+        
+        if config.segments > 0 then
+            -- Segmentos uniformemente distribuídos
+            local segmentWidth = config.width / config.segments
+            for i = 1, config.segments - 1 do
+                local x = config.x + segmentWidth * i
+                love.graphics.line(x, config.y, x, config.y + config.height/2)
+            end
+        else
+            -- Segmentos baseados no intervalo
+            local segmentValue = config.segmentInterval
+            while segmentValue < config.max do
+                local segmentX = config.x + (segmentValue / config.max) * config.width
+                love.graphics.line(segmentX, config.y, segmentX, config.y + config.height/2)
+                segmentValue = segmentValue + config.segmentInterval
+            end
+        end
+    end
 
     -- Desenha a borda
-    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4] or 1)
-    love.graphics.rectangle("line", x, y, width, height)
+    love.graphics.setColor(config.borderColor[1], config.borderColor[2], config.borderColor[3], config.borderColor[4] or 1)
+    love.graphics.rectangle("line", config.x, config.y, config.width, config.height)
+
+    -- Aplica o efeito de brilho se necessário
+    if config.glow and glowShader then
+        love.graphics.setShader(glowShader)
+        local glowCol = config.glowColor or {config.color[1], config.color[2], config.color[3], 0.6}
+        glowShader:send("glowColor", glowCol)
+        glowShader:send("glowRadius", config.glowRadius)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", config.x, config.y, config.width, config.height)
+        love.graphics.setShader()
+    end
 
     -- Desenha o texto se necessário
-    if showText then
-        local text = textFormat and string.format(textFormat, current, max) or string.format("%d/%d", current, max)
+    if config.showText then
+        local text = string.format(config.textFormat, config.current, config.max)
         local font = love.graphics.getFont()
         local textWidth = font:getWidth(text)
         local textHeight = font:getHeight()
-        local textX = x + (width - textWidth) / 2
-        local textY = y + (height - textHeight) / 2
+        local textX = config.x + (config.width - textWidth) / 2
+        local textY = config.y + (config.height - textHeight) / 2
 
-        -- Desenha a sombra do texto
-        love.graphics.setColor(0, 0, 0, 0.5)
-        love.graphics.print(text, textX + 1, textY + 1)
+        -- Desenha a sombra do texto se necessário
+        if config.showShadow then
+            love.graphics.setColor(config.shadowColor[1], config.shadowColor[2], config.shadowColor[3], config.shadowColor[4] or 1)
+            love.graphics.print(text, textX + 1, textY + 1)
+        end
 
         -- Desenha o texto principal
-        love.graphics.setColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
+        love.graphics.setColor(config.textColor[1], config.textColor[2], config.textColor[3], config.textColor[4] or 1)
         love.graphics.print(text, textX, textY)
     end
 end

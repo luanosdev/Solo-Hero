@@ -17,6 +17,9 @@ local EnemyManager = {
     nextMinorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn pequeno (Minor Spawn)
     nextMVPSpawnTime = 0,       -- Tempo de jogo global agendado para o próximo spawn de MVP
     nextBossIndex = 1,          -- Índice do próximo boss a ser spawnado
+
+    spawnTimer = 0,
+    spawnInterval = 2, -- Tempo entre spawns em segundos
 }
 
 -- Inicializa o gerenciador de inimigos para um mundo específico

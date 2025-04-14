@@ -16,11 +16,9 @@ local ConeSlash = {
     visual = {
         preview = {
             active = false,
-            color = {0.7, 0.7, 0.7, 0.2}, -- Cinza bem transparente para a mira
             segments = 20
         },
         attack = {
-            color = {1, 0.302, 0.302, 0.6}, -- Vermelho menos transparente para o ataque
             segments = 20,
             animationDuration = 0.2 -- Duração da animação em segundos
         }
@@ -32,11 +30,16 @@ function ConeSlash:init(owner)
     self.cooldownRemaining = 0
     self.isAttacking = false
     self.attackProgress = 0
+    
+    -- Usa as cores da arma se disponíveis
+    self.visual.preview.color = self.previewColor or {0.7, 0.7, 0.7, 0.2}
+    self.visual.attack.color = self.attackColor or {1, 0.302, 0.302, 0.6}
+    
     self.area = {
         x = owner.player.x,
-        y = owner.player.y,
+        y = owner.player.y + 25, -- Ajustado para a altura do círculo de colisão
         angle = 0,
-        range = self.range or 100, -- Valor padrão se não definido
+        range = owner.radius * 3, -- Range baseado no raio do círculo de colisão
         angleWidth = self.angle
     }
 end
@@ -56,13 +59,16 @@ function ConeSlash:update(dt)
         end
     end
 
-    -- Atualiza a posição do cone para seguir o jogador
+    -- Atualiza a posição do cone para seguir o círculo de colisão do jogador
     if self.area then
         self.area.x = self.owner.player.x
-        self.area.y = self.owner.player.y
+        self.area.y = self.owner.player.y + 25 -- Ajustado para a altura do círculo de colisão
 
         local mouseX, mouseY = love.mouse.getPosition()
         local worldX, worldY = Camera:screenToWorld(mouseX, mouseY)
+
+        -- Ajusta o Y do alvo para a mesma altura do círculo de colisão
+        worldY = worldY + 25
 
         local dx = worldX - self.area.x
         local dy = worldY - self.area.y
@@ -144,53 +150,32 @@ function ConeSlash:drawCone(color, progress)
     -- Configura a cor
     love.graphics.setColor(color)
     
+    -- Salva o estado atual de transformação
+    love.graphics.push()
+    
+    -- Translada para a posição do cone
+    love.graphics.translate(self.area.x, self.area.y)
+    
+    -- Aplica a transformação isométrica
+    love.graphics.scale(1, 0.5) -- Escala vertical para efeito isométrico
+    
     -- Calcula os ângulos do cone
     local startAngle = self.area.angle - self.angle / 2
     local endAngle = self.area.angle + self.angle / 2
     
-    -- Desenha as linhas do cone
-    love.graphics.line(
-        self.area.x, self.area.y,
-        self.area.x + math.cos(startAngle) * self.range,
-        self.area.y + math.sin(startAngle) * self.range
-    )
-    
-    love.graphics.line(
-        self.area.x, self.area.y,
-        self.area.x + math.cos(endAngle) * self.range,
-        self.area.y + math.sin(endAngle) * self.range
-    )
-    
-    -- Desenha o arco do cone
-    love.graphics.arc(
-        "line",
-        "open",
-        self.area.x,
-        self.area.y,
-        self.range,
-        startAngle,
-        endAngle,
-        32 -- Número de segmentos para o arco
-    )
-    
     -- Desenha o preenchimento do cone com animação de slash
     if progress > 0 then
         -- Calcula o ângulo de preenchimento baseado no progresso
-        local fillAngle = self.angle * progress
-        
-        -- Calcula o ângulo inicial do preenchimento (começa da esquerda)
-        local fillStartAngle = startAngle
-        local fillEndAngle = startAngle + (fillAngle * 1.1)
+        local fillEndAngle = startAngle + (self.angle * progress)
         
         -- Desenha o setor circular preenchido
         love.graphics.setColor(color[1], color[2], color[3], color[4] * 0.8)
         love.graphics.arc(
             "fill",
             "pie",
-            self.area.x,
-            self.area.y,
+            0, 0,
             self.range,
-            fillStartAngle,
+            startAngle,
             fillEndAngle,
             32 -- Número de segmentos para o arco
         )
@@ -198,20 +183,39 @@ function ConeSlash:drawCone(color, progress)
         -- Desenha uma linha mais intensa no final do preenchimento
         love.graphics.setColor(color[1], color[2], color[3], color[4])
         love.graphics.line(
-            self.area.x,
-            self.area.y,
-            self.area.x + math.cos(fillEndAngle) * self.range,
-            self.area.y + math.sin(fillEndAngle) * self.range
-        )
-        
-        -- Desenha uma linha mais intensa no início do preenchimento
-        love.graphics.line(
-            self.area.x,
-            self.area.y,
-            self.area.x + math.cos(fillStartAngle) * self.range,
-            self.area.y + math.sin(fillStartAngle) * self.range
+            0, 0,
+            math.cos(fillEndAngle) * self.range,
+            math.sin(fillEndAngle) * self.range
         )
     end
+    
+    -- Desenha as linhas do cone (contorno)
+    love.graphics.setColor(color)
+    love.graphics.line(
+        0, 0,
+        math.cos(startAngle) * self.range,
+        math.sin(startAngle) * self.range
+    )
+    
+    love.graphics.line(
+        0, 0,
+        math.cos(endAngle) * self.range,
+        math.sin(endAngle) * self.range
+    )
+    
+    -- Desenha o arco do cone
+    love.graphics.arc(
+        "line",
+        "open",
+        0, 0,
+        self.range,
+        startAngle,
+        endAngle,
+        32 -- Número de segmentos para o arco
+    )
+    
+    -- Restaura o estado de transformação
+    love.graphics.pop()
 end
 
 function ConeSlash:getCooldownRemaining()

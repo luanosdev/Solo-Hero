@@ -2,6 +2,11 @@
 local PlayerManager = require("src.managers.player_manager")
 local Camera = require("src.config.camera")
 local InputManager = require("src.managers.input_manager")
+local Skeleton = require("src.classes.enemies.skeleton")
+
+-- Variáveis globais
+local camera
+local enemy
 
 function love.load()
     -- Window settings - Fullscreen
@@ -12,11 +17,41 @@ function love.load()
     
     -- Isometric grid configuration
     grid = {
-        size = 128,       -- Aumentado: tamanho de cada célula do grid
-        rows = 100,       -- Aumentado: número de linhas
-        columns = 100,    -- Aumentado: número de colunas
-        color = {0.3, 0.3, 0.3, 0.2}  -- Grid line color and transparency
+        size = 128,
+        rows = 100,
+        columns = 100,
+        color = {0.3, 0.3, 0.3, 0.2}
     }
+    
+    -- Inicializa a câmera
+    camera = Camera:new()
+    camera:init()
+    
+    -- Carrega os recursos do esqueleto
+    require("src.animations.animated_skeleton").load()
+    
+    -- Cria um esqueleto inimigo em uma posição aleatória fora da tela
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    local spawnSide = math.random(1, 4)
+    local x, y
+    
+    if spawnSide == 1 then -- Topo
+        x = math.random(0, screenWidth)
+        y = -50
+    elseif spawnSide == 2 then -- Direita
+        x = screenWidth + 50
+        y = math.random(0, screenHeight)
+    elseif spawnSide == 3 then -- Baixo
+        x = math.random(0, screenWidth)
+        y = screenHeight + 50
+    else -- Esquerda
+        x = -50
+        y = math.random(0, screenHeight)
+    end
+    
+    -- Cria o esqueleto usando a nova classe
+    enemy = Skeleton:new(x, y)
     
     -- Debug info
     print("Jogo iniciado")
@@ -29,6 +64,26 @@ function love.update(dt)
     
     -- Atualiza o player
     PlayerManager.update(dt)
+    
+    -- Atualiza o inimigo se ele existir
+    if enemy then
+        enemy:update(dt, {
+            positionX = PlayerManager.player.x,
+            positionY = PlayerManager.player.y,
+            radius = PlayerManager.radius
+        }, {}) -- Passa a posição do jogador e uma lista vazia de inimigos
+        
+        -- Se o inimigo estiver morto e a animação de morte terminou, remove-o
+        if not enemy.isAlive and enemy.sprite.animation.currentFrame >= 7 then
+            enemy = nil
+            print("Esqueleto removido após animação de morte")
+        end
+    end
+    
+    -- Se pressionar espaço, causa dano ao esqueleto (para teste)
+    if love.keyboard.isDown('space') and enemy then
+        enemy:takeDamage(10)
+    end
 end
 
 function love.draw()
@@ -41,8 +96,33 @@ function love.draw()
     -- Draw player and related elements
     PlayerManager.draw()
     
+    -- Aplica transformação da câmera
+    Camera:attach()
+    
+    -- Desenha o inimigo se ele existir
+    if enemy then
+        enemy:draw()
+    end
+    
+    Camera:detach()
+    
     -- Draw HUD
     drawHUD()
+    
+    -- Debug info do inimigo
+    if enemy then
+        love.graphics.setColor(0, 0, 0, 1) -- Cor preta
+        local screenWidth = love.graphics.getWidth()
+        love.graphics.print(string.format(
+            "Enemy Info:\nHealth: %d/%d\nPosition: (%.0f, %.0f)\nState: %s\nAlive: %s",
+            enemy.currentHealth,
+            enemy.maxHealth,
+            enemy.positionX,
+            enemy.positionY,
+            enemy.sprite.animation.state,
+            enemy.isAlive and "Yes" or "No"
+        ), screenWidth - 200, 10) -- Posiciona no canto direito
+    end
 end
 
 -- Draw the isometric grid pattern
@@ -120,6 +200,9 @@ end
 
 -- Handle key press events
 function love.keypressed(key)
+    -- Adiciona o handler de teclas do PlayerManager
+    PlayerManager.keypressed(key)
+
     InputManager.keypressed(key)
 end
 
