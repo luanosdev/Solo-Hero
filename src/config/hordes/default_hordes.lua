@@ -3,13 +3,7 @@
 -- organizada em ciclos sequenciais. O EnemyManager carrega esta configuração.
 
 -- Requer as classes de inimigos que serão usadas nas configurações abaixo.
-local CommonEnemy = require("src.classes.enemies.common_enemy")
-local FastEnemy = require("src.classes.enemies.fast_enemy")
-local TankEnemy = require("src.classes.enemies.tank_enemy")
-local RangedEnemy = require("src.classes.enemies.ranged_enemy")
-local DiagonalEnemy = require("src.classes.enemies.diagonal_enemy")
-local PuddleEnemy = require("src.classes.enemies.puddle_enemy")
-local ExampleBoss = require("src.classes.bosses.example_boss")
+local Skeleton = require("src.classes.enemies.skeleton")
 
 -- Estrutura principal que contém a configuração dos ciclos para um "mundo" específico.
 local worldCycles = {
@@ -24,38 +18,15 @@ local worldCycles = {
 
     -- Configurações de bosses
     bossConfig = {
-        spawnTimes = { -- Tempos em segundos para spawnar cada boss
-            {time = 30, boss = ExampleBoss, powerLevel = 4} -- Primeiro boss após 5 minutos
-        },
-        
-        -- Configuração de drops para cada boss
-        drops = {
-            -- Drops do ExampleBoss
-            [ExampleBoss] = {
-                -- Lista de drops possíveis com suas probabilidades
-                drops = {
-                    {
-                        type = "rune", -- Tipo de drop (rune, item, etc)
-                        rarity = "epic", -- Raridade do drop (opcional)
-                        weight = 1, -- Peso para cálculo de probabilidade
-                        guaranteed = true -- Se o drop é garantido
-                    },
-                    {
-                        type = "gold",
-                        amount = {min = 50, max = 100}, -- Quantidade de ouro
-                        weight = 1,
-                        guaranteed = true
-                    }
-                }
-            }
-        }
+        spawnTimes = {}, -- Sem bosses por enquanto
+        drops = {}
     },
 
     -- Tabela contendo a sequência de ciclos de spawn.
     cycles = {
         -- Cada tabela interna representa um ciclo ou fase do jogo.
         
-        -- === Ciclo 1: Primeiros 3 Minutos (Apenas CommonEnemy)
+        -- === Ciclo 1: Primeiros 3 Minutos (Apenas Skeleton) ===
         {
             -- Duração deste ciclo em segundos.
             duration = 60 * 3, 
@@ -64,7 +35,7 @@ local worldCycles = {
             -- Usado tanto para Major Spawns quanto para Minor Spawns.
             -- 'weight' maior significa maior chance de ser escolhido.
             allowedEnemies = { 
-                {class = CommonEnemy, weight = 1} 
+                {class = Skeleton, weight = 1} 
             },
             
             -- Configuração para os spawns grandes e cronometrados ("Major Spawns").
@@ -92,12 +63,11 @@ local worldCycles = {
             }
         },
         
-        -- === Ciclo 2: Próximos 3 Minutos (Introduz FastEnemy) [~+50% density] ===
+        -- === Ciclo 2: Próximos 3 Minutos [~+50% density] ===
         {
             duration = 60 * 3, 
             allowedEnemies = { 
-                {class = CommonEnemy, weight = 3}, -- CommonEnemy ainda é mais provável
-                {class = FastEnemy, weight = 1}  -- FastEnemy começa a aparecer
+                {class = Skeleton, weight = 1}
             },
             majorSpawn = {
                 interval = 60,      
@@ -113,16 +83,11 @@ local worldCycles = {
             }
         },
 
-        -- === Ciclo 3: Exemplo (Introduz Tank, Ranged, Diagonal e Puddle) [~+50% density] ===
+        -- === Ciclo 3: Exemplo [~+50% density] ===
         {
             duration = 600, -- Este ciclo dura 10 minutos
             allowedEnemies = { 
-                {class = CommonEnemy, weight = 3}, -- Ajuste de peso
-                {class = FastEnemy, weight = 3},
-                {class = TankEnemy, weight = 1},
-                {class = RangedEnemy, weight = 2},
-                {class = DiagonalEnemy, weight = 2},
-                {class = PuddleEnemy, weight = 2} -- Adicionado PuddleEnemy
+                {class = Skeleton, weight = 1}
             },
             majorSpawn = {
                 interval = 45,      -- Spawns grandes mais frequentes neste ciclo

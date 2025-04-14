@@ -2,11 +2,10 @@
 local PlayerManager = require("src.managers.player_manager")
 local Camera = require("src.config.camera")
 local InputManager = require("src.managers.input_manager")
-local Skeleton = require("src.classes.enemies.skeleton")
+local EnemyManager = require("src.managers.enemy_manager")
 
 -- Variáveis globais
 local camera
-local enemy
 
 function love.load()
     -- Window settings - Fullscreen
@@ -30,28 +29,8 @@ function love.load()
     -- Carrega os recursos do esqueleto
     require("src.animations.animated_skeleton").load()
     
-    -- Cria um esqueleto inimigo em uma posição aleatória fora da tela
-    local screenWidth = love.graphics.getWidth()
-    local screenHeight = love.graphics.getHeight()
-    local spawnSide = math.random(1, 4)
-    local x, y
-    
-    if spawnSide == 1 then -- Topo
-        x = math.random(0, screenWidth)
-        y = -50
-    elseif spawnSide == 2 then -- Direita
-        x = screenWidth + 50
-        y = math.random(0, screenHeight)
-    elseif spawnSide == 3 then -- Baixo
-        x = math.random(0, screenWidth)
-        y = screenHeight + 50
-    else -- Esquerda
-        x = -50
-        y = math.random(0, screenHeight)
-    end
-    
-    -- Cria o esqueleto usando a nova classe
-    enemy = Skeleton:new(x, y)
+    -- Inicializa o EnemyManager
+    EnemyManager:init("default")
     
     -- Debug info
     print("Jogo iniciado")
@@ -65,24 +44,19 @@ function love.update(dt)
     -- Atualiza o player
     PlayerManager.update(dt)
     
-    -- Atualiza o inimigo se ele existir
-    if enemy then
-        enemy:update(dt, {
-            positionX = PlayerManager.player.x,
-            positionY = PlayerManager.player.y,
-            radius = PlayerManager.radius
-        }, {}) -- Passa a posição do jogador e uma lista vazia de inimigos
-        
-        -- Se o inimigo estiver morto e a animação de morte terminou, remove-o
-        if not enemy.isAlive and enemy.sprite.animation.currentFrame >= 7 then
-            enemy = nil
-            print("Esqueleto removido após animação de morte")
-        end
-    end
+    -- Atualiza o EnemyManager
+    EnemyManager:update(dt, {
+        positionX = PlayerManager.player.x,
+        positionY = PlayerManager.player.y,
+        radius = PlayerManager.radius
+    })
     
-    -- Se pressionar espaço, causa dano ao esqueleto (para teste)
-    if love.keyboard.isDown('space') and enemy then
-        enemy:takeDamage(10)
+    -- Se pressionar espaço, causa dano a todos os inimigos (para teste)
+    if love.keyboard.isDown('space') then
+        local enemies = EnemyManager:getEnemies()
+        for _, enemy in ipairs(enemies) do
+            enemy:takeDamage(10)
+        end
     end
 end
 
@@ -99,28 +73,24 @@ function love.draw()
     -- Aplica transformação da câmera
     Camera:attach()
     
-    -- Desenha o inimigo se ele existir
-    if enemy then
-        enemy:draw()
-    end
+    -- Desenha os inimigos através do EnemyManager
+    EnemyManager:draw()
     
     Camera:detach()
     
     -- Draw HUD
     drawHUD()
     
-    -- Debug info do inimigo
-    if enemy then
+    -- Debug info dos inimigos
+    local enemies = EnemyManager:getEnemies()
+    if #enemies > 0 then
         love.graphics.setColor(0, 0, 0, 1) -- Cor preta
         local screenWidth = love.graphics.getWidth()
         love.graphics.print(string.format(
-            "Enemy Info:\nHealth: %d/%d\nPosition: (%.0f, %.0f)\nState: %s\nAlive: %s",
-            enemy.currentHealth,
-            enemy.maxHealth,
-            enemy.positionX,
-            enemy.positionY,
-            enemy.sprite.animation.state,
-            enemy.isAlive and "Yes" or "No"
+            "Enemy Info:\nTotal Enemies: %d\nCurrent Cycle: %d\nGame Time: %.1f",
+            #enemies,
+            EnemyManager.currentCycleIndex,
+            EnemyManager.gameTimer
         ), screenWidth - 200, 10) -- Posiciona no canto direito
     end
 end
