@@ -4,17 +4,26 @@ local Camera = require("src.config.camera")
 local InputManager = require("src.managers.input_manager")
 local EnemyManager = require("src.managers.enemy_manager")
 local FloatingText = require("src.entities.floating_text")
+local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 
 -- Variáveis globais
 local camera
 local floatingTexts = {}
+local groundTexture
 
 function love.load()
     -- Window settings - Fullscreen
     love.window.setMode(0, 0, {fullscreen = true})
     
+    -- Carrega a textura do terreno
+    groundTexture = love.graphics.newImage("assets/ground.png")
+    groundTexture:setWrap("repeat", "repeat")
+    
     -- Inicializa o player manager
     PlayerManager.init()
+    
+    -- Inicializa o ExperienceOrbManager
+    ExperienceOrbManager:init()
     
     -- Isometric grid configuration
     grid = {
@@ -53,6 +62,9 @@ function love.update(dt)
         radius = PlayerManager.radius
     })
     
+    -- Atualiza os orbs de experiência
+    ExperienceOrbManager:update(dt)
+    
     -- Atualiza os textos flutuantes
     for i = #floatingTexts, 1, -1 do
         if not floatingTexts[i]:update(dt) then
@@ -85,6 +97,9 @@ function love.draw()
     -- Desenha os inimigos através do EnemyManager
     EnemyManager:draw()
     
+    -- Desenha os orbs de experiência
+    ExperienceOrbManager:draw()
+    
     -- Desenha os textos flutuantes
     for _, floatingText in ipairs(floatingTexts) do
         floatingText:draw()
@@ -92,13 +107,10 @@ function love.draw()
     
     Camera:detach()
     
-    -- Draw HUD
-    drawHUD()
-    
     -- Debug info dos inimigos
     local enemies = EnemyManager:getEnemies()
     if #enemies > 0 then
-        love.graphics.setColor(0, 0, 0, 1) -- Cor preta
+        love.graphics.setColor(1, 1, 1, 1) -- Cor preta
         local screenWidth = love.graphics.getWidth()
         love.graphics.print(string.format(
             "Enemy Info:\nTotal Enemies: %d\nCurrent Cycle: %d\nGame Time: %.1f",
@@ -115,71 +127,65 @@ function drawIsometricGrid()
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
     
-    -- Calculate visible grid area
-    -- Aumentamos a área de cálculo para garantir cobertura total
-    local cellsX = math.ceil(screenWidth / (grid.size/2)) + 20  -- Mais células horizontais
-    local cellsY = math.ceil(screenHeight / (grid.size/2 * iso_scale)) + 20  -- Mais células verticais
+    -- Calcula o tamanho do chunk baseado no tamanho da tela
+    local chunkSize = 32  -- número de células por chunk
+    local visibleChunksX = math.ceil(screenWidth / (grid.size/2)) / chunkSize + 4  -- chunks visíveis + buffer
+    local visibleChunksY = math.ceil(screenHeight / (grid.size/2 * iso_scale)) / chunkSize + 4
     
-    local startX = math.floor(Camera.x / (grid.size/2)) - cellsX/2
-    local startY = math.floor(Camera.y / (grid.size/2 * iso_scale)) - cellsY/2
-    local endX = startX + cellsX
-    local endY = startY + cellsY
+    -- Obtém a posição do jogador
+    local playerX = PlayerManager.player.x
+    local playerY = PlayerManager.player.y
+    
+    -- Converte a posição do jogador para coordenadas do grid
+    local playerGridX = math.floor(playerX / (grid.size/2))
+    local playerGridY = math.floor(playerY / (grid.size/2 * iso_scale))
+    
+    -- Calcula o chunk atual do jogador
+    local currentChunkX = math.floor(playerGridX / chunkSize)
+    local currentChunkY = math.floor(playerGridY / chunkSize)
+    
+    -- Define a área de chunks a ser renderizada
+    local startChunkX = currentChunkX - math.ceil(visibleChunksX/2)
+    local endChunkX = currentChunkX + math.ceil(visibleChunksX/2)
+    local startChunkY = currentChunkY - math.ceil(visibleChunksY/2)
+    local endChunkY = currentChunkY + math.ceil(visibleChunksY/2)
     
     -- Apply camera transformation
     Camera:attach()
     
-    -- Draw the grid with thicker lines
-    love.graphics.setLineWidth(2)  -- Linha mais grossa para melhor visibilidade
+    -- Define a cor branca para não afetar a textura
+    love.graphics.setColor(1, 1, 1, 1)
     
-    for i = startX, endX do
-        for j = startY, endY do
-            -- Calculate grid point positions
-            local x = (i - j) * (grid.size/2)
-            local y = (i + j) * (grid.size/2 * iso_scale)
+    -- Renderiza os chunks
+    for chunkX = startChunkX, endChunkX do
+        for chunkY = startChunkY, endChunkY do
+            -- Renderiza as células dentro do chunk
+            local startX = chunkX * chunkSize
+            local startY = chunkY * chunkSize
+            local endX = startX + chunkSize
+            local endY = startY + chunkSize
             
-            -- Draw grid points
-            love.graphics.setColor(grid.color[1], grid.color[2], grid.color[3], grid.color[4])
-            love.graphics.circle('fill', x, y, 3)
-            
-            -- Draw horizontal grid lines
-            if i > startX then
-                love.graphics.line(
-                    x, y,
-                    x + grid.size/2, y - grid.size/2 * iso_scale
-                )
-            end
-            
-            -- Draw vertical grid lines
-            if j > startY then
-                love.graphics.line(
-                    x, y,
-                    x - grid.size/2, y - grid.size/2 * iso_scale
-                )
+            for i = startX, endX do
+                for j = startY, endY do
+                    -- Calculate grid point positions
+                    local x = (i - j) * (grid.size/2)
+                    local y = (i + j) * (grid.size/2 * iso_scale)
+                    
+                    -- Desenha a textura do terreno
+                    love.graphics.draw(
+                        groundTexture,
+                        x - grid.size/2,
+                        y - grid.size/2,
+                        0,  -- rotação
+                        grid.size / groundTexture:getWidth(),  -- escala X
+                        grid.size / groundTexture:getHeight()  -- escala Y
+                    )
+                end
             end
         end
     end
     
-    -- Reset line width
-    love.graphics.setLineWidth(1)
-    
     Camera:detach()
-end
-
--- Draw the heads-up display (HUD)
-function drawHUD()
-    local screenWidth = love.graphics.getWidth()
-    
-    -- Draw health bar background
-    love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
-    love.graphics.rectangle('fill', screenWidth - 210, 10, 200, 30)
-    
-    -- Draw health bar fill
-    love.graphics.setColor(0.2, 0.9, 0.3)
-    love.graphics.rectangle('fill', screenWidth - 208, 12, 196, 26)
-    
-    -- Draw health percentage
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("100%", screenWidth - 205, 15)
 end
 
 -- Handle key press events

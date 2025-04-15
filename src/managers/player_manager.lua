@@ -56,7 +56,7 @@ local PlayerManager = {
     
     -- Collection
     radius = 25,
-    collectionRadius = 20, -- Raio base para coletar prismas
+    collectionRadius = 120, -- Raio base para coletar prismas
     
     -- Mouse tracking
     lastMouseX = 0,
@@ -244,7 +244,7 @@ function PlayerManager.draw()
     Camera:detach()
     
     -- Debug info
-    love.graphics.setColor(0, 0, 0, 1)
+    love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print(string.format(
         -- Informações básicas
         "=== JOGADOR ===\n" ..
