@@ -2,7 +2,7 @@ local LevelUpModal = {
     visible = false,
     options = {},
     selectedOption = 1,
-    player = nil,
+    playerManager = nil,
     hoveredOption = nil
 }
 
@@ -16,48 +16,78 @@ local ATTRIBUTES = {
         name = "vida_maxima",
         displayName = "Vida Máxima",
         description = "Aumenta a vida máxima em 10%",
-        icon = "♥"
+        icon = "H",
+        attribute = "health",
+        bonus = 10
     },
     {
         name = "dano",
         displayName = "Dano",
         description = "Aumenta o dano em 5%",
-        icon = "⚔"
+        icon = "D",
+        attribute = "damage",
+        bonus = 5
     },
     {
         name = "velocidade",
         displayName = "Velocidade",
         description = "Aumenta a velocidade em 5%",
-        icon = "→"
+        icon = "S",
+        attribute = "speed",
+        bonus = 5
     },
     {
         name = "defesa",
         displayName = "Defesa",
         description = "Aumenta a defesa em 5%",
-        icon = "■"
+        icon = "D",
+        attribute = "defense",
+        bonus = 5
     },
     {
         name = "velocidade_ataque",
         displayName = "Velocidade de Ataque",
         description = "Aumenta a velocidade de ataque em 5%",
-        icon = "⚡"
+        icon = "A",
+        attribute = "attackSpeed",
+        bonus = 5
     },
     {
         name = "chance_critico",
         displayName = "Chance Crítico",
         description = "Aumenta a chance de acerto crítico em 5%",
-        icon = "🎯"
+        icon = "C",
+        attribute = "criticalChance",
+        bonus = 5
     },
     {
         name = "multiplicador_critico",
         displayName = "Multiplicador Crítico",
         description = "Aumenta o dano crítico em 5%",
-        icon = "💥"
+        icon = "M",
+        attribute = "criticalMultiplier",
+        bonus = 5
+    },
+    {
+        name = "regeneracao_vida",
+        displayName = "Regeneração de Vida",
+        description = "Aumenta a regeneração de vida em 5%",
+        icon = "R",
+        attribute = "healthRegen",
+        bonus = 5
+    },
+    {
+        name = "ataque_multiplo",
+        displayName = "Ataque Múltiplo",
+        description = "Aumenta a chance de ataque múltiplo em 5%",
+        icon = "X",
+        attribute = "multiAttackChance",
+        bonus = 5
     }
 }
 
-function LevelUpModal:init(player)
-    self.player = player
+function LevelUpModal:init(playerManager)
+    self.playerManager = playerManager
 end
 
 function LevelUpModal:show()
@@ -100,7 +130,7 @@ function LevelUpModal:update(dt)
     
     -- Seleção com Enter
     if love.keyboard.isDown("return") then
-        self:applyUpgrade(self.options[self.selectedOption].name)
+        self:applyUpgrade(self.options[self.selectedOption])
         self:hide()
     end
     
@@ -137,27 +167,22 @@ function LevelUpModal:mousepressed(x, y, button)
     if button == 1 then -- Left click
         local clickedOption = self:getOptionAtPosition(x, y)
         if clickedOption then
-            self:applyUpgrade(self.options[clickedOption].name)
+            self:applyUpgrade(self.options[clickedOption])
             self:hide()
         end
     end
 end
 
-function LevelUpModal:applyUpgrade(attribute)
-    if attribute == "vida_maxima" then
-        self.player.state:addAttributeBonus("health", 10)
-    elseif attribute == "dano" then
-        self.player.state:addAttributeBonus("damage", 5)
-    elseif attribute == "velocidade" then
-        self.player.state:addAttributeBonus("speed", 5)
-    elseif attribute == "defesa" then
-        self.player.state:addAttributeBonus("defense", 5)
-    elseif attribute == "velocidade_ataque" then
-        self.player.state:addAttributeBonus("attackSpeed", 5)
-    elseif attribute == "chance_critico" then
-        self.player.state:addAttributeBonus("criticalChance", 5)
-    elseif attribute == "multiplicador_critico" then
-        self.player.state:addAttributeBonus("criticalMultiplier", 5)
+function LevelUpModal:applyUpgrade(option)
+    if not self.playerManager or not self.playerManager.state then return end
+    
+    -- Aplica o bônus ao atributo
+    self.playerManager.state:addAttributeBonus(option.attribute, option.bonus)
+    
+    -- Atualiza os valores totais se necessário
+    if option.attribute == "health" then
+        self.playerManager.state.maxHealth = self.playerManager.state:getTotalHealth()
+        self.playerManager.state.currentHealth = self.playerManager.state.maxHealth
     end
 end
 
