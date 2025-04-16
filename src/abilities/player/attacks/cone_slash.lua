@@ -136,34 +136,25 @@ end
 
 function ConeSlash:isPointInArea(x, y)
     if not self.area then return false end
+    if not self.area then return false end
+
+    -- Transforma ambos para espaço isométrico
+    local px, py = x, y * 2
+    local ox, oy = self.area.x, self.area.y * 2
+
+    local dx, dy = px - ox, py - oy
+    local distance = math.sqrt(dx * dx + dy * dy)
     
-    -- Converte as coordenadas para o espaço isométrico
-    local isoX = x - self.area.x
-    local isoY = (y - self.area.y) * 2 -- Multiplica por 2 para compensar a escala isométrica
-    
-    -- Calcula a distância do ponto ao centro do cone
-    local distance = math.sqrt(isoX * isoX + isoY * isoY)
-    
-    -- Verifica se está dentro do alcance
-    if distance > self.area.range then
-        return false
-    end
-    
-    -- Calcula o ângulo do ponto em relação ao centro do cone
-    local pointAngle = math.atan2(isoY, isoX)
-    
-    -- Normaliza os ângulos para o intervalo [0, 2π]
-    local normalizedPointAngle = (pointAngle + 2 * math.pi) % (2 * math.pi)
-    local normalizedConeAngle = (self.area.angle + 2 * math.pi) % (2 * math.pi)
-    
-    -- Calcula a diferença de ângulo
-    local angleDiff = math.abs(normalizedPointAngle - normalizedConeAngle)
-    if angleDiff > math.pi then
-        angleDiff = 2 * math.pi - angleDiff
-    end
-    
-    -- Verifica se está dentro do ângulo do cone
-    return angleDiff <= self.area.angleWidth / 2
+    if distance > self.area.range then return false end
+
+    local pointAngle = math.atan2(dy, dx)
+    local coneAngle = self.area.angle
+
+    -- Normaliza e calcula diferença angular
+    local diff = math.abs((pointAngle - coneAngle + math.pi) % (2 * math.pi) - math.pi)
+
+    local tolerance = math.rad(5)
+    return diff <= (self.area.angleWidth / 2 + tolerance)
 end
 
 function ConeSlash:applyDamage(target)
