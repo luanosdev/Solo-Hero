@@ -56,7 +56,7 @@ local PlayerManager = {
     
     -- Collection
     radius = 25,
-    collectionRadius = 120, -- Raio base para coletar prismas
+    collectionRadius = 100, -- Raio base para coletar prismas
     
     -- Mouse tracking
     lastMouseX = 0,

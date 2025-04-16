@@ -6,6 +6,8 @@ local EnemyManager = require("src.managers.enemy_manager")
 local FloatingText = require("src.entities.floating_text")
 local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local AnimationLoader = require("src.animations.animation_loader")
+local LevelUpModal = require("src.ui.level_up_modal")
+local fonts = require("src.ui.fonts")
 
 -- Variáveis globais
 local camera
@@ -13,6 +15,8 @@ local floatingTexts = {}
 local groundTexture
 
 function love.load()
+    -- Carrega as fontes antes de qualquer uso de UI
+    fonts.load()
     -- Window settings - Fullscreen
     love.window.setMode(0, 0, {fullscreen = true})
     
@@ -72,6 +76,9 @@ function love.update(dt)
             table.remove(floatingTexts, i)
         end
     end
+
+    -- Atualiza o LevelUpModal
+    LevelUpModal:update(dt)
     
     -- Se pressionar espaço, causa dano a todos os inimigos (para teste)
     if love.keyboard.isDown('space') then
@@ -107,6 +114,9 @@ function love.draw()
     end
     
     Camera:detach()
+    
+    -- Desenha o LevelUpModal acima de tudo
+    LevelUpModal:draw()
     
     -- Debug info dos inimigos
     local enemies = EnemyManager:getEnemies()
@@ -208,9 +218,13 @@ end
 
 -- Handle key press events
 function love.keypressed(key)
+    -- Se o LevelUpModal estiver visível, consome as teclas para navegação
+    if LevelUpModal.visible then
+        -- Navegação já é tratada no update do modal
+        return
+    end
     -- Adiciona o handler de teclas do PlayerManager
     PlayerManager.keypressed(key)
-
     InputManager.keypressed(key)
 end
 
@@ -223,6 +237,11 @@ function love.mousemoved(x, y, dx, dy)
 end
 
 function love.mousepressed(x, y, button)
+    -- Primeiro, verifica se o LevelUpModal está visível e consome o clique
+    if LevelUpModal.visible then
+        LevelUpModal:mousepressed(x, y, button)
+        return
+    end
     InputManager.mousepressed(x, y, button)
 end
 
