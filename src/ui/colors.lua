@@ -3,51 +3,52 @@ local colors = {
     white = {1, 1, 1, 1}, -- #FFFFFF
     black = {0, 0, 0, 1}, -- #000000
 
-    window_bg = {0.039, 0.078, 0.157, 0.92}, -- #0A1428
-    window_border = {0, 0.667, 1, 1.0}, -- #00AAFF
-    window_title = {0, 0.867, 1, 1.0}, -- #00DDFF
+    -- Cores base inspiradas em Solo Leveling
+    window_bg = {0.06, 0.07, 0.09, 0.95}, -- Preto azulado escuro
+    window_border = {0.4, 0.45, 0.5, 0.8}, -- Azul acinzentado
+    window_title = {0.7, 0.75, 0.8, 1.0}, -- Branco azulado
 
-    text_main = {0.878, 0.878, 0.878, 1.0}, -- #E0E0E0
-    text_label = {0.69, 0.769, 0.871, 1.0}, -- #B0C4DE
-    text_highlight = {0, 0.867, 1, 1.0}, -- #00DDFF
-    text_value = {1, 1, 1, 1}, -- #FFFFFF
-    text_gold = {1, 0.843, 0, 1.0}, -- #FFD700
-    text_xp = {0.847, 0.557, 1, 1.0}, -- #D88EFF
+    text_main = {0.8, 0.85, 0.9, 1.0}, -- Branco suave
+    text_label = {0.6, 0.65, 0.7, 1.0}, -- Cinza claro
+    text_highlight = {0.3, 0.6, 1.0, 1.0}, -- Azul brilhante
+    text_value = {0.85, 0.9, 0.95, 1}, -- Branco azulado
+    text_gold = {0.9, 0.8, 0.3, 1.0}, -- Dourado suave
+    text_xp = {0.4, 0.7, 1.0, 1.0}, -- Azul claro
 
-    bar_bg = {0.165, 0.165, 0.227, 1.0}, -- #2A2A3A
-    bar_border = {0.267, 0.267, 0.267, 1.0}, -- #444444
-    hp_fill = {1, 0.267, 0.267, 1.0}, -- #FF4444
-    mp_fill = {0.267, 0.533, 1, 1.0}, -- #4488FF
-    xp_fill = {0.667, 0.267, 1, 1.0}, -- #AA44FF
+    bar_bg = {0.08, 0.09, 0.11, 0.9}, -- Preto azulado mais escuro
+    bar_border = {0.3, 0.35, 0.4, 0.8}, -- Azul escuro
+    hp_fill = {0.7, 0.2, 0.2, 1.0}, -- Vermelho escuro
+    mp_fill = {0.2, 0.4, 0.8, 1.0}, -- Azul médio
+    xp_fill = {0.3, 0.6, 1.0, 1.0}, -- Azul brilhante
 
-    slot_empty_bg = {0, 0, 0, 0.3}, -- #000000
-    slot_empty_border = {0.392, 0.392, 0.392, 0.4}, -- #646464
-    slot_hover_bg = {0.235, 0.275, 0.353, 0.5}, -- #3C465A
+    slot_empty_bg = {0.07, 0.08, 0.1, 0.8},
+    slot_empty_border = {0.3, 0.35, 0.4, 0.6},
+    slot_hover_bg = {0.1, 0.15, 0.2, 0.7},
 
     rarity = {
-        S = {0.702, 0.247, 0.91, 1.0}, -- #B33FE8
-        A = {1, 0.302, 0.302, 1.0}, -- #FF4D4D
-        B = {0.239, 0.518, 0.878, 1.0}, -- #3D85E0
-        C = {0.298, 0.686, 0.314, 1.0}, -- #4CAF50
-        D = {0.62, 0.62, 0.62, 1.0}, -- #9E9E9E
-        E = {0.8, 0.8, 0.8, 1.0}, -- #CCCCCC
+        S = {0.3, 0.6, 1.0, 1.0}, -- Azul Solo Leveling
+        A = {0.8, 0.3, 0.3, 1.0}, -- Vermelho escuro
+        B = {0.4, 0.4, 0.8, 1.0}, -- Azul médio
+        C = {0.4, 0.6, 0.4, 1.0}, -- Verde escuro
+        D = {0.5, 0.5, 0.5, 1.0}, -- Cinza médio
+        E = {0.7, 0.7, 0.7, 1.0}, -- Cinza claro
     },
 
-    alert_bg = {0, 0.196, 0.392, 0.92}, -- #003264
-    alert_border = {0.4, 0.733, 1, 1.0}, -- #66BBFF
-    alert_text = {0.961, 0.961, 0.961, 1.0}, -- #F5F5F5
-    alert_icon = {1, 0.843, 0, 1.0}, -- #FFD700
-    damage_player = {1, 0.4, 0.4, 1.0}, -- #FF6666
-    damage_enemy = {1, 0.894, 0.882, 1.0}, -- #FFE4E1
-    damage_crit = {1, 0.627, 0.392, 1.0}, -- #FFA064
-    heal = {0.565, 0.933, 0.565, 1.0}, -- #90EE90
+    alert_bg = {0.08, 0.09, 0.11, 0.95},
+    alert_border = {0.3, 0.6, 1.0, 1.0},
+    alert_text = {0.8, 0.85, 0.9, 1.0},
+    alert_icon = {0.3, 0.6, 1.0, 1.0},
+    damage_player = {0.8, 0.3, 0.3, 1.0},
+    damage_enemy = {0.85, 0.9, 0.95, 1.0},
+    damage_crit = {0.3, 0.6, 1.0, 1.0},
+    heal = {0.4, 0.8, 0.4, 1.0},
 
     enemyPowerColors = {
-        [1] = { 0.827, 0.827, 0.827, 1.0 },   -- Branco/Cinza claro (#D3D3D3)
-        [2] = { 0.000, 0.400, 0.800, 1.0 },   -- Azul (#0066CC)
-        [3] = { 1.000, 0.647, 0.000, 1.0 },   -- Laranja (#FFA500)
-        [4] = { 1.000, 0.000, 0.000, 1.0 },   -- Vermelho (#FF0000)
-        [5] = { 0.118, 0.118, 0.118, 1.0 },   -- Preto (#1E1E1E)
+        [1] = {0.7, 0.75, 0.8, 1.0},    -- Branco azulado
+        [2] = {0.3, 0.6, 1.0, 1.0},     -- Azul Solo Leveling
+        [3] = {0.8, 0.3, 0.3, 1.0},     -- Vermelho escuro
+        [4] = {0.4, 0.0, 0.8, 1.0},     -- Roxo escuro
+        [5] = {0.1, 0.2, 0.3, 1.0},     -- Azul muito escuro
     }
 }
 
