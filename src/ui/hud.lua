@@ -8,6 +8,7 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local BossHealthBar = require("src.ui.boss_health_bar")
+local PlayerManager = require("src.managers.player_manager")
 
 -- Função auxiliar para formatar tempo
 local function formatTime(s)
@@ -38,9 +39,8 @@ end
 
 --[[
     Draw the HUD elements
-    @param player Player entity to get status information
 ]]
-function HUD:draw(player)
+function HUD:draw()
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
 
@@ -49,30 +49,36 @@ function HUD:draw(player)
 
     -- Barra de XP (Centralizada)
     -- Calcula a experiência necessária apenas para o próximo nível
-    local experienceForNextLevel = player.experienceToNextLevel - (player.level > 1 and player.experienceToNextLevel / (1 + player.experienceMultiplier) or 0)
-    local currentExperience = player.experience - (player.level > 1 and player.experienceToNextLevel / (1 + player.experienceMultiplier) or 0)
+    local experienceForNextLevel = PlayerManager.experienceToNextLevel - (PlayerManager.level > 1 and PlayerManager.experienceToNextLevel / (1 + PlayerManager.experienceMultiplier) or 0)
+    local currentExperience = PlayerManager.experience - (PlayerManager.level > 1 and PlayerManager.experienceToNextLevel / (1 + PlayerManager.experienceMultiplier) or 0)
     local xpPercent = currentExperience / experienceForNextLevel
     local barW = screenW * 0.4
     local barH = 18
     local barX = (screenW - barW) / 2 -- Centraliza horizontalmente
     local barY = 20 -- Posição fixa no topo
     
-    -- Desenha a barra de progresso
-    elements.drawResourceBar(
-        barX,
-        barY,
-        barW,
-        barH,
-        currentExperience,
-        experienceForNextLevel,
-        colors.xp_fill,
-        colors.bar_bg,
-        colors.bar_border,
-        false  -- Não mostra o texto padrão
-    )
+    -- Desenha a barra de progresso de XP
+    elements.drawResourceBar({
+        x = barX,
+        y = barY,
+        width = barW,
+        height = barH,
+        current = currentExperience,
+        max = experienceForNextLevel,
+        color = colors.xp_fill,
+        bgColor = colors.bar_bg,
+        borderColor = colors.bar_border,
+        showText = false,
+        showShadow = true,
+        shadowColor = {0, 0, 0, 0.5},
+        segments = 0,
+        glow = true,
+        glowColor = {colors.xp_fill[1], colors.xp_fill[2], colors.xp_fill[3], 0.6},
+        glowRadius = 4.0
+    })
     
     -- Desenha o texto da XP separadamente
-    local text = string.format("%.0f/%.0f", player.experience, player.experienceToNextLevel)
+    local text = string.format("%.0f/%.0f", PlayerManager.experience, PlayerManager.experienceToNextLevel)
     love.graphics.setFont(fonts.hud)  -- Define explicitamente a fonte
     local textHeight = fonts.hud:getHeight()
     
@@ -87,7 +93,7 @@ function HUD:draw(player)
     -- Nível do Player (abaixo da barra de XP)
     love.graphics.setFont(fonts.hud)
     love.graphics.setColor(colors.text_gold)
-    local levelText = string.format("Nível %d", player.level or 1)
+    local levelText = string.format("Nível %d", PlayerManager.level or 1)
     love.graphics.printf(levelText, barX, barY + barH + 5, barW, "center")
 
     -- Informações do Player (Tempo, Kills, Ouro)
@@ -100,79 +106,13 @@ function HUD:draw(player)
     love.graphics.setColor(0, 0, 0, 0.5)
     love.graphics.rectangle("fill", textX - 10, textY - 5, totalWidth, fonts.hud:getHeight() + 10, 3, 3)
 
-    drawPlayerStatus(textX, textY, "Tempo:", formatTime(player.gameTime or 0), colors.text_highlight)
+    drawPlayerStatus(textX, textY, "Tempo:", formatTime(PlayerManager.gameTime or 0), colors.text_highlight)
     textX = textX + fonts.hud:getWidth("Tempo: 00:00") + 30
 
-    drawPlayerStatus(textX, textY, "Kills:", tostring(player.kills or 0), colors.text_highlight)
+    drawPlayerStatus(textX, textY, "Kills:", tostring(PlayerManager.kills or 0), colors.text_highlight)
     textX = textX + fonts.hud:getWidth("Kills: XXXX") + 30
 
-    drawPlayerStatus(textX, textY, "Ouro:", tostring(player.gold or 0), colors.text_gold)
-
-    -- Barra de HP
-    local hudBarW = 300
-    local hudBarH = 20
-    local hudBarX = (screenW - hudBarW) / 2
-    local hudBarY_hp = screenH - 100
-    
-    elements.drawResourceBar(
-        hudBarX,
-        hudBarY_hp,
-        hudBarW,
-        hudBarH,
-        player.state.currentHealth or 0,
-        player.state:getTotalHealth() or 100,
-        colors.hp_fill,
-        colors.bar_bg,
-        colors.bar_border,
-        true,
-        colors.text_main,
-        "%.0f/%.0f"
-    )
-
-    -- Status do Player (Atributos) - Agora em uma janela separada
-    local statusWindowW = 250
-    local statusWindowH = 200
-    local statusWindowX = 20
-    local statusWindowY = barY + barH + 40 -- Ajustado para dar espaço ao nível
-
-    -- Fundo da janela de status
-    love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.8)
-    love.graphics.rectangle("fill", statusWindowX, statusWindowY, statusWindowW, statusWindowH, 5, 5)
-    love.graphics.setColor(colors.window_border)
-    love.graphics.rectangle("line", statusWindowX, statusWindowY, statusWindowW, statusWindowH, 5, 5)
-
-    -- Título da janela de status
-    love.graphics.setFont(fonts.hud)
-    love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("Atributos", statusWindowX, statusWindowY + 10, statusWindowW, "center")
-
-    -- Atributos
-    local statusX = statusWindowX + 20
-    local statusY = statusWindowY + 40
-    local statusSpacing = 25
-
-    -- Ataque
-    drawPlayerStatus(statusX, statusY, "Ataque:", string.format("%.1f", player.state:getTotalDamage() or 0), colors.text_highlight)
-    statusY = statusY + statusSpacing
-
-    -- Defesa
-    drawPlayerStatus(statusX, statusY, "Defesa:", string.format("%.1f", player.state:getTotalDefense() or 0), colors.text_highlight)
-    statusY = statusY + statusSpacing
-
-    -- Velocidade
-    drawPlayerStatus(statusX, statusY, "Velocidade:", string.format("%.1f", player.state:getTotalSpeed() or 0), colors.text_highlight)
-    statusY = statusY + statusSpacing
-
-    -- Taxa de Crítico
-    if player.state:getTotalCriticalChance() then
-        drawPlayerStatus(statusX, statusY, "Chance de Crítico:", string.format("%.1f%%", player.state:getTotalCriticalChance() * 100), colors.text_highlight)
-        statusY = statusY + statusSpacing
-    end
-
-    -- Dano Crítico
-    if player.state:getTotalCriticalMultiplier() then
-        drawPlayerStatus(statusX, statusY, "Dano Crítico:", string.format("%.1fx", player.state:getTotalCriticalMultiplier()), colors.text_highlight)
-    end
+    drawPlayerStatus(textX, textY, "Ouro:", tostring(PlayerManager.gold or 0), colors.text_gold)
 
     -- Status de Auto-Ataque e Auto-Aim
     local autoX = screenW - 250
@@ -193,18 +133,18 @@ function HUD:draw(player)
     love.graphics.printf("Controles", autoX - 10, autoY - 5, autoWindowW, "center")
 
     -- Auto-Ataque
-    local autoAttackText = "[X] Auto-Ataque: " .. (player.autoAttackEnabled and "ON" or "OFF")
-    love.graphics.setColor(player.autoAttackEnabled and colors.heal or colors.damage_player)
+    local autoAttackText = "[X] Auto-Ataque: " .. (PlayerManager.autoAttackEnabled and "ON" or "OFF")
+    love.graphics.setColor(PlayerManager.autoAttackEnabled and colors.heal or colors.damage_player)
     love.graphics.printf(autoAttackText, autoX, autoY + 15, autoWindowW - 20, "left")
 
     -- Auto-Aim
-    local autoAimText = "[Z] Auto-Aim: " .. (player.autoAimEnabled and "ON" or "OFF")
-    love.graphics.setColor(player.autoAimEnabled and colors.heal or colors.damage_player)
+    local autoAimText = "[Z] Auto-Aim: " .. (PlayerManager.autoAimEnabled and "ON" or "OFF")
+    love.graphics.setColor(PlayerManager.autoAimEnabled and colors.heal or colors.damage_player)
     love.graphics.printf(autoAimText, autoX, autoY + 15 + autoSpacing, autoWindowW - 20, "left")
 
     -- Visualização da habilidade
-    local abilityText = "[V] Previa da habilidade: " .. (player:getAbilityVisual() and "ON" or "OFF")
-    love.graphics.setColor(player:getAbilityVisual() and colors.heal or colors.damage_player)
+    local abilityText = "[V] Previa da habilidade: " .. (PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and PlayerManager.equippedWeapon.attackInstance:getPreview() and "ON" or "OFF")
+    love.graphics.setColor(PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and PlayerManager.equippedWeapon.attackInstance:getPreview() and colors.heal or colors.damage_player)
     love.graphics.printf(abilityText, autoX, autoY + 15 + autoSpacing * 2, autoWindowW - 20, "left")
 end
 

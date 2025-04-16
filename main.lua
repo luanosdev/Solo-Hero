@@ -7,6 +7,7 @@ local FloatingText = require("src.entities.floating_text")
 local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local AnimationLoader = require("src.animations.animation_loader")
 local LevelUpModal = require("src.ui.level_up_modal")
+local HUD = require("src.ui.hud")
 local fonts = require("src.ui.fonts")
 
 -- Variáveis globais
@@ -116,9 +117,13 @@ function love.draw()
     for _, floatingText in ipairs(floatingTexts) do
         floatingText:draw()
     end
-    
+
+
     Camera:detach()
-    
+
+    -- Desenha o HUD
+    HUD:draw()
+
     -- Desenha o LevelUpModal acima de tudo
     LevelUpModal:draw()
     
