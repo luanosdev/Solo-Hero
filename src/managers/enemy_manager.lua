@@ -64,7 +64,7 @@ function EnemyManager:update(dt, player)
     if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
         local nextBoss = self.worldConfig.bossConfig.spawnTimes[self.nextBossIndex]
         if nextBoss and self.gameTimer >= nextBoss.time then
-            self:spawnBoss(nextBoss.boss, player, nextBoss.powerLevel)
+            self:spawnBoss(nextBoss.class, player, nextBoss.powerLevel)
             self.nextBossIndex = self.nextBossIndex + 1
         end
     end

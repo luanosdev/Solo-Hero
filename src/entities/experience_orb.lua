@@ -107,12 +107,6 @@ function ExperienceOrb:draw()
     -- Calcula o offset de levitação atual
     local levitationOffset = math.sin(self.levitationTime) * self.levitationHeight
     
-    -- Desenha a área de coleta do jogador (debug)
-    love.graphics.setColor(0, 1, 0, 0.2) -- Verde semi-transparente
-    love.graphics.circle("fill", PlayerManager.player.x, PlayerManager.player.y, PlayerManager.collectionRadius)
-    love.graphics.setColor(0, 1, 0, 0.4) -- Verde mais visível para a borda
-    love.graphics.circle("line", PlayerManager.player.x, PlayerManager.player.y, PlayerManager.collectionRadius)
-    
     -- Desenha a sombra
     love.graphics.setColor(0, 0, 0, 0.3)
     love.graphics.circle("fill", self.positionX, self.positionY + 3, self.radius * 0.8)

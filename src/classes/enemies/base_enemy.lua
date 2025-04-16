@@ -63,22 +63,6 @@ function BaseEnemy:update(dt, player, enemies)
     local newX = self.positionX + dx * self.speed * dt
     local newY = self.positionY + dy * self.speed * dt
     
-    -- Debug: Mostra informações sobre o movimento
-    print(string.format(
-        "\n=== DEBUG MOVIMENTO INIMIGO ===\n" ..
-        "Posição do inimigo: (%.1f, %.1f)\n" ..
-        "Posição de colisão do jogador: (%.1f, %.1f)\n" ..
-        "Direção: (%.1f, %.1f)\n" ..
-        "Velocidade: %.1f",
-        self.positionX,
-        self.positionY,
-        playerCollision.x,
-        playerCollision.y,
-        dx,
-        dy,
-        self.speed
-    ))
-    
     -- Verifica se a nova posição colide com algum outro inimigo
     local canMove = true
 
@@ -118,26 +102,7 @@ function BaseEnemy:checkPlayerCollision(dt, playerCollision)
     local dy = (playerCollision.y - self.positionY) * 2 -- Ajusta para o modo isométrico
     
     local distance = math.sqrt(dx * dx + dy * dy)
-    
-    -- Debug: Mostra informações sobre a colisão
-    print(string.format(
-        "\n=== DEBUG COLISÃO INIMIGO ===\n" ..
-        "Posição do inimigo: (%.1f, %.1f)\n" ..
-        "Posição de colisão do jogador: (%.1f, %.1f)\n" ..
-        "Distância: %.1f\n" ..
-        "Raio do inimigo: %.1f\n" ..
-        "Raio do jogador: %.1f\n" ..
-        "Soma dos raios: %.1f",
-        self.positionX,
-        self.positionY,
-        playerCollision.x,
-        playerCollision.y,
-        distance,
-        self.radius,
-        playerCollision.radius,
-        self.radius + playerCollision.radius
-    ))
-    
+
     -- Se houver colisão (distância menor que a soma dos raios)
     if distance <= (self.radius + playerCollision.radius) then
         -- Verifica se pode causar dano (cooldown)
@@ -192,18 +157,6 @@ function BaseEnemy:draw()
 end
 
 function BaseEnemy:takeDamage(damage, isCritical)
-    print(string.format(
-        "\n=== DEBUG RECEBENDO DANO ===\n" ..
-        "Inimigo: %s\n" ..
-        "Vida atual: %.1f\n" ..
-        "Dano recebido: %.1f\n" ..
-        "Dano crítico: %s",
-        self.name,
-        self.currentHealth,
-        damage,
-        isCritical and "Sim" or "Não"
-    ))
-    
     -- Aplica o dano
     self.currentHealth = self.currentHealth - damage
     

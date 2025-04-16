@@ -5,6 +5,7 @@ local InputManager = require("src.managers.input_manager")
 local EnemyManager = require("src.managers.enemy_manager")
 local FloatingText = require("src.entities.floating_text")
 local ExperienceOrbManager = require("src.managers.experience_orb_manager")
+local AnimationLoader = require("src.animations.animation_loader")
 
 -- Variáveis globais
 local camera
@@ -37,9 +38,9 @@ function love.load()
     camera = Camera:new()
     camera:init()
     
-    -- Carrega os recursos do esqueleto
-    require("src.animations.animated_skeleton").load()
-    
+    -- Carrega todas as animações
+    AnimationLoader.loadAll()
+
     -- Inicializa o EnemyManager
     EnemyManager:init("default")
     
@@ -110,14 +111,31 @@ function love.draw()
     -- Debug info dos inimigos
     local enemies = EnemyManager:getEnemies()
     if #enemies > 0 then
-        love.graphics.setColor(1, 1, 1, 1) -- Cor preta
+        love.graphics.setColor(1, 1, 1, 1)
         local screenWidth = love.graphics.getWidth()
-        love.graphics.print(string.format(
+        local debugText = string.format(
             "Enemy Info:\nTotal Enemies: %d\nCurrent Cycle: %d\nGame Time: %.1f",
             #enemies,
             EnemyManager.currentCycleIndex,
             EnemyManager.gameTimer
-        ), screenWidth - 200, 10) -- Posiciona no canto direito
+        )
+
+        -- Adiciona informações dos bosses vivos
+        local bossCount = 0
+        for _, enemy in ipairs(enemies) do
+            if enemy.isBoss and enemy.isAlive then
+                bossCount = bossCount + 1
+                debugText = debugText .. string.format(
+                    "\n\nBoss %d: %s\nVida: %.1f\nPosição: (%.1f, %.1f)",
+                    bossCount,
+                    enemy.name or "(sem nome)",
+                    enemy.currentHealth or (enemy.state and enemy.state.currentHealth) or 0,
+                    enemy.positionX or 0,
+                    enemy.positionY or 0
+                )
+            end
+        end
+        love.graphics.print(debugText, screenWidth - 200, 10)
     end
 end
 

@@ -4,6 +4,7 @@
 
 -- Requer as classes de inimigos que serão usadas nas configurações abaixo.
 local Skeleton = require("src.classes.enemies.skeleton")
+local SpiderBoss = require("src.classes.bosses.spider")
 
 -- Estrutura principal que contém a configuração dos ciclos para um "mundo" específico.
 local worldCycles = {
@@ -18,7 +19,10 @@ local worldCycles = {
 
     -- Configurações de bosses
     bossConfig = {
-        spawnTimes = {}, -- Sem bosses por enquanto
+        spawnTimes = {
+            -- Exemplo: Spawna o SpiderBoss no tempo 180 segundos (3 minutos)
+            {time = 3, class = SpiderBoss}
+        },
         drops = {}
     },
 
