@@ -264,7 +264,8 @@ function PlayerManager.draw()
         "Velocidade de Ataque: %.1f\n" ..
         "Chance de Crítico: %.1f%%\n" ..
         "Multiplicador de Crítico: %.1fx\n" ..
-        "Regeneração de Vida: %.1f/s\n\n" ..
+        "Regeneração de Vida: %.1f/s\n" ..
+        "Ataques Múltiplos: %.1f\n\n" ..
         
         -- Sistema de level
         "=== LEVEL ===\n" ..
@@ -314,6 +315,7 @@ function PlayerManager.draw()
         PlayerManager.state:getTotalCriticalChance() * 100,
         PlayerManager.state:getTotalCriticalMultiplier(),
         PlayerManager.state:getTotalHealthRegen(),
+        PlayerManager.state:getTotalMultiAttackChance(),
         
         -- Valores de level
         PlayerManager.level,

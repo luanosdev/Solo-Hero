@@ -54,6 +54,10 @@ function love.load()
 end
 
 function love.update(dt)
+    if LevelUpModal.visible then
+        return
+    end
+
     -- Atualiza o input manager
     InputManager.update(dt)
     

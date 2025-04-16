@@ -17,6 +17,7 @@ local Warrior = {
     criticalChance = 0.2, -- 20% de chance de crítico
     criticalMultiplier = 1.8, -- 80% de dano crítico
     healthRegen = 0.2, -- 0.2 HP por segundo 
+    baseMultiAttackChance = 0, -- Chance base de ataque múltiplo
     -- Class Name
     name = "Warrior",
     -- Starting Weapon
@@ -36,7 +37,8 @@ function Warrior:getBaseStats()
         attackSpeed = self.attackSpeed,
         criticalChance = self.criticalChance,
         criticalMultiplier = self.criticalMultiplier,
-        healthRegen = self.healthRegen
+        healthRegen = self.healthRegen,
+        multiAttackChance = self.baseMultiAttackChance
     }
 end
 

@@ -1,11 +1,11 @@
+local EnemyManager = require("src.managers.enemy_manager")
+
 --[[
     Cone Slash Ability
     A cone-shaped area of effect attack that serves as the character's primary attack method
 ]]
 
-local BaseAbility = require("src.abilities.player._base_ability")
 local Camera = require("src.config.camera")
-local SpritePlayer = require("src.animations.sprite_player")
 
 local ConeSlash = {
     name = "Cone Slash",
@@ -44,13 +44,6 @@ function ConeSlash:init(owner)
         range = weapon.range, -- Usa o range da arma
         angleWidth = math.rad(90) -- Ângulo fixo de 90 graus
     }
-    
-    print("\n=== DEBUG INICIALIZAÇÃO CONE ===")
-    print("Posição inicial:", self.area.x, self.area.y)
-    print("Alcance:", self.area.range)
-    print("Ângulo:", math.deg(self.angle))
-    print("Arma:", weapon.name)
-    print("Range da arma:", weapon.range)
 end
 
 function ConeSlash:update(dt)
@@ -83,16 +76,7 @@ function ConeSlash:update(dt)
 end
 
 function ConeSlash:cast(x, y)
-    print("\n=== DEBUG DO ATAQUE ===")
-    print("ConeSlash: Tentando executar ataque")
-    print("Posição do jogador:", self.owner.player.x, self.owner.player.y)
-    print("Posição do alvo:", x, y)
-    print("Posição do cone:", self.area.x, self.area.y)
-    print("Ângulo do cone:", math.deg(self.area.angle))
-    print("Alcance do cone:", self.area.range)
-    
     if self.cooldownRemaining > 0 then
-        print("ConeSlash: Em cooldown - Tempo restante:", self.cooldownRemaining)
         return false
     end
     
@@ -103,40 +87,65 @@ function ConeSlash:cast(x, y)
     -- Aplica o cooldown baseado na velocidade de ataque
     self.cooldownRemaining = self.cooldown / self.attackSpeed
     
+    -- Calcula o número de ataques extras
+    local multiAttackChance = self.owner.state:getTotalMultiAttackChance()
+    local extraAttacks = math.floor(multiAttackChance)
+    local decimalChance = multiAttackChance - extraAttacks
+    
+    -- Primeiro ataque sempre ocorre
+    local success = self:executeAttack(x, y)
+    
+    -- Executa ataques extras
+    for i = 1, extraAttacks do
+        if success then
+            success = self:executeAttack(x, y)
+        end
+    end
+    
+    -- Chance de ataque extra baseado no decimal
+    if success and decimalChance > 0 and math.random() < decimalChance then
+        self:executeAttack(x, y)
+    end
+    
+    return success
+end
+
+-- Função auxiliar para executar um único ataque
+function ConeSlash:executeAttack(x, y)
+    -- Verifica colisão com inimigos
+    local enemies = EnemyManager:getEnemies()
+    local enemiesHit = 0
+    local totalEnemies = 0
+    
+    for _, enemy in ipairs(enemies) do
+        if enemy.isAlive then
+            totalEnemies = totalEnemies + 1
+            -- Verifica se o inimigo está dentro da área de ataque usando isPointInArea
+            local isInArea = self:isPointInArea(enemy.positionX, enemy.positionY)
+            
+            if isInArea then
+                enemiesHit = enemiesHit + 1
+                -- Aplica o dano e verifica se o inimigo morreu
+                self:applyDamage(enemy)
+            end
+        end
+    end
+    
     return true
 end
 
 function ConeSlash:isPointInArea(x, y)
     if not self.area then return false end
     
-    -- Debug: Mostra as coordenadas originais
-    print(string.format(
-        "\n=== DEBUG COORDENADAS ===\n" ..
-        "Coordenadas originais:\n" ..
-        "Ponto: (%.1f, %.1f)\n" ..
-        "Centro: (%.1f, %.1f)",
-        x, y,
-        self.area.x, self.area.y
-    ))
-    
     -- Converte as coordenadas para o espaço isométrico
     local isoX = x - self.area.x
     local isoY = (y - self.area.y) * 2 -- Multiplica por 2 para compensar a escala isométrica
-    
-    -- Debug: Mostra as coordenadas isométricas
-    print(string.format(
-        "Coordenadas isométricas:\n" ..
-        "Ponto: (%.1f, %.1f)\n" ..
-        "Centro: (0, 0)",
-        isoX, isoY
-    ))
     
     -- Calcula a distância do ponto ao centro do cone
     local distance = math.sqrt(isoX * isoX + isoY * isoY)
     
     -- Verifica se está dentro do alcance
     if distance > self.area.range then
-        print("Fora do alcance:", distance, ">", self.area.range)
         return false
     end
     
@@ -151,29 +160,6 @@ function ConeSlash:isPointInArea(x, y)
     local angleDiff = math.abs(normalizedPointAngle - normalizedConeAngle)
     if angleDiff > math.pi then
         angleDiff = 2 * math.pi - angleDiff
-    end
-    
-    -- Debug: Mostra informações sobre o ponto
-    if self.isAttacking then
-        print(string.format(
-            "=== DEBUG CONE SLASH ===\n" ..
-            "Distância: %.1f\n" ..
-            "Ângulo do ponto: %.1f\n" ..
-            "Ângulo do cone: %.1f\n" ..
-            "Diferença de ângulo: %.1f\n" ..
-            "Dentro do cone: %s\n" ..
-            "Ângulo do cone (graus): %.1f\n" ..
-            "Metade do ângulo do cone: %.1f\n" ..
-            "Distância máxima: %.1f",
-            distance,
-            math.deg(normalizedPointAngle),
-            math.deg(normalizedConeAngle),
-            math.deg(angleDiff),
-            angleDiff <= self.area.angleWidth / 2 and "Sim" or "Não",
-            math.deg(self.area.angleWidth),
-            math.deg(self.area.angleWidth / 2),
-            self.area.range
-        ))
     end
     
     -- Verifica se está dentro do ângulo do cone
@@ -196,20 +182,6 @@ function ConeSlash:applyDamage(target)
             totalDamage = math.floor(totalDamage * self.owner.state:getTotalCriticalMultiplier())
         end
         
-        print(string.format(
-            "\n=== DEBUG DANO ===\n" ..
-            "Aplicando dano ao inimigo\n" ..
-            "Posição do inimigo: (%.1f, %.1f)\n" ..
-            "Dano da arma: %.1f\n" ..
-            "Dano total: %.1f\n" ..
-            "Dano crítico: %s",
-            target.positionX,
-            target.positionY,
-            weaponDamage,
-            totalDamage,
-            isCritical and "Sim" or "Não"
-        ))
-        
         -- Aplica o dano
         return target:takeDamage(totalDamage, isCritical)
     end
@@ -230,7 +202,6 @@ function ConeSlash:draw()
     
     -- Desenha a animação do ataque
     if self.isAttacking then
-        print("ConeSlash: Desenhando ataque")
         self:drawCone(self.visual.attack.color, self.attackProgress)
     end
 end

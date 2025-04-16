@@ -17,6 +17,7 @@ local PlayerState = {
     baseCriticalChance = 0,
     baseCriticalMultiplier = 0,
     baseHealthRegen = 0, -- Nova propriedade: regeneração de vida base
+    baseMultiAttackChance = 0, -- Nova propriedade: chance de ataque múltiplo base
     
     -- Bônus por nível (em porcentagem)
     levelBonus = {
@@ -27,7 +28,8 @@ local PlayerState = {
         attackSpeed = 0,
         criticalChance = 0,
         criticalMultiplier = 0,
-        healthRegen = 0 -- Novo bônus: regeneração de vida
+        healthRegen = 0, -- Novo bônus: regeneração de vida
+        multiAttackChance = 0 -- Novo bônus: chance de ataque múltiplo
     }
 }
 
@@ -45,6 +47,7 @@ function PlayerState:init(baseStats)
     self.baseCriticalChance = baseStats.criticalChance or 20
     self.baseCriticalMultiplier = baseStats.criticalMultiplier or 1.5
     self.baseHealthRegen = baseStats.healthRegen or 0 -- Inicializa regeneração de vida base
+    self.baseMultiAttackChance = baseStats.multiAttackChance or 0 -- Inicializa chance de ataque múltiplo base
     
     -- Inicializa bônus de nível
     self.levelBonus = {
@@ -55,7 +58,8 @@ function PlayerState:init(baseStats)
         attackSpeed = 0,
         criticalChance = 0,
         criticalMultiplier = 0,
-        healthRegen = 0 -- Inicializa bônus de regeneração de vida
+        healthRegen = 0, -- Inicializa bônus de regeneração de vida
+        multiAttackChance = 0 -- Inicializa bônus de chance de ataque múltiplo
     }
     
     -- Inicializa vida atual e máxima
@@ -138,6 +142,14 @@ end
 ]]
 function PlayerState:getTotalHealthRegen()
     return self.baseHealthRegen * (1 + self.levelBonus.healthRegen / 100)
+end
+
+--[[
+    Get total multi attack chance (base + bonus)
+    @return number Total multi attack chance
+]]
+function PlayerState:getTotalMultiAttackChance()
+    return self.baseMultiAttackChance * (1 + self.levelBonus.multiAttackChance / 100)
 end
 
 --[[
