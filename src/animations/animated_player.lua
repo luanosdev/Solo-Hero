@@ -225,12 +225,7 @@ function AnimatedPlayer.draw(config)
             config.scale,        -- Scale X
             config.scale         -- Scale Y
         )
-        
-        -- Debug: indicador de movimento para trás
-        if config.animation.isMovingBackward then
-            love.graphics.setColor(1, 0, 0, 0.5)
-            love.graphics.circle('fill', 0, -20, 5)
-        end
+
     else
         -- Debug: desenha um retângulo se não encontrar a imagem
         love.graphics.setColor(1, 0, 0, 1)

@@ -84,8 +84,9 @@ function ConeSlash:cast(x, y)
     self.isAttacking = true
     self.attackProgress = 0
     
-    -- Aplica o cooldown baseado na velocidade de ataque
-    self.cooldownRemaining = self.cooldown / self.attackSpeed
+    -- Aplica o cooldown baseado na velocidade de ataque do player
+    local attackSpeed = self.owner.state:getTotalAttackSpeed()
+    self.cooldownRemaining = self.cooldown / attackSpeed
     
     -- Calcula o número de ataques extras
     local multiAttackChance = self.owner.state:getTotalMultiAttackChance()
@@ -161,14 +162,16 @@ function ConeSlash:applyDamage(target)
     if not self.area then return false end
     
     if self:isPointInArea(target.positionX, target.positionY) then
-        -- Obtém o dano da arma
+        -- Obtém o dano base da arma
         local weaponDamage = self.owner.equippedWeapon.damage
+
         
-        -- Calcula o dano total com os bônus
+        -- Calcula o dano total com os bônus do player
         local totalDamage = self.owner.state:getTotalDamage(weaponDamage)
+
         
         -- Calcula se o dano é crítico
-        local isCritical = math.random() <= self.owner.state:getTotalCriticalChance()
+        local isCritical = math.random() <= self.owner.state:getTotalCriticalChance() / 100
         if isCritical then
             totalDamage = math.floor(totalDamage * self.owner.state:getTotalCriticalMultiplier())
         end
@@ -267,10 +270,6 @@ function ConeSlash:drawCone(color, progress)
     
     -- Restaura o estado de transformação
     love.graphics.pop()
-    
-    -- Debug: Desenha um ponto no centro do cone
-    love.graphics.setColor(1, 1, 0, 1)
-    love.graphics.circle("fill", self.area.x, self.area.y, 5)
 end
 
 function ConeSlash:getCooldownRemaining()

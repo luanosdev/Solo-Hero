@@ -3,13 +3,13 @@ local ConeSlash = require("src.abilities.player.attacks.cone_slash")
 
 local BronzeSword = BaseWeapon:new({
     name = "Espada de Bronze",
-    description = "Uma espada resistente feita de bronze",
-    damage = 8, -- Menos dano que a espada de ferro
-    attackSpeed = 1.2, -- Mais rápida que a espada de ferro
-    range = 150, -- Alcance um pouco menor
-    previewColor = {0.8, 0.5, 0.2, 0.2}, -- Tons de bronze mais claros
-    attackColor = {0.7, 0.4, 0.1, 0.6}, -- Tons de bronze mais escuros
+    description = "Uma espada elegante feita de bronze",
+    damage = 10,
+    cooldown = 0.9,
+    range = 100,
     attackType = ConeSlash,
+    previewColor = {0.8, 0.5, 0.2, 0.2},
+    attackColor = {0.6, 0.4, 0.1, 0.6}
 })
 
 return BronzeSword 

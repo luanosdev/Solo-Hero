@@ -10,7 +10,7 @@ local SpiderBoss = require("src.classes.bosses.spider")
 local worldCycles = {
     -- Configurações globais do mundo
     mvpConfig = {
-        spawnInterval = 30,      -- Intervalo entre spawns de MVPs (em segundos)
+        spawnInterval = 60,      -- Intervalo entre spawns de MVPs (em segundos)
         statusMultiplier = 20,   -- Multiplicador de status para MVPs
         speedMultiplier = 1.2,   -- Multiplicador de velocidade para MVPs
         sizeMultiplier = 1.3,    -- Multiplicador de tamanho para MVPs
@@ -21,7 +21,7 @@ local worldCycles = {
     bossConfig = {
         spawnTimes = {
             -- Exemplo: Spawna o SpiderBoss no tempo 180 segundos (3 minutos)
-            {time = 3, class = SpiderBoss}
+            {time = 60 * 3, class = SpiderBoss}
         },
         drops = {}
     },
@@ -63,7 +63,7 @@ local worldCycles = {
                 -- O intervalo mínimo (em segundos) que os Minor Spawns podem atingir, para evitar spawns muito rápidos.
                 minInterval = 0.7,      
                 -- Quantos inimigos são spawnados a cada evento de Minor Spawn (geralmente 1).
-                count = 1
+                count = 2
             }
         },
         

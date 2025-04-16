@@ -120,22 +120,6 @@ function BaseAbility:getVisual()
     return self.visual.active
 end
 
---[[
-    Aplica dano a um inimigo
-    @param enemy O inimigo que receberá o dano
-    @return boolean Se o inimigo morreu
-]]
-function BaseAbility:applyDamage(enemy)
-    -- Calcula se o dano é crítico
-    local isCritical = math.random() <= self.owner.state:getTotalCriticalChance()
-    local finalDamage = self.owner.state:getTotalDamage(0) + (self.damage or 0)
-    if isCritical then
-        finalDamage = math.floor(finalDamage * self.owner.state:getTotalCriticalMultiplier())
-    end
-    
-    -- Aplica o dano
-    return enemy:takeDamage(finalDamage, isCritical)
-end
 
 --[[
     Update visual angle based on target position

@@ -3,7 +3,7 @@ local BaseItem = require("src.items.base_item")
 local BaseWeapon = BaseItem:new({
     type = "weapon",
     damage = 0,
-    attackSpeed = 1.0,
+    cooldown = 1.0, -- Cooldown base da arma em segundos
     range = 1.0,
     attackType = nil, -- Será definido por cada arma específica
     equipped = false
@@ -34,14 +34,14 @@ function BaseWeapon:equip(owner)
         
         -- Copia as propriedades da arma para o ataque
         attackInstance.damage = self.damage
-        attackInstance.attackSpeed = self.attackSpeed
+        attackInstance.cooldown = self.cooldown
         attackInstance.range = self.range
         attackInstance.previewColor = self.previewColor
         attackInstance.attackColor = self.attackColor
         
         print("Propriedades do ataque:")
         print("- Dano:", attackInstance.damage)
-        print("- Velocidade:", attackInstance.attackSpeed)
+        print("- Cooldown:", attackInstance.cooldown)
         print("- Alcance:", attackInstance.range)
         print("- Cor de preview:", attackInstance.previewColor)
         print("- Cor de ataque:", attackInstance.attackColor)

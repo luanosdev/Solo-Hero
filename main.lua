@@ -83,15 +83,7 @@ function love.update(dt)
     end
 
     -- Atualiza o LevelUpModal
-    LevelUpModal:update(dt)
-    
-    -- Se pressionar espaço, causa dano a todos os inimigos (para teste)
-    if love.keyboard.isDown('space') then
-        local enemies = EnemyManager:getEnemies()
-        for _, enemy in ipairs(enemies) do
-            enemy:takeDamage(10)
-        end
-    end
+    LevelUpModal:update()
 end
 
 function love.draw()
@@ -242,6 +234,11 @@ function love.keyreleased(key)
 end
 
 function love.mousemoved(x, y, dx, dy)
+    -- Se o LevelUpModal estiver visível, passa o evento para ele
+    if LevelUpModal.visible then
+        LevelUpModal:update() -- Força uma atualização do hover
+        return
+    end
     InputManager.mousemoved(x, y, dx, dy)
 end
 

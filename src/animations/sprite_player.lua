@@ -363,12 +363,6 @@ function SpritePlayer.draw(config)
             config.scale,
             config.scale
         )
-        
-        -- Debug: indicador de movimento para trás
-        if config.animation.isMovingBackward then
-            love.graphics.setColor(1, 0, 0, 0.5)
-            love.graphics.circle('fill', 0, -20, 5)
-        end
     end
     
     love.graphics.pop()

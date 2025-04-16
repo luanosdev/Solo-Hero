@@ -82,7 +82,31 @@ end
     @return number Total damage
 ]]
 function PlayerState:getTotalDamage(baseDamage)
-    return math.floor(baseDamage * (1 + self.levelBonus.damage / 100))
+    local totalDamage = math.floor(baseDamage * (1 + self.levelBonus.damage / 100))
+
+    -- Debug: Mostra os valores antes do cálculo
+    print(string.format(
+        "[PlayerState] Cálculo de Dano:\n" ..
+        "Dano base: %.1f\n" ..
+        "Bônus por nível: x%.1f%%\n" ..
+        "Bônus calculado: +%.1f (%.1f%% de %.1f)\n" ..
+        "Dano total: %.1f",
+        baseDamage,
+        self.levelBonus.damage,
+        baseDamage * (self.levelBonus.damage / 100),
+        self.levelBonus.damage,
+        baseDamage,
+        totalDamage
+    ))
+    
+    
+    -- Debug: Mostra o resultado
+    print(string.format(
+        "[PlayerState] Dano total calculado: %.1f",
+        totalDamage
+    ))
+    
+    return totalDamage
 end
 
 --[[
@@ -198,14 +222,70 @@ end
 ]]
 function PlayerState:addAttributeBonus(attribute, percentage)
     if self.levelBonus[attribute] then
+        -- Adiciona o bônus
+        local oldBonus = self.levelBonus[attribute]
         self.levelBonus[attribute] = self.levelBonus[attribute] + percentage
         
-        -- Se for vida, atualiza a vida máxima e restaura a vida atual
+        -- Debug: Mostra o bônus adicionado
+        print(string.format(
+            "[PlayerState] Bônus de %s adicionado: +%.1f%% (Antigo: %.1f%%, Novo: %.1f%%)", 
+            attribute, 
+            percentage,
+            oldBonus,
+            self.levelBonus[attribute]
+        ))
+        
+        -- Atualiza os valores totais baseado no atributo
         if attribute == "health" then
             self.maxHealth = self:getTotalHealth()
             self.currentHealth = self.maxHealth
+            print(string.format("[PlayerState] Vida atualizada: %.1f/%.1f", self.currentHealth, self.maxHealth))
+        elseif attribute == "damage" then
+            print(string.format("[PlayerState] Dano total: %.1f", self:getTotalDamage(self.baseDamage)))
+        elseif attribute == "defense" then
+            print(string.format("[PlayerState] Defesa total: %.1f", self:getTotalDefense()))
+        elseif attribute == "speed" then
+            print(string.format("[PlayerState] Velocidade total: %.1f", self:getTotalSpeed()))
+        elseif attribute == "attackSpeed" then
+            print(string.format("[PlayerState] Velocidade de ataque total: %.1f", self:getTotalAttackSpeed()))
+        elseif attribute == "criticalChance" then
+            print(string.format("[PlayerState] Chance de crítico total: %.1f%%", self:getTotalCriticalChance()))
+        elseif attribute == "criticalMultiplier" then
+            print(string.format("[PlayerState] Multiplicador de crítico total: %.1fx", self:getTotalCriticalMultiplier()))
+        elseif attribute == "healthRegen" then
+            print(string.format("[PlayerState] Regeneração de vida total: %.1f/s", self:getTotalHealthRegen()))
+        elseif attribute == "multiAttackChance" then
+            print(string.format("[PlayerState] Chance de ataque múltiplo total: %.1f%%", self:getTotalMultiAttackChance()))
         end
+    else
+        print(string.format("[PlayerState] ERRO: Atributo '%s' não encontrado", attribute))
     end
+end
+
+--[[
+    Atualiza os atributos base quando uma nova arma é equipada
+    @param weapon A nova arma equipada
+]]
+function PlayerState:updateWeaponStats(weapon)
+    if not weapon then return end
+    
+    -- Atualiza apenas o dano base da arma
+    self.baseDamage = weapon.damage
+    
+    -- Debug: Mostra os novos valores
+    print(string.format(
+        "[PlayerState] Arma equipada:\n" ..
+        "Dano base: %.1f (+%.1f) = %.1f\n" ..
+        "Velocidade de ataque base: %.1f (+%.1f) = %.1f\n" ..
+        "Cooldown da arma: %.1f",
+        self.baseDamage,
+        self.baseDamage * (self.levelBonus.damage / 100),
+        self:getTotalDamage(self.baseDamage),
+        self.baseAttackSpeed,
+        self.baseAttackSpeed * (self.levelBonus.attackSpeed / 100),
+        self:getTotalAttackSpeed(),
+        weapon.cooldown
+    ))
 end
 
 return PlayerState 

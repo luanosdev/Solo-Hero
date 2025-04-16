@@ -88,15 +88,19 @@ local ATTRIBUTES = {
 
 function LevelUpModal:init(playerManager)
     self.playerManager = playerManager
+    print("[LevelUpModal] Inicializado com PlayerManager:", playerManager and "OK" or "NULO")
 end
 
 function LevelUpModal:show()
     self.visible = true
+    self.selectedOption = nil -- Reseta a opção selecionada
     self:generateOptions()
 end
 
 function LevelUpModal:hide()
     self.visible = false
+    -- Reseta as fontes para o padrão
+    love.graphics.setFont(fonts.main)
 end
 
 function LevelUpModal:generateOptions()
@@ -118,14 +122,16 @@ function LevelUpModal:generateOptions()
     end
 end
 
-function LevelUpModal:update(dt)
+function LevelUpModal:update()
     if not self.visible then return end
     
     -- Navegação com setas
     if love.keyboard.isDown("up") then
         self.selectedOption = math.max(1, self.selectedOption - 1)
+        self.hoveredOption = nil -- Limpa o hover quando usa as setas
     elseif love.keyboard.isDown("down") then
         self.selectedOption = math.min(#self.options, self.selectedOption + 1)
+        self.hoveredOption = nil -- Limpa o hover quando usa as setas
     end
     
     -- Seleção com Enter
@@ -136,9 +142,13 @@ function LevelUpModal:update(dt)
     
     -- Atualiza a opção com hover do mouse
     local mouseX, mouseY = love.mouse.getPosition()
-    self.hoveredOption = self:getOptionAtPosition(mouseX, mouseY)
-    if self.hoveredOption then
-        self.selectedOption = self.hoveredOption
+    local hoveredOption = self:getOptionAtPosition(mouseX, mouseY)
+    
+    -- Se o mouse estiver sobre uma opção, atualiza o hoveredOption
+    if hoveredOption then
+        self.hoveredOption = hoveredOption
+    else
+        self.hoveredOption = nil
     end
 end
 
@@ -151,8 +161,10 @@ function LevelUpModal:getOptionAtPosition(x, y)
     for i, _ in ipairs(self.options) do
         local optionY = modalY + 120 + (i - 1) * 80
         local optionHeight = 70
+        local optionX = modalX + 20
+        local optionWidth = modalWidth - 40
         
-        if x >= modalX + 20 and x <= modalX + modalWidth - 20 and
+        if x >= optionX and x <= optionX + optionWidth and
            y >= optionY and y <= optionY + optionHeight then
             return i
         end
@@ -167,6 +179,7 @@ function LevelUpModal:mousepressed(x, y, button)
     if button == 1 then -- Left click
         local clickedOption = self:getOptionAtPosition(x, y)
         if clickedOption then
+            self.selectedOption = clickedOption
             self:applyUpgrade(self.options[clickedOption])
             self:hide()
         end
@@ -188,6 +201,9 @@ end
 
 function LevelUpModal:draw()
     if not self.visible then return end
+    
+    -- Salva a fonte atual
+    local currentFont = love.graphics.getFont()
     
     -- Desenha fundo semi-transparente
     love.graphics.setColor(0, 0, 0, 0.7)
@@ -215,7 +231,10 @@ function LevelUpModal:draw()
         local optionHeight = 70
         
         -- Desenha o fundo da opção
-        if i == self.selectedOption then
+        local isSelected = i == self.selectedOption
+        local isHovered = i == self.hoveredOption
+        
+        if isSelected or isHovered then
             love.graphics.setColor(colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.3)
             love.graphics.rectangle("fill", 
                 modalX + 20, optionY, 
@@ -224,10 +243,14 @@ function LevelUpModal:draw()
         
         -- Ícone
         love.graphics.setColor(1, 1, 1)
+        love.graphics.setFont(fonts.title) -- Usa a fonte title para o ícone
+        local iconWidth = fonts.title:getWidth(option.icon)
+        local iconHeight = fonts.title:getHeight()
         love.graphics.printf(option.icon, 
-            modalX + 30, optionY + 10, 40, "left")
+            modalX + 30, optionY + (optionHeight - iconHeight)/2, 40, "center")
         
         -- Nome do atributo
+        love.graphics.setFont(fonts.main)
         love.graphics.setColor(colors.window_title)
         love.graphics.printf(option.displayName, 
             modalX + 80, optionY + 10, modalWidth - 100, "left")
@@ -244,6 +267,9 @@ function LevelUpModal:draw()
     love.graphics.setColor(colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.7)
     love.graphics.printf("Use as setas ou o mouse para navegar e Enter/Clique para selecionar", 
         modalX, modalY + modalHeight - 40, modalWidth, "center")
+    
+    -- Restaura a fonte original
+    love.graphics.setFont(currentFont)
 end
 
 return LevelUpModal 

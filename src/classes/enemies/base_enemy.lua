@@ -6,8 +6,6 @@
 local FloatingTextManager = require("src.managers.floating_text_manager")
 local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local PlayerManager = require("src.managers.player_manager")
-local elements = require("src.ui.ui_elements")
-local colors = require("src.ui.colors")
 
 local BaseEnemy = {
     positionX = 0,
