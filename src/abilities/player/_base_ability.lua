@@ -14,7 +14,6 @@ local BaseAbility = {
 
     -- Estado interno
     cooldownRemaining = 0,
-    owner = nil,
 
     -- Visual State
     visual = {
@@ -31,8 +30,8 @@ local BaseAbility = {
     Inicializa a habilidade
     @param owner A entidade que possui esta habilidade
 ]]
-function BaseAbility:init(owner)
-    self.owner = owner
+function BaseAbility:init(playerManager)
+    self.playerManager = playerManager
     self.cooldownRemaining = 0
 end
 
@@ -42,7 +41,7 @@ end
 ]]
 function BaseAbility:update(dt)
     if self.cooldownRemaining > 0 then
-        self.cooldownRemaining = math.max(0, self.cooldownRemaining - dt * self.owner.state:getTotalAttackSpeed())
+        self.cooldownRemaining = math.max(0, self.cooldownRemaining - dt * self.playerManager.player.state:getTotalAttackSpeed())
     end
 
     -- Update target angle to follow mouse
@@ -50,8 +49,8 @@ function BaseAbility:update(dt)
 
     -- Converte a posição do mouse para coordenadas do mundo
     local worldX, worldY = Camera:screenToWorld(mouseX, mouseY)
-    local dx = worldX - self.owner.player.x
-    local dy = worldY - self.owner.player.y
+    local dx = worldX - self.playerManager.player.position.x
+    local dy = worldY - self.playerManager.player.position.y
 
     -- Tratamento especial para alinhamentos exatos
     if math.abs(dx) < 0.1 then  -- Mouse alinhado verticalmente
@@ -80,7 +79,7 @@ end
     @param y Posição Y do ponto
     @return boolean Se o ponto está dentro da área de efeito
 ]]
-function BaseAbility:isPointInArea(x, y)
+function BaseAbility:isPointInArea()
     -- Deve ser implementado pelas classes filhas
     return false
 end
@@ -91,7 +90,7 @@ end
     @param y Posição Y do mouse
     @return boolean Se a habilidade foi lançada com sucesso
 ]]
-function BaseAbility:cast(x, y)
+function BaseAbility:cast()
     if self.cooldownRemaining > 0 then return false end
     
     self.cooldownRemaining = self.cooldown
@@ -131,8 +130,8 @@ function BaseAbility:updateVisual(x, y)
 
     -- Converte a posição do alvo para coordenadas do mundo
     local worldX, worldY = Camera:screenToWorld(x, y)
-    local dx = worldX - self.owner.player.x
-    local dy = worldY - self.owner.player.y
+    local dx = worldX - self.playerManager.player.position.x
+    local dy = worldY - self.playerManager.player.position.y
 
     self.visual.angle = math.atan2(dy, dx)
 end

@@ -3,8 +3,10 @@ local AnimatedSpider = {}
 
 -- Configuração padrão
 AnimatedSpider.defaultConfig = {
-    x = 0,
-    y = 0,
+    position = {
+        x = 0,
+        y = 0,
+    },
     scale = 2,
     speed = 80,
     animation = {
@@ -98,8 +100,8 @@ function AnimatedSpider.update(config, dt, targetX, targetY)
     if length > 0 then
         dx = dx / length
         dy = dy / length
-        config.x = config.x + dx * config.speed * dt
-        config.y = config.y + dy * config.speed * dt
+        config.position.x = config.position.x + dx * config.speed * dt
+        config.position.y = config.position.y + dy * config.speed * dt
         -- Animação
         config.animation.timer = config.animation.timer + dt
         if config.animation.timer >= config.animation.frameTime then
@@ -120,7 +122,7 @@ function AnimatedSpider.draw(config)
         love.graphics.draw(
             AnimatedSpider.shadowSheets[angle],
             AnimatedSpider.shadowQuads[angle][frame],
-            config.x, config.y,
+            config.position.x, config.position.y,
             0,
             config.scale, config.scale,
             128, 128

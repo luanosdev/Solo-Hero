@@ -3,8 +3,10 @@ local SpritePlayer = {}
 
 -- Configuração padrão
 SpritePlayer.defaultConfig = {
-    x = 0,              -- Posição X
-    y = 0,              -- Posição Y
+    position = {
+        x = 0,              -- Posição X
+        y = 0,              -- Posição Y
+    },
     scale = 1,          -- Fator de escala
     speed = 150,        -- Velocidade de movimento
     -- Configurações de animação
@@ -259,8 +261,8 @@ function SpritePlayer.update(config, dt, camera)
     end
     
     -- Atualiza posição
-    config.x = config.x + dx * config.speed * dt
-    config.y = config.y + dy * config.speed * dt
+    config.position.x = config.position.x + dx * config.speed * dt
+    config.position.y = config.position.y + dy * config.speed * dt
     
     -- Obtém posição do mouse relativa às coordenadas do mundo
     local mouseX, mouseY = love.mouse.getPosition()
@@ -268,7 +270,7 @@ function SpritePlayer.update(config, dt, camera)
     mouseY = mouseY + camera.y
     
     -- Calcula ângulo até o mouse
-    local angleToMouse = math.atan2(mouseY - config.y, mouseX - config.x)
+    local angleToMouse = math.atan2(mouseY - config.position.y, mouseX - config.position.x)
     angleToMouse = angleToMouse * (180 / math.pi)
     
     -- Calcula ângulo de movimento (se estiver movendo)
@@ -344,7 +346,7 @@ function SpritePlayer.draw(config)
     if not SpritePlayer.spriteSheets[currentState] then return end
     
     love.graphics.push()
-    love.graphics.translate(config.x, config.y)
+    love.graphics.translate(config.position.x, config.position.y)
     
     -- Obtém o quad atual
     local currentQuad = SpritePlayer.quads[currentState][config.animation.direction][config.animation.currentFrame]

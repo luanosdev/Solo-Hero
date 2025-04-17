@@ -11,7 +11,7 @@ local Warrior = {
     -- Base Stats
     baseHealth = 100,
     baseDamage = 15,
-    baseSpeed = 100,
+    baseSpeed = 200,
     baseDefense = 10,
     attackSpeed = 0.7,  -- Attacks per second
     criticalChance = 0.2, -- 20% de chance de crítico

@@ -6,8 +6,14 @@ local PlayerManager = require("src.managers.player_manager")
 ]]
 
 local ExperienceOrb = {
-    positionX = 0,
-    positionY = 0,
+    position = {
+        x = 0,
+        y = 0
+    },
+    initialPosition = {
+        x = 0,
+        y = 0
+    },
     radius = 5,
     experience = 0,
     color = {0.5, 0, 0.5}, -- Cor roxa base
@@ -28,10 +34,11 @@ local ExperienceOrb = {
 
 function ExperienceOrb:new(x, y, exp)
     local orb = setmetatable({}, { __index = self })
-    orb.positionX = x
-    orb.positionY = y
-    orb.initialX = x
-    orb.initialY = y
+    orb.initialPosition = {
+        x = x,
+        y = y
+    }
+    orb.position = orb.initialPosition
     orb.experience = exp
     orb.collected = false
     orb.collectionProgress = 0
@@ -73,8 +80,8 @@ function ExperienceOrb:update(dt)
     end
     
     -- Calcula a distância até o jogador
-    local dx = PlayerManager.player.x - self.positionX
-    local dy = PlayerManager.player.y - (self.positionY + levitationOffset)
+    local dx = PlayerManager.player.position.x - self.position.x
+    local dy = PlayerManager.player.position.y - (self.position.y + levitationOffset)
     local distance = math.sqrt(dx * dx + dy * dy)
     
     -- Se estiver dentro do raio de coleta do jogador
@@ -88,8 +95,8 @@ function ExperienceOrb:update(dt)
         local easeOutQuad = 1 - (1 - t) * (1 - t)
         
         -- Atualiza a posição com a animação
-        self.positionX = self.initialX + (PlayerManager.player.x - self.initialX) * easeOutQuad
-        self.positionY = self.initialY + (PlayerManager.player.y - self.initialY) * easeOutQuad
+        self.position.x = self.initialPosition.x + (PlayerManager.player.position.x - self.initialPosition.x) * easeOutQuad
+        self.position.y = self.initialPosition.y + (PlayerManager.player.position.y - self.initialPosition.y) * easeOutQuad
         
         -- Se a animação terminou
         if self.collectionProgress >= 1 then
@@ -109,29 +116,29 @@ function ExperienceOrb:draw()
     
     -- Desenha a sombra
     love.graphics.setColor(0, 0, 0, 0.3)
-    love.graphics.circle("fill", self.positionX, self.positionY + 3, self.radius * 0.8)
+    love.graphics.circle("fill", self.position.x, self.position.y + 3, self.radius * 0.8)
     
     -- Desenha as partículas da chama
     for _, particle in ipairs(self.flameParticles) do
         love.graphics.setColor(0.2, 0.6, 1, particle.alpha) -- Cor azul para a chama
         love.graphics.circle("fill", 
-            self.positionX + particle.x, 
-            self.positionY + particle.y + levitationOffset, 
+            self.position.x + particle.x, 
+            self.position.y + particle.y + levitationOffset, 
             particle.size
         )
     end
     
     -- Desenha o orbe principal
     love.graphics.setColor(self.color)
-    love.graphics.circle("fill", self.positionX, self.positionY + levitationOffset, self.radius)
+    love.graphics.circle("fill", self.position.x, self.position.y + levitationOffset, self.radius)
     
     -- Desenha o brilho interno
     love.graphics.setColor(1, 1, 1, 0.5)
-    love.graphics.circle("fill", self.positionX, self.positionY + levitationOffset, self.radius * 0.7)
+    love.graphics.circle("fill", self.position.x, self.position.y + levitationOffset, self.radius * 0.7)
     
     -- Desenha o brilho externo (aura)
     love.graphics.setColor(0.2, 0.6, 1, 0.3) -- Cor azul para a aura
-    love.graphics.circle("fill", self.positionX, self.positionY + levitationOffset, self.radius * 1.5)
+    love.graphics.circle("fill", self.position.x, self.position.y + levitationOffset, self.radius * 1.5)
 end
 
 return ExperienceOrb 

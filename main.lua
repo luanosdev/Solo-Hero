@@ -1,23 +1,29 @@
 -- Main game configuration and initialization
-local PlayerManager = require("src.managers.player_manager")
 local Camera = require("src.config.camera")
-local InputManager = require("src.managers.input_manager")
-local EnemyManager = require("src.managers.enemy_manager")
-local FloatingText = require("src.entities.floating_text")
-local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local AnimationLoader = require("src.animations.animation_loader")
 local LevelUpModal = require("src.ui.level_up_modal")
+local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local HUD = require("src.ui.hud")
 local fonts = require("src.ui.fonts")
 
+-- Importa os managers
+local ManagerRegistry = require("src.managers.manager_registry")
+local PlayerManager = require("src.managers.player_manager")
+local InputManager = require("src.managers.input_manager")
+local EnemyManager = require("src.managers.enemy_manager")
+local FloatingTextManager = require("src.managers.floating_text_manager")
+local ExperienceOrbManager = require("src.managers.experience_orb_manager")
+local DropManager = require("src.managers.drop_manager")
+local RuneManager = require("src.managers.rune_manager")
+
 -- Variáveis globais
 local camera
-local floatingTexts = {}
 local groundTexture
 
 function love.load()
     -- Carrega as fontes antes de qualquer uso de UI
     fonts.load()
+    
     -- Window settings - Fullscreen
     love.window.setMode(0, 0, {fullscreen = true})
     
@@ -25,11 +31,17 @@ function love.load()
     groundTexture = love.graphics.newImage("assets/ground.png")
     groundTexture:setWrap("repeat", "repeat")
     
-    -- Inicializa o player manager
-    PlayerManager.init()
+    -- Registra os managers
+    ManagerRegistry:register("playerManager", PlayerManager, false)
+    ManagerRegistry:register("inputManager", InputManager, true)
+    ManagerRegistry:register("enemyManager", EnemyManager, true)
+    ManagerRegistry:register("floatingTextManager", FloatingTextManager, true)
+    ManagerRegistry:register("experienceOrbManager", ExperienceOrbManager, true)
+    ManagerRegistry:register("dropManager", DropManager, true)
+    ManagerRegistry:register("runeManager", RuneManager, true)
     
-    -- Inicializa o ExperienceOrbManager
-    ExperienceOrbManager:init()
+    -- Inicializa todos os managers na ordem correta
+    ManagerRegistry:init()
     
     -- Isometric grid configuration
     grid = {
@@ -45,13 +57,10 @@ function love.load()
     
     -- Carrega todas as animações
     AnimationLoader.loadAll()
-
-    -- Inicializa o EnemyManager
-    EnemyManager:init("default")
     
     -- Debug info
     print("Jogo iniciado")
-    print("Posição inicial do jogador:", PlayerManager.player.x, PlayerManager.player.y)
+    print("Posição inicial do jogador:", PlayerManager.player.position.x, PlayerManager.player.position.y)
 end
 
 function love.update(dt)
@@ -59,29 +68,9 @@ function love.update(dt)
         return
     end
 
-    -- Atualiza o input manager
-    InputManager.update(dt)
+    -- Atualiza todos os managers
+    ManagerRegistry:update(dt)
     
-    -- Atualiza o player
-    PlayerManager.update(dt)
-    
-    -- Atualiza o EnemyManager
-    EnemyManager:update(dt, {
-        positionX = PlayerManager.player.x,
-        positionY = PlayerManager.player.y,
-        radius = PlayerManager.radius
-    })
-    
-    -- Atualiza os orbs de experiência
-    ExperienceOrbManager:update(dt)
-    
-    -- Atualiza os textos flutuantes
-    for i = #floatingTexts, 1, -1 do
-        if not floatingTexts[i]:update(dt) then
-            table.remove(floatingTexts, i)
-        end
-    end
-
     -- Atualiza o LevelUpModal
     LevelUpModal:update()
 end
@@ -93,23 +82,13 @@ function love.draw()
     -- Draw the isometric grid
     drawIsometricGrid()
     
-    -- Draw player and related elements
-    PlayerManager.draw()
-    
+    -- Desenha todos os managers
+    ManagerRegistry:draw()
+
     -- Aplica transformação da câmera
     Camera:attach()
-    
-    -- Desenha os inimigos através do EnemyManager
-    EnemyManager:draw()
-    
-    -- Desenha os orbs de experiência
-    ExperienceOrbManager:draw()
-    
-    -- Desenha os textos flutuantes
-    for _, floatingText in ipairs(floatingTexts) do
-        floatingText:draw()
-    end
 
+    ManagerRegistry:CameraDraw()
 
     Camera:detach()
 
@@ -162,8 +141,8 @@ function drawIsometricGrid()
     local visibleChunksY = math.ceil(screenHeight / (grid.size/2 * iso_scale)) / chunkSize + 4
     
     -- Obtém a posição do jogador
-    local playerX = PlayerManager.player.x
-    local playerY = PlayerManager.player.y
+    local playerX = PlayerManager.player.position.x
+    local playerY = PlayerManager.player.position.y
     
     -- Converte a posição do jogador para coordenadas do grid
     local playerGridX = math.floor(playerX / (grid.size/2))
@@ -225,12 +204,12 @@ function love.keypressed(key)
         return
     end
     -- Adiciona o handler de teclas do PlayerManager
-    PlayerManager.keypressed(key)
-    InputManager.keypressed(key)
+    PlayerManager:keypressed(key)
+    InputManager:keypressed(key)
 end
 
 function love.keyreleased(key)
-    InputManager.keyreleased(key)
+    InputManager:keyreleased(key)
 end
 
 function love.mousemoved(x, y, dx, dy)
@@ -239,7 +218,7 @@ function love.mousemoved(x, y, dx, dy)
         LevelUpModal:update() -- Força uma atualização do hover
         return
     end
-    InputManager.mousemoved(x, y, dx, dy)
+    InputManager:mousemoved(x, y, dx, dy)
 end
 
 function love.mousepressed(x, y, button)
@@ -248,15 +227,20 @@ function love.mousepressed(x, y, button)
         LevelUpModal:mousepressed(x, y, button)
         return
     end
+
+    if RuneChoiceModal.visible then
+        RuneChoiceModal:mousepressed(x, y, button)
+        return
+    end
+
     InputManager.mousepressed(x, y, button)
 end
 
 function love.mousereleased(x, y, button)
-    InputManager.mousereleased(x, y, button)
+    InputManager:mousereleased(x, y, button)
 end
 
 -- Função para adicionar um novo texto flutuante
 function addFloatingText(x, y, text, isCritical, target, customColor)
-    local newText = FloatingText:new(x, y, text, isCritical, target, customColor)
-    table.insert(floatingTexts, newText)
+    FloatingTextManager:addText(x, y, text, isCritical, target, customColor)
 end

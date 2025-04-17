@@ -1,6 +1,6 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
-local DropManager = require("src.managers.drop_manager")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local EnemyManager = {
     enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos
@@ -24,6 +24,8 @@ local EnemyManager = {
 
 -- Inicializa o gerenciador de inimigos para um mundo específico
 function EnemyManager:init(worldId)
+    self.playerManager = ManagerRegistry:get("playerManager")
+
     worldId = worldId or "default" -- Usa 'default' se nenhum ID de mundo for fornecido
     self.enemies = {}             -- Limpa a lista de inimigos
     self.gameTimer = 0            -- Reinicia o timer global
@@ -50,13 +52,13 @@ function EnemyManager:init(worldId)
 end
 
 -- Atualiza o estado do gerenciador de inimigos e todos os inimigos ativos
-function EnemyManager:update(dt, player)
+function EnemyManager:update(dt)
     self.gameTimer = self.gameTimer + dt
     self.timeInCurrentCycle = self.timeInCurrentCycle + dt
 
     -- Verifica se é hora de spawnar um MVP
     if self.gameTimer >= self.nextMVPSpawnTime then
-        self:spawnMVP(player)
+        self:spawnMVP()
         self.nextMVPSpawnTime = self.gameTimer + self.worldConfig.mvpConfig.spawnInterval
     end
 
@@ -64,7 +66,7 @@ function EnemyManager:update(dt, player)
     if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
         local nextBoss = self.worldConfig.bossConfig.spawnTimes[self.nextBossIndex]
         if nextBoss and self.gameTimer >= nextBoss.time then
-            self:spawnBoss(nextBoss.class, player, nextBoss.powerLevel)
+            self:spawnBoss(nextBoss.class, nextBoss.powerLevel)
             self.nextBossIndex = self.nextBossIndex + 1
         end
     end
@@ -105,7 +107,7 @@ function EnemyManager:update(dt, player)
             if #self.enemies < self.maxEnemies then -- Verifica o limite global de inimigos
                 local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies) -- Seleciona um inimigo permitido neste ciclo
                 if enemyClass then
-                    self:spawnSpecificEnemy(enemyClass, player)
+                    self:spawnSpecificEnemy(enemyClass)
                     spawnedCount = spawnedCount + 1
                 end
             else
@@ -130,7 +132,7 @@ function EnemyManager:update(dt, player)
             if #self.enemies < self.maxEnemies then -- Verifica o limite global de inimigos
                  local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies) -- Seleciona um inimigo permitido neste ciclo
                  if enemyClass then
-                    self:spawnSpecificEnemy(enemyClass, player)
+                    self:spawnSpecificEnemy(enemyClass)
                  end
             else
                  print("Limite máximo de inimigos atingido durante Minor Spawn.")
@@ -150,8 +152,8 @@ function EnemyManager:update(dt, player)
     -- Itera de trás para frente para permitir remoção segura
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
-        enemy:update(dt, player, self.enemies) -- Atualiza a lógica do inimigo
-        
+        enemy:update(dt, self.playerManager, self.enemies) -- Atualiza a lógica do inimigo
+    
         -- Se o inimigo estiver morto e não estiver em animação de morte
         if not enemy.isAlive and not enemy.isDying then
             -- Marca como em processo de morte
@@ -161,17 +163,7 @@ function EnemyManager:update(dt, player)
             if enemy.startDeathAnimation then
                 enemy:startDeathAnimation()
             end
-            
-            -- Debug: Mostra que o inimigo está morrendo
-            print(string.format(
-                "\n=== DEBUG MORTE INIMIGO ===\n" ..
-                "Inimigo: %s\n" ..
-                "Posição: (%.1f, %.1f)\n" ..
-                "Iniciando animação de morte",
-                enemy.name,
-                enemy.positionX,
-                enemy.positionY
-            ))
+    
         end
         
         -- Remove o inimigo se estiver marcado para remoção
@@ -248,7 +240,7 @@ function EnemyManager:getEnemies()
 end
 
 -- Cria e adiciona um inimigo de uma classe específica em uma posição aleatória fora da tela
-function EnemyManager:spawnSpecificEnemy(enemyClass, player)
+function EnemyManager:spawnSpecificEnemy(enemyClass)
     if not enemyClass then
        print("Erro: Tentativa de spawnar inimigo com classe nula.")
        return
@@ -258,10 +250,10 @@ function EnemyManager:spawnSpecificEnemy(enemyClass, player)
     -- Gera um ângulo aleatório
     local angle = math.random() * 2 * math.pi
     -- Calcula as coordenadas X e Y com base no ângulo e raio a partir da posição do jogador
-    local spawnX = player.positionX + math.cos(angle) * minSpawnRadius
-    local spawnY = player.positionY + math.sin(angle) * minSpawnRadius
+    local spawnX = self.playerManager.player.position.x + math.cos(angle) * minSpawnRadius
+    local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
     -- Cria a nova instância do inimigo
-    local enemy = enemyClass:new(spawnX, spawnY)
+    local enemy = enemyClass:new({x = spawnX, y = spawnY})
     -- Adiciona o inimigo à lista de inimigos ativos
     table.insert(self.enemies, enemy)
 end
@@ -285,7 +277,7 @@ function EnemyManager:transformToMVP(enemy)
 end
 
 -- Função para spawnar um MVP
-function EnemyManager:spawnMVP(player)
+function EnemyManager:spawnMVP()
     if #self.enemies >= self.maxEnemies then
         print("Limite máximo de inimigos atingido, não é possível spawnar MVP.")
         return
@@ -299,8 +291,8 @@ function EnemyManager:spawnMVP(player)
     if not enemyClass then return end
     
     -- Spawna o inimigo normalmente
-    local enemy = enemyClass:new(player.positionX, player.positionY)
-    self:spawnSpecificEnemy(enemyClass, player)
+    local enemy = enemyClass:new(self.playerManager.player.position)
+    self:spawnSpecificEnemy(enemyClass)
     
     -- Transforma o último inimigo spawnado em MVP
     if #self.enemies > 0 then
@@ -308,7 +300,7 @@ function EnemyManager:spawnMVP(player)
     end
 end
 
-function EnemyManager:spawnBoss(bossClass, player, powerLevel)
+function EnemyManager:spawnBoss(bossClass, powerLevel)
     if #self.enemies >= self.maxEnemies then
         print("Limite máximo de inimigos atingido, não é possível spawnar boss.")
         return
@@ -317,11 +309,11 @@ function EnemyManager:spawnBoss(bossClass, player, powerLevel)
     -- Calcula posição de spawn (fora da tela)
     local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
     local angle = math.random() * 2 * math.pi
-    local spawnX = player.positionX + math.cos(angle) * minSpawnRadius
-    local spawnY = player.positionY + math.sin(angle) * minSpawnRadius
+    local spawnX = self.playerManager.player.position.x + math.cos(angle) * minSpawnRadius
+    local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
 
     -- Cria o boss com o nível de poder especificado
-    local boss = bossClass:new(spawnX, spawnY)
+    local boss = bossClass:new({x = spawnX, y = spawnY})
     boss.powerLevel = powerLevel or 3 -- Usa 3 como padrão se não for especificado
     table.insert(self.enemies, boss)
 

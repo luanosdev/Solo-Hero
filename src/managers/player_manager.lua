@@ -1,18 +1,20 @@
--- Módulo de gerenciamento do player
+--[[
+    Módulo de gerenciamento do player
+]]
+
 local SpritePlayer = require('src.animations.sprite_player')
 local Warrior = require('src.classes.player.warrior')
 local PlayerState = require("src.entities.player_state")
-local EnemyManager = require("src.managers.enemy_manager")
-local FloatingTextManager = require("src.managers.floating_text_manager")
 local LevelUpModal = require("src.ui.level_up_modal")
+local RuneManager = require("src.managers.rune_manager")
 local Camera = require("src.config.camera")
-local InputManager = require("src.managers.input_manager")
 local IronSword = require("src.items.weapons.iron_sword")
 local GoldSword = require("src.items.weapons.gold_sword")
 local SteelSword = require("src.items.weapons.steel_sword")
 local BronzeSword = require("src.items.weapons.bronze_sword")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local PlayerManager = {
     -- Referência ao player sprite
@@ -77,19 +79,25 @@ local PlayerManager = {
 }
 
 -- Inicializa o player manager
-function PlayerManager.init()
+function PlayerManager:init()
+    self.inputManager = ManagerRegistry:get("inputManager")
+    self.enemyManager = ManagerRegistry:get("enemyManager")
+    self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
+
     -- Inicializa a classe do player (Warrior como padrão inicial)
-    PlayerManager.initializeClass(Warrior)
+    self:initializeClass(Warrior)
     
     -- Carrega recursos do player sprite
     SpritePlayer.load()
     
     -- Cria configuração do player sprite
-    PlayerManager.player = SpritePlayer.newConfig({
-        x = love.graphics.getWidth() / 2,
-        y = love.graphics.getHeight() / 2,
+    self.player = SpritePlayer.newConfig({
+        position = {
+            x = love.graphics.getWidth() / 2,
+            y = love.graphics.getHeight() / 2,
+        },
         scale = 1,
-        speed = PlayerManager.state:getTotalSpeed()
+        speed = self.state:getTotalSpeed()
     })
     
     -- Inicializa a câmera
@@ -105,97 +113,93 @@ function PlayerManager.init()
         print("AVISO: Nenhuma arma inicial definida para a classe", PlayerManager.class.name)
     end
     
-    -- Inicializa o InputManager
-    InputManager.init(PlayerManager)
-    
-    -- Inicializa o LevelUpModal
-    LevelUpModal:init(PlayerManager)
+    -- Inicializa os modais
+    LevelUpModal:init(self)
+    RuneManager:init()
 end
 
 -- Atualiza o estado do player e da câmera
-function PlayerManager.update(dt)
-    if not PlayerManager.state.isAlive then return end
+function PlayerManager:update(dt)
+    if not self.state.isAlive then return end
     
     -- Atualiza o input manager
-    InputManager.update(dt)
+    self.inputManager:update(dt)
     
     -- Atualiza o tempo de jogo
-    PlayerManager.gameTime = PlayerManager.gameTime + dt
+    self.gameTime = self.gameTime + dt
     
-    -- Atualiza o tempo desde o último dano
-    PlayerManager.lastDamageTime = PlayerManager.lastDamageTime + dt
     
     -- Atualiza o ataque da arma
-    if PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance then
-        PlayerManager.equippedWeapon.attackInstance:update(dt)
+    if self.equippedWeapon and self.equippedWeapon.attackInstance then
+        self.equippedWeapon.attackInstance:update(dt)
     end
     
     -- Update health recovery
-    PlayerManager.updateHealthRecovery(dt)
+    self:updateHealthRecovery(dt)
     
     -- Update all rune abilities
-    for _, rune in ipairs(PlayerManager.runes) do
+    for _, rune in ipairs(self.runes) do
         rune:update(dt)
         
         -- Executa a runa automaticamente se o cooldown zerar
         if rune.cooldownRemaining <= 0 then
-            rune:cast(PlayerManager.player.x, PlayerManager.player.y)
+            rune:cast(self.player.x, self.player.y)
         end
     end
 
     -- Atualiza o auto attack
-    PlayerManager.updateAutoAttack()
+    self:updateAutoAttack()
 
     -- Atualiza o sprite do player
-    SpritePlayer.update(PlayerManager.player, dt, Camera)
+    SpritePlayer.update(self.player, dt, Camera)
     
     -- Atualiza a câmera
-    Camera:follow(PlayerManager.player, dt)
+    Camera:follow(self.player.position, dt)
 end
 
 -- Desenha o player e elementos relacionados
-function PlayerManager.draw()
+function PlayerManager:draw()
     -- Aplica transformação da câmera
     Camera:attach()
     
     -- Desenha o círculo de colisão primeiro (embaixo de tudo)
-    local circleY = PlayerManager.player.y + 25 -- Ajusta para ficar nos pés do sprite
+    local circleY = self.player.position.y + 25 -- Ajusta para ficar nos pés do sprite
     
     -- Salva o estado atual de transformação
     love.graphics.push()
     
     -- Aplica transformação isométrica no círculo
-    love.graphics.translate(PlayerManager.player.x, circleY)
+    love.graphics.translate(self.player.position.x, circleY)
     love.graphics.scale(1, 0.5) -- Achata o círculo verticalmente para efeito isométrico
     
     -- Desenha o círculo com efeito isométrico
     love.graphics.setColor(0, 0.5, 1, 0.3) -- Azul semi-transparente
-    love.graphics.circle("fill", 0, 0, PlayerManager.radius)
+    love.graphics.circle("fill", 0, 0, self.radius)
     love.graphics.setColor(0, 0.7, 1, 0.5) -- Azul mais escuro para a borda
-    love.graphics.circle("line", 0, 0, PlayerManager.radius)
+    love.graphics.circle("line", 0, 0, self.radius)
     
     -- Restaura o estado de transformação
     love.graphics.pop()
     
     -- Desenha o sprite do player
     love.graphics.setColor(1, 1, 1, 1)
-    SpritePlayer.draw(PlayerManager.player)
+    SpritePlayer.draw(self.player)
     
     -- Desenha a arma equipada e seu ataque
-    if PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance then
-        PlayerManager.equippedWeapon.attackInstance:draw()
+    if self.equippedWeapon and self.equippedWeapon.attackInstance then
+        self.equippedWeapon.attackInstance:draw()
     end
     
     -- Desenha todas as runas
-    for _, rune in ipairs(PlayerManager.runes) do
+    for _, rune in ipairs(self.runes) do
         rune:draw()
     end
     
     -- Draw health bar
     local healthBarWidth = 60
     local healthBarHeight = 8
-    local healthBarX = PlayerManager.player.x - healthBarWidth/2
-    local healthBarY = PlayerManager.player.y - PlayerManager.radius - 10
+    local healthBarX = PlayerManager.player.position.x - healthBarWidth/2
+    local healthBarY = PlayerManager.player.position.y - PlayerManager.radius - 10
 
     elements.drawResourceBar({
         x = healthBarX,
@@ -227,8 +231,8 @@ function PlayerManager.draw()
             -- Cooldown bar background
             love.graphics.setColor(0.2, 0, 0, 0.3)
             love.graphics.rectangle("fill", 
-                PlayerManager.player.x - healthBarWidth/2, 
-                PlayerManager.player.y - PlayerManager.radius - 5,
+                PlayerManager.player.position.x - healthBarWidth/2, 
+                PlayerManager.player.position.y - PlayerManager.radius - 5,
                 healthBarWidth, 
                 2
             )
@@ -236,8 +240,8 @@ function PlayerManager.draw()
             -- Cooldown bar fill
             love.graphics.setColor(1, 0, 0, 0.8)
             love.graphics.rectangle("fill", 
-                PlayerManager.player.x - healthBarWidth/2, 
-                PlayerManager.player.y - PlayerManager.radius - 5,
+                PlayerManager.player.position.x - healthBarWidth/2, 
+                PlayerManager.player.position.y - PlayerManager.radius - 5,
                 healthBarWidth * cooldownPercentage, 
                 2
             )
@@ -300,7 +304,7 @@ function PlayerManager.draw()
         "Chance de Ataque Múltiplo: %.1f%% (x%.1f%%) (+%.1f%% -%.1f%% de %.1f%%) = %.1f%%",
         
         -- Valores básicos
-        PlayerManager.player.x, PlayerManager.player.y,
+        PlayerManager.player.position.x, PlayerManager.player.position.y,
         PlayerManager.player.animation.direction,
         PlayerManager.player.animation.state,
         PlayerManager.player.animation.currentFrame,
@@ -407,91 +411,92 @@ function PlayerManager.draw()
     ), 10, 10)
 end
 
-function PlayerManager.updateHealthRecovery(dt)
+function PlayerManager:updateHealthRecovery(dt)    
+    -- Atualiza o tempo desde o último dano
+    self.lastDamageTime = self.lastDamageTime + dt
+
     -- Atualiza regeneração de vida
-    if PlayerManager.state.currentHealth < PlayerManager.state:getTotalHealth() and PlayerManager.lastDamageTime >= PlayerManager.damageCooldown then
-        local hpPerSecond = PlayerManager.state:getTotalHealthRegen()
-        PlayerManager.accumulatedRegen = PlayerManager.accumulatedRegen + (hpPerSecond * dt)
+    if self.state.currentHealth < self.state:getTotalHealth() and self.lastDamageTime >= self.damageCooldown then
+        local hpPerSecond = self.state:getTotalHealthRegen()
+        self.accumulatedRegen = self.accumulatedRegen + (hpPerSecond * dt)
         
         -- Se acumulou pelo menos 1 HP, recupera
-        if PlayerManager.accumulatedRegen >= 1 then
-            FloatingTextManager:addText(
-                PlayerManager.player.x,
-                PlayerManager.player.y - PlayerManager.radius - 40,
+        if self.accumulatedRegen >= 1 then
+            self.floatingTextManager:addText(
+                self.player.position.x,
+                self.player.position.y - self.radius - 40,
                 "+1",
                 false,
-                PlayerManager,
+                self.player.position,
                 {0, 1, 0}
             )
-            PlayerManager.heal(1)
-            PlayerManager.accumulatedRegen = PlayerManager.accumulatedRegen - 1
+            self.state:heal(1)
+            self.accumulatedRegen = self.accumulatedRegen - 1
         end
     else
-        PlayerManager.accumulatedRegen = 0
+        self.accumulatedRegen = 0
     end
 end
 
-function PlayerManager.updateAutoAttack()
-    if PlayerManager.autoAttack or InputManager.mouse.leftButton then
-        local cooldown = PlayerManager.equippedWeapon.attackInstance:getCooldownRemaining()
+function PlayerManager:updateAutoAttack()
+    if self.autoAttack or self.inputManager.mouse.leftButton then
+        local cooldown = self.equippedWeapon.attackInstance:getCooldownRemaining()
         if cooldown <= 0 then
-            local targetX, targetY = PlayerManager.getTargetPosition()
+            local targetX, targetY = self:getTargetPosition()
             if targetX and targetY then
                 -- Converte as coordenadas da tela para coordenadas do mundo
-                local worldX, worldY = Camera:screenToWorld(targetX, targetY)
-                PlayerManager.attack(worldX, worldY)
+                -- Camera:screenToWorld(targetX.x, targetY.y)
+                self:attack()
             end
         end
     end
 end
 
 -- Inicializa uma nova classe para o player
-function PlayerManager.initializeClass(classDefinition)
-    PlayerManager.class = classDefinition
+function PlayerManager:initializeClass(classDefinition)
+    self.class = classDefinition
     
     -- Inicializa estado com stats base
-    PlayerManager.state = PlayerState
-    PlayerManager.state:init(classDefinition:getBaseStats())
+    self.state = PlayerState
+    self.state:init(classDefinition:getBaseStats())
 end
 
 -- Funções de gerenciamento de vida
-function PlayerManager.isAlive()
-    return PlayerManager.state.isAlive
+function PlayerManager:isAlive()
+    return self.state.isAlive
 end
 
-function PlayerManager.takeDamage(amount)
-    PlayerManager.lastDamageTime = 0
-    return PlayerManager.state:takeDamage(amount)
+function PlayerManager:takeDamage(amount)
+    self.lastDamageTime = 0
+    return self.state:takeDamage(amount)
 end
 
-function PlayerManager.heal(amount)
-    PlayerManager.state:heal(amount)
-end
 
 -- Funções de habilidades
-function PlayerManager.addRune(rune)
+function PlayerManager:addRune(rune)
     if not rune then return end
-    table.insert(PlayerManager.runes, rune)
+    table.insert(self.runes, rune)
     if rune.init then
-        rune:init(PlayerManager)
+        rune:init(self)
     end
 end
 
 -- Função para atacar com a arma equipada
-function PlayerManager.attack(x, y)
-    if not PlayerManager.equippedWeapon or not PlayerManager.equippedWeapon.attackInstance then
+function PlayerManager:attack(worldX, worldY)
+    if not self.equippedWeapon or not self.equippedWeapon.attackInstance then
         error("[Erro] [PlayerManager.attack] Nenhuma arma ou instância de ataque encontrada")
         return false
     end
 
-    local success = PlayerManager.equippedWeapon.attackInstance:cast(x, y)
+    local enemies = self.enemyManager:getEnemies()
+
+    local success = self.equippedWeapon.attackInstance:cast(enemies)
 
     if success then
         -- Inicia a animação de ataque do sprite
-        SpritePlayer.startAttackAnimation(PlayerManager.player)
+        SpritePlayer.startAttackAnimation(self.player)
 
         -- Verifica colisão com inimigos
-        local enemies = EnemyManager:getEnemies()
         local enemiesHit = 0
         local totalEnemies = 0
         
@@ -499,14 +504,14 @@ function PlayerManager.attack(x, y)
             if enemy.isAlive then
                 totalEnemies = totalEnemies + 1
                 -- Verifica se o inimigo está dentro da área de ataque usando isPointInArea
-                local isInArea = PlayerManager.equippedWeapon.attackInstance:isPointInArea(enemy.positionX, enemy.positionY)
+                local isInArea = self.equippedWeapon.attackInstance:isPointInArea(enemy.position)
                 
                 if isInArea then
                     enemiesHit = enemiesHit + 1
                     -- Aplica o dano e verifica se o inimigo morreu
-                    if PlayerManager.equippedWeapon.attackInstance:applyDamage(enemy) then
+                    if self.equippedWeapon.attackInstance:applyDamage(enemy) then
                         -- Se o inimigo morreu, atualiza as estatísticas do jogador
-                        PlayerManager.kills = PlayerManager.kills + 1
+                        self.kills = self.kills + 1
                     end
                 end
             end
@@ -518,25 +523,25 @@ function PlayerManager.attack(x, y)
 end
 
 -- Funções de experiência e level
-function PlayerManager.addExperience(amount)
-    PlayerManager.experience = PlayerManager.experience + amount
+function PlayerManager:addExperience(amount)
+    self.experience = self.experience + amount
     
-    if PlayerManager.experience >= PlayerManager.experienceToNextLevel then
-        PlayerManager.levelUp()
+    if self.experience >= self.experienceToNextLevel then
+        self:levelUp()
     end
 end
 
-function PlayerManager.levelUp()
-    PlayerManager.level = PlayerManager.level + 1
-    local previousRequired = PlayerManager.experienceToNextLevel
-    PlayerManager.experienceToNextLevel = previousRequired + math.floor(previousRequired * PlayerManager.experienceMultiplier)
+function PlayerManager:levelUp()
+    self.level = self.level + 1
+    local previousRequired = self.experienceToNextLevel
+    self.experienceToNextLevel = previousRequired + math.floor(previousRequired * self.experienceMultiplier)
     
-    FloatingTextManager:addText(
-        PlayerManager.player.x,
-        PlayerManager.player.y - PlayerManager.radius - 30,
+    self.floatingTextManager:addText(
+        self.player.position.x,
+        self.player.position.y - self.radius - 30,
         "LEVEL UP!",
         true,
-        PlayerManager,
+        self.player.position,
         {1, 1, 0}
     )
     
@@ -544,41 +549,41 @@ function PlayerManager.levelUp()
 end
 
 -- Funções de controle
-function PlayerManager.toggleAbilityAutoCast()
-    PlayerManager.autoAttackEnabled = not PlayerManager.autoAttackEnabled
-    PlayerManager.autoAttack = PlayerManager.autoAttackEnabled
+function PlayerManager:toggleAbilityAutoCast()
+    self.autoAttackEnabled = not self.autoAttackEnabled
+    self.autoAttack = self.autoAttackEnabled
 end
 
-function PlayerManager.toggleAbilityVisual()
-    if PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance then
-        PlayerManager.equippedWeapon.attackInstance:togglePreview()
+function PlayerManager:toggleAbilityVisual()
+    if self.equippedWeapon and self.equippedWeapon.attackInstance then
+        self.equippedWeapon.attackInstance:togglePreview()
     end
 end
 
-function PlayerManager.toggleAutoAim()
-    PlayerManager.autoAimEnabled = not PlayerManager.autoAimEnabled
-    PlayerManager.autoAim = PlayerManager.autoAimEnabled
+function PlayerManager:toggleAutoAim()
+    self.autoAimEnabled = not self.autoAimEnabled
+    self.autoAim = self.autoAimEnabled
 end
 
-function PlayerManager.getTargetPosition()
+function PlayerManager:getTargetPosition()
     -- Obtém a posição atual do mouse
-    local mouseX, mouseY = InputManager.mouse.position()
+    local mouseX, mouseY = self.inputManager.mouse.position()
     
     -- Se o botão do mouse estiver pressionado, usa a posição do mouse
-    if InputManager.mouse.leftButton then
+    if self.inputManager.mouse.leftButton then
         return mouseX, mouseY
     end
     
     -- Se o auto aim estiver ativado, procura o inimigo mais próximo
-    if PlayerManager.autoAim then
-        local enemies = EnemyManager:getEnemies()
+    if self.autoAim then
+        local enemies = self.enemyManager:getEnemies()
         local closestEnemy = nil
         local closestDistance = math.huge
         
         for _, enemy in ipairs(enemies) do
             if enemy.isAlive then
-                local dx = enemy.positionX - PlayerManager.player.x
-                local dy = enemy.positionY - PlayerManager.player.y
+                local dx = enemy.position.x - self.player.position.x
+                local dy = enemy.position.y - self.player.position.y
                 local distance = math.sqrt(dx * dx + dy * dy)
                 
                 if distance < closestDistance then
@@ -589,7 +594,7 @@ function PlayerManager.getTargetPosition()
         end
         
         if closestEnemy then
-            local screenX, screenY = Camera:worldToScreen(closestEnemy.positionX, closestEnemy.positionY)
+            local screenX, screenY = Camera:worldToScreen(closestEnemy.position.x, closestEnemy.position.y)
             return screenX, screenY
         end
     end
@@ -598,66 +603,68 @@ function PlayerManager.getTargetPosition()
     return mouseX, mouseY
 end
 
-function PlayerManager.leftMouseClicked(x, y)
-    if not PlayerManager.autoAttackEnabled then
+function PlayerManager:leftMouseClicked(x, y)
+    if not self.autoAttackEnabled then
         -- Converte as coordenadas da tela para coordenadas do mundo
         local worldX, worldY = Camera:screenToWorld(x, y)
-        PlayerManager.attack(worldX, worldY)
+        self:attack(worldX, worldY)
     end
 end
 
-function PlayerManager.leftMouseReleased(x, y)
+function PlayerManager:leftMouseReleased(x, y)
     -- Nada a fazer aqui por enquanto
 end
 
 -- Retorna a posição de colisão do player (nos pés do sprite)
-function PlayerManager.getCollisionPosition()
+function PlayerManager:getCollisionPosition()
     return {
-        x = PlayerManager.player.x,
-        y = PlayerManager.player.y + 25,
-        radius = PlayerManager.radius
+        position = {
+            x = self.player.position.x,
+            y = self.player.position.y + 25,
+        },
+        radius = self.radius
     }
 end
 
 -- Função para equipar uma nova arma
-function PlayerManager.equipWeapon(weaponClass)
-    if PlayerManager.equippedWeapon then
+function PlayerManager:equipWeapon(weaponClass)
+    if self.equippedWeapon then
         -- Reseta a instância atual
-        PlayerManager.equippedWeapon.attackInstance = nil
+        self.equippedWeapon.attackInstance = nil
     end
     
     -- Cria uma nova instância da arma
-    PlayerManager.equippedWeapon = setmetatable({}, { __index = weaponClass })
-    PlayerManager.equippedWeapon:equip(PlayerManager)
+    self.equippedWeapon = setmetatable({}, { __index = weaponClass })
+    self.equippedWeapon:equip(self)
     
     -- Atualiza os atributos do player com os da nova arma
-    PlayerManager.state:updateWeaponStats(PlayerManager.equippedWeapon)
+    self.state:updateWeaponStats(self.equippedWeapon)
     
     -- Exibe mensagem informativa
-    print(string.format("Arma trocada para: %s", PlayerManager.equippedWeapon.name))
+    print(string.format("Arma trocada para: %s", self.equippedWeapon.name))
 end
 
 -- Função para trocar arma por índice
-function PlayerManager.switchWeapon(index)
-    local weapon = PlayerManager.availableWeapons[index]
+function PlayerManager:switchWeapon(index)
+    local weapon = self.availableWeapons[index]
     if weapon then
-        PlayerManager.equipWeapon(weapon)
+        self:equipWeapon(weapon)
     end
 end
 
 -- Adiciona ao final da função love.keypressed
-function PlayerManager.keypressed(key)
+function PlayerManager:keypressed(key)
     -- Teclas numéricas para trocar armas
     if key >= "1" and key <= "9" then
         local index = tonumber(key)
-        PlayerManager.switchWeapon(index)
+        self:switchWeapon(index)
     end
     
     -- Tecla de teste para subir de nível (F1)
     if key == "f1" then
         print("[DEBUG] Subindo de nível manualmente...")
-        PlayerManager.levelUp()
+        self:levelUp()
     end
 end
 
-return PlayerManager 
+return PlayerManager

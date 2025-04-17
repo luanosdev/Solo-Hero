@@ -3,8 +3,10 @@ local AnimatedSkeleton = {}
 
 -- Configuration template
 AnimatedSkeleton.defaultConfig = {
-    x = 0,              -- Position X
-    y = 0,              -- Position Y
+    position = {
+        x = 0,              -- Position X
+        y = 0,              -- Position Y
+    },
     scale = 2,          -- Scale factor for the sprite
     speed = 100,        -- Movement speed
     -- Animation settings
@@ -114,7 +116,7 @@ function AnimatedSkeleton.getDirectionFromAngle(angle)
 end
 
 -- Update animation state
-function AnimatedSkeleton.update(config, dt, targetX, targetY)
+function AnimatedSkeleton.update(config, dt, position)
     if config.animation.isDead then
         -- Atualiza a animação de morte
         config.animation.state = 'death'
@@ -133,8 +135,8 @@ function AnimatedSkeleton.update(config, dt, targetX, targetY)
     end
     
     -- Calcula a direção para o alvo
-    local dx = targetX - config.x
-    local dy = targetY - config.y
+    local dx = position.x - config.position.x
+    local dy = position.y - config.position.y
     local angle = math.atan2(dy, dx)
     angle = angle * (180 / math.pi)  -- Converte para graus
     
@@ -148,8 +150,8 @@ function AnimatedSkeleton.update(config, dt, targetX, targetY)
         dy = dy / length
         
         -- Atualiza a posição
-        config.x = config.x + dx * config.speed * dt
-        config.y = config.y + dy * config.speed * dt
+        config.position.x = config.position.x + dx * config.speed * dt
+        config.position.y = config.position.y + dy * config.speed * dt
         
         -- Atualiza a animação de caminhada
         config.animation.timer = config.animation.timer + dt
@@ -163,7 +165,7 @@ end
 -- Draw the animated skeleton
 function AnimatedSkeleton.draw(config)
     love.graphics.push()
-    love.graphics.translate(config.x, config.y)
+    love.graphics.translate(config.position.x, config.position.y)
     
     -- Get current frame image based on state
     local frames = AnimatedSkeleton.frames[config.animation.state]

@@ -23,7 +23,18 @@ local worldCycles = {
             -- Exemplo: Spawna o SpiderBoss no tempo 180 segundos (3 minutos)
             {time = 60 * 3, class = SpiderBoss}
         },
-        drops = {}
+        drops = {
+            [SpiderBoss] = {
+                drops = {
+                    -- Drops garantidos
+                    {
+                        type = "rune",
+                        rarity = "common",
+                        guaranteed = true
+                    },
+                }
+            }
+        }
     },
 
     -- Tabela contendo a sequência de ciclos de spawn.

@@ -18,8 +18,8 @@ OrbitalRune.orbCount = 3 -- Número de orbes
 OrbitalRune.orbRadius = 8 -- Tamanho de cada orbe
 OrbitalRune.rotationSpeed = 2 -- Velocidade de rotação em radianos por segundo
 
-function OrbitalRune:init(owner)
-    BaseAbility.init(self, owner)
+function OrbitalRune:init(playerManager)
+    BaseAbility.init(self, playerManager)
     
     -- Estado dos orbes
     self.orbs = {}
@@ -31,7 +31,7 @@ function OrbitalRune:init(owner)
     end
 end
 
-function OrbitalRune:update(dt)
+function OrbitalRune:update(dt, enemies)
     BaseAbility.update(self, dt)
     
     -- Atualiza a posição dos orbes
@@ -40,15 +40,15 @@ function OrbitalRune:update(dt)
         orb.angle = orb.angle + self.rotationSpeed * dt
         
         -- Aplica dano constantemente
-        self:applyOrbitalDamage(orb)
+        self:applyOrbitalDamage(orb, enemies)
     end
 end
 
 function OrbitalRune:draw()
     for _, orb in ipairs(self.orbs) do
         -- Calcula a posição do orbe
-        local x = self.owner.positionX + math.cos(orb.angle) * self.orbitRadius
-        local y = self.owner.positionY + math.sin(orb.angle) * self.orbitRadius
+        local x = self.playerManager.player.position.x + math.cos(orb.angle) * self.orbitRadius
+        local y = self.playerManager.player.position.y + math.sin(orb.angle) * self.orbitRadius
         
         -- Desenha o orbe base
         love.graphics.setColor(self.color)
@@ -61,22 +61,17 @@ function OrbitalRune:draw()
     end
 end
 
-function OrbitalRune:cast(x, y)
-    if not BaseAbility.cast(self, x, y) then return false end
-    return true
-end
-
-function OrbitalRune:applyOrbitalDamage(orb)
-    if not self.owner.world or not self.owner.world.enemies then return end
+function OrbitalRune:applyOrbitalDamage(orb, enemies)
+    if not enemies then return end
     
     -- Calcula a posição do orbe
-    local orbX = self.owner.positionX + math.cos(orb.angle) * self.orbitRadius
-    local orbY = self.owner.positionY + math.sin(orb.angle) * self.orbitRadius
+    local orbX = self.playerManager.player.position.x + math.cos(orb.angle) * self.orbitRadius
+    local orbY = self.playerManager.player.position.y + math.sin(orb.angle) * self.orbitRadius
     
-    for _, enemy in ipairs(self.owner.world.enemies) do
+    for _, enemy in ipairs(enemies) do
         if enemy.isAlive and not orb.damagedEnemies[enemy] then
-            local dx = enemy.positionX - orbX
-            local dy = enemy.positionY - orbY
+            local dx = enemy.position.x - orbX
+            local dy = enemy.position.y - orbY
             local distance = math.sqrt(dx * dx + dy * dy)
             
             if distance <= self.orbRadius * 2 then -- Área de dano um pouco maior que o orbe

@@ -3,25 +3,22 @@
     Gerencia os drops de bosses e outros inimigos
 ]]
 
-local RuneManager = require("src.managers.rune_manager")
-local FloatingTextManager = require("src.managers.floating_text_manager")
+local ManagerRegistry = require("src.managers.manager_registry")
 local DropEntity = require("src.entities.drop_entity")
 
 local DropManager = {
-    player = nil,
-    config = nil,
-    activeDrops = {} -- Lista de drops ativos no mundo
+    activeDrops = {}, -- Lista de drops ativos no mundo
 }
 
 --[[
     Inicializa o gerenciador de drops
-    @param player Referência ao jogador
-    @param config Configuração de drops do mundo
 ]]
-function DropManager:init(player, config)
-    self.player = player
-    self.config = config
+function DropManager:init()
     self.activeDrops = {}
+    self.playerManager = ManagerRegistry:get("playerManager")
+    self.enemyManager = ManagerRegistry:get("enemyManager")
+    self.runeManager = ManagerRegistry:get("runeManager")
+    self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
 end
 
 --[[
@@ -29,7 +26,14 @@ end
     @param boss O boss que foi derrotado
 ]]
 function DropManager:processBossDrops(boss)
-    local bossConfig = self.config.bossConfig.drops[boss.class]
+    -- Obtém a configuração de drops do mundo atual
+    local worldConfig = self.enemyManager.worldConfig
+    if not worldConfig or not worldConfig.bossConfig or not worldConfig.bossConfig.drops then 
+        print("Aviso: Configuração de drops não encontrada para o mundo atual")
+        return 
+    end
+    
+    local bossConfig = worldConfig.bossConfig.drops[boss.class]
     if not bossConfig then 
         print("Aviso: Configuração de drops não encontrada para o boss:", boss.class.name)
         return 
@@ -91,7 +95,7 @@ end
 function DropManager:update(dt)
     for i = #self.activeDrops, 1, -1 do
         local drop = self.activeDrops[i]
-        if drop:update(dt, self.player) then
+        if drop:update(dt, PlayerManager) then
             -- Se o drop foi coletado, aplica seus efeitos
             self:applyDrop(drop.config)
             table.remove(self.activeDrops, i)
@@ -100,26 +104,26 @@ function DropManager:update(dt)
 end
 
 --[[
-    Aplica um drop específico ao jogador
-    @param drop Configuração do drop a ser aplicado
+    Aplica um drop ao jogador
+    @param drop O drop a ser aplicado
 ]]
 function DropManager:applyDrop(drop)
     if drop.type == "rune" then
         print("Gerando runa de raridade:", drop.rarity)
-        local rune = RuneManager:generateRune(drop.rarity)
-        RuneManager:applyRune(rune)
+        local rune = self.runeManager:generateRune(drop.rarity)
+        self.playerManager.addRune(rune)
         
     elseif drop.type == "gold" then
         local amount = math.random(drop.amount.min, drop.amount.max)
-        self.player.gold = self.player.gold + amount
+        self.playerManager.gold = self.playerManager.gold + amount
         
         -- Mostra texto flutuante do ouro obtido
-        FloatingTextManager:addText(
-            self.player.positionX,
-            self.player.positionY - self.player.radius - 30,
+        self.floatingTextManager:addText(
+            self.playerManager.player.position.x,
+            self.playerManager.player.position.y - self.playerManager.player.radius - 30,
             "+" .. amount .. " Ouro",
             true,
-            self.player,
+            self.playerManager.player.position,
             {1, 0.84, 0} -- Cor dourada
         )
     end

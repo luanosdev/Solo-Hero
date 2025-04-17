@@ -1,6 +1,8 @@
 local FloatingText = {
-    positionX = 0,
-    positionY = 0,
+    position = {
+        x = 0,
+        y = 0
+    },
     text = "",
     color = {1, 1, 1}, -- Cor padrão (branco)
     alpha = 1,
@@ -9,17 +11,19 @@ local FloatingText = {
     lifetime = 0.5, -- Tempo de vida em segundos
     currentTime = 0,
     isCritical = false,
-    target = nil, -- Referência ao inimigo
+    targetPosition = nil, -- Referência ao inimigo
     offsetY = 0 -- Offset vertical em relação ao inimigo
 }
 
-function FloatingText:new(x, y, text, isCritical, target, customColor)
+function FloatingText:new(x, y, text, isCritical, targetPosition, customColor)
     local floatingText = setmetatable({}, { __index = self })
-    floatingText.positionX = x
-    floatingText.positionY = y
+    floatingText.position = {
+        x = x,
+        y = y
+    }
     floatingText.text = text
     floatingText.isCritical = isCritical
-    floatingText.target = target
+    floatingText.targetPosition = targetPosition
     floatingText.offsetY = -20 -- Começa 20 pixels acima do inimigo
     
     -- Define a cor do texto
@@ -44,9 +48,9 @@ function FloatingText:update(dt)
     self.currentTime = self.currentTime + dt
     
     -- Atualiza posição baseado no alvo
-    if self.target and self.target.isAlive then
-        self.positionX = self.target.positionX
-        self.positionY = self.target.positionY + self.offsetY
+    if self.targetPosition then
+        self.position.x = self.targetPosition.x
+        self.position.y = self.targetPosition.y + self.offsetY
     end
     
     -- Atualiza offset vertical
@@ -73,7 +77,7 @@ function FloatingText:draw()
     
     -- Desenha o texto na posição do mundo (não na tela)
     love.graphics.push()
-    love.graphics.translate(self.positionX, self.positionY)
+    love.graphics.translate(self.position.x, self.position.y)
     love.graphics.scale(self.scale)
     
     -- Desenha a borda preta

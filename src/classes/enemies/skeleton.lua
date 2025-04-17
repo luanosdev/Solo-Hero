@@ -21,14 +21,13 @@ Skeleton.animationConfig = {
     deathFrameTime = 0.15
 }
 
-function Skeleton:new(x, y)
+function Skeleton:new(position)
     -- Cria uma nova instância do inimigo base
-    local enemy = BaseEnemy.new(self, x, y)
+    local enemy = BaseEnemy.new(self, position)
     
     -- Configura o sprite do esqueleto
     enemy.sprite = AnimatedSkeleton.newConfig({
-        x = x,
-        y = y,
+        position = position,
         scale = self.animationConfig.scale,
         speed = self.speed,
         animation = {
@@ -67,10 +66,10 @@ function Skeleton:takeDamage(damage, isCritical)
 end
 
 -- Sobrescreve a função update da classe BaseEnemy
-function Skeleton:update(dt, player, enemies)
+function Skeleton:update(dt, playerManager, enemies)
     -- Se estiver morto, apenas atualiza a animação de morte
     if not self.isAlive then
-        AnimatedSkeleton.update(self.sprite, dt, self.sprite.x, self.sprite.y)
+        AnimatedSkeleton.update(self.sprite, dt, self.sprite.position)
         
         -- Incrementa o timer de morte
         self.deathTimer = self.deathTimer + dt
@@ -84,14 +83,13 @@ function Skeleton:update(dt, player, enemies)
     end
     
     -- Atualiza a posição e animação do esqueleto
-    AnimatedSkeleton.update(self.sprite, dt, player.positionX, player.positionY)
-    
+    AnimatedSkeleton.update(self.sprite, dt, playerManager.player.position)
+
     -- Atualiza a posição do inimigo base para corresponder ao sprite
-    self.positionX = self.sprite.x
-    self.positionY = self.sprite.y
-    
+    self.position = self.sprite.position
+
     -- Chama a função original de BaseEnemy para verificar colisões
-    BaseEnemy.update(self, dt, player, enemies)
+    BaseEnemy.update(self, dt, playerManager, enemies)
 end
 
 -- Sobrescreve a função draw da classe BaseEnemy
@@ -113,6 +111,11 @@ function Skeleton:draw()
     -- Desenha o sprite do esqueleto
     love.graphics.setColor(1, 1, 1, 1)
     AnimatedSkeleton.draw(self.sprite)
+
+    -- Desenha a area de colisão
+    local collisionPosition = self:getCollisionPosition()
+    love.graphics.setColor(1, 0, 0, 0.5)
+    love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
 end
 
 return Skeleton 

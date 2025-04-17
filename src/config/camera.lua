@@ -21,10 +21,10 @@ function Camera:init()
     self.screenHeight = love.graphics.getHeight()
 end
 
-function Camera:follow(target, dt)
+function Camera:follow(position, dt)
     -- Calcula a posição alvo (centro da tela)
-    local targetX = target.x - (self.screenWidth / 2)
-    local targetY = target.y - (self.screenHeight / 2)
+    local targetX = position.x - (self.screenWidth / 2)
+    local targetY = position.y - (self.screenHeight / 2)
     
     -- Interpola suavemente para a posição alvo
     self.x = self.x + (targetX - self.x) * dt * self.smoothness

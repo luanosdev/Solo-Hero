@@ -9,8 +9,8 @@ local fonts = require("src.ui.fonts")
 local FloatingTextManager = require("src.managers.floating_text_manager")
 
 local RuneChoiceModal = {
+    playerManager = nil,
     visible = false,
-    player = nil,
     rune = nil,
     abilities = {},
     selectedIndex = 1,
@@ -19,10 +19,9 @@ local RuneChoiceModal = {
 
 --[[
     Inicializa o modal
-    @param player Referência ao jogador
 ]]
-function RuneChoiceModal:init(player)
-    self.player = player
+function RuneChoiceModal:init(playerManager)
+    self.playerManager = playerManager
 end
 
 --[[
@@ -47,7 +46,7 @@ end
     Atualiza o estado do modal
     @param dt Delta time
 ]]
-function RuneChoiceModal:update(dt)
+function RuneChoiceModal:update()
     if not self.visible then return end
     
     -- Atualiza a opção com hover do mouse
@@ -110,18 +109,18 @@ function RuneChoiceModal:applyAbility(abilityClass)
     local ability = setmetatable({}, { __index = abilityClass })
     
     -- Inicializa a habilidade com o jogador
-    ability:init(self.player)
+    ability:init(self.playerManager)
     
     -- Adiciona a habilidade ao jogador
-    self.player:addRune(ability)
+    self.playerManager.addRune(ability)
     
     -- Mostra mensagem de habilidade obtida
     FloatingTextManager:addText(
-        self.player.positionX,
-        self.player.positionY - self.player.radius - 30,
+        self.playerManager.player.position.x,
+        self.playerManager.player.position.y - self.playerManager.player.radius - 30,
         "Nova Habilidade: " .. ability.name,
         true,
-        self.player,
+        self.playerManager.player.position,
         {0, 1, 0} -- Cor verde para habilidades
     )
     
@@ -159,13 +158,15 @@ function RuneChoiceModal:draw()
     for i, ability in ipairs(self.abilities) do
         local optionY = modalY + 120 + (i - 1) * 80
         local optionHeight = 70
+        local optionWidth = modalWidth - 40
         
-        -- Desenha o fundo da opção
+        -- Desenha o fundo da opção com efeito de brilho se selecionada
         if i == self.selectedIndex then
+            elements.drawRarityBorderAndGlow("rare", modalX + 20, optionY, optionWidth, optionHeight)
             love.graphics.setColor(colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.3)
             love.graphics.rectangle("fill", 
                 modalX + 20, optionY, 
-                modalWidth - 40, optionHeight, 5, 5)
+                optionWidth, optionHeight, 5, 5)
         end
         
         -- Ícone (usando o primeiro caractere do nome da habilidade)

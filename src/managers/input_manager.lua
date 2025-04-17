@@ -58,11 +58,11 @@ function InputManager.update(dt)
         end
         
         if InputManager.playerManager and InputManager.playerManager.player then
-            local newX = InputManager.playerManager.player.x + moveX * InputManager.playerManager.state:getTotalSpeed() * dt
-            local newY = InputManager.playerManager.player.y + moveY * InputManager.playerManager.state:getTotalSpeed() * dt
+            local newX = InputManager.playerManager.player.position.x + moveX * InputManager.playerManager.state:getTotalSpeed() * dt
+            local newY = InputManager.playerManager.player.position.y + moveY * InputManager.playerManager.state:getTotalSpeed() * dt
             
-            InputManager.playerManager.player.x = newX
-            InputManager.playerManager.player.y = newY
+            InputManager.playerManager.player.position.x = newX
+            InputManager.playerManager.player.position.y = newY
         end
     end
 end

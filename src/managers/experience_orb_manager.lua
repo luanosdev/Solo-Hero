@@ -1,5 +1,5 @@
 local ExperienceOrb = require("src.entities.experience_orb")
-local PlayerManager = require("src.managers.player_manager")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 --[[
     Experience Orb Manager
@@ -12,6 +12,7 @@ local ExperienceOrbManager = {
 
 function ExperienceOrbManager:init()
     self.orbs = {}
+    self.playerManager = ManagerRegistry:get("playerManager")
 end
 
 function ExperienceOrbManager:update(dt)
@@ -20,7 +21,7 @@ function ExperienceOrbManager:update(dt)
         local orb = self.orbs[i]
         if orb:update(dt) then
             -- Adiciona a experiência ao jogador através do PlayerManager
-            PlayerManager.addExperience(orb.experience)
+            self.playerManager:addExperience(orb.experience)
             table.remove(self.orbs, i)
         end
     end

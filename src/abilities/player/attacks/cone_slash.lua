@@ -16,7 +16,7 @@ local ConeSlash = {
     visual = {
         preview = {
             active = false,
-            segments = 20
+            lineLength = 50 -- Comprimento da linha de preview
         },
         attack = {
             segments = 20,
@@ -25,21 +25,23 @@ local ConeSlash = {
     }
 }
 
-function ConeSlash:init(owner)
-    self.owner = owner
+function ConeSlash:init(playerManager)
+    self.playerManager = playerManager
     self.cooldownRemaining = 0
     self.isAttacking = false
     self.attackProgress = 0
-    
+
     -- Usa as cores da arma se disponíveis
     self.visual.preview.color = self.previewColor or {0.7, 0.7, 0.7, 0.2}
     self.visual.attack.color = self.attackColor or {1, 0.302, 0.302, 0.6}
-    
+
     -- Usa os atributos da arma
-    local weapon = owner.equippedWeapon
+    local weapon = self.playerManager.equippedWeapon
     self.area = {
-        x = owner.player.x,
-        y = owner.player.y,
+        position = {
+            x = self.playerManager.player.position.x,
+            y = self.playerManager.player.position.y
+        },
         angle = 0,
         range = weapon.range, -- Usa o range da arma
         angleWidth = math.rad(90) -- Ângulo fixo de 90 graus
@@ -63,19 +65,18 @@ function ConeSlash:update(dt)
 
     -- Atualiza a posição do cone para seguir o jogador
     if self.area then
-        self.area.x = self.owner.player.x
-        self.area.y = self.owner.player.y -- Mantém o cone na mesma altura do jogador
+        self.area.position = self.playerManager.player.position
 
         local mouseX, mouseY = love.mouse.getPosition()
         local worldX, worldY = Camera:screenToWorld(mouseX, mouseY)
 
-        local dx = worldX - self.area.x
-        local dy = worldY - self.area.y
+        local dx = worldX - self.area.position.x
+        local dy = worldY - self.area.position.y
         self.area.angle = math.atan2(dy, dx)
     end
 end
 
-function ConeSlash:cast(x, y)
+function ConeSlash:cast(enemies)
     if self.cooldownRemaining > 0 then
         return false
     end
@@ -85,36 +86,35 @@ function ConeSlash:cast(x, y)
     self.attackProgress = 0
     
     -- Aplica o cooldown baseado na velocidade de ataque do player
-    local attackSpeed = self.owner.state:getTotalAttackSpeed()
+    local attackSpeed = self.playerManager.state:getTotalAttackSpeed()
     self.cooldownRemaining = self.cooldown / attackSpeed
     
     -- Calcula o número de ataques extras
-    local multiAttackChance = self.owner.state:getTotalMultiAttackChance()
+    local multiAttackChance = self.playerManager.state:getTotalMultiAttackChance()
     local extraAttacks = math.floor(multiAttackChance)
     local decimalChance = multiAttackChance - extraAttacks
     
     -- Primeiro ataque sempre ocorre
-    local success = self:executeAttack(x, y)
+    local success = self:executeAttack(enemies)
     
     -- Executa ataques extras
     for i = 1, extraAttacks do
         if success then
-            success = self:executeAttack(x, y)
+            success = self:executeAttack(enemies)
         end
     end
     
     -- Chance de ataque extra baseado no decimal
     if success and decimalChance > 0 and math.random() < decimalChance then
-        self:executeAttack(x, y)
+        self:executeAttack(enemies)
     end
     
     return success
 end
 
 -- Função auxiliar para executar um único ataque
-function ConeSlash:executeAttack(x, y)
+function ConeSlash:executeAttack(enemies)
     -- Verifica colisão com inimigos
-    local enemies = EnemyManager:getEnemies()
     local enemiesHit = 0
     local totalEnemies = 0
     
@@ -122,7 +122,7 @@ function ConeSlash:executeAttack(x, y)
         if enemy.isAlive then
             totalEnemies = totalEnemies + 1
             -- Verifica se o inimigo está dentro da área de ataque usando isPointInArea
-            local isInArea = self:isPointInArea(enemy.positionX, enemy.positionY)
+            local isInArea = self:isPointInArea(enemy.position)
             
             if isInArea then
                 enemiesHit = enemiesHit + 1
@@ -135,13 +135,13 @@ function ConeSlash:executeAttack(x, y)
     return true
 end
 
-function ConeSlash:isPointInArea(x, y)
+function ConeSlash:isPointInArea(position)
     if not self.area then return false end
     if not self.area then return false end
 
     -- Transforma ambos para espaço isométrico
-    local px, py = x, y * 2
-    local ox, oy = self.area.x, self.area.y * 2
+    local px, py = position.x, position.y * 2
+    local ox, oy = self.area.position.x, self.area.position.y * 2
 
     local dx, dy = px - ox, py - oy
     local distance = math.sqrt(dx * dx + dy * dy)
@@ -161,19 +161,19 @@ end
 function ConeSlash:applyDamage(target)
     if not self.area then return false end
     
-    if self:isPointInArea(target.positionX, target.positionY) then
+    if self:isPointInArea(target.position) then
         -- Obtém o dano base da arma
-        local weaponDamage = self.owner.equippedWeapon.damage
+        local weaponDamage = self.playerManager.equippedWeapon.damage
 
         
         -- Calcula o dano total com os bônus do player
-        local totalDamage = self.owner.state:getTotalDamage(weaponDamage)
+        local totalDamage = self.playerManager.state:getTotalDamage(weaponDamage)
 
         
         -- Calcula se o dano é crítico
-        local isCritical = math.random() <= self.owner.state:getTotalCriticalChance() / 100
+        local isCritical = math.random() <= self.playerManager.state:getTotalCriticalChance() / 100
         if isCritical then
-            totalDamage = math.floor(totalDamage * self.owner.state:getTotalCriticalMultiplier())
+            totalDamage = math.floor(totalDamage * self.playerManager.state:getTotalCriticalMultiplier())
         end
         
         -- Aplica o dano
@@ -189,15 +189,39 @@ function ConeSlash:draw()
         return
     end
     
-    -- Desenha a prévia do cone se ativa
+    -- Desenha a prévia da linha se ativa
     if self.visual.preview.active then
-        self:drawCone(self.visual.preview.color, 1)
+        self:drawPreviewLine()
     end
     
     -- Desenha a animação do ataque
     if self.isAttacking then
         self:drawCone(self.visual.attack.color, self.attackProgress)
     end
+end
+
+function ConeSlash:drawPreviewLine()
+    -- Configura a cor da linha de preview
+    love.graphics.setColor(1, 1, 1, 0.5) -- Branco semi-transparente
+    
+    -- Salva o estado atual de transformação
+    love.graphics.push()
+    
+    -- Translada para a posição do jogador
+    love.graphics.translate(self.area.x, self.area.y)
+    
+    -- Aplica a transformação isométrica
+    love.graphics.scale(1, 0.5)
+    
+    -- Desenha a linha na direção do mouse
+    love.graphics.line(
+        0, 0,
+        math.cos(self.area.angle) * self.visual.preview.lineLength,
+        math.sin(self.area.angle) * self.visual.preview.lineLength
+    )
+    
+    -- Restaura o estado de transformação
+    love.graphics.pop()
 end
 
 function ConeSlash:drawCone(color, progress)
@@ -208,7 +232,7 @@ function ConeSlash:drawCone(color, progress)
     love.graphics.push()
     
     -- Translada para a posição do cone
-    love.graphics.translate(self.area.x, self.area.y)
+    love.graphics.translate(self.area.position.x, self.area.position.y)
     
     -- Aplica a transformação isométrica
     love.graphics.scale(1, 0.5) -- Escala vertical para efeito isométrico

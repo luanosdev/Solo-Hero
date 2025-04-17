@@ -25,7 +25,7 @@ function BaseBoss:new(x, y)
     return boss
 end
 
-function BaseBoss:update(dt, player, enemies)
+function BaseBoss:update(dt, playerManager, enemies)
     if not self.isAlive then return end
     
     -- Atualiza o timer de habilidades
@@ -33,12 +33,12 @@ function BaseBoss:update(dt, player, enemies)
     
     -- Verifica se pode usar uma habilidade
     if self.abilityTimer >= self.abilityCooldown then
-        self:useAbility(player, enemies)
+        self:useAbility(playerManager, enemies)
         self.abilityTimer = 0
     end
     
     -- Chama o update da classe base para movimento e colisão
-    BaseEnemy.update(self, dt, player, enemies)
+    BaseEnemy.update(self, dt, playerManager, enemies)
 end
 
 function BaseBoss:useAbility(player, enemies)

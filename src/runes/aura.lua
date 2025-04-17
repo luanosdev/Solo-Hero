@@ -17,8 +17,8 @@ Aura.color = {1, 0.5, 0, 0.2} -- Cor laranja para a aura
 Aura.radius = 100 -- Raio da aura
 Aura.pulseDuration = 0.3 -- Duração do pulso visual
 
-function Aura:init(owner)
-    BaseAbility.init(self, owner)
+function Aura:init(playerManager)
+    BaseAbility.init(self, playerManager)
     
     -- Estado da aura
     self.aura = {
@@ -28,7 +28,7 @@ function Aura:init(owner)
     }
 end
 
-function Aura:update(dt)
+function Aura:update(dt, enemies)
     BaseAbility.update(self, dt)
     
     if self.aura.active then
@@ -47,7 +47,7 @@ function Aura:update(dt)
             self.aura.pulseTime = 0
             
             -- Aplica o dano
-            self:applyAuraDamage()
+            self:applyAuraDamage(enemies)
             
             -- Reseta o cooldown
             self.cooldownRemaining = self.cooldown
@@ -60,8 +60,8 @@ function Aura:draw()
         -- Desenha a aura base
         love.graphics.setColor(self.color)
         love.graphics.circle("fill", 
-            self.owner.positionX, 
-            self.owner.positionY, 
+            self.playerManager.player.position.x, 
+            self.playerManager.player.position.y, 
             self.radius
         )
         
@@ -73,8 +73,8 @@ function Aura:draw()
             
             love.graphics.setColor(self.color[1], self.color[2], self.color[3], self.color[4] * alpha)
             love.graphics.circle("line", 
-                self.owner.positionX, 
-                self.owner.positionY, 
+                self.playerManager.player.position.x, 
+                self.playerManager.player.position.y, 
                 pulseRadius
             )
         end
@@ -82,7 +82,9 @@ function Aura:draw()
 end
 
 function Aura:cast()
-    if not BaseAbility.cast(self, self.owner.positionX, self.owner.positionY) then return false end
+    if not BaseAbility.cast(self, self.playerManager.player.position.x, self.playerManager.player.position.y) then
+        return false
+    end
     
     -- Ativa a aura
     self.aura.active = true
@@ -92,26 +94,19 @@ function Aura:cast()
     return true
 end
 
-function Aura:applyAuraDamage()
-    if not self.owner.world or not self.owner.world.enemies then return end
+function Aura:applyAuraDamage(enemies)
+    if not enemies then return end
     
-    for _, enemy in ipairs(self.owner.world.enemies) do
+    for _, enemy in ipairs(enemies) do
         if enemy.isAlive then
-            local dx = enemy.positionX - self.owner.positionX
-            local dy = enemy.positionY - self.owner.positionY
+            local dx = enemy.position.x - self.playerManager.player.position.x
+            local dy = enemy.position.y - self.playerManager.player.position.y
             local distance = math.sqrt(dx * dx + dy * dy)
             
             if distance <= self.radius then
                 self:applyDamage(enemy)
             end
         end
-    end
-end
-
-function Aura:toggleVisual()
-    self.aura.active = not self.aura.active
-    if self.aura.active then
-        self:cast()
     end
 end
 
