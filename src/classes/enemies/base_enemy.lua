@@ -187,7 +187,7 @@ function BaseEnemy:getCollisionPosition()
     return {
         position = {
             x = self.position.x,
-            y = self.position.y + 25,
+            y = self.position.y + 15,
         },
         radius = self.radius
     }

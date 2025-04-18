@@ -8,10 +8,7 @@ local PlayerState = require("src.entities.player_state")
 local LevelUpModal = require("src.ui.level_up_modal")
 local RuneManager = require("src.managers.rune_manager")
 local Camera = require("src.config.camera")
-local IronSword = require("src.items.weapons.iron_sword")
-local GoldSword = require("src.items.weapons.gold_sword")
-local SteelSword = require("src.items.weapons.steel_sword")
-local BronzeSword = require("src.items.weapons.bronze_sword")
+local WoodenSword = require("src.items.weapons.wooden_sword")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local ManagerRegistry = require("src.managers.manager_registry")
@@ -71,10 +68,7 @@ local PlayerManager = {
     -- Weapons
     equippedWeapon = nil,
     availableWeapons = {
-        [1] = IronSword,
-        [2] = GoldSword,
-        [3] = SteelSword,
-        [4] = BronzeSword,
+        [1] = WoodenSword,
     }
 }
 
@@ -96,7 +90,7 @@ function PlayerManager:init()
             x = love.graphics.getWidth() / 2,
             y = love.graphics.getHeight() / 2,
         },
-        scale = 1,
+        scale = 0.8,
         speed = self.state:getTotalSpeed()
     })
     
@@ -114,7 +108,7 @@ function PlayerManager:init()
     end
     
     -- Inicializa os modais
-    LevelUpModal:init(self)
+    LevelUpModal:init(self, self.inputManager)
     RuneManager:init()
 end
 
@@ -567,7 +561,7 @@ end
 
 function PlayerManager:getTargetPosition()
     -- Obtém a posição atual do mouse
-    local mouseX, mouseY = self.inputManager.mouse.position()
+    local mouseX, mouseY = self.inputManager:getMousePosition()
     
     -- Se o botão do mouse estiver pressionado, usa a posição do mouse
     if self.inputManager.mouse.leftButton then

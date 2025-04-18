@@ -5,8 +5,8 @@ local Skeleton = setmetatable({}, { __index = BaseEnemy })
 
 -- Configurações específicas do esqueleto
 Skeleton.name = "Skeleton"
-Skeleton.radius = 25
-Skeleton.speed = 80
+Skeleton.radius = 10
+Skeleton.speed = 30
 Skeleton.maxHealth = 100
 Skeleton.damage = 10
 Skeleton.experienceValue = 10
@@ -14,7 +14,7 @@ Skeleton.color = {0.7, 0.7, 0.7} -- Cor cinza para o esqueleto
 
 -- Configurações de animação
 Skeleton.animationConfig = {
-    scale = 1.5,
+    scale = 1,
     walkPath = "assets/enemies/skeleton/walk/%s/skeleton_default_walk_%s_%s_%d.png",
     deathPath = "assets/enemies/skeleton/death/%s/skeleton_special_death_%s_%s_%d.png",
     frameTime = 0.1,

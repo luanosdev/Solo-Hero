@@ -35,6 +35,7 @@ function ManagerRegistry:init()
 
     -- Ordem de inicialização é importante
     local initOrder = {
+        "inputManager",      -- InputManager deve ser inicializado primeiro
         "playerManager",
         "experienceOrbManager",
         "floatingTextManager",
@@ -81,22 +82,6 @@ function ManagerRegistry:draw()
     for _, manager in pairs(self.managers) do
         if not manager.drawInCamera and manager.instance.draw then
             manager.instance:draw()
-        end
-    end
-end
-
---[[
-    Gerencia o evento mousepressed para todos os managers (Especialmente para os modais)
-    @param x Coordenada x do mouse
-    @param y Coordenada y do mouse
-    @param button Botão do mouse
-]]
-function ManagerRegistry:mousepressed(x, y, button)
-    for _, manager in pairs(self.managers) do
-        if manager.instance.mousepressed then
-            if manager.instance.visible then
-                manager.instance:mousepressed(x, y, button)
-            end
         end
     end
 end

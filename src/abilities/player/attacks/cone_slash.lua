@@ -12,7 +12,6 @@ local ConeSlash = {
     description = "Um ataque em cone que causa dano a todos os inimigos na área",
     cooldown = 0.5,
     damageType = "melee",
-    angle = math.pi / 3, -- 60 graus
     visual = {
         preview = {
             active = false,
@@ -43,8 +42,8 @@ function ConeSlash:init(playerManager)
             y = self.playerManager.player.position.y
         },
         angle = 0,
-        range = weapon.range, -- Usa o range da arma
-        angleWidth = math.rad(90) -- Ângulo fixo de 90 graus
+        range = weapon.range + self.playerManager.state:getTotalRange(), -- Usa o range da arma + bônus do player
+        angleWidth = weapon.angle + self.playerManager.state:getTotalArea() -- Usa o ângulo da arma + bônus do player
     }
 end
 
@@ -208,7 +207,7 @@ function ConeSlash:drawPreviewLine()
     love.graphics.push()
     
     -- Translada para a posição do jogador
-    love.graphics.translate(self.area.x, self.area.y)
+    love.graphics.translate(self.area.position.x, self.area.position.y)
     
     -- Aplica a transformação isométrica
     love.graphics.scale(1, 0.5)

@@ -64,15 +64,17 @@ function love.load()
 end
 
 function love.update(dt)
+    local hasActiveModal = LevelUpModal.visible or RuneChoiceModal.visible
+    -- Atualiza o InputManager independentemente do estado do modal
+    InputManager:update(dt, hasActiveModal)
+    
     if LevelUpModal.visible then
+        LevelUpModal:update()
         return
     end
 
     -- Atualiza todos os managers
     ManagerRegistry:update(dt)
-    
-    -- Atualiza o LevelUpModal
-    LevelUpModal:update()
 end
 
 function love.draw()
@@ -196,49 +198,6 @@ function drawIsometricGrid()
     Camera:detach()
 end
 
--- Handle key press events
-function love.keypressed(key)
-    -- Se o LevelUpModal estiver visível, consome as teclas para navegação
-    if LevelUpModal.visible then
-        -- Navegação já é tratada no update do modal
-        return
-    end
-    -- Adiciona o handler de teclas do PlayerManager
-    PlayerManager:keypressed(key)
-    InputManager:keypressed(key)
-end
-
-function love.keyreleased(key)
-    InputManager:keyreleased(key)
-end
-
-function love.mousemoved(x, y, dx, dy)
-    -- Se o LevelUpModal estiver visível, passa o evento para ele
-    if LevelUpModal.visible then
-        LevelUpModal:update() -- Força uma atualização do hover
-        return
-    end
-    InputManager:mousemoved(x, y, dx, dy)
-end
-
-function love.mousepressed(x, y, button)
-    -- Primeiro, verifica se o LevelUpModal está visível e consome o clique
-    if LevelUpModal.visible then
-        LevelUpModal:mousepressed(x, y, button)
-        return
-    end
-
-    if RuneChoiceModal.visible then
-        RuneChoiceModal:mousepressed(x, y, button)
-        return
-    end
-
-    InputManager.mousepressed(x, y, button)
-end
-
-function love.mousereleased(x, y, button)
-    InputManager:mousereleased(x, y, button)
-end
 
 -- Função para adicionar um novo texto flutuante
 function addFloatingText(x, y, text, isCritical, target, customColor)

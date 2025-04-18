@@ -87,8 +87,8 @@ end
 -- Atualiza a animação
 function AnimatedSpider.update(config, dt, targetX, targetY)
     -- Calcula direção para o alvo
-    local dx = targetX - config.x
-    local dy = targetY - config.y
+    local dx = targetX - config.position.x
+    local dy = targetY - config.position.y
     local angle = math.atan2(dy, dx) * (180 / math.pi)
     if angle < 0 then angle = angle + 360 end
     -- Ajuste: subtrai 90 graus para alinhar 0° do sprite (cima) com 0° matemático (direita)
@@ -134,7 +134,7 @@ function AnimatedSpider.draw(config)
         love.graphics.draw(
             AnimatedSpider.bodySheets[angle],
             AnimatedSpider.bodyQuads[angle][frame],
-            config.x, config.y,
+            config.position.x, config.position.y,
             0,
             config.scale, config.scale,
             128, 128
