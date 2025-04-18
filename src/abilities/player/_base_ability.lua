@@ -136,4 +136,14 @@ function BaseAbility:updateVisual(x, y)
     self.visual.angle = math.atan2(dy, dx)
 end
 
+--[[
+    Aplica dano a um alvo
+    @param target O alvo que receberá o dano
+    @return boolean Se o alvo morreu do dano
+]]
+function BaseAbility:applyDamage(target)
+    if not target or not target.takeDamage then return false end
+    return target:takeDamage(self.damage)
+end
+
 return BaseAbility

@@ -23,13 +23,10 @@ local DropEntity = {
     glowTimer = 0
 }
 
-function DropEntity:new(x, y, config)
+function DropEntity:new(position, config)
     local drop = setmetatable({}, { __index = self })
-    drop.initialPosition = {
-        x = x,
-        y = y
-    }
-    drop.position = drop.initialPosition
+    drop.initialPosition = position
+    drop.position = position
     drop.config = config
     drop.collected = false
     drop.collectionProgress = 0

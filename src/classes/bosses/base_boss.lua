@@ -5,7 +5,7 @@ local BaseBoss = setmetatable({}, { __index = BaseEnemy })
 -- Configurações base para todos os bosses
 BaseBoss.isBoss = true
 BaseBoss.healthBarWidth = 100 -- Barra de vida maior para bosses
-BaseBoss.experienceValue = 1000 -- Experiência base alta para bosses
+BaseBoss.experienceValue = 10 -- Experiência base alta para bosses
 
 -- Sistema de habilidades
 BaseBoss.abilities = {} -- Tabela de habilidades do boss
@@ -13,8 +13,8 @@ BaseBoss.currentAbilityIndex = 1 -- Índice da habilidade atual
 BaseBoss.abilityCooldown = 0 -- Cooldown entre habilidades
 BaseBoss.abilityTimer = 0 -- Timer para controle de habilidades
 
-function BaseBoss:new(x, y)
-    local boss = BaseEnemy.new(self, x, y)
+function BaseBoss:new(position, id)
+    local boss = BaseEnemy.new(self, position, id)
     setmetatable(boss, { __index = self })
     
     -- Inicializa o sistema de habilidades

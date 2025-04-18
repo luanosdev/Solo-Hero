@@ -21,7 +21,7 @@ local worldCycles = {
     bossConfig = {
         spawnTimes = {
             -- Exemplo: Spawna o SpiderBoss no tempo 180 segundos (3 minutos)
-            {time = 60 * 3, class = SpiderBoss}
+            {time = 3, class = SpiderBoss}
         },
         drops = {
             [SpiderBoss] = {
@@ -29,9 +29,9 @@ local worldCycles = {
                     -- Drops garantidos
                     {
                         type = "rune",
-                        rarity = "common",
+                        rarity = "D",
                         guaranteed = true
-                    },
+                    }
                 }
             }
         }
@@ -67,14 +67,14 @@ local worldCycles = {
             -- Configuração para os spawns pequenos e contínuos ("Minor Spawns").
             minorSpawn = {
                 -- Intervalo inicial (em segundos) entre cada Minor Spawn no início do jogo.
-                baseInterval = 2.7,     
+                baseInterval = 15.7,     
                 -- Quanto o intervalo entre Minor Spawns diminui (em segundos) para cada minuto de jogo decorrido.
                 -- Controla o escalonamento da frequência dos Minor Spawns.
                 intervalReductionPerMin = 0.45, 
                 -- O intervalo mínimo (em segundos) que os Minor Spawns podem atingir, para evitar spawns muito rápidos.
-                minInterval = 0.7,      
+                minInterval = 10.7,      
                 -- Quantos inimigos são spawnados a cada evento de Minor Spawn (geralmente 1).
-                count = 2
+                count = 1
             }
         },
         

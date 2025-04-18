@@ -7,20 +7,17 @@ local Spider = setmetatable({}, { __index = BaseBoss })
 Spider.name = "Spider"
 Spider.radius = 60
 Spider.speed = 80
-Spider.maxHealth = 2000
+Spider.maxHealth = 2
 Spider.damage = 40
 Spider.color = {0.3, 0.3, 0.3} -- Cinza escuro
 Spider.abilityCooldown = 4
 Spider.class = Spider
 
-function Spider:new(x, y)
-    local boss = BaseBoss.new(self, x, y)
+function Spider:new(position, id)
+    local boss = BaseBoss.new(self, position, id)
     setmetatable(boss, { __index = self })
     boss.sprite = AnimatedSpider.newConfig({
-        position = {
-            x = x,
-            y = y
-        },
+        position = position,
         scale = 2.0,
         speed = self.speed,
         animation = {
@@ -36,9 +33,8 @@ end
 function Spider:update(dt, playerManager, enemies)
     if not self.isAlive then return end
     -- Atualiza animação e posição
-    AnimatedSpider.update(self.sprite, dt, playerManager.player.position.x, playerManager.player.position.y)
-    self.positionX = self.sprite.position.x
-    self.positionY = self.sprite.position.y
+    AnimatedSpider.update(self.sprite, dt, playerManager.player.position)
+    self.position = self.sprite.position
     -- Chama update base para lógica de habilidades
     BaseBoss.update(self, dt, playerManager, enemies)
 end

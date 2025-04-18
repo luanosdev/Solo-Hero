@@ -21,9 +21,9 @@ Skeleton.animationConfig = {
     deathFrameTime = 0.15
 }
 
-function Skeleton:new(position)
+function Skeleton:new(position, id)
     -- Cria uma nova instância do inimigo base
-    local enemy = BaseEnemy.new(self, position)
+    local enemy = BaseEnemy.new(self, position, id)
     
     -- Configura o sprite do esqueleto
     enemy.sprite = AnimatedSkeleton.newConfig({

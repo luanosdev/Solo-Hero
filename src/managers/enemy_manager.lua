@@ -1,10 +1,12 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
 local ManagerRegistry = require("src.managers.manager_registry")
+local DropManager = require("src.managers.drop_manager")
 
 local EnemyManager = {
     enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos
     maxEnemies = 300,           -- Número máximo de inimigos permitidos na tela simultaneamente
+    nextEnemyId = 1,           -- Próximo ID a ser atribuído a um inimigo
     
     -- Estado de Ciclo e Tempo
     worldConfig = nil,          -- Configuração carregada para o mundo (contém a lista de 'cycles')
@@ -25,6 +27,8 @@ local EnemyManager = {
 -- Inicializa o gerenciador de inimigos para um mundo específico
 function EnemyManager:init(worldId)
     self.playerManager = ManagerRegistry:get("playerManager")
+    self.dropManager = ManagerRegistry:get("dropManager")
+    self.nextEnemyId = 1 -- Reseta o contador de IDs
 
     worldId = worldId or "default" -- Usa 'default' se nenhum ID de mundo for fornecido
     self.enemies = {}             -- Limpa a lista de inimigos
@@ -163,6 +167,11 @@ function EnemyManager:update(dt)
             if enemy.startDeathAnimation then
                 enemy:startDeathAnimation()
             end
+            
+            -- Se for um boss, processa os drops
+            if enemy.isBoss then
+                self.dropManager:processBossDrops(enemy)
+            end
     
         end
         
@@ -245,6 +254,11 @@ function EnemyManager:spawnSpecificEnemy(enemyClass)
        print("Erro: Tentativa de spawnar inimigo com classe nula.")
        return
     end
+
+    -- Obtém o próximo ID disponível antes de criar o inimigo
+    local enemyId = self.nextEnemyId
+    print(string.format("Próximo ID disponível: %d", enemyId))
+    
     -- Calcula um raio de spawn fora da área visível da tela
     local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
     -- Gera um ângulo aleatório
@@ -252,10 +266,18 @@ function EnemyManager:spawnSpecificEnemy(enemyClass)
     -- Calcula as coordenadas X e Y com base no ângulo e raio a partir da posição do jogador
     local spawnX = self.playerManager.player.position.x + math.cos(angle) * minSpawnRadius
     local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
-    -- Cria a nova instância do inimigo
-    local enemy = enemyClass:new({x = spawnX, y = spawnY})
+    
+    -- Cria a nova instância do inimigo com o ID
+    local enemy = enemyClass:new({x = spawnX, y = spawnY}, enemyId)
+    
+    -- Incrementa o contador de IDs
+    self.nextEnemyId = self.nextEnemyId + 1
+    print(string.format("ID incrementado para: %d", self.nextEnemyId))
+    
     -- Adiciona o inimigo à lista de inimigos ativos
     table.insert(self.enemies, enemy)
+    
+    print(string.format("Inimigo ID: %d spawnado em (%.1f, %.1f)", enemy.id, spawnX, spawnY))
 end
 
 -- Função para transformar um inimigo em MVP
@@ -290,13 +312,18 @@ function EnemyManager:spawnMVP()
     local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
     if not enemyClass then return end
     
+    -- Obtém o próximo ID disponível
+    local enemyId = self.nextEnemyId
+    print(string.format("Próximo ID disponível para MVP: %d", enemyId))
+    
     -- Spawna o inimigo normalmente
-    local enemy = enemyClass:new(self.playerManager.player.position)
     self:spawnSpecificEnemy(enemyClass)
     
     -- Transforma o último inimigo spawnado em MVP
     if #self.enemies > 0 then
-        self:transformToMVP(self.enemies[#self.enemies])
+        local mvp = self.enemies[#self.enemies]
+        self:transformToMVP(mvp)
+        print(string.format("MVP ID: %d criado", mvp.id))
     end
 end
 
@@ -312,12 +339,16 @@ function EnemyManager:spawnBoss(bossClass, powerLevel)
     local spawnX = self.playerManager.player.position.x + math.cos(angle) * minSpawnRadius
     local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
 
+    -- Obtém o próximo ID disponível
+    local enemyId = self.nextEnemyId
+    self.nextEnemyId = self.nextEnemyId + 1
+
     -- Cria o boss com o nível de poder especificado
-    local boss = bossClass:new({x = spawnX, y = spawnY})
+    local boss = bossClass:new({x = spawnX, y = spawnY}, enemyId)
     boss.powerLevel = powerLevel or 3 -- Usa 3 como padrão se não for especificado
     table.insert(self.enemies, boss)
 
-    print(string.format("Boss %s (Nível %d) spawnado!", boss.name, boss.powerLevel))
+    print(string.format("Boss %s (ID: %d, Nível %d) spawnado!", boss.name, enemyId, boss.powerLevel))
 end
 
 return EnemyManager

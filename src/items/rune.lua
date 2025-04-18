@@ -6,7 +6,7 @@
 local Rune = {
     name = "Runa Base",
     description = "Uma runa mágica que concede poderes ao portador",
-    rarity = "common", -- common, rare, epic, legendary
+    rarity = "E", -- E, D, C, B, A, S, SS, SSS
     abilities = {} -- Lista de habilidades que podem ser obtidas
 }
 
@@ -40,13 +40,21 @@ end
 function Rune:rollRarity()
     local roll = math.random()
     if roll < 0.5 then
-        return "common"
+        return "E"
     elseif roll < 0.8 then
-        return "rare"
+        return "D"
     elseif roll < 0.95 then
-        return "epic"
+        return "C"
+    elseif roll < 0.98 then
+        return "B"
+    elseif roll < 0.99 then
+        return "A"
+    elseif roll < 1 then
+        return "S"
+    elseif roll < 1.01 then
+        return "SS"
     else
-        return "legendary"
+        return "SSS"
     end
 end
 
@@ -60,14 +68,22 @@ function Rune:getRandomAbilities(rarity)
     local count = 1
     
     -- Define quantas habilidades a runa terá baseado na raridade
-    if rarity == "common" then
+    if rarity == "E" then
         count = 1
-    elseif rarity == "rare" then
+    elseif rarity == "D" then
         count = 2
-    elseif rarity == "epic" then
+    elseif rarity == "C" then
         count = 3
-    else -- legendary
+    elseif rarity == "B" then
         count = 4
+    elseif rarity == "A" then
+        count = 5
+    elseif rarity == "S" then
+        count = 6
+    elseif rarity == "SS" then
+        count = 7
+    elseif rarity == "SSS" then
+        count = 8
     end
     
     -- Lista de todas as habilidades disponíveis

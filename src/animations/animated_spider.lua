@@ -85,10 +85,10 @@ function AnimatedSpider.getClosestAngle(angle)
 end
 
 -- Atualiza a animação
-function AnimatedSpider.update(config, dt, targetX, targetY)
+function AnimatedSpider.update(config, dt, targetPosition)
     -- Calcula direção para o alvo
-    local dx = targetX - config.position.x
-    local dy = targetY - config.position.y
+    local dx = targetPosition.x - config.position.x
+    local dy = targetPosition.y - config.position.y
     local angle = math.atan2(dy, dx) * (180 / math.pi)
     if angle < 0 then angle = angle + 360 end
     -- Ajuste: subtrai 90 graus para alinhar 0° do sprite (cima) com 0° matemático (direita)

@@ -6,7 +6,6 @@
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
-local FloatingTextManager = require("src.managers.floating_text_manager")
 
 local RuneChoiceModal = {
     playerManager = nil,
@@ -20,8 +19,10 @@ local RuneChoiceModal = {
 --[[
     Inicializa o modal
 ]]
-function RuneChoiceModal:init(playerManager)
+function RuneChoiceModal:init(playerManager, inputManager, floatingTextManager)
     self.playerManager = playerManager
+    self.inputManager = inputManager
+    self.floatingTextManager = floatingTextManager
 end
 
 --[[
@@ -49,8 +50,29 @@ end
 function RuneChoiceModal:update()
     if not self.visible then return end
     
+    -- Navegação com o teclado
+    if self.inputManager:isKeyDown("up") or self.inputManager:isKeyDown("w") then
+        self.selectedIndex = self.selectedIndex - 1
+    elseif self.inputManager:isKeyDown("down") or self.inputManager:isKeyDown("s")  then
+        self.selectedIndex = self.selectedIndex + 1
+    end
+
+    if self.inputManager:isKeyPressed("return") and self.selectedOption then
+        self:applyUpgrade(self.options[self.selectedOption])
+        self:hide()
+    end
+
+    -- Verifica o clique do mouse
+    if self.inputManager.mouse.leftButtonPressed then
+        local clickedOption = self:getOptionAtPosition(self.inputManager.mouse.x, self.inputManager.mouse.y)
+        if clickedOption then
+            self:applyAbility(self.abilities[clickedOption])
+            self:hide()
+        end
+    end
+
     -- Atualiza a opção com hover do mouse
-    local mouseX, mouseY = love.mouse.getPosition()
+    local mouseX, mouseY = self.inputManager:getMousePosition()
     self.hoveredOption = self:getOptionAtPosition(mouseX, mouseY)
     if self.hoveredOption then
         self.selectedIndex = self.hoveredOption
@@ -83,22 +105,6 @@ function RuneChoiceModal:getOptionAtPosition(x, y)
 end
 
 --[[
-    Lida com cliques do mouse
-    @param x Posição X do mouse
-    @param y Posição Y do mouse
-    @param button Botão do mouse pressionado
-]]
-function RuneChoiceModal:mousepressed(x, y, button)
-    if not self.visible or button ~= 1 then return end
-    
-    local clickedOption = self:getOptionAtPosition(x, y)
-    if clickedOption then
-        self:applyAbility(self.abilities[clickedOption])
-        self:hide()
-    end
-end
-
---[[
     Aplica a habilidade selecionada ao jogador
     @param abilityClass Classe da habilidade a ser aplicada
 ]]
@@ -112,12 +118,12 @@ function RuneChoiceModal:applyAbility(abilityClass)
     ability:init(self.playerManager)
     
     -- Adiciona a habilidade ao jogador
-    self.playerManager.addRune(ability)
+    self.playerManager:addRune(ability)
     
     -- Mostra mensagem de habilidade obtida
-    FloatingTextManager:addText(
+    self.floatingTextManager:addText(
         self.playerManager.player.position.x,
-        self.playerManager.player.position.y - self.playerManager.player.radius - 30,
+        self.playerManager.player.position.y - 30,
         "Nova Habilidade: " .. ability.name,
         true,
         self.playerManager.player.position,
@@ -162,7 +168,7 @@ function RuneChoiceModal:draw()
         
         -- Desenha o fundo da opção com efeito de brilho se selecionada
         if i == self.selectedIndex then
-            elements.drawRarityBorderAndGlow("rare", modalX + 20, optionY, optionWidth, optionHeight)
+            elements.drawRarityBorderAndGlow(self.rune.rarity, modalX + 20, optionY, optionWidth, optionHeight)
             love.graphics.setColor(colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.3)
             love.graphics.rectangle("fill", 
                 modalX + 20, optionY, 

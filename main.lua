@@ -73,6 +73,11 @@ function love.update(dt)
         return
     end
 
+    if RuneChoiceModal.visible then
+        RuneChoiceModal:update()
+        return
+    end
+
     -- Atualiza todos os managers
     ManagerRegistry:update(dt)
 end
@@ -99,6 +104,9 @@ function love.draw()
 
     -- Desenha o LevelUpModal acima de tudo
     LevelUpModal:draw()
+    
+    -- Desenha o RuneChoiceModal acima de tudo
+    RuneChoiceModal:draw()
     
     -- Debug info dos inimigos
     local enemies = EnemyManager:getEnemies()

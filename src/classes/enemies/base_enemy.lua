@@ -24,17 +24,36 @@ local BaseEnemy = {
     color = {1, 0, 0}, -- Cor padrão vermelha
     name = "BaseEnemy",
     experienceValue = 10, -- Experiência base para todos os inimigos
-    healthBarWidth = 30 -- Largura padrão da barra de vida
+    healthBarWidth = 30, -- Largura padrão da barra de vida
+    id = 0 -- ID único do inimigo
 }
 
-function BaseEnemy:new(position)
-    local enemy = setmetatable({}, { __index = self })
-    enemy.position = position
-    enemy.currentHealth = enemy.maxHealth
+function BaseEnemy:new(position, id)
+    local enemy = {}
+    setmetatable(enemy, { __index = self })
+    
+    -- Copia todas as propriedades base
+    enemy.position = {
+        x = position.x or 0,
+        y = position.y or 0
+    }
+    enemy.radius = self.radius
+    enemy.speed = self.speed
+    enemy.maxHealth = self.maxHealth
+    enemy.currentHealth = self.maxHealth
     enemy.isAlive = true
-    enemy.lastDamageTime = 0
     enemy.damage = self.damage
+    enemy.lastDamageTime = 0
+    enemy.damageCooldown = self.damageCooldown
+    enemy.attackSpeed = self.attackSpeed
+    enemy.color = self.color
+    enemy.name = self.name
+    enemy.id = id or 0 -- Atribui o ID fornecido ou usa 0 como fallback
+    enemy.experienceValue = self.experienceValue
+    enemy.healthBarWidth = self.healthBarWidth
 
+    print(string.format("BaseEnemy criado com ID: %d", enemy.id)) -- Log para debug
+    
     return enemy
 end
 
@@ -160,7 +179,7 @@ end
 function BaseEnemy:takeDamage(damage, isCritical)
     -- Aplica o dano
     self.currentHealth = self.currentHealth - damage
-    
+    print(string.format("Inimigo ID: %d, Dano: %d, Vida: %d", self.id, damage, self.currentHealth))
     -- Mostra o número de dano
     addFloatingText(
         self.position.x,

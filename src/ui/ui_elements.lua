@@ -205,7 +205,7 @@ function elements.drawRarityBorderAndGlow(itemRarity, x, y, w, h)
 
     if glowShader then
         love.graphics.setShader(glowShader)
-        local glowCol = {rarityColor.r, rarityColor.g, rarityColor.b, 0.6}
+        local glowCol = {rarityColor[1], rarityColor[2], rarityColor[3], 0.6}
         glowShader:send("glowColor", glowCol)
         glowShader:send("glowRadius", 4.0)
         love.graphics.setLineWidth(5)
@@ -214,7 +214,7 @@ function elements.drawRarityBorderAndGlow(itemRarity, x, y, w, h)
     end
 
     love.graphics.setLineWidth(2)
-    love.graphics.setColor(rarityColor.r, rarityColor.g, rarityColor.b, rarityColor.a)
+    love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], rarityColor[4])
     love.graphics.rectangle("line", x, y, w, h, 3, 3)
     love.graphics.setLineWidth(1)
 end

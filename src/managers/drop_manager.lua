@@ -70,10 +70,10 @@ function DropManager:processBossDrops(boss)
         local angle = angleStep * (i - 1) + (math.random() * 0.2 - 0.1) -- Adiciona um pouco de aleatoriedade
         
         -- Calcula a posição do drop no círculo
-        local dropX = boss.positionX + math.cos(angle) * spreadRadius
-        local dropY = boss.positionY + math.sin(angle) * spreadRadius
+        local dropX = boss.position.x + math.cos(angle) * spreadRadius
+        local dropY = boss.position.y + math.sin(angle) * spreadRadius
         
-        self:createDrop(drop, dropX, dropY)
+        self:createDrop(drop, {x = dropX, y = dropY})
     end
 end
 
@@ -83,8 +83,8 @@ end
     @param x Posição X do drop
     @param y Posição Y do drop
 ]]
-function DropManager:createDrop(drop, x, y)
-    local dropEntity = DropEntity:new(x, y, drop)
+function DropManager:createDrop(drop, position)
+    local dropEntity = DropEntity:new(position, drop)
     table.insert(self.activeDrops, dropEntity)
 end
 
@@ -95,7 +95,7 @@ end
 function DropManager:update(dt)
     for i = #self.activeDrops, 1, -1 do
         local drop = self.activeDrops[i]
-        if drop:update(dt, PlayerManager) then
+        if drop:update(dt, self.playerManager) then
             -- Se o drop foi coletado, aplica seus efeitos
             self:applyDrop(drop.config)
             table.remove(self.activeDrops, i)
@@ -111,7 +111,7 @@ function DropManager:applyDrop(drop)
     if drop.type == "rune" then
         print("Gerando runa de raridade:", drop.rarity)
         local rune = self.runeManager:generateRune(drop.rarity)
-        self.playerManager.addRune(rune)
+        self.runeManager:applyRune(rune)
         
     elseif drop.type == "gold" then
         local amount = math.random(drop.amount.min, drop.amount.max)

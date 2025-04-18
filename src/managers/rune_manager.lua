@@ -17,8 +17,10 @@ local RuneManager = {
 ]]
 function RuneManager:init()
     self.activeRunes = {}
-    RuneChoiceModal:init()
+    self.playerManager = ManagerRegistry:get("playerManager")
     self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
+    self.inputManager = ManagerRegistry:get("inputManager")
+    RuneChoiceModal:init(self.playerManager, self.inputManager, self.floatingTextManager)
 end
 
 --[[
@@ -46,11 +48,11 @@ function RuneManager:applyRune(rune)
     
     -- Mostra mensagem de runa obtida
     self.floatingTextManager:addText(
-        self.player.position.x,
-        self.player.position.y - self.player.radius - 30,
+        self.playerManager.player.position.x,
+        self.playerManager.player.position.y -  - 30,
         "Nova Runa: " .. rune.name,
         true,
-        self.player.positio,
+        self.playerManager.player.position,
         {1, 0.5, 0} -- Cor laranja para runas
     )
 end
@@ -61,14 +63,6 @@ end
 ]]
 function RuneManager:update()
     RuneChoiceModal:update()
-end
-
---[[
-    Desenha as runas ativas
-]]
-function RuneManager:draw()
-    -- As habilidades são desenhadas pelo próprio jogador
-    RuneChoiceModal:draw()
 end
 
 --[[

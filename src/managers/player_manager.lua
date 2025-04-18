@@ -6,13 +6,12 @@ local SpritePlayer = require('src.animations.sprite_player')
 local Warrior = require('src.classes.player.warrior')
 local PlayerState = require("src.entities.player_state")
 local LevelUpModal = require("src.ui.level_up_modal")
-local RuneManager = require("src.managers.rune_manager")
 local Camera = require("src.config.camera")
 local WoodenSword = require("src.items.weapons.wooden_sword")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
-local ManagerRegistry = require("src.managers.manager_registry")
 local LevelUpAnimation = require("src.animations.level_up_animation")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local PlayerManager = {
     -- Referência ao player sprite
@@ -26,7 +25,7 @@ local PlayerManager = {
     
     -- Level System
     level = 1,
-    experience = 40,
+    experience = 10,
     experienceToNextLevel = 50,
     experienceMultiplier = 1.10, -- Multiplicador de experiência para o próximo nível
     
@@ -114,7 +113,6 @@ function PlayerManager:init()
     
     -- Inicializa os modais
     LevelUpModal:init(self, self.inputManager)
-    RuneManager:init()
     
     -- Inicializa a animação de level up
     self.levelUpAnimation = LevelUpAnimation:new()
@@ -149,7 +147,7 @@ function PlayerManager:update(dt)
     
     -- Update all rune abilities
     for _, rune in ipairs(self.runes) do
-        rune:update(dt)
+        rune:update(dt, self.enemyManager.enemies)
         
         -- Executa a runa automaticamente se o cooldown zerar
         if rune.cooldownRemaining <= 0 then
