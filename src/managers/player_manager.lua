@@ -12,6 +12,7 @@ local WoodenSword = require("src.items.weapons.wooden_sword")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local ManagerRegistry = require("src.managers.manager_registry")
+local LevelUpAnimation = require("src.animations.level_up_animation")
 
 local PlayerManager = {
     -- Referência ao player sprite
@@ -69,7 +70,11 @@ local PlayerManager = {
     equippedWeapon = nil,
     availableWeapons = {
         [1] = WoodenSword,
-    }
+    },
+
+    -- Level Up Animation
+    isLevelingUp = false,
+    levelUpAnimation = nil
 }
 
 -- Inicializa o player manager
@@ -110,6 +115,9 @@ function PlayerManager:init()
     -- Inicializa os modais
     LevelUpModal:init(self, self.inputManager)
     RuneManager:init()
+    
+    -- Inicializa a animação de level up
+    self.levelUpAnimation = LevelUpAnimation:new()
 end
 
 -- Atualiza o estado do player e da câmera
@@ -122,6 +130,14 @@ function PlayerManager:update(dt)
     -- Atualiza o tempo de jogo
     self.gameTime = self.gameTime + dt
     
+    -- Atualiza a animação de level up se estiver ativa
+    if self.isLevelingUp then
+        self.levelUpAnimation:update(dt, self.player.position.x, self.player.position.y)
+        if self.levelUpAnimation.isComplete then
+            self.isLevelingUp = false
+            LevelUpModal:show()
+        end
+    end
     
     -- Atualiza o ataque da arma
     if self.equippedWeapon and self.equippedWeapon.attackInstance then
@@ -174,6 +190,11 @@ function PlayerManager:draw()
     
     -- Restaura o estado de transformação
     love.graphics.pop()
+    
+    -- Desenha a animação de level up se estiver ativa
+    if self.isLevelingUp then
+        self.levelUpAnimation:draw(self.player.position.x, self.player.position.y)
+    end
     
     -- Desenha o sprite do player
     love.graphics.setColor(1, 1, 1, 1)
@@ -539,7 +560,9 @@ function PlayerManager:levelUp()
         {1, 1, 0}
     )
     
-    LevelUpModal:show()
+    -- Inicia a animação de level up
+    self.isLevelingUp = true
+    self.levelUpAnimation:start(self.player.position)
 end
 
 -- Funções de controle
