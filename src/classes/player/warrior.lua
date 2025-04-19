@@ -12,10 +12,10 @@ local Warrior = {
     baseSpeed = 60,
     baseDefense = 10,
     attackSpeed = 0.7,  -- Attacks per second
-    criticalChance = 0.2, -- 20% de chance de crítico
+    criticalChance = 0.6, -- 20% de chance de crítico
     criticalMultiplier = 1.8, -- 80% de dano crítico
     healthRegen = 0.2, -- 0.2 HP por segundo 
-    baseMultiAttackChance = 0, -- Chance base de ataque múltiplo
+    baseMultiAttackChance = 0.8, -- Chance base de ataque múltiplo
     -- Class Name
     name = "Warrior",
     -- Starting Weapon

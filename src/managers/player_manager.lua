@@ -8,6 +8,7 @@ local PlayerState = require("src.entities.player_state")
 local LevelUpModal = require("src.ui.level_up_modal")
 local Camera = require("src.config.camera")
 local WoodenSword = require("src.items.weapons.wooden_sword")
+local Bow = require("src.items.weapons.bow")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local LevelUpAnimation = require("src.animations.level_up_animation")
@@ -62,6 +63,7 @@ local PlayerManager = {
     equippedWeapon = nil,
     availableWeapons = {
         [1] = WoodenSword,
+        [2] = Bow
     },
 
     -- Level Up Animation

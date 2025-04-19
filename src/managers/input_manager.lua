@@ -135,6 +135,11 @@ function InputManager:keypressed(key)
     if key == "f1" then
         self.playerManager:levelUp()
     end
+
+    if key >= "1" and key <= "9" then
+        local index = tonumber(key)
+        self.playerManager:switchWeapon(index)
+    end
 end
 
 -- Manipulador de movimento do mouse

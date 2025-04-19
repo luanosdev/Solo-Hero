@@ -38,6 +38,7 @@ function BaseWeapon:equip(owner)
         attackInstance.range = self.range
         attackInstance.previewColor = self.previewColor
         attackInstance.attackColor = self.attackColor
+        attackInstance.baseProjectiles = self.baseProjectiles -- Passa o número de projéteis
         
         print("Propriedades do ataque:")
         print("- Dano:", attackInstance.damage)
@@ -45,6 +46,7 @@ function BaseWeapon:equip(owner)
         print("- Alcance:", attackInstance.range)
         print("- Cor de preview:", attackInstance.previewColor)
         print("- Cor de ataque:", attackInstance.attackColor)
+        print("- Projéteis base:", attackInstance.baseProjectiles)
         
         -- Inicializa o ataque com o dono
         attackInstance:init(owner)

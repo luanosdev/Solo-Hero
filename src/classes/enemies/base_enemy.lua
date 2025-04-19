@@ -107,10 +107,10 @@ function BaseEnemy:update(dt, playerManager, enemies)
                 totalSeparationX = totalSeparationX + sepX * overlap * separationStrength
                 totalSeparationY = totalSeparationY + sepY * overlap * separationStrength
             elseif distSq == 0 then -- Exatamente na mesma posição
-                 -- Empurra em uma direção aleatória para separá-los
-                 local angle = math.random() * 2 * math.pi
-                 totalSeparationX = totalSeparationX + math.cos(angle) * self.radius * separationStrength
-                 totalSeparationY = totalSeparationY + math.sin(angle) * self.radius * separationStrength * 0.5 -- Menos força no Y devido à isometria
+                -- Empurra em uma direção aleatória para separá-los
+                local angle = math.random() * 2 * math.pi
+                totalSeparationX = totalSeparationX + math.cos(angle) * self.radius * separationStrength
+                totalSeparationY = totalSeparationY + math.sin(angle) * self.radius * separationStrength * 0.5 -- Menos força no Y devido à isometria
             end
         end
     end
