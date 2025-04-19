@@ -8,6 +8,14 @@ local PlayerState = {
     maxHealth = 0,
     isAlive = true,
     
+    -- Atributos de Jogo
+    level = 1,
+    experience = 0,
+    experienceToNextLevel = 50, -- Valor inicial, pode ser ajustado
+    experienceMultiplier = 1.10, -- Multiplicador para o próximo nível
+    kills = 0,
+    gold = 0,
+    
     -- Atributos base
     baseHealth = 0,
     baseDamage = 0,
@@ -65,6 +73,14 @@ function PlayerState:init(baseStats)
     self.baseMultiAttackChance = baseStats.multiAttackChance or 0 -- Inicializa chance de ataque múltiplo base
     self.baseArea = baseStats.area or 0 -- Inicializa área base
     self.baseRange = baseStats.range or 0 -- Inicializa alcance base
+    
+    -- Reinicializa atributos de jogo para o estado inicial
+    self.level = 1
+    self.experience = 0
+    self.experienceToNextLevel = 50 -- Ou um valor base configurável
+    self.experienceMultiplier = 1.10 -- Ou um valor base configurável
+    self.kills = 0
+    self.gold = 0
     
     -- Inicializa bônus de nível
     self.levelBonus = {
@@ -328,6 +344,46 @@ end
 ]]
 function PlayerState:getTotalRange()
     return self.baseRange * (1 + self.levelBonus.range / 100)
+end
+
+--[[
+    Adiciona experiência ao jogador e verifica se houve level up.
+    @param amount Quantidade de experiência a adicionar.
+    @return boolean True se o jogador subiu de nível, false caso contrário.
+]]
+function PlayerState:addExperience(amount)
+    if not self.isAlive then return false end
+
+    self.experience = self.experience + amount
+    local leveledUp = false
+    while self.experience >= self.experienceToNextLevel do
+        self.level = self.level + 1
+        local previousRequired = self.experienceToNextLevel
+        -- Mantém o excesso de XP para o próximo nível
+        self.experience = self.experience - previousRequired
+        self.experienceToNextLevel = previousRequired + math.floor(previousRequired * self.experienceMultiplier)
+        leveledUp = true
+        -- TODO: Considerar adicionar lógica de recompensa de level up aqui (cura, bônus, etc.)
+        -- Ex: self:heal(self:getTotalHealth() * 0.25) -- Cura 25% da vida ao subir de nível
+    end
+    return leveledUp
+end
+
+--[[
+    Adiciona ouro ao jogador.
+    @param amount Quantidade de ouro a adicionar.
+]]
+function PlayerState:addGold(amount)
+    if not self.isAlive then return end
+    self.gold = self.gold + amount
+end
+
+--[[
+    Incrementa a contagem de abates do jogador.
+]]
+function PlayerState:addKill()
+    if not self.isAlive then return end
+    self.kills = self.kills + 1
 end
 
 return PlayerState 

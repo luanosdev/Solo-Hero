@@ -58,8 +58,8 @@ function HUD:draw()
     BossHealthBar:draw()
 
     -- Barra de XP com estilo Solo Leveling
-    local experienceForNextLevel = PlayerManager.experienceToNextLevel - (PlayerManager.level > 1 and PlayerManager.experienceToNextLevel / (1 + PlayerManager.experienceMultiplier) or 0)
-    local currentExperience = PlayerManager.experience - (PlayerManager.level > 1 and PlayerManager.experienceToNextLevel / (1 + PlayerManager.experienceMultiplier) or 0)
+    local experienceForNextLevel = PlayerManager.state.experienceToNextLevel - (PlayerManager.state.level > 1 and PlayerManager.state.experienceToNextLevel / (1 + PlayerManager.state.experienceMultiplier) or 0)
+    local currentExperience = PlayerManager.state.experience - (PlayerManager.state.level > 1 and PlayerManager.state.experienceToNextLevel / (1 + PlayerManager.state.experienceMultiplier) or 0)
     local barW = screenW * 0.4
     local barH = 20
     local barX = (screenW - barW) / 2
@@ -85,7 +85,7 @@ function HUD:draw()
     
     -- Nível do Player com estilo Solo Leveling
     love.graphics.setFont(fonts.hud)
-    local levelText = string.format("Nível %d", PlayerManager.level or 1)
+    local levelText = string.format("Nível %d", PlayerManager.state.level or 1)
     local levelWidth = fonts.hud:getWidth(levelText)
     local levelX = barX + (barW - levelWidth) / 2
     local levelY = barY + barH + 5

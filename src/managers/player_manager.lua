@@ -23,16 +23,8 @@ local PlayerManager = {
     -- Estado do player
     state = nil,
     
-    -- Level System
-    level = 1,
-    experience = 10,
-    experienceToNextLevel = 50,
-    experienceMultiplier = 1.10, -- Multiplicador de experiência para o próximo nível
-    
     -- Game Stats
     gameTime = 0,
-    kills = 0,
-    gold = 0,
     
     -- Abilities
     runes = {}, -- Lista de habilidades de runas
@@ -365,12 +357,12 @@ function PlayerManager:draw()
         PlayerManager.player.animation.currentFrame,
         PlayerManager.player.animation.isMovingBackward and "Backward" or "Forward",
         
-        -- Valores de level
-        PlayerManager.level,
-        PlayerManager.experience,
-        PlayerManager.experienceToNextLevel,
-        PlayerManager.kills,
-        PlayerManager.gold,
+        -- Valores de level (agora em PlayerState)
+        PlayerManager.state.level,
+        PlayerManager.state.experience,
+        PlayerManager.state.experienceToNextLevel,
+        PlayerManager.state.kills,
+        PlayerManager.state.gold,
         PlayerManager.gameTime,
         
         -- Valores de habilidades
@@ -552,18 +544,15 @@ end
 
 -- Funções de experiência e level
 function PlayerManager:addExperience(amount)
-    self.experience = self.experience + amount
-    
-    if self.experience >= self.experienceToNextLevel then
-        self:levelUp()
+    local leveledUp = self.state:addExperience(amount)
+    if leveledUp then
+        self:onLevelUp()
     end
 end
 
-function PlayerManager:levelUp()
-    self.level = self.level + 1
-    local previousRequired = self.experienceToNextLevel
-    self.experienceToNextLevel = previousRequired + math.floor(previousRequired * self.experienceMultiplier)
-    
+--[[ Função chamada quando o PlayerState indica um level up ]]
+function PlayerManager:onLevelUp()
+    -- Efeitos visuais e sonoros de level up
     self.floatingTextManager:addText(
         self.player.position.x,
         self.player.position.y - self.radius - 30,
@@ -572,10 +561,13 @@ function PlayerManager:levelUp()
         self.player.position,
         {1, 1, 0}
     )
-    
-    -- Inicia a animação de level up
+
+    -- Inicia a animação de level up (que então mostrará o modal)
     self.isLevelingUp = true
     self.levelUpAnimation:start(self.player.position)
+
+    -- Log para debug
+    print(string.format("[PlayerManager] Level up para %d! Próximo nível em %d XP.", self.state.level, self.state.experienceToNextLevel))
 end
 
 -- Funções de controle
@@ -689,8 +681,10 @@ function PlayerManager:keypressed(key)
     
     -- Tecla de teste para subir de nível (F1)
     if key == "f1" then
-        print("[DEBUG] Subindo de nível manualmente...")
-        self:levelUp()
+        print("[DEBUG] Adicionando XP para forçar level up...")
+        -- Adiciona a quantidade de XP necessária para o próximo nível + 1
+        local xpNeeded = self.state.experienceToNextLevel - self.state.experience
+        self:addExperience(math.max(1, xpNeeded))
     end
 end
 

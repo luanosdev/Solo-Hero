@@ -2,7 +2,7 @@
  
 ## Bugs rastreados: 
 
-[ ] - Corrigir a mira automatica
+[x] - Corrigir a mira automatica
 [x] - Coneslash: Aumentar por padrao a distancia do cone
 [x] - Diminuir o colisor dos esqueletos
 [x] - Verificar porque os esqueletos estao tao rapidos
