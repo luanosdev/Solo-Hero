@@ -1,9 +1,8 @@
--- src/abilities/player/attacks/triple_arrow.lua
 local Arrow = require("src.projectiles.arrow") -- Precisaremos criar este arquivo
 
-local TripleArrow = {
-    name = "Triple Arrow",
-    description = "Dispara três flechas em cone. Ataques múltiplos adicionam mais flechas.",
+local ArrowProjectile = {
+    name = "Arrow Projectile",
+    description = "Dispara uma flecha em cone. Ataques múltiplos adicionam mais flechas.",
     cooldown = 1.0, -- Será sobrescrito pela arma
     damageType = "ranged",
     visual = {
@@ -17,7 +16,7 @@ local TripleArrow = {
     }
 }
 
-function TripleArrow:init(playerManager)
+function ArrowProjectile:init(playerManager)
     self.playerManager = playerManager
     self.cooldownRemaining = 0
     self.activeArrows = {} -- Tabela para guardar as flechas ativas
@@ -43,7 +42,7 @@ function TripleArrow:init(playerManager)
     self.baseArrows = self.baseProjectiles or 3 -- Lê o número de flechas da arma, ou usa 3 como padrão
 end
 
-function TripleArrow:update(dt, angle)
+function ArrowProjectile:update(dt, angle)
     -- Atualiza cooldown
     if self.cooldownRemaining > 0 then
         self.cooldownRemaining = self.cooldownRemaining - dt
@@ -53,6 +52,10 @@ function TripleArrow:update(dt, angle)
     if self.area then
         self.area.position = self.playerManager.player.position
         self.area.angle = angle
+        -- Recalcula range (alcance das flechas) e largura do cone de disparo
+        local weapon = self.playerManager.equippedWeapon
+        self.area.range = weapon.range + self.playerManager.state:getTotalRange() 
+        self.area.angleWidth = weapon.angle + self.playerManager.state:getTotalArea()
     end
 
     -- Atualiza as flechas ativas
@@ -66,7 +69,7 @@ function TripleArrow:update(dt, angle)
     end
 end
 
-function TripleArrow:cast()
+function ArrowProjectile:cast()
     if self.cooldownRemaining > 0 then
         return false
     end
@@ -131,9 +134,9 @@ function TripleArrow:cast()
     return true
 end
 
-function TripleArrow:draw()
+function ArrowProjectile:draw()
     if not self.area then 
-        error("[Erro] [TripleArrow.draw] Área não definida!")
+        error("[Erro] [ArrowProjectile.draw] Área não definida!")
         return
     end
 
@@ -149,7 +152,7 @@ function TripleArrow:draw()
     end
 end
 
-function TripleArrow:drawPreviewLine()
+function ArrowProjectile:drawPreviewLine()
     love.graphics.setColor(1, 1, 1, 0.5)
     love.graphics.line(
         self.area.position.x, 
@@ -160,16 +163,16 @@ function TripleArrow:drawPreviewLine()
     -- Adicionar desenho do cone de preview aqui se desejado
 end
 
-function TripleArrow:getCooldownRemaining()
+function ArrowProjectile:getCooldownRemaining()
     return self.cooldownRemaining
 end
 
-function TripleArrow:togglePreview()
+function ArrowProjectile:togglePreview()
     self.visual.preview.active = not self.visual.preview.active
 end
 
-function TripleArrow:getPreview()
+function ArrowProjectile:getPreview()
     return self.visual.preview.active
 end
 
-return TripleArrow 
+return ArrowProjectile 

@@ -1,5 +1,5 @@
 local BaseWeapon = require("src.items.weapons.base_weapon")
-local TripleArrow = require("src.abilities.player.attacks.arrow_projectile") -- Vamos criar este arquivo a seguir
+local ArrowProjectile = require("src.abilities.player.attacks.arrow_projectile") -- Vamos criar este arquivo a seguir
 
 local Bow = BaseWeapon:new({
     name = "Arco Curto",
@@ -18,7 +18,7 @@ local Bow = BaseWeapon:new({
     attackColor = {0.2, 0.8, 0.2, 0.7},  -- Verde mais opaco para ataque
 
     -- Define o tipo de ataque que esta arma usa
-    attackType = TripleArrow 
+    attackType = ArrowProjectile 
 })
 
 return Bow 

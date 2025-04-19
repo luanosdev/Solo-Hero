@@ -57,6 +57,10 @@ function ConeSlash:update(dt, angle)
     if self.area then
         self.area.position = self.playerManager.player.position
         self.area.angle = angle
+        -- Recalcula range e largura do ângulo com bônus atuais
+        local weapon = self.playerManager.equippedWeapon
+        self.area.range = weapon.range + self.playerManager.state:getTotalRange()
+        self.area.angleWidth = weapon.angle + self.playerManager.state:getTotalArea()
     end
 
     
