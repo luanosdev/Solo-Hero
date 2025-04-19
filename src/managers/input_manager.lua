@@ -18,10 +18,10 @@ InputManager.keys = {
 InputManager.mouse = {
     x = 0,
     y = 0,
-    leftButton = false,
-    rightButton = false,
-    leftButtonPressed = false,
-    rightButtonPressed = false
+    isLeftButtonDown = false,      -- Verdadeiro enquanto o botão esquerdo estiver pressionado
+    isRightButtonDown = false,     -- Verdadeiro enquanto o botão direito estiver pressionado
+    wasLeftButtonPressed = false,  -- Verdadeiro apenas no frame em que o botão esquerdo foi pressionado
+    wasRightButtonPressed = false  -- Verdadeiro apenas no frame em que o botão direito foi pressionado
 }
 
 -- Referência para o PlayerManager
@@ -48,9 +48,9 @@ function InputManager:update(dt, hasActiveModal)
         return
     end
 
-    -- Reseta os estados de pressionamento do mouse
-    self.mouse.leftButtonPressed = false
-    self.mouse.rightButtonPressed = false
+    -- Reseta os estados de pressionamento do mouse (eventos de frame único)
+    self.mouse.wasLeftButtonPressed = false
+    self.mouse.wasRightButtonPressed = false
     
     -- Atualiza estado das teclas de movimento
     self.keys.moveUp = love.keyboard.isDown("w") or love.keyboard.isDown("up")
@@ -147,26 +147,26 @@ end
 -- Manipulador de clique do mouse
 function InputManager:mousepressed(x, y, button)
     if button == 1 then -- Botão esquerdo
-        self.mouse.leftButton = true
-        self.mouse.leftButtonPressed = true
+        self.mouse.isLeftButtonDown = true       -- Define o estado 'segurado' como verdadeiro
+        self.mouse.wasLeftButtonPressed = true -- Define o evento 'pressionado' como verdadeiro para este frame
         if self.playerManager then
             self.playerManager:leftMouseClicked(x, y)
         end
     elseif button == 2 then -- Botão direito
-        self.mouse.rightButton = true
-        self.mouse.rightButtonPressed = true
+        self.mouse.isRightButtonDown = true
+        self.mouse.wasRightButtonPressed = true
     end
 end
 
 -- Manipulador do fim do clique do mouse
 function InputManager:mousereleased(x, y, button)
     if button == 1 then -- Botão esquerdo
-        self.mouse.leftButton = false
+        self.mouse.isLeftButtonDown = false -- Define o estado 'segurado' como falso
         if self.playerManager then
             self.playerManager:leftMouseReleased(x, y)
         end
     elseif button == 2 then -- Botão direito
-        self.mouse.rightButton = false
+        self.mouse.isRightButtonDown = false
     end
 end
 

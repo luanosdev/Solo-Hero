@@ -62,8 +62,9 @@ local PlayerManager = {
     lastMouseY = 0,
     
     -- Mouse pressed tracking
-    previousAutoAttack = false,
-    previousAutoAim = false,
+    originalAutoAttackState = false, -- Guarda o estado original do auto-ataque
+    originalAutoAimState = false, -- Guarda o estado original do auto-aim
+    previousLeftButtonState = false, -- Estado do botão esquerdo no frame anterior
     
     -- Weapons
     equippedWeapon = nil,
@@ -122,6 +123,39 @@ end
 function PlayerManager:update(dt)
     if not self.state.isAlive then return end
     
+    -- Gerenciamento do estado do botão esquerdo do mouse
+    local currentLeftButtonState = self.inputManager.mouse.isLeftButtonDown
+
+    -- Botão foi pressionado neste frame?
+    if currentLeftButtonState and not self.previousLeftButtonState then
+        -- Salva o estado atual das opções de toggle
+        self.originalAutoAttackState = self.autoAttackEnabled
+        self.originalAutoAimState = self.autoAimEnabled
+    end
+
+    -- Botão está sendo segurado?
+    if currentLeftButtonState then
+        -- Força ataque contínuo e mira no mouse
+        self.autoAttack = true
+        self.autoAim = false
+    else
+        -- Botão não está pressionado, usa as configurações de toggle
+        self.autoAttack = self.autoAttackEnabled
+        self.autoAim = self.autoAimEnabled
+
+        -- Botão foi solto neste frame?
+        if not currentLeftButtonState and self.previousLeftButtonState then
+            -- A restauração já ocorreu no bloco 'else' acima
+            -- Poderíamos garantir que os 'Enabled' reflitam o estado restaurado, mas
+            -- como o clique não deve alterar os toggles, não mexemos neles aqui.
+            -- self.autoAttackEnabled = self.originalAutoAttackState -- Opcional
+            -- self.autoAimEnabled = self.originalAutoAimState     -- Opcional
+        end
+    end
+
+    -- Atualiza o estado anterior do botão para o próximo frame
+    self.previousLeftButtonState = currentLeftButtonState
+
     -- Atualiza o input manager
     self.inputManager:update(dt)
     
@@ -601,14 +635,11 @@ function PlayerManager:getTargetPosition()
 end
 
 function PlayerManager:leftMouseClicked(x, y)
-    if not self.autoAttackEnabled then
-        -- Apenas chama o ataque. A mira é definida em update.
-        self:attack()
-    end
+    -- Nada a fazer aqui por enquanto, a lógica foi movida para update
 end
 
 function PlayerManager:leftMouseReleased(x, y)
-    -- Nada a fazer aqui por enquanto
+    -- Nada a fazer aqui por enquanto, a lógica foi movida para update
 end
 
 -- Retorna a posição de colisão do player (nos pés do sprite)

@@ -218,7 +218,7 @@ function LevelUpModal:update()
     end
 
     -- Verifica clique do mouse
-    if self.inputManager.mouse.leftButtonPressed then
+    if self.inputManager.mouse.wasLeftButtonPressed then
         local clickedOption = self:getOptionAtPosition(self.inputManager.mouse.x, self.inputManager.mouse.y)
         if clickedOption then
             self.selectedOption = clickedOption

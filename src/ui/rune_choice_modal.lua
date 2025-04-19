@@ -63,7 +63,7 @@ function RuneChoiceModal:update()
     end
 
     -- Verifica o clique do mouse
-    if self.inputManager.mouse.leftButtonPressed then
+    if self.inputManager.mouse.wasLeftButtonPressed then
         local clickedOption = self:getOptionAtPosition(self.inputManager.mouse.x, self.inputManager.mouse.y)
         if clickedOption then
             self:applyAbility(self.abilities[clickedOption])
