@@ -15,3 +15,4 @@
 [ ] - Fazer um loop para rodar o level up sempre que o tiver ja XP para o proximo nivel
 [ ] - Fazer uma fila para a exibição de modais
 [ ] - Adicionar um contador de nivel de upgrades vc ja conseguiu para limitar um valor maximo
+[x] - Constatado, no halls of torment os ataques ao tem nada de isometricos, somente o visual

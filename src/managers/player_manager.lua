@@ -150,7 +150,7 @@ function PlayerManager:update(dt)
         rune:update(dt, self.enemyManager.enemies)
         
         -- Executa a runa automaticamente se o cooldown zerar
-        if rune.cooldownRemaining <= 0 then
+        if rune.cooldownRemaining and rune.cooldownRemaining <= 0 then
             rune:cast(self.player.x, self.player.y)
         end
     end
@@ -194,6 +194,11 @@ function PlayerManager:draw()
         self.levelUpAnimation:draw(self.player.position.x, self.player.position.y)
     end
     
+    -- Desenha todas as runas (aura, orbital, etc) ATRÁS do jogador
+    for _, rune in ipairs(self.runes) do
+        rune:draw()
+    end
+    
     -- Desenha o sprite do player
     love.graphics.setColor(1, 1, 1, 1)
     SpritePlayer.draw(self.player)
@@ -201,11 +206,6 @@ function PlayerManager:draw()
     -- Desenha a arma equipada e seu ataque
     if self.equippedWeapon and self.equippedWeapon.attackInstance then
         self.equippedWeapon.attackInstance:draw()
-    end
-    
-    -- Desenha todas as runas
-    for _, rune in ipairs(self.runes) do
-        rune:draw()
     end
     
     -- Draw health bar

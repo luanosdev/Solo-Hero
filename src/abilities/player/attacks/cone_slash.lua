@@ -138,11 +138,7 @@ function ConeSlash:isPointInArea(position)
     if not self.area then return false end
     if not self.area then return false end
 
-    -- Transforma ambos para espaço isométrico
-    local px, py = position.x, position.y * 2
-    local ox, oy = self.area.position.x, self.area.position.y * 2
-
-    local dx, dy = px - ox, py - oy
+    local dx, dy = position.x - self.area.position.x, position.y - self.area.position.y
     local distance = math.sqrt(dx * dx + dy * dy)
     
     if distance > self.area.range then return false end
@@ -203,38 +199,18 @@ function ConeSlash:drawPreviewLine()
     -- Configura a cor da linha de preview
     love.graphics.setColor(1, 1, 1, 0.5) -- Branco semi-transparente
     
-    -- Salva o estado atual de transformação
-    love.graphics.push()
-    
-    -- Translada para a posição do jogador
-    love.graphics.translate(self.area.position.x, self.area.position.y)
-    
-    -- Aplica a transformação isométrica
-    love.graphics.scale(1, 0.5)
-    
     -- Desenha a linha na direção do mouse
     love.graphics.line(
-        0, 0,
-        math.cos(self.area.angle) * self.visual.preview.lineLength,
-        math.sin(self.area.angle) * self.visual.preview.lineLength
+        self.area.position.x, 
+        self.area.position.y,
+        self.area.position.x + math.cos(self.area.angle) * self.visual.preview.lineLength,
+        self.area.position.y + math.sin(self.area.angle) * self.visual.preview.lineLength
     )
-    
-    -- Restaura o estado de transformação
-    love.graphics.pop()
 end
 
 function ConeSlash:drawCone(color, progress)
     -- Configura a cor
     love.graphics.setColor(color)
-    
-    -- Salva o estado atual de transformação
-    love.graphics.push()
-    
-    -- Translada para a posição do cone
-    love.graphics.translate(self.area.position.x, self.area.position.y)
-    
-    -- Aplica a transformação isométrica
-    love.graphics.scale(1, 0.5) -- Escala vertical para efeito isométrico
     
     -- Calcula os ângulos do cone
     local startAngle = self.area.angle - self.area.angleWidth / 2
@@ -250,7 +226,8 @@ function ConeSlash:drawCone(color, progress)
         love.graphics.arc(
             "fill",
             "pie",
-            0, 0,
+            self.area.position.x, 
+            self.area.position.y,
             self.area.range,
             startAngle,
             fillEndAngle,
@@ -260,39 +237,40 @@ function ConeSlash:drawCone(color, progress)
         -- Desenha uma linha mais intensa no final do preenchimento
         love.graphics.setColor(color[1], color[2], color[3], color[4])
         love.graphics.line(
-            0, 0,
-            math.cos(fillEndAngle) * self.area.range,
-            math.sin(fillEndAngle) * self.area.range
+            self.area.position.x, 
+            self.area.position.y,
+            self.area.position.x + math.cos(fillEndAngle) * self.area.range,
+            self.area.position.y + math.sin(fillEndAngle) * self.area.range
         )
     end
     
     -- Desenha as linhas do cone (contorno)
     love.graphics.setColor(color)
     love.graphics.line(
-        0, 0,
-        math.cos(startAngle) * self.area.range,
-        math.sin(startAngle) * self.area.range
+        self.area.position.x, 
+        self.area.position.y,
+        self.area.position.x + math.cos(startAngle) * self.area.range,
+        self.area.position.y + math.sin(startAngle) * self.area.range
     )
     
     love.graphics.line(
-        0, 0,
-        math.cos(endAngle) * self.area.range,
-        math.sin(endAngle) * self.area.range
+        self.area.position.x, 
+        self.area.position.y,
+        self.area.position.x + math.cos(endAngle) * self.area.range,
+        self.area.position.y + math.sin(endAngle) * self.area.range
     )
     
     -- Desenha o arco do cone
     love.graphics.arc(
         "line",
         "open",
-        0, 0,
+        self.area.position.x, 
+        self.area.position.y,
         self.area.range,
         startAngle,
         endAngle,
         32 -- Número de segmentos para o arco
     )
-    
-    -- Restaura o estado de transformação
-    love.graphics.pop()
 end
 
 function ConeSlash:getCooldownRemaining()

@@ -3,22 +3,23 @@
     Uma aura que causa dano aos inimigos próximos periodicamente
 ]]
 
-local BaseAbility = require("src.abilities.player._base_ability")
-
-local Aura = setmetatable({}, { __index = BaseAbility })
+local Aura = {}
 
 Aura.name = "Aura de Dano"
 Aura.description = "Causa dano aos inimigos próximos periodicamente"
-Aura.cooldown = 1-- Tempo entre cada pulso de dano
-Aura.damage = 20
+Aura.cooldown = 1 -- Tempo entre cada pulso de dano
+Aura.damage = 10
 Aura.damageType = "aura"
 Aura.color = {1, 0.5, 0, 0.2} -- Cor laranja para a aura
 
 Aura.radius = 100 -- Raio da aura
 Aura.pulseDuration = 0.3 -- Duração do pulso visual
+Aura.shadowOffset = 3 -- Deslocamento da sombra
+Aura.shadowAlpha = 0.2 -- Transparência da sombra
 
 function Aura:init(playerManager)
-    BaseAbility.init(self, playerManager)
+    self.playerManager = playerManager
+    self.cooldownRemaining = 0
     
     -- Estado da aura
     self.aura = {
@@ -29,7 +30,9 @@ function Aura:init(playerManager)
 end
 
 function Aura:update(dt, enemies)
-    BaseAbility.update(self, dt)
+    if self.cooldownRemaining > 0 then
+        self.cooldownRemaining = math.max(0, self.cooldownRemaining - dt)
+    end
     
     if self.aura.active then
         -- Atualiza o pulso visual
@@ -57,11 +60,22 @@ end
 
 function Aura:draw()
     if self.aura.active then
+        local playerX = self.playerManager.player.position.x
+        local playerY = self.playerManager.player.position.y + 25 -- Ajusta para ficar nos pés do sprite
+        
+        -- Desenha a sombra da aura
+        love.graphics.setColor(0, 0, 0, self.shadowAlpha)
+        love.graphics.circle("fill", 
+            playerX + self.shadowOffset, 
+            playerY + self.shadowOffset, 
+            self.radius
+        )
+        
         -- Desenha a aura base
         love.graphics.setColor(self.color)
         love.graphics.circle("fill", 
-            self.playerManager.player.position.x, 
-            self.playerManager.player.position.y, 
+            playerX, 
+            playerY, 
             self.radius
         )
         
@@ -73,8 +87,8 @@ function Aura:draw()
             
             love.graphics.setColor(self.color[1], self.color[2], self.color[3], self.color[4] * alpha)
             love.graphics.circle("line", 
-                self.playerManager.player.position.x, 
-                self.playerManager.player.position.y, 
+                playerX, 
+                playerY, 
                 pulseRadius
             )
         end
@@ -82,9 +96,7 @@ function Aura:draw()
 end
 
 function Aura:cast()
-    if not BaseAbility.cast(self, self.playerManager.player.position.x, self.playerManager.player.position.y) then
-        return false
-    end
+    if self.cooldownRemaining > 0 then return false end
     
     -- Ativa a aura
     self.aura.active = true
@@ -92,6 +104,11 @@ function Aura:cast()
     self.aura.pulseTime = 0
     
     return true
+end
+
+function Aura:applyDamage(target)
+    if not target or not target.takeDamage then return false end
+    return target:takeDamage(self.damage)
 end
 
 function Aura:applyAuraDamage(enemies)
