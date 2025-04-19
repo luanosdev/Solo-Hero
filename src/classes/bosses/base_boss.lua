@@ -56,14 +56,7 @@ end
 
 function BaseBoss:draw()
     if not self.isAlive then return end
-    
-    -- Desenha o boss com efeito visual especial
-    love.graphics.setColor(self.color)
-    love.graphics.circle("fill", self.positionX, self.positionY, self.radius)
-    
-    -- Desenha um círculo de brilho ao redor do boss
-    love.graphics.setColor(self.color[1], self.color[2], self.color[3], 0.3)
-    love.graphics.circle("fill", self.positionX, self.positionY, self.radius * 1.5)
+    BaseEnemy.draw(self)
 end
 
 return BaseBoss 

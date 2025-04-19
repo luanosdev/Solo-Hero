@@ -208,67 +208,98 @@ function ConeSlash:drawPreviewLine()
 end
 
 function ConeSlash:drawCone(color, progress)
-    -- Configura a cor
+    local innerRange = self.playerManager.radius * 1.5 -- Define o raio interno para remover a ponta
+    local segments = 32 -- Número de segmentos para o arco
+
+    -- Configura a cor base
     love.graphics.setColor(color)
-    
+
+    -- Posição central e raio externo
+    local cx = self.area.position.x
+    local cy = self.area.position.y
+    local outerRange = self.area.range
+
     -- Calcula os ângulos do cone
     local startAngle = self.area.angle - self.area.angleWidth / 2
     local endAngle = self.area.angle + self.area.angleWidth / 2
-    
-    -- Desenha o preenchimento do cone com animação de slash
+
+    -- Desenha a animação do preenchimento (slash) como um setor de anel
     if progress > 0 then
-        -- Calcula o ângulo de preenchimento baseado no progresso
         local fillEndAngle = startAngle + (self.area.angleWidth * progress)
-        
-        -- Desenha o setor circular preenchido
+        local vertices = {}
+        -- Evita divisão por zero ou número inválido de segmentos se o ângulo for mínimo
+        local currentSegments = math.max(1, math.ceil(segments * progress)) 
+        local angle_step = (fillEndAngle - startAngle) / currentSegments
+
+        -- Vértices do arco externo (sentido horário)
+        for i = 0, currentSegments do
+            local angle = startAngle + i * angle_step
+            table.insert(vertices, cx + outerRange * math.cos(angle))
+            table.insert(vertices, cy + outerRange * math.sin(angle))
+        end
+
+        -- Vértices do arco interno (sentido anti-horário)
+        for i = currentSegments, 0, -1 do
+            local angle = startAngle + i * angle_step
+            table.insert(vertices, cx + innerRange * math.cos(angle))
+            table.insert(vertices, cy + innerRange * math.sin(angle))
+        end
+
+        -- Desenha o polígono preenchido (setor do anel)
         love.graphics.setColor(color[1], color[2], color[3], color[4] * 0.8)
-        love.graphics.arc(
-            "fill",
-            "pie",
-            self.area.position.x, 
-            self.area.position.y,
-            self.area.range,
-            startAngle,
-            fillEndAngle,
-            32 -- Número de segmentos para o arco
-        )
-        
-        -- Desenha uma linha mais intensa no final do preenchimento
+        if #vertices >= 6 then -- Precisa de pelo menos 3 pontos (6 coordenadas) para um polígono
+             love.graphics.polygon("fill", vertices)
+        end
+
+        -- Desenha uma linha mais intensa no final do preenchimento (entre raio interno e externo)
         love.graphics.setColor(color[1], color[2], color[3], color[4])
         love.graphics.line(
-            self.area.position.x, 
-            self.area.position.y,
-            self.area.position.x + math.cos(fillEndAngle) * self.area.range,
-            self.area.position.y + math.sin(fillEndAngle) * self.area.range
+            cx + innerRange * math.cos(fillEndAngle),
+            cy + innerRange * math.sin(fillEndAngle),
+            cx + outerRange * math.cos(fillEndAngle),
+            cy + outerRange * math.sin(fillEndAngle)
         )
     end
-    
-    -- Desenha as linhas do cone (contorno)
-    love.graphics.setColor(color)
+
+    -- Desenha as linhas do contorno do cone (setor do anel)
+    love.graphics.setColor(color) -- Cor original completa
+
+    -- Linha radial inicial
     love.graphics.line(
-        self.area.position.x, 
-        self.area.position.y,
-        self.area.position.x + math.cos(startAngle) * self.area.range,
-        self.area.position.y + math.sin(startAngle) * self.area.range
+        cx + innerRange * math.cos(startAngle),
+        cy + innerRange * math.sin(startAngle),
+        cx + outerRange * math.cos(startAngle),
+        cy + outerRange * math.sin(startAngle)
     )
-    
+
+    -- Linha radial final
     love.graphics.line(
-        self.area.position.x, 
-        self.area.position.y,
-        self.area.position.x + math.cos(endAngle) * self.area.range,
-        self.area.position.y + math.sin(endAngle) * self.area.range
+        cx + innerRange * math.cos(endAngle),
+        cy + innerRange * math.sin(endAngle),
+        cx + outerRange * math.cos(endAngle),
+        cy + outerRange * math.sin(endAngle)
     )
-    
-    -- Desenha o arco do cone
+
+    -- Arco externo
     love.graphics.arc(
         "line",
         "open",
-        self.area.position.x, 
-        self.area.position.y,
-        self.area.range,
+        cx, cy,
+        outerRange,
         startAngle,
         endAngle,
-        32 -- Número de segmentos para o arco
+        segments
+    )
+
+    -- Arco interno
+    love.graphics.arc(
+        "line",
+        "open",
+        cx, cy,
+        innerRange,
+        startAngle,
+        endAngle,
+        segments
     )
 end
 

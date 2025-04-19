@@ -45,20 +45,19 @@ local worldCycles = {
         -- === Ciclo 1: Primeiros 3 Minutos (Apenas Skeleton) ===
         {
             -- Duração deste ciclo em segundos.
-            duration = 60 * 3, 
+            duration = 30, 
             
             -- Lista de inimigos permitidos neste ciclo e seus pesos relativos para spawn.
             -- Usado tanto para Major Spawns quanto para Minor Spawns.
             -- 'weight' maior significa maior chance de ser escolhido.
             allowedEnemies = { 
                 {class = Skeleton, weight = 1},
-                {class = Zombie, weight = 1}
             },
             
             -- Configuração para os spawns grandes e cronometrados ("Major Spawns").
             majorSpawn = {
                 -- Intervalo (em segundos) entre cada Major Spawn durante este ciclo.
-                interval = 60,      
+                interval = 10,      
                 -- Quantidade base de inimigos que aparecem em cada Major Spawn no início do jogo.
                 baseCount = 20,      
                 -- Porcentagem (em decimal) do baseCount a ser adicionada como inimigos extras para cada minuto de jogo decorrido.
@@ -69,7 +68,7 @@ local worldCycles = {
             -- Configuração para os spawns pequenos e contínuos ("Minor Spawns").
             minorSpawn = {
                 -- Intervalo inicial (em segundos) entre cada Minor Spawn no início do jogo.
-                baseInterval = 5,     
+                baseInterval = 2,     
                 -- Quanto o intervalo entre Minor Spawns diminui (em segundos) para cada minuto de jogo decorrido.
                 -- Controla o escalonamento da frequência dos Minor Spawns.
                 intervalReductionPerMin = 0.45, 
@@ -82,13 +81,12 @@ local worldCycles = {
         
         -- === Ciclo 2: Próximos 3 Minutos [~+50% density] ===
         {
-            duration = 60 * 3, 
+            duration = 30, 
             allowedEnemies = { 
-                {class = Skeleton, weight = 1},
                 {class = Zombie, weight = 1}
             },
             majorSpawn = {
-                interval = 60,      
+                interval = 10,      
                 baseCount = 12,     
                 -- Porcentagem (em decimal) do baseCount a ser adicionada como inimigos extras por minuto.
                 countScalePerMin = 0.25,

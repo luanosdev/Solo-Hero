@@ -172,28 +172,10 @@ end
 function BaseEnemy:draw()
     if not self.isAlive then return end
     
-    -- Desenha a barra de vida
-    local healthBarWidth = self.healthBarWidth
-    local healthBarHeight = 4
-    local healthPercentage = self.currentHealth / self.maxHealth
-    
-    -- Fundo da barra de vida
-    love.graphics.setColor(0.2, 0.2, 0.2)
-    love.graphics.rectangle("fill", 
-        self.position.x - healthBarWidth/2, 
-        self.position.y - 60,
-        healthBarWidth, 
-        healthBarHeight
-    )
-    
-    -- Barra de vida
-    love.graphics.setColor(1, 0, 0)
-    love.graphics.rectangle("fill", 
-        self.position.x - healthBarWidth/2, 
-        self.position.y - 60,
-        healthBarWidth * healthPercentage, 
-        healthBarHeight
-    )
+    -- Desenha a area de colisão
+    local collisionPosition = self:getCollisionPosition()
+    love.graphics.setColor(1, 0, 0, 0.5)
+    love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
 end
 
 function BaseEnemy:takeDamage(damage, isCritical)
@@ -226,7 +208,7 @@ function BaseEnemy:getCollisionPosition()
     return {
         position = {
             x = self.position.x,
-            y = self.position.y + 15,
+            y = self.position.y + 10,
         },
         radius = self.radius
     }

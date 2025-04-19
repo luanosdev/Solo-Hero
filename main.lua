@@ -6,7 +6,6 @@ local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local HUD = require("src.ui.hud")
 local fonts = require("src.ui.fonts")
 
-
 -- Importa os managers
 local ManagerRegistry = require("src.managers.manager_registry")
 local PlayerManager = require("src.managers.player_manager")
@@ -205,7 +204,6 @@ function drawIsometricGrid()
     
     Camera:detach()
 end
-
 
 -- Função para adicionar um novo texto flutuante
 function addFloatingText(x, y, text, isCritical, target, customColor)

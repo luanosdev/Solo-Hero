@@ -234,6 +234,9 @@ end
     @param fixed Fixed percentage of bonus to add (for defense)
 ]]
 function PlayerState:addAttributeBonus(attribute, percentage, fixed)
+    -- Garante que 'fixed' tenha um valor numérico para evitar erros
+    fixed = fixed or 0
+
     if self.levelBonus[attribute] then
         -- Adiciona o bônus
         local oldBonus = self.levelBonus[attribute]

@@ -14,7 +14,7 @@ Skeleton.color = {0.7, 0.7, 0.7} -- Cor cinza para o esqueleto
 
 -- Configurações de animação
 Skeleton.animationConfig = {
-    scale = 1,
+    scale = 1.2,
     walkPath = "assets/enemies/skeleton/walk/%s/skeleton_default_walk_%s_%s_%d.png",
     deathPath = "assets/enemies/skeleton/death/%s/skeleton_special_death_%s_%s_%d.png",
     frameTime = 0.05,
@@ -111,11 +111,6 @@ function Skeleton:draw()
     -- Desenha o sprite do esqueleto
     love.graphics.setColor(1, 1, 1, 1)
     AnimatedSkeleton.draw(self.sprite)
-
-    -- Desenha a area de colisão
-    local collisionPosition = self:getCollisionPosition()
-    love.graphics.setColor(1, 0, 0, 0.5)
-    love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
 end
 
 return Skeleton 

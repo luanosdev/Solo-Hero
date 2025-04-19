@@ -5,8 +5,8 @@ local Spider = setmetatable({}, { __index = BaseBoss })
 
 -- Configurações específicas do boss Spider
 Spider.name = "Spider"
-Spider.radius = 60
-Spider.speed = 80
+Spider.radius = 40
+Spider.speed = 40
 Spider.maxHealth = 2000
 Spider.damage = 60
 Spider.color = {0.3, 0.3, 0.3} -- Cinza escuro
@@ -47,11 +47,11 @@ Spider.animationConfig = {
     shadowColor = {1, 1, 1, 0.5}, -- Sombra mais clara para a aranha
     resetFrameOnStop = false,
     instanceDefaults = { -- Valores padrão para cada instância Spider
-        scale = 2.0,
-        speed = 80,
+        scale = 1,
+        speed = Spider.speed,
         animation = {
             frameTime = 0.12, -- Tempo entre frames de walk
-            deathFrameTime = 0.10 -- Tempo entre frames de death (mais rápido)
+            deathFrameTime = 0.05 -- Tempo entre frames de death (mais rápido)
         }
     }
 }
@@ -102,13 +102,7 @@ end
 
 function Spider:draw()
     AnimatedCharacter.draw("Spider", self.sprite)
-end
-
-function Spider:takeDamage(amount)
-    self.health = self.health - amount
-    if self.health <= 0 and self.isAlive then
-        self.isAlive = false
-    end
+    BaseBoss.draw(self)
 end
 
 -- Função para iniciar a animação de morte

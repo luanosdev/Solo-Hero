@@ -7,9 +7,9 @@ local WoodenSword = require("src.items.weapons.wooden_sword")
 
 local Warrior = {
     -- Base Stats
-    baseHealth = 100,
+    baseHealth = 400,
     baseDamage = 0,
-    baseSpeed = 80,
+    baseSpeed = 60,
     baseDefense = 10,
     attackSpeed = 0.7,  -- Attacks per second
     criticalChance = 0.2, -- 20% de chance de crítico

@@ -49,8 +49,8 @@ Zombie.animationConfig = {
     drawShadow = true,
     resetFrameOnStop = false,
     instanceDefaults = { -- Valores padrão para cada instância Zumbi
-        scale = 0.35,
-        speed = 20,
+        scale = 0.4,
+        speed = Zombie.speed,
         animation = {
             frameTime = 0.05, -- Tempo entre frames de walk
             deathFrameTime = 0.12 -- Tempo entre frames de death
@@ -93,9 +93,6 @@ function Zombie:takeDamage(damage, isCritical)
     if died and not self.isDying then
         self.isDying = true
         AnimatedCharacter.startDeath("Zombie", self.sprite)
-        -- Limpa o caminho ao morrer
-        -- self.pathPoints = {}
-        -- self.currentTargetIndex = 1
     end
 
     return died
@@ -112,8 +109,8 @@ function Zombie:update(dt, playerManager, enemies)
         local animationFinished = AnimatedCharacter.update("Zombie", self.sprite, dt, nil)
         -- Se a animação terminou, começa timer para remover o corpo
         if animationFinished and not self.isDeathAnimationComplete then
-             self.isDeathAnimationComplete = true
-             self.deathTimer = 0 -- Inicia timer agora
+            self.isDeathAnimationComplete = true
+            self.deathTimer = 0 -- Inicia timer agora
         end
         -- Se a animação terminou e o timer expirou, marca para remoção
         if self.isDeathAnimationComplete then
@@ -165,11 +162,6 @@ function Zombie:update(dt, playerManager, enemies)
             x = self.sprite.position.x + dirX * lookAheadDist + perpX * self.deviationMagnitude,
             y = self.sprite.position.y + dirY * lookAheadDist + perpY * self.deviationMagnitude
         }
-
-        -- DEBUG: Desenhar o alvo com desvio
-        -- love.graphics.setColor(1,0,0,1) -- Vermelho para debug
-        -- love.graphics.circle("fill", targetForAnimation.x, targetForAnimation.y, 5)
-        -- love.graphics.line(self.sprite.position.x, self.sprite.position.y, targetForAnimation.x, targetForAnimation.y)
     else
         -- Se já está em cima do jogador, não há desvio ou direção definida
         targetForAnimation = playerPos
@@ -197,27 +189,6 @@ function Zombie:draw()
     -- Desenha a barra de vida e área de colisão (apenas se vivo)
     if self.isAlive then
         BaseEnemy.draw(self) -- Chama draw base para health bar e collision area (se debug ativado)
-
-        -- DEBUG: Desenha o caminho Z e o alvo atual (REMOVER ou adaptar se necessário)
-        -- if self.pathPoints and #self.pathPoints > 0 then
-        --     love.graphics.setColor(0, 1, 1, 0.5) -- Ciano para o caminho
-        --     local pointsToDraw = {}
-        --     table.insert(pointsToDraw, self.position.x)
-        --     table.insert(pointsToDraw, self.position.y)
-        --     for i = self.currentTargetIndex, #self.pathPoints do
-        --         table.insert(pointsToDraw, self.pathPoints[i].x)
-        --         table.insert(pointsToDraw, self.pathPoints[i].y)
-        --     end
-        --     if #pointsToDraw >= 4 then
-        --         love.graphics.line(pointsToDraw)
-        --     end
-        --     -- Desenha o alvo atual
-        --     if self.currentTargetIndex <= #self.pathPoints then
-        --         local currentTarget = self.pathPoints[self.currentTargetIndex]
-        --         love.graphics.setColor(1, 1, 0, 0.8) -- Amarelo para o alvo
-        --         love.graphics.circle("fill", currentTarget.x, currentTarget.y, 5)
-        --     end
-        -- end
     end
 end
 
