@@ -41,18 +41,25 @@ function ConeSlash:init(playerManager)
             x = self.playerManager.player.position.x,
             y = self.playerManager.player.position.y
         },
-        angle = 0,
+        angle = 0, -- Ângulo inicializado, será atualizado pelo PlayerManager
         range = weapon.range + self.playerManager.state:getTotalRange(), -- Usa o range da arma + bônus do player
         angleWidth = weapon.angle + self.playerManager.state:getTotalArea() -- Usa o ângulo da arma + bônus do player
     }
 end
 
-function ConeSlash:update(dt)
+function ConeSlash:update(dt, angle)
     -- Atualiza cooldown
     if self.cooldownRemaining > 0 then
         self.cooldownRemaining = self.cooldownRemaining - dt
     end
 
+    -- Atualiza a posição do cone para seguir o jogador
+    if self.area then
+        self.area.position = self.playerManager.player.position
+        self.area.angle = angle
+    end
+
+    
     -- Atualiza animação do ataque
     if self.isAttacking then
         self.attackProgress = self.attackProgress + (dt / self.visual.attack.animationDuration)
@@ -62,20 +69,9 @@ function ConeSlash:update(dt)
         end
     end
 
-    -- Atualiza a posição do cone para seguir o jogador
-    if self.area then
-        self.area.position = self.playerManager.player.position
-
-        local mouseX, mouseY = love.mouse.getPosition()
-        local worldX, worldY = Camera:screenToWorld(mouseX, mouseY)
-
-        local dx = worldX - self.area.position.x
-        local dy = worldY - self.area.position.y
-        self.area.angle = math.atan2(dy, dx)
-    end
 end
 
-function ConeSlash:cast(enemies)
+function ConeSlash:cast()
     if self.cooldownRemaining > 0 then
         return false
     end
@@ -94,25 +90,28 @@ function ConeSlash:cast(enemies)
     local decimalChance = multiAttackChance - extraAttacks
     
     -- Primeiro ataque sempre ocorre
-    local success = self:executeAttack(enemies)
+    local success = self:executeAttack()
     
     -- Executa ataques extras
     for i = 1, extraAttacks do
         if success then
-            success = self:executeAttack(enemies)
+            success = self:executeAttack()
         end
     end
     
     -- Chance de ataque extra baseado no decimal
     if success and decimalChance > 0 and math.random() < decimalChance then
-        self:executeAttack(enemies)
+        self:executeAttack()
     end
     
     return success
 end
 
 -- Função auxiliar para executar um único ataque
-function ConeSlash:executeAttack(enemies)
+function ConeSlash:executeAttack()
+    -- Busca os inimigos diretamente do EnemyManager
+    local enemies = self.playerManager.enemyManager:getEnemies()
+    
     -- Verifica colisão com inimigos
     local enemiesHit = 0
     local totalEnemies = 0

@@ -236,7 +236,7 @@ function SpritePlayer.getAngleDifference(angle1, angle2)
 end
 
 -- Atualiza o estado da animação
-function SpritePlayer.update(config, dt, camera)
+function SpritePlayer.update(config, dt, targetPosition)
     local dx, dy = 0, 0
     
     -- Processa entrada de movimento
@@ -264,22 +264,25 @@ function SpritePlayer.update(config, dt, camera)
     config.position.x = config.position.x + dx * config.speed * dt
     config.position.y = config.position.y + dy * config.speed * dt
     
-    -- Obtém posição do mouse relativa às coordenadas do mundo
-    local mouseX, mouseY = love.mouse.getPosition()
-    mouseX = mouseX + camera.x
-    mouseY = mouseY + camera.y
-    
-    -- Calcula ângulo até o mouse
-    local angleToMouse = math.atan2(mouseY - config.position.y, mouseX - config.position.x)
-    angleToMouse = angleToMouse * (180 / math.pi)
-    
+    -- Calcula ângulo até o alvo (se a posição do alvo foi fornecida)
+    local angleToTarget = 0
+    if targetPosition then
+        angleToTarget = math.atan2(targetPosition.y - config.position.y, targetPosition.x - config.position.x)
+        angleToTarget = angleToTarget * (180 / math.pi)
+    else
+        -- Fallback: se não houver alvo, mantém a direção atual ou usa uma padrão
+        -- Poderia usar a última direção conhecida ou uma direção padrão como 'S'
+        -- Por simplicidade, vamos apenas evitar erro e usar 0 (Direita 'E') se necessário
+        -- O ideal seria o PlayerManager sempre fornecer um alvo (pelo menos a posição do mouse)
+    end
+
     -- Calcula ângulo de movimento (se estiver movendo)
     local isMoving = dx ~= 0 or dy ~= 0
     if isMoving then
         local moveAngle = math.atan2(dy, dx) * (180 / math.pi)
         
-        -- Calcula diferença de ângulo entre movimento e direção
-        local angleDiff = SpritePlayer.getAngleDifference(angleToMouse, moveAngle)
+        -- Calcula diferença de ângulo entre movimento e direção do alvo
+        local angleDiff = SpritePlayer.getAngleDifference(angleToTarget, moveAngle)
         
         -- Se a diferença for maior que 90 graus, está movendo para trás
         config.animation.isMovingBackward = angleDiff > 90
@@ -287,8 +290,8 @@ function SpritePlayer.update(config, dt, camera)
         config.animation.isMovingBackward = false
     end
     
-    -- Atualiza direção baseada na posição do mouse
-    config.animation.direction = SpritePlayer.getDirectionFromAngle(angleToMouse)
+    -- Atualiza direção baseada na posição do alvo
+    config.animation.direction = SpritePlayer.getDirectionFromAngle(angleToTarget)
     
     -- Atualiza estado da animação e frames
     config.animation.timer = config.animation.timer + dt

@@ -1,7 +1,6 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
 local ManagerRegistry = require("src.managers.manager_registry")
-local DropManager = require("src.managers.drop_manager")
 
 local EnemyManager = {
     enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos

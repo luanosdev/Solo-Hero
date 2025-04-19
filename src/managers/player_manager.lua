@@ -137,9 +137,17 @@ function PlayerManager:update(dt)
         end
     end
     
+    -- Define a posição do alvo (para mira e animação)
+    local targetPosition = self:getTargetPosition()
+
     -- Atualiza o ataque da arma
     if self.equippedWeapon and self.equippedWeapon.attackInstance then
-        self.equippedWeapon.attackInstance:update(dt)
+        -- Atualiza o ângulo da habilidade com base no alvo ANTES de atualizar a instância
+        local dx = targetPosition.x - self.player.position.x
+        local dy = targetPosition.y - self.player.position.y
+        local angle = math.atan2(dy, dx)
+
+        self.equippedWeapon.attackInstance:update(dt, angle)
     end
     
     -- Update health recovery
@@ -158,8 +166,8 @@ function PlayerManager:update(dt)
     -- Atualiza o auto attack
     self:updateAutoAttack()
 
-    -- Atualiza o sprite do player
-    SpritePlayer.update(self.player, dt, Camera)
+    -- Atualiza o sprite do player passando a posição do alvo
+    SpritePlayer.update(self.player, dt, targetPosition)
     
     -- Atualiza a câmera
     Camera:follow(self.player.position, dt)
@@ -437,7 +445,7 @@ function PlayerManager:updateHealthRecovery(dt)
         if self.accumulatedRegen >= 1 then
             self.floatingTextManager:addText(
                 self.player.position.x,
-                self.player.position.y - self.radius - 40,
+                self.player.position.y - self.radius - 60,
                 "+1",
                 false,
                 self.player.position,
@@ -455,12 +463,8 @@ function PlayerManager:updateAutoAttack()
     if self.autoAttack or self.inputManager.mouse.leftButton then
         local cooldown = self.equippedWeapon.attackInstance:getCooldownRemaining()
         if cooldown <= 0 then
-            local targetX, targetY = self:getTargetPosition()
-            if targetX and targetY then
-                -- Converte as coordenadas da tela para coordenadas do mundo
-                -- Camera:screenToWorld(targetX.x, targetY.y)
-                self:attack()
-            end
+            -- Apenas ataca, a mira já foi definida em PlayerManager:update
+            self:attack()
         end
     end
 end
@@ -495,41 +499,18 @@ function PlayerManager:addRune(rune)
 end
 
 -- Função para atacar com a arma equipada
-function PlayerManager:attack(worldX, worldY)
+function PlayerManager:attack()
     if not self.equippedWeapon or not self.equippedWeapon.attackInstance then
         error("[Erro] [PlayerManager.attack] Nenhuma arma ou instância de ataque encontrada")
         return false
     end
-
-    local enemies = self.enemyManager:getEnemies()
-
-    local success = self.equippedWeapon.attackInstance:cast(enemies)
+    
+    -- A direção do ataque já foi definida em PlayerManager:update com base no targetPosition
+    local success = self.equippedWeapon.attackInstance:cast() -- Não precisa mais passar inimigos aqui
 
     if success then
         -- Inicia a animação de ataque do sprite
         SpritePlayer.startAttackAnimation(self.player)
-
-        -- Verifica colisão com inimigos
-        local enemiesHit = 0
-        local totalEnemies = 0
-        
-        for _, enemy in ipairs(enemies) do
-            if enemy.isAlive then
-                totalEnemies = totalEnemies + 1
-                -- Verifica se o inimigo está dentro da área de ataque usando isPointInArea
-                local isInArea = self.equippedWeapon.attackInstance:isPointInArea(enemy.position)
-                
-                if isInArea then
-                    enemiesHit = enemiesHit + 1
-                    -- Aplica o dano e verifica se o inimigo morreu
-                    if self.equippedWeapon.attackInstance:applyDamage(enemy) then
-                        -- Se o inimigo morreu, atualiza as estatísticas do jogador
-                        self.kills = self.kills + 1
-                    end
-                end
-            end
-        end
-
     end
 
     return success
@@ -580,49 +561,49 @@ function PlayerManager:toggleAutoAim()
     self.autoAim = self.autoAimEnabled
 end
 
+--[[
+    Função para obter a posição do alvo
+    Se o auto aim estiver ativado, procura o inimigo mais próximo
+    Se não estiver ativado, usa a posição do mouse
+]]
 function PlayerManager:getTargetPosition()
-    -- Obtém a posição atual do mouse
-    local mouseX, mouseY = self.inputManager:getMousePosition()
-    
-    -- Se o botão do mouse estiver pressionado, usa a posição do mouse
-    if self.inputManager.mouse.leftButton then
-        return mouseX, mouseY
-    end
-    
+    -- Obtém a posição atual do mouse em coordenadas do mundo
+    local mouseScreenX, mouseScreenY = self.inputManager:getMousePosition()
+    local mouseWorldX, mouseWorldY = Camera:screenToWorld(mouseScreenX, mouseScreenY)
+
     -- Se o auto aim estiver ativado, procura o inimigo mais próximo
     if self.autoAim then
         local enemies = self.enemyManager:getEnemies()
         local closestEnemy = nil
-        local closestDistance = math.huge
+        local closestDistanceSq = math.huge -- Usar distância quadrada para eficiência
         
         for _, enemy in ipairs(enemies) do
             if enemy.isAlive then
                 local dx = enemy.position.x - self.player.position.x
                 local dy = enemy.position.y - self.player.position.y
-                local distance = math.sqrt(dx * dx + dy * dy)
+                local distanceSq = dx * dx + dy * dy -- Comparar quadrado da distância
                 
-                if distance < closestDistance then
-                    closestDistance = distance
+                if distanceSq < closestDistanceSq then
+                    closestDistanceSq = distanceSq
                     closestEnemy = enemy
                 end
             end
         end
         
+        -- Se encontrou um inimigo, retorna a posição dele (mundo)
         if closestEnemy then
-            local screenX, screenY = Camera:worldToScreen(closestEnemy.position.x, closestEnemy.position.y)
-            return screenX, screenY
+            return { x = closestEnemy.position.x, y = closestEnemy.position.y }
         end
     end
     
-    -- Se não encontrou inimigo ou auto aim desativado, usa a posição do mouse
-    return mouseX, mouseY
+    -- Se não encontrou inimigo ou auto aim desativado, usa a posição do mouse (mundo)
+    return { x = mouseWorldX, y = mouseWorldY }
 end
 
 function PlayerManager:leftMouseClicked(x, y)
     if not self.autoAttackEnabled then
-        -- Converte as coordenadas da tela para coordenadas do mundo
-        local worldX, worldY = Camera:screenToWorld(x, y)
-        self:attack(worldX, worldY)
+        -- Apenas chama o ataque. A mira é definida em update.
+        self:attack()
     end
 end
 
