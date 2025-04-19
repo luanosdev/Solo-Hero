@@ -4,6 +4,7 @@
 
 -- Requer as classes de inimigos que serão usadas nas configurações abaixo.
 local Skeleton = require("src.classes.enemies.skeleton")
+local Zombie = require("src.classes.enemies.zombie")
 local SpiderBoss = require("src.classes.bosses.spider")
 
 -- Estrutura principal que contém a configuração dos ciclos para um "mundo" específico.
@@ -50,7 +51,8 @@ local worldCycles = {
             -- Usado tanto para Major Spawns quanto para Minor Spawns.
             -- 'weight' maior significa maior chance de ser escolhido.
             allowedEnemies = { 
-                {class = Skeleton, weight = 1} 
+                {class = Skeleton, weight = 1},
+                {class = Zombie, weight = 1}
             },
             
             -- Configuração para os spawns grandes e cronometrados ("Major Spawns").
@@ -82,7 +84,8 @@ local worldCycles = {
         {
             duration = 60 * 3, 
             allowedEnemies = { 
-                {class = Skeleton, weight = 1}
+                {class = Skeleton, weight = 1},
+                {class = Zombie, weight = 1}
             },
             majorSpawn = {
                 interval = 60,      
@@ -102,7 +105,8 @@ local worldCycles = {
         {
             duration = 600, -- Este ciclo dura 10 minutos
             allowedEnemies = { 
-                {class = Skeleton, weight = 1}
+                {class = Skeleton, weight = 1},
+                {class = Zombie, weight = 1}
             },
             majorSpawn = {
                 interval = 45,      -- Spawns grandes mais frequentes neste ciclo

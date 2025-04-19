@@ -6,6 +6,7 @@ local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local HUD = require("src.ui.hud")
 local fonts = require("src.ui.fonts")
 
+
 -- Importa os managers
 local ManagerRegistry = require("src.managers.manager_registry")
 local PlayerManager = require("src.managers.player_manager")
@@ -55,9 +56,8 @@ function love.load()
     camera = Camera:new()
     camera:init()
     
-    -- Carrega todas as animações
+    -- Carrega todas as animações (agora centralizado no AnimationLoader)
     AnimationLoader.loadAll()
-    
     -- Debug info
     print("Jogo iniciado")
     print("Posição inicial do jogador:", PlayerManager.player.position.x, PlayerManager.player.position.y)

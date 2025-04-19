@@ -74,35 +74,55 @@ function BaseEnemy:update(dt, playerManager, enemies)
         dy = dy / length
     end
     
-    -- Calcula a nova posição
-    local newX = self.position.x + dx * self.speed * dt
-    local newY = self.position.y + dy * self.speed * dt
+    -- Calcula a posição alvo inicial baseada na direção do jogador
+    local targetX = self.position.x + dx * self.speed * dt
+    local targetY = self.position.y + dy * self.speed * dt
     
-    -- Verifica se a nova posição colide com algum outro inimigo
-    local canMove = true
+    -- Calcula a força de separação total devido a outros inimigos
+    local totalSeparationX = 0
+    local totalSeparationY = 0
+    local separationStrength = 1.5 -- Fator de força da separação (ajustável)
 
-    -- Verifica colisão com outros inimigos
-    if canMove then
-        for _, other in ipairs(enemies) do
-            if other ~= self and other.isAlive then
-                local distance = math.sqrt(
-                    (other.position.x - newX) * (other.position.x - newX) + 
-                    (other.position.y - newY) * (other.position.y - newY)
-                )
+    -- Verifica colisão com outros inimigos e calcula separação
+    for _, other in ipairs(enemies) do
+        if other ~= self and other.isAlive then
+            -- Usa a posição atual para verificar a colisão, não a posição alvo
+            local distSq = (other.position.x - self.position.x)^2 + ((other.position.y - self.position.y) * 2)^2 -- Ajuste isométrico na distância Y
+            local minDist = self.radius + other.radius
+            
+            if distSq < minDist * minDist and distSq > 0 then -- Evita divisão por zero se distSq for 0
+                local distance = math.sqrt(distSq)
+                local overlap = minDist - distance
                 
-                if distance < (self.radius + other.radius) then
-                    canMove = false
-                    break
-                end
+                -- Calcula vetor de separação normalizado (de other para self)
+                local sepX = self.position.x - other.position.x
+                local sepY = (self.position.y - other.position.y) * 2 -- Ajuste isométrico
+                
+                -- Normaliza
+                sepX = sepX / distance 
+                sepY = sepY / distance 
+                
+                -- Adiciona força de separação proporcional ao overlap
+                -- A força é maior quanto maior o overlap
+                totalSeparationX = totalSeparationX + sepX * overlap * separationStrength
+                totalSeparationY = totalSeparationY + sepY * overlap * separationStrength
+            elseif distSq == 0 then -- Exatamente na mesma posição
+                 -- Empurra em uma direção aleatória para separá-los
+                 local angle = math.random() * 2 * math.pi
+                 totalSeparationX = totalSeparationX + math.cos(angle) * self.radius * separationStrength
+                 totalSeparationY = totalSeparationY + math.sin(angle) * self.radius * separationStrength * 0.5 -- Menos força no Y devido à isometria
             end
         end
     end
     
-    -- Só move se não houver colisão
-    if canMove then
-        self.position.x = newX
-        self.position.y = newY
-    end
+    -- Adiciona a força de separação ao movimento alvo
+    -- A separação pode temporariamente mover o inimigo "para trás" se for forte o suficiente
+    targetX = targetX + totalSeparationX * dt -- Escala por dt para movimento mais suave
+    targetY = targetY + totalSeparationY * dt
+    
+    -- Atualiza a posição do inimigo
+    self.position.x = targetX
+    self.position.y = targetY
     
     -- Verifica colisão com o jogador usando a posição de colisão
     self:checkPlayerCollision(dt, playerManager)
