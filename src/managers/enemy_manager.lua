@@ -166,7 +166,9 @@ function EnemyManager:update(dt)
     -- Itera de trás para frente para permitir remoção segura
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
-        enemy:update(dt, self.playerManager, self.enemies) -- Atualiza a lógica do inimigo
+        
+        -- Atualiza a lógica do inimigo
+        enemy:update(dt, self.playerManager, self.enemies)
     
         -- Se o inimigo estiver morto e não estiver em animação de morte
         if not enemy.isAlive and not enemy.isDying then
@@ -183,7 +185,6 @@ function EnemyManager:update(dt)
                 self.dropManager:processBossDrops(enemy)
                 self.lastBossDeathTime = self.gameTimer
             end
-    
         end
         
         -- Remove o inimigo se estiver marcado para remoção
