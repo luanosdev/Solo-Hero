@@ -69,11 +69,11 @@ function Rune:getRandomAbilities(rarity)
     
     -- Define quantas habilidades a runa terá baseado na raridade
     if rarity == "E" then
-        count = 1
-    elseif rarity == "D" then
         count = 2
-    elseif rarity == "C" then
+    elseif rarity == "D" then
         count = 3
+    elseif rarity == "C" then
+        count = 4
     elseif rarity == "B" then
         count = 4
     elseif rarity == "A" then
@@ -90,6 +90,7 @@ function Rune:getRandomAbilities(rarity)
     local availableAbilities = {
         require("src.runes.aura"),
         require("src.runes.orbital"),
+        require("src.runes.thunder"),
         -- Adicione mais habilidades aqui conforme forem criadas
     }
     

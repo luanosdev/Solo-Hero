@@ -22,6 +22,11 @@ local EnemyManager = {
 
     spawnTimer = 0,
     spawnInterval = 2, -- Tempo entre spawns em segundos
+    
+    -- Timer para controlar quando esconder a barra de vida do boss após sua morte
+    bossDeathTimer = 0,
+    bossDeathDuration = 3, -- Tempo em segundos para manter a barra visível após a morte
+    lastBossDeathTime = 0, -- Momento em que o último boss morreu
 }
 
 -- Inicializa o gerenciador de inimigos para um mundo específico
@@ -59,6 +64,11 @@ end
 function EnemyManager:update(dt)
     self.gameTimer = self.gameTimer + dt
     self.timeInCurrentCycle = self.timeInCurrentCycle + dt
+
+    -- Atualiza o timer de morte do boss
+    if self.lastBossDeathTime > 0 then
+        self.bossDeathTimer = self.gameTimer - self.lastBossDeathTime
+    end
 
     -- Verifica se é hora de spawnar um MVP
     if self.gameTimer >= self.nextMVPSpawnTime then
@@ -168,9 +178,10 @@ function EnemyManager:update(dt)
                 enemy:startDeathAnimation()
             end
             
-            -- Se for um boss, processa os drops
+            -- Se for um boss, processa os drops e registra o momento da morte
             if enemy.isBoss then
                 self.dropManager:processBossDrops(enemy)
+                self.lastBossDeathTime = self.gameTimer
             end
     
         end
@@ -229,12 +240,23 @@ end
 
 -- Desenha todos os inimigos ativos na tela
 function EnemyManager:draw()
-    -- Desenha a barra de vida do boss se houver um boss ativo
+    -- Desenha a barra de vida do boss se houver um boss ativo ou se ainda não passou o tempo de exibição após a morte
+    local shouldShowBossBar = false
     for _, enemy in ipairs(self.enemies) do
         if enemy.isBoss and enemy.isAlive then
+            shouldShowBossBar = true
             BossHealthBar:show(enemy)
             break
         end
+    end
+
+    -- Se não houver boss vivo, mas ainda estiver dentro do tempo de exibição após a morte
+    if not shouldShowBossBar and self.bossDeathTimer > 0 and self.bossDeathTimer <= self.bossDeathDuration then
+        BossHealthBar:show(nil) -- Mostra a barra vazia
+    elseif self.bossDeathTimer > self.bossDeathDuration then
+        BossHealthBar:hide() -- Esconde a barra após o tempo limite
+        self.lastBossDeathTime = 0 -- Reseta o timer
+        self.bossDeathTimer = 0
     end
 
     -- Desenha os inimigos (dentro da transformação da câmera)
