@@ -5,6 +5,12 @@ local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local HUD = require("src.ui.hud")
 local fonts = require("src.ui.fonts")
+local elements = require("src.ui.ui_elements")
+print("[DEBUG] Antes de require ItemDetailsModal") -- DEBUG
+local InventoryScreen = require("src.ui.inventory_screen")
+-- print(string.format("[DEBUG] Depois de require InventoryScreen - Tipo: %s", type(InventoryScreen))) -- Removendo print incorreto
+local ItemDetailsModal = require("src.ui.item_details_modal")
+print(string.format("[DEBUG] Depois de require ItemDetailsModal - Tipo: %s", type(ItemDetailsModal))) -- DEBUG (Corrigido)
 
 -- Importa os managers
 local ManagerRegistry = require("src.managers.manager_registry")
@@ -15,14 +21,28 @@ local FloatingTextManager = require("src.managers.floating_text_manager")
 local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local DropManager = require("src.managers.drop_manager")
 local RuneManager = require("src.managers.rune_manager")
+local InventoryManager = require("src.managers.inventory_manager")
 
 -- Variáveis globais
 local camera
 local groundTexture
 
+-- Variável de estado de pausa
+local game = { isPaused = false }
+
 function love.load()
     -- Carrega as fontes antes de qualquer uso de UI
     fonts.load()
+    
+    -- Carrega o shader de brilho (se existir)
+    local success, shaderOrErr = pcall(love.graphics.newShader, "assets/shaders/glow.fs")
+    if success then
+        elements.setGlowShader(shaderOrErr)
+        InventoryScreen.setGlowShader(shaderOrErr)
+        print("Glow shader loaded.")
+    else
+        print("Warning: Failed to load glow shader. Glow effects partially disabled.", shaderOrErr)
+    end
     
     -- Window settings - Fullscreen
     love.window.setMode(0, 0, {fullscreen = true})
@@ -33,7 +53,8 @@ function love.load()
     
     -- Registra os managers
     ManagerRegistry:register("playerManager", PlayerManager, false)
-    ManagerRegistry:register("inputManager", InputManager, true)
+    ManagerRegistry:register("inputManager", InputManager, false)
+    ManagerRegistry:register("inventoryManager", InventoryManager:new(), false)
     ManagerRegistry:register("enemyManager", EnemyManager, true)
     ManagerRegistry:register("floatingTextManager", FloatingTextManager, true)
     ManagerRegistry:register("experienceOrbManager", ExperienceOrbManager, true)
@@ -63,21 +84,26 @@ function love.load()
 end
 
 function love.update(dt)
-    local hasActiveModal = LevelUpModal.visible or RuneChoiceModal.visible
-    -- Atualiza o InputManager independentemente do estado do modal
-    InputManager:update(dt, hasActiveModal)
-    
-    if LevelUpModal.visible then
-        LevelUpModal:update()
+    -- Permite atualizar a UI do inventário mesmo pausado
+    InventoryScreen.update(dt)
+    -- Permite atualizar a UI do modal de detalhes mesmo pausado
+    ItemDetailsModal:update(dt)
+
+    -- Inclui o ItemDetailsModal na verificação de UI ativa
+    local hasActiveModalOrInventory = LevelUpModal.visible or RuneChoiceModal.visible or InventoryScreen.isVisible or ItemDetailsModal.isVisible
+    -- Atualiza o InputManager, passando o estado de pausa e se alguma UI está ativa
+    InputManager:update(dt, hasActiveModalOrInventory, game.isPaused)
+
+    -- Pula a lógica principal se o jogo está pausado OU se algum modal está visível
+    if game.isPaused or hasActiveModalOrInventory then
+        -- Permite que os modais (que não pausam o jogo globalmente) se atualizem
+        if LevelUpModal.visible then LevelUpModal:update() end
+        if RuneChoiceModal.visible then RuneChoiceModal:update() end
+        -- ItemDetailsModal já foi atualizado no início
         return
     end
 
-    if RuneChoiceModal.visible then
-        RuneChoiceModal:update()
-        return
-    end
-
-    -- Atualiza todos os managers
+    -- Atualiza todos os managers do jogo
     ManagerRegistry:update(dt)
 end
 
@@ -98,14 +124,17 @@ function love.draw()
 
     Camera:detach()
 
-    -- Desenha o HUD
-    HUD:draw()
-
     -- Desenha o LevelUpModal acima de tudo
     LevelUpModal:draw()
     
     -- Desenha o RuneChoiceModal acima de tudo
     RuneChoiceModal:draw()
+
+    -- Desenha a tela de inventário (se visível)
+    InventoryScreen.draw()
+
+    -- Desenha o ItemDetailsModal (se visível, por cima do inventário)
+    ItemDetailsModal:draw()
     
     -- Debug info dos inimigos
     local enemies = EnemyManager:getEnemies()
@@ -136,6 +165,9 @@ function love.draw()
         end
         love.graphics.print(debugText, screenWidth - 200, 10)
     end
+
+    -- Desenha o HUD
+    HUD:draw()
 end
 
 -- Draw the isometric grid pattern
@@ -208,4 +240,43 @@ end
 -- Função para adicionar um novo texto flutuante
 function addFloatingText(x, y, text, isCritical, target, customColor)
     FloatingTextManager:addText(x, y, text, isCritical, target, customColor)
+end
+
+function love.keypressed(key, scancode, isrepeat)
+    print(string.format("[main.lua] love.keypressed START - key: %s", key)) -- DEBUG
+    -- Primeiro, trata a tecla TAB para abrir/fechar o inventário e controlar a pausa
+    if key == "tab" then
+        print("[main.lua] TAB pressionado! Chamando InventoryScreen.toggle()...") -- DEBUG
+        game.isPaused = InventoryScreen.toggle() -- Alterna visibilidade E estado de pausa
+        print(string.format("[main.lua] Retornou de toggle. isPaused: %s. Retornando de keypressed.", tostring(game.isPaused))) -- DEBUG
+        return -- Input tratado aqui
+    end
+
+    -- Delega o restante do tratamento de teclas para o InputManager
+    print("[main.lua] Delegando tecla para InputManager...") -- DEBUG
+    InputManager:keypressed(key, game.isPaused)
+    print("[main.lua] Retornou do InputManager:keypressed") -- DEBUG
+end
+
+function love.mousepressed(x, y, button, istouch, presses)
+    -- Delega o tratamento de cliques para o InputManager
+    -- O InputManager agora precisa verificar internamente o ItemDetailsModal
+    InputManager:mousepressed(x, y, button, game.isPaused)
+
+    -- OBS: A estrutura do InputManager já verifica Modais e Inventário.
+    -- Precisamos ajustar InputManager:mousepressed para incluir ItemDetailsModal na verificação.
+end
+
+-- Adiciona funções para keyreleased e mousemoved para delegar também
+function love.keyreleased(key, scancode)
+    InputManager:keyreleased(key, game.isPaused)
+end
+
+function love.mousemoved(x, y, dx, dy, istouch)
+    -- Geralmente não precisa de verificação de pausa, mas passamos para consistência
+    InputManager:mousemoved(x, y, dx, dy)
+end
+
+function love.mousereleased(x, y, button, istouch, presses)
+    InputManager:mousereleased(x, y, button, game.isPaused)
 end

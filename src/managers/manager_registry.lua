@@ -15,7 +15,7 @@ function ManagerRegistry:register(name, manager, drawInCamera)
     end
     self.managers[name] = {
         instance = manager,
-        drawInCamera = drawInCamera
+        drawInCamera = drawInCamera or false -- Padrão false se não especificado
     }
 end
 
@@ -35,22 +35,30 @@ function ManagerRegistry:init()
 
     -- Ordem de inicialização é importante
     local initOrder = {
-        "inputManager",      -- InputManager deve ser inicializado primeiro
-        "playerManager",
+        "inputManager",      -- Input primeiro
+        "inventoryManager",  -- Inventário antes do Player
+        "playerManager",     -- Player depende do inventário (agora)
         "experienceOrbManager",
         "floatingTextManager",
-        "runeManager",
-        "enemyManager",
-        "dropManager"
+        "runeManager",       -- Runas podem depender do Player
+        "enemyManager",      -- Inimigos (e seus drops) podem depender do Player/Rank do Mapa
+        "dropManager"        -- Drops dependem do EnemyManager e PlayerManager
+        -- Adicione outros managers aqui na ordem correta
     }
 
+    print("--- Iniciando Managers --- ")
     for _, name in ipairs(initOrder) do
-        local manager = self.managers[name]
-        if manager and manager.instance.init then
-            print(string.format("Inicializando %s", name))
-            manager.instance:init()
+        local managerData = self.managers[name]
+        if managerData and managerData.instance.init then
+            print(string.format(" - Inicializando %s...", name))
+            managerData.instance:init()
+        elseif managerData then
+             print(string.format(" - Manager %s registrado, mas sem função init().", name))
+        else
+            print(string.format(" - AVISO: Manager %s na initOrder não está registrado!", name))
         end
     end
+    print("-------------------------")
 
     self.initialized = true
 end

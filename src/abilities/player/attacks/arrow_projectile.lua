@@ -69,7 +69,9 @@ function ArrowProjectile:update(dt, angle)
     end
 end
 
-function ArrowProjectile:cast()
+function ArrowProjectile:cast(args)
+    args = args or {}
+
     if self.cooldownRemaining > 0 then
         return false
     end

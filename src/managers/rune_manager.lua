@@ -21,6 +21,7 @@ function RuneManager:init()
     self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
     self.inputManager = ManagerRegistry:get("inputManager")
     RuneChoiceModal:init(self.playerManager, self.inputManager, self.floatingTextManager)
+    print("RuneManager inicializado.")
 end
 
 --[[
@@ -55,6 +56,31 @@ function RuneManager:applyRune(rune)
         self.playerManager.player.position,
         {1, 0.5, 0} -- Cor laranja para runas
     )
+end
+
+--[[
+    Aplica uma habilidade específica (instância) originada de uma runa ao jogador.
+    Chamado pelo RuneChoiceModal após o jogador fazer uma escolha.
+    @param abilityInstance (table): A instância da habilidade a ser aplicada.
+]]
+function RuneManager:applyRuneAbility(abilityInstance)
+    if not abilityInstance then
+        print("ERRO [RuneManager]: Tentativa de aplicar habilidade de runa nula.")
+        return
+    end
+
+    -- Verifica se o PlayerManager e seu método addAbility existem
+    if self.playerManager and self.playerManager.addAbility then
+        print(string.format("[RuneManager] Adicionando habilidade '%s' ao PlayerManager...", abilityInstance.name or "Desconhecida"))
+        self.playerManager:addAbility(abilityInstance)
+    else
+        if not self.playerManager then
+            print("ERRO [RuneManager]: Referência para PlayerManager não encontrada!")
+        else
+            print("ERRO [RuneManager]: Função PlayerManager:addAbility não encontrada!")
+        end
+        -- A habilidade não foi adicionada
+    end
 end
 
 --[[

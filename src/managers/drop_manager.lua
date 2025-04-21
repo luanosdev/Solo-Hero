@@ -5,20 +5,59 @@
 
 local ManagerRegistry = require("src.managers.manager_registry")
 local DropEntity = require("src.entities.drop_entity")
+local Jewel = require("src.items.jewel")
 
 local DropManager = {
     activeDrops = {}, -- Lista de drops ativos no mundo
+    mapRank = "E", -- Rank base do mapa atual (pode ser carregado de outro lugar no futuro)
+    enemyDropChance = 0.10, -- 10% de chance de um inimigo normal dropar joia
+    mvpDropChance = 0.50, -- 50% de chance de um MVP dropar joia de rank superior
+    bossHigherRankDropChance = 0.75, -- 75% de chance do boss dropar joias de rank +1
+    bossHigherRankDropAmount = {min = 1, max = 3}, -- Quantidade de joias rank +1 que o boss pode dropar
 }
 
 --[[
     Inicializa o gerenciador de drops
 ]]
-function DropManager:init()
+function DropManager:init(mapRank)
     self.activeDrops = {}
     self.playerManager = ManagerRegistry:get("playerManager")
     self.enemyManager = ManagerRegistry:get("enemyManager")
     self.runeManager = ManagerRegistry:get("runeManager")
     self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
+    self.mapRank = mapRank or "E"
+    print("DropManager inicializado com rank de mapa:", self.mapRank)
+end
+
+--[[
+    Processa os drops de um inimigo derrotado (Normal ou MVP)
+    @param enemy O inimigo que foi derrotado
+]]
+function DropManager:processEnemyDrop(enemy)
+    local dropConfig = nil
+
+    if enemy.isMVP then
+        -- MVP: Chance de dropar joia de rank +1
+        if math.random() <= self.mvpDropChance then
+            local jewelRank = Jewel.getNextRank(self.mapRank, 1)
+            local jewelDetails = Jewel.getRankDetails(jewelRank)
+            print(string.format("MVP dropou Joia: [%s] %s %s", jewelRank, jewelDetails.prefix, jewelDetails.name))
+            dropConfig = { type = "jewel", rank = jewelRank }
+        end
+    else
+        -- Inimigo Normal: Chance de dropar joia do rank do mapa
+        if math.random() <= self.enemyDropChance then
+             local jewelDetails = Jewel.getRankDetails(self.mapRank)
+             print(string.format("Inimigo dropou Joia: [%s] %s %s", self.mapRank, jewelDetails.prefix, jewelDetails.name))
+            dropConfig = { type = "jewel", rank = self.mapRank }
+        end
+    end
+
+    -- Se um drop foi determinado, cria a entidade
+    if dropConfig then
+        -- Cria o drop na posição do inimigo
+        self:createDrop(dropConfig, {x = enemy.position.x, y = enemy.position.y})
+    end
 end
 
 --[[
@@ -28,64 +67,87 @@ end
 function DropManager:processBossDrops(boss)
     -- Obtém a configuração de drops do mundo atual
     local worldConfig = self.enemyManager.worldConfig
-    if not worldConfig or not worldConfig.bossConfig or not worldConfig.bossConfig.drops then 
+    if not worldConfig or not worldConfig.bossConfig or not worldConfig.bossConfig.drops then
         print("Aviso: Configuração de drops não encontrada para o mundo atual")
-        return 
+        return
     end
-    
-    local bossConfig = worldConfig.bossConfig.drops[boss.class]
-    if not bossConfig then 
+
+    local bossDropTable = worldConfig.bossConfig.drops[boss.class]
+    if not bossDropTable then
         print("Aviso: Configuração de drops não encontrada para o boss:", boss.class.name)
-        return 
+        return
     end
-    
+
     print("Processando drops do boss:", boss.class.name)
-    
+
     -- Lista para armazenar todos os drops que serão criados
     local dropsToCreate = {}
-    
-    -- Primeiro processa os drops garantidos
-    for _, drop in ipairs(bossConfig.drops) do
-        if drop.guaranteed then
-            print("Criando drop garantido:", drop.type)
+
+    -- 1. Adiciona drops garantidos da tabela de configuração (ex: runas, ouro)
+    if bossDropTable.guaranteed then
+        for _, drop in ipairs(bossDropTable.guaranteed) do
+            print("Criando drop garantido (config):", drop.type)
             table.insert(dropsToCreate, drop)
         end
     end
-    
-    -- Depois processa os drops com chance
-    for _, drop in ipairs(bossConfig.drops) do
-        if not drop.guaranteed and math.random() <= (drop.weight / 100) then
-            print("Criando drop com chance:", drop.type)
-            table.insert(dropsToCreate, drop)
+
+    -- 2. Adiciona drop GARANTIDO de Joia Rank+2
+    local guaranteedJewelRank = Jewel.getNextRank(self.mapRank, 2)
+    local guaranteedJewelDetails = Jewel.getRankDetails(guaranteedJewelRank)
+    print(string.format("Criando drop garantido: Joia [%s] %s %s", guaranteedJewelRank, guaranteedJewelDetails.prefix, guaranteedJewelDetails.name))
+    table.insert(dropsToCreate, { type = "jewel", rank = guaranteedJewelRank })
+
+    -- 3. Processa drops com chance da tabela de configuração
+    if bossDropTable.chance then
+        for _, drop in ipairs(bossDropTable.chance) do
+             local chance = drop.chance or drop.weight -- Compatibilidade
+             if chance and math.random() <= (chance / 100) then
+                print("Criando drop com chance (config):", drop.type)
+                table.insert(dropsToCreate, drop)
+            end
         end
     end
-    
+
+    -- 4. Processa drop com CHANCE de Joias Rank+1
+    if math.random() <= self.bossHigherRankDropChance then
+        local amount = math.random(self.bossHigherRankDropAmount.min, self.bossHigherRankDropAmount.max)
+        local higherJewelRank = Jewel.getNextRank(self.mapRank, 1)
+        local higherJewelDetails = Jewel.getRankDetails(higherJewelRank)
+        print(string.format("Criando %d drop(s) com chance: Joia [%s] %s %s", amount, higherJewelRank, higherJewelDetails.prefix, higherJewelDetails.name))
+        for _ = 1, amount do
+            table.insert(dropsToCreate, { type = "jewel", rank = higherJewelRank })
+        end
+    end
+
     -- Espalha os drops em um círculo ao redor do boss
     local dropCount = #dropsToCreate
+    if dropCount == 0 then return end -- Sai se não houver drops
+
     local spreadRadius = 30 -- Raio do círculo onde os drops serão espalhados
     local angleStep = (2 * math.pi) / dropCount -- Ângulo entre cada drop
-    
+
     for i, drop in ipairs(dropsToCreate) do
         -- Calcula o ângulo para este drop
-        local angle = angleStep * (i - 1) + (math.random() * 0.2 - 0.1) -- Adiciona um pouco de aleatoriedade
-        
+        local angle = angleStep * (i - 1) + (math.random() * 0.2 - 0.1) -- Adiciona aleatoriedade
+
         -- Calcula a posição do drop no círculo
         local dropX = boss.position.x + math.cos(angle) * spreadRadius
         local dropY = boss.position.y + math.sin(angle) * spreadRadius
-        
+
         self:createDrop(drop, {x = dropX, y = dropY})
     end
 end
 
 --[[
     Cria uma entidade de drop no mundo
-    @param drop Configuração do drop
-    @param x Posição X do drop
-    @param y Posição Y do drop
+    @param dropConfig Configuração do drop (ex: {type="rune", rarity="D"} ou {type="jewel", rank="C"})
+    @param position Posição {x, y} do drop
 ]]
-function DropManager:createDrop(drop, position)
-    local dropEntity = DropEntity:new(position, drop)
+function DropManager:createDrop(dropConfig, position)
+    -- Passa a configuração diretamente para DropEntity
+    local dropEntity = DropEntity:new(position, dropConfig)
     table.insert(self.activeDrops, dropEntity)
+    -- print(string.format("DropEntity criado em (%.1f, %.1f) para tipo: %s", position.x, position.y, dropConfig.type)) -- Log mais genérico
 end
 
 --[[
@@ -97,7 +159,7 @@ function DropManager:update(dt)
         local drop = self.activeDrops[i]
         if drop:update(dt, self.playerManager) then
             -- Se o drop foi coletado, aplica seus efeitos
-            self:applyDrop(drop.config)
+            self:applyDrop(drop.config) -- Passa a configuração original do drop
             table.remove(self.activeDrops, i)
         end
     end
@@ -105,27 +167,37 @@ end
 
 --[[
     Aplica um drop ao jogador
-    @param drop O drop a ser aplicado
+    @param dropConfig A configuração do drop coletado (contém 'type' e outros dados)
 ]]
-function DropManager:applyDrop(drop)
-    if drop.type == "rune" then
-        print("Gerando runa de raridade:", drop.rarity)
-        local rune = self.runeManager:generateRune(drop.rarity)
+function DropManager:applyDrop(dropConfig)
+    if dropConfig.type == "rune" then
+        print("Coletado: Runa de raridade:", dropConfig.rarity)
+        local rune = self.runeManager:generateRune(dropConfig.rarity)
         self.runeManager:applyRune(rune)
-        
-    elseif drop.type == "gold" then
-        local amount = math.random(drop.amount.min, drop.amount.max)
-        self.playerManager.gold = self.playerManager.gold + amount
-        
-        -- Mostra texto flutuante do ouro obtido
+    elseif dropConfig.type == "jewel" then
+        -- Cria uma instância temporária da joia para obter nome, cor, maxStack, etc.
+        local jewelItem = Jewel:new(dropConfig.rank)
+        print("Coletado:", jewelItem:getName()) -- Usar getter é boa prática
+
+        -- Adiciona a joia ao inventário do jogador
+        -- A função addInventoryItem agora lida com a lógica de stack e mensagens
+        self.playerManager:addInventoryItem(jewelItem, 1)
+
+        -- TODO: O texto flutuante poderia ser movido para dentro de addInventoryItem
+        -- ou chamado condicionalmente baseado no retorno de addInventoryItem se quisermos
+        -- indicar sucesso/falha na coleta visualmente.
+        -- Por ora, mantemos como estava, mas a mensagem principal vem do PlayerManager.
         self.floatingTextManager:addText(
             self.playerManager.player.position.x,
-            self.playerManager.player.position.y - self.playerManager.player.radius - 30,
-            "+" .. amount .. " Ouro",
+            self.playerManager.player.position.y - self.playerManager.radius - 30, -- CORRIGIDO: Usar o raio do PlayerManager
+            "+ " .. jewelItem:getName(), -- Usa o nome completo da joia
             true,
             self.playerManager.player.position,
-            {1, 0.84, 0} -- Cor dourada
+            jewelItem.color -- Usa a cor da joia
         )
+
+    else
+        print("Aviso: Tipo de drop desconhecido:", dropConfig.type)
     end
 end
 

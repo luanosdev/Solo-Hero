@@ -4,7 +4,7 @@ local ManagerRegistry = require("src.managers.manager_registry")
 
 local EnemyManager = {
     enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos
-    maxEnemies = 300,           -- Número máximo de inimigos permitidos na tela simultaneamente
+    maxEnemies = 400,           -- Número máximo de inimigos permitidos na tela simultaneamente
     nextEnemyId = 1,           -- Próximo ID a ser atribuído a um inimigo
     
     -- Estado de Ciclo e Tempo
@@ -49,6 +49,12 @@ function EnemyManager:init(worldId)
         error("Erro: Configuração de ciclos inválida ou vazia para o mundo: " .. worldId)
     end
     
+    -- Determina o rank do mapa a partir da configuração do mundo
+    local mapRank = self.worldConfig.mapRank or "E" -- Assume 'E' se não definido na config
+
+    -- Inicializa o DropManager com o rank do mapa
+    self.dropManager:init(mapRank)
+    
     -- Agenda os tempos iniciais de spawn com base nas regras do primeiro ciclo
     local firstCycle = self.worldConfig.cycles[1]
     if not firstCycle then error("Erro: Primeiro ciclo não encontrado na configuração.") end
@@ -56,7 +62,7 @@ function EnemyManager:init(worldId)
     self.nextMinorSpawnTime = self:calculateMinorSpawnInterval(firstCycle) -- O primeiro Minor Spawn ocorre após o intervalo inicial calculado
     self.nextMVPSpawnTime = self.worldConfig.mvpConfig.spawnInterval -- O primeiro MVP spawna após o intervalo inicial
 
-    print(string.format("EnemyManager inicializado para '%s'. %d ciclo(s) carregados.", worldId, #self.worldConfig.cycles))
+    print(string.format("EnemyManager inicializado para '%s'. Rank do Mapa: %s. %d ciclo(s) carregados.", worldId, mapRank, #self.worldConfig.cycles))
 end
 
 -- Atualiza o estado do gerenciador de inimigos e todos os inimigos ativos
@@ -183,12 +189,50 @@ function EnemyManager:update(dt)
             if enemy.isBoss then
                 self.dropManager:processBossDrops(enemy)
                 self.lastBossDeathTime = self.gameTimer
+            else
+                -- Chama processEnemyDrop para inimigos normais e MVPs
+                self.dropManager:processEnemyDrop(enemy)
             end
         end
         
         -- Remove o inimigo se estiver marcado para remoção
         if enemy.shouldRemove then
             table.remove(self.enemies, i)
+        end
+    end
+
+    -- Atualiza a barra de vida do boss
+    self:updateBossHealthBarVisibility(dt)
+end
+
+-- Função auxiliar para gerenciar visibilidade da barra de vida do boss
+function EnemyManager:updateBossHealthBarVisibility(dt)
+    local activeBoss = nil
+    for _, enemy in ipairs(self.enemies) do
+        if enemy.isBoss and enemy.isAlive then
+            activeBoss = enemy
+            break
+        end
+    end
+
+    if activeBoss then
+        BossHealthBar:show(activeBoss)
+        self.lastBossDeathTime = 0 -- Reseta se um boss estiver vivo
+        self.bossDeathTimer = 0
+    else
+        -- Se não houver boss vivo, mas um morreu recentemente
+        if self.lastBossDeathTime > 0 then
+            self.bossDeathTimer = self.gameTimer - self.lastBossDeathTime
+            if self.bossDeathTimer <= self.bossDeathDuration then
+                BossHealthBar:show(nil) -- Mostra barra vazia
+            else
+                BossHealthBar:hide()
+                self.lastBossDeathTime = 0 -- Reseta timers após esconder
+                self.bossDeathTimer = 0
+            end
+        else
+            -- Nenhum boss vivo e nenhum morreu recentemente
+            BossHealthBar:hide()
         end
     end
 end

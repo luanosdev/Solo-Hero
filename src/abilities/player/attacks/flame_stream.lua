@@ -75,7 +75,10 @@ function FlameStream:update(dt, angle)
     end
 end
 
-function FlameStream:cast() -- Cast é chamado muito rapidamente
+function FlameStream:cast(args) -- Cast é chamado muito rapidamente
+    args = args or {}
+    local baseAngle = args.angle or self.area.angle or 0 -- Usa ângulo do arg, ou o último do update
+
     if self.cooldownRemaining > 0 then
         return false
     end
@@ -91,7 +94,7 @@ function FlameStream:cast() -- Cast é chamado muito rapidamente
     
     -- Calcula o ângulo da partícula com uma pequena dispersão aleatória dentro de angleWidth
     local halfWidth = self.area.angleWidth / 2
-    local currentAngle = self.area.angle + math.random() * halfWidth - math.random() * halfWidth
+    local currentAngle = baseAngle + math.random() * halfWidth - math.random() * halfWidth
 
     -- Calcula se é crítico (por partícula)
     local isCritical = math.random() * 100 <= criticalChance

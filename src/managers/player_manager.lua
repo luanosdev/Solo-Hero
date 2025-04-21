@@ -12,8 +12,7 @@ local Bow = require("src.items.weapons.bow")
 local DualDaggers = require("src.items.weapons.dual_daggers")
 local Hammer = require("src.items.weapons.hammer")
 local Flamethrower = require("src.items.weapons.flamethrower")
-local elements = require("src.ui.ui_elements")
-local colors = require("src.ui.colors")
+local ChainLaser = require("src.items.weapons.chain_laser")
 local LevelUpAnimation = require("src.animations.level_up_animation")
 local ManagerRegistry = require("src.managers.manager_registry")
 
@@ -69,7 +68,8 @@ local PlayerManager = {
         [2] = Bow,
         [3] = DualDaggers,
         [4] = Hammer,
-        [5] = Flamethrower
+        [5] = Flamethrower,
+        [6] = ChainLaser
     },
 
     -- Level Up Animation
@@ -79,9 +79,11 @@ local PlayerManager = {
 
 -- Inicializa o player manager
 function PlayerManager:init()
+    -- Obtém managers necessários do registro
     self.inputManager = ManagerRegistry:get("inputManager")
     self.enemyManager = ManagerRegistry:get("enemyManager")
     self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
+    self.inventoryManager = ManagerRegistry:get("inventoryManager") -- Obtém do registro
 
     -- Inicializa a classe do player (Warrior como padrão inicial)
     self:initializeClass(Warrior)
@@ -103,13 +105,13 @@ function PlayerManager:init()
     Camera:init()
 
     -- Equipa a arma inicial
-    local startingWeapon = PlayerManager.class.startingWeapon
+    local startingWeapon = self.class.startingWeapon
     if startingWeapon then
         print("Equipando arma inicial:", startingWeapon.name)
-        PlayerManager.equippedWeapon = setmetatable({}, { __index = startingWeapon })
-        PlayerManager.equippedWeapon:equip(PlayerManager)
+        self.equippedWeapon = setmetatable({}, { __index = startingWeapon })
+        self.equippedWeapon:equip(self)
     else
-        print("AVISO: Nenhuma arma inicial definida para a classe", PlayerManager.class.name)
+        print("AVISO: Nenhuma arma inicial definida para a classe", self.class.name)
     end
     
     -- Inicializa os modais
@@ -117,6 +119,7 @@ function PlayerManager:init()
     
     -- Inicializa a animação de level up
     self.levelUpAnimation = LevelUpAnimation:new()
+    print("PlayerManager inicializado.") -- Mensagem final de inicialização
 end
 
 -- Atualiza o estado do player e da câmera
@@ -171,17 +174,18 @@ function PlayerManager:update(dt)
         end
     end
     
-    -- Define a posição do alvo (para mira e animação)
+    -- Define a posição do alvo e calcula o ângulo UMA VEZ
     local targetPosition = self:getTargetPosition()
-
-    -- Atualiza o ataque da arma
-    if self.equippedWeapon and self.equippedWeapon.attackInstance then
-        -- Atualiza o ângulo da habilidade com base no alvo ANTES de atualizar a instância
+    local currentAngle = 0
+    if self.player and self.player.position then -- Garante que player existe
         local dx = targetPosition.x - self.player.position.x
         local dy = targetPosition.y - self.player.position.y
-        local angle = math.atan2(dy, dx)
+        currentAngle = math.atan2(dy, dx)
+    end
 
-        self.equippedWeapon.attackInstance:update(dt, angle)
+    -- Atualiza o ataque da arma, passando o ângulo calculado
+    if self.equippedWeapon and self.equippedWeapon.attackInstance then
+        self.equippedWeapon.attackInstance:update(dt, currentAngle)
     end
     
     -- Update health recovery
@@ -193,12 +197,13 @@ function PlayerManager:update(dt)
         
         -- Executa a runa automaticamente se o cooldown zerar
         if rune.cooldownRemaining and rune.cooldownRemaining <= 0 then
-            rune:cast(self.player.x, self.player.y)
+            -- A runa precisa da posição do player, não do ângulo de mira
+            rune:cast(self.player.position.x, self.player.position.y)
         end
     end
 
-    -- Atualiza o auto attack
-    self:updateAutoAttack()
+    -- Atualiza o auto attack, passando o ângulo calculado
+    self:updateAutoAttack(currentAngle)
 
     -- Atualiza o sprite do player passando a posição do alvo
     SpritePlayer.update(self.player, dt, targetPosition)
@@ -248,59 +253,6 @@ function PlayerManager:draw()
     -- Desenha a arma equipada e seu ataque
     if self.equippedWeapon and self.equippedWeapon.attackInstance then
         self.equippedWeapon.attackInstance:draw()
-    end
-    
-    -- Draw health bar
-    local healthBarWidth = 60
-    local healthBarHeight = 8
-    local healthBarX = PlayerManager.player.position.x - healthBarWidth/2
-    local healthBarY = PlayerManager.player.position.y - PlayerManager.radius - 10
-
-    elements.drawResourceBar({
-        x = healthBarX,
-        y = healthBarY,
-        height = healthBarHeight,
-        current = PlayerManager.state.currentHealth,
-        max = PlayerManager.state:getTotalHealth(),
-        color = colors.hp_fill,
-        bgColor = colors.bar_bg,
-        borderColor = colors.bar_border,
-        showShadow = true,
-        segmentInterval = 20, -- Segmentos a cada 20 pontos de vida
-        glow = true,
-        -- Configurações opcionais de largura dinâmica
-        dynamicWidth = true,
-        baseWidth = 60,
-        maxWidth = 120,
-        scaleFactor = 0.5,
-        minValue = 100,
-        maxValue = 2000
-    })
-    
-    -- Draw cooldown bar
-    if PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance then
-        local cooldown = PlayerManager.equippedWeapon.attackInstance:getCooldownRemaining()
-        if cooldown > 0 then
-            local cooldownPercentage = cooldown / PlayerManager.equippedWeapon.attackInstance.cooldown
-            
-            -- Cooldown bar background
-            love.graphics.setColor(0.2, 0, 0, 0.3)
-            love.graphics.rectangle("fill", 
-                PlayerManager.player.position.x - healthBarWidth/2, 
-                PlayerManager.player.position.y - PlayerManager.radius - 5,
-                healthBarWidth, 
-                2
-            )
-            
-            -- Cooldown bar fill
-            love.graphics.setColor(1, 0, 0, 0.8)
-            love.graphics.rectangle("fill", 
-                PlayerManager.player.position.x - healthBarWidth/2, 
-                PlayerManager.player.position.y - PlayerManager.radius - 5,
-                healthBarWidth * cooldownPercentage, 
-                2
-            )
-        end
     end
     
     Camera:detach()
@@ -466,50 +418,67 @@ function PlayerManager:draw()
     ), 10, 10)
 end
 
-function PlayerManager:updateHealthRecovery(dt)    
-    -- Atualiza o tempo desde o último dano
-    self.lastDamageTime = self.lastDamageTime + dt
+--[[-
+    Atualiza a lógica de recuperação de vida do jogador
 
-    -- Atualiza regeneração de vida
-    if self.state.currentHealth < self.state:getTotalHealth() and self.lastDamageTime >= self.damageCooldown then
-        local hpPerSecond = self.state:getTotalHealthRegen()
-        self.accumulatedRegen = self.accumulatedRegen + (hpPerSecond * dt)
-        
-        -- Se acumulou pelo menos 1 HP, recupera
-        if self.accumulatedRegen >= 1 then
-            self.floatingTextManager:addText(
-                self.player.position.x,
-                self.player.position.y - self.radius - 60,
-                "+1",
-                false,
-                self.player.position,
-                {0, 1, 0}
-            )
-            self.state:heal(1)
-            self.accumulatedRegen = self.accumulatedRegen - 1
+    @param dt (number): Delta time
+]]
+function PlayerManager:updateHealthRecovery(dt)
+    -- Verifica se já passou o cooldown após o último dano
+    if self.gameTime >= self.lastDamageTime + self.damageCooldown then
+        self.lastRegenTime = self.lastRegenTime + dt
+
+        -- Se passou o intervalo de regeneração
+        if self.lastRegenTime >= self.regenInterval then
+            self.lastRegenTime = self.lastRegenTime - self.regenInterval -- Subtrai o intervalo, mantendo o resto
+
+            -- Calcula a regeneração baseada nos stats usando o método correto
+            local effectiveRegen = self.state:getTotalHealthRegen() -- CORRIGIDO: Usar getTotalHealthRegen()
+            self.accumulatedRegen = self.accumulatedRegen + effectiveRegen
+
+            -- Se a regeneração acumulada for >= 1, cura o jogador
+            local healAmount = math.floor(self.accumulatedRegen)
+            if healAmount >= 1 then
+                self.state:heal(healAmount)
+                self.accumulatedRegen = self.accumulatedRegen - healAmount
+                -- Mostra texto flutuante de cura (opcional)
+                -- self.floatingTextManager:addText(self.player.position.x, self.player.position.y - 50, "+" .. healAmount .. " HP", false, nil, {0, 1, 0})
+            end
         end
     else
+        -- Se estiver em cooldown de dano, reseta o timer de regeneração
+        self.lastRegenTime = 0
         self.accumulatedRegen = 0
     end
 end
 
-function PlayerManager:updateAutoAttack()
-    if self.autoAttack or self.inputManager.mouse.leftButton then
-        local cooldown = self.equippedWeapon.attackInstance:getCooldownRemaining()
-        if cooldown <= 0 then
-            -- Apenas ataca, a mira já foi definida em PlayerManager:update
-            self:attack()
-        end
+-- Modificado para aceitar o ângulo como argumento
+function PlayerManager:updateAutoAttack(currentAngle)
+    if self.autoAttack and self.equippedWeapon and self.equippedWeapon.attackInstance then
+        -- Monta a tabela de argumentos para cast usando o ângulo recebido
+        local args = {
+            angle = currentAngle
+        }
+
+        -- Chama cast com a tabela de argumentos
+        self.equippedWeapon.attackInstance:cast(args)
     end
 end
 
 -- Inicializa uma nova classe para o player
 function PlayerManager:initializeClass(classDefinition)
     self.class = classDefinition
-    
+
     -- Inicializa estado com stats base
-    self.state = PlayerState
-    self.state:init(classDefinition:getBaseStats())
+    print(string.format("[PlayerManager] Tentando inicializar PlayerState para classe: %s...", classDefinition.name or "Desconhecida"))
+    self.state = PlayerState:new(classDefinition:getBaseStats())
+    -- Verifica se self.state foi criado com sucesso
+    if self.state then
+        print(string.format("[PlayerManager] PlayerState inicializado com sucesso. HP: %d/%d", self.state.currentHealth, self.state:getTotalHealth()))
+    else
+        print("ERRO CRÍTICO [PlayerManager]: Falha ao inicializar PlayerState! self.state é nil.")
+        error("Falha ao inicializar PlayerState") -- Lança um erro real para parar a execução
+    end
 end
 
 -- Funções de gerenciamento de vida
@@ -517,37 +486,29 @@ function PlayerManager:isAlive()
     return self.state.isAlive
 end
 
-function PlayerManager:takeDamage(amount)
-    self.lastDamageTime = 0
-    return self.state:takeDamage(amount)
-end
-
-
--- Funções de habilidades
-function PlayerManager:addRune(rune)
-    if not rune then return end
-    table.insert(self.runes, rune)
-    if rune.init then
-        rune:init(self)
-    end
-end
-
--- Função para atacar com a arma equipada
-function PlayerManager:attack()
-    if not self.equippedWeapon or not self.equippedWeapon.attackInstance then
-        error("[Erro] [PlayerManager.attack] Nenhuma arma ou instância de ataque encontrada")
-        return false
+function PlayerManager:takeDamage(amount, source)
+    local damageTaken = self.state:takeDamage(amount)
+    if damageTaken > 0 then
+        self.lastDamageTime = self.gameTime -- Atualiza o tempo do último dano
+        self.lastRegenTime = 0 -- Reseta o timer de regeneração
+        self.accumulatedRegen = 0
+        
+        -- Mostra texto flutuante de dano
+        self.floatingTextManager:addText(
+            self.player.position.x,
+            self.player.position.y - 40, -- Posição do texto de dano
+            "-" .. damageTaken,
+            false,
+            nil,
+            {1, 0, 0} -- Cor vermelha para dano
+        )
+        print(string.format("Player levou %d de dano de %s. HP restante: %d/%d", damageTaken, source or "Desconhecido", self.state.currentHealth, self.state:getTotalHealth()))
     end
     
-    -- A direção do ataque já foi definida em PlayerManager:update com base no targetPosition
-    local success = self.equippedWeapon.attackInstance:cast() -- Não precisa mais passar inimigos aqui
-
-    if success then
-        -- Inicia a animação de ataque do sprite
-        SpritePlayer.startAttackAnimation(self.player)
+    if not self.state.isAlive then
+        print("Player Morreu!")
+        -- TODO: Implementar lógica de morte (ex: tela de game over)
     end
-
-    return success
 end
 
 -- Funções de experiência e level
@@ -601,37 +562,14 @@ end
     Se não estiver ativado, usa a posição do mouse
 ]]
 function PlayerManager:getTargetPosition()
-    -- Obtém a posição atual do mouse em coordenadas do mundo
-    local mouseScreenX, mouseScreenY = self.inputManager:getMousePosition()
-    local mouseWorldX, mouseWorldY = Camera:screenToWorld(mouseScreenX, mouseScreenY)
-
-    -- Se o auto aim estiver ativado, procura o inimigo mais próximo
-    if self.autoAim then
-        local enemies = self.enemyManager:getEnemies()
-        local closestEnemy = nil
-        local closestDistanceSq = math.huge -- Usar distância quadrada para eficiência
-        
-        for _, enemy in ipairs(enemies) do
-            if enemy.isAlive then
-                local dx = enemy.position.x - self.player.position.x
-                local dy = enemy.position.y - self.player.position.y
-                local distanceSq = dx * dx + dy * dy -- Comparar quadrado da distância
-                
-                if distanceSq < closestDistanceSq then
-                    closestDistanceSq = distanceSq
-                    closestEnemy = enemy
-                end
-            end
-        end
-        
-        -- Se encontrou um inimigo, retorna a posição dele (mundo)
+    if self.autoAim and self.enemyManager then
+        local closestEnemy = self:findClosestEnemy(self.player.position, self.enemyManager.enemies)
         if closestEnemy then
-            return { x = closestEnemy.position.x, y = closestEnemy.position.y }
+            return closestEnemy.position
         end
     end
-    
-    -- Se não encontrou inimigo ou auto aim desativado, usa a posição do mouse (mundo)
-    return { x = mouseWorldX, y = mouseWorldY }
+    -- Se autoAim desativado, mira não encontrada, ou enemyManager não disponível, usa o mouse
+    return self.inputManager:getMouseWorldPosition()
 end
 
 function PlayerManager:leftMouseClicked(x, y)
@@ -694,6 +632,56 @@ function PlayerManager:keypressed(key)
         local xpNeeded = self.state.experienceToNextLevel - self.state.experience
         self:addExperience(math.max(1, xpNeeded))
     end
+end
+
+-- Adiciona um item ao inventário do jogador.
+-- Delega a lógica para o InventoryManager.
+
+-- @param itemInstance (table): A instância do item a ser adicionado.
+-- @param quantity (number): A quantidade a ser adicionada.
+function PlayerManager:addInventoryItem(itemInstance, quantity)
+    if not self.inventoryManager then
+        print("ERRO: InventoryManager não inicializado!")
+        return
+    end
+
+    local leftover = self.inventoryManager:addItem(itemInstance, quantity)
+
+    if leftover > 0 then
+        print(string.format("Inventário cheio para %s. %d não foram adicionados.", itemInstance:getName(), leftover))
+        -- TODO: Lidar com itens que não couberam (ex: dropar no chão?)
+    else
+        print(string.format("Adicionado %d %s ao inventário.", quantity, itemInstance:getName()))
+    end
+
+    -- Exibe o estado atual do inventário (para debug)
+    self.inventoryManager:printInventory()
+end
+
+-- Encontra o inimigo mais próximo da posição dada
+-- @param position (table): Posição de referência {x, y}
+-- @param enemies (table): Lista de inimigos a verificar
+-- @return table: O inimigo mais próximo, ou nil se a lista estiver vazia
+function PlayerManager:findClosestEnemy(position, enemies)
+    local closestEnemy = nil
+    local minDistanceSq = math.huge
+
+    if not enemies or #enemies == 0 then
+        return nil
+    end
+
+    for _, enemy in ipairs(enemies) do
+        if enemy.isAlive then
+            local dx = enemy.position.x - position.x
+            local dy = enemy.position.y - position.y
+            local distanceSq = dx * dx + dy * dy
+            if distanceSq < minDistanceSq then
+                minDistanceSq = distanceSq
+                closestEnemy = enemy
+            end
+        end
+    end
+    return closestEnemy
 end
 
 return PlayerManager

@@ -69,16 +69,19 @@ function CircularSmash:update(dt, angle) -- Angle é importante agora!
     end
 end
 
-function CircularSmash:cast()
+-- Aceita tabela de args
+function CircularSmash:cast(args)
+    args = args or {}
+    local angle = args.angle or 0 -- Ângulo necessário para calcular a posição do impacto
+
     if self.cooldownRemaining > 0 then
         return false
     end
     
     -- Calcula a posição do impacto (à frente do jogador, na direção do ângulo)
-    -- A distância é o raio da arma (que define o alcance do golpe)
-    local impactDist = self.area.radius -- O centro do círculo fica no limite do range
-    self.targetPos.x = self.area.position.x + math.cos(self.area.angle) * impactDist
-    self.targetPos.y = self.area.position.y + math.sin(self.area.angle) * impactDist
+    local impactDist = self.area.radius 
+    self.targetPos.x = self.area.position.x + math.cos(angle) * impactDist -- Usa 'angle' extraído
+    self.targetPos.y = self.area.position.y + math.sin(angle) * impactDist -- Usa 'angle' extraído
 
     -- Inicia a animação
     self.isAttacking = true

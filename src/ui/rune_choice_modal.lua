@@ -6,9 +6,13 @@
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local RuneChoiceModal = {
     playerManager = nil,
+    inputManager = nil,
+    floatingTextManager = nil,
+    runeManager = nil,
     visible = false,
     rune = nil,
     abilities = {},
@@ -18,11 +22,17 @@ local RuneChoiceModal = {
 
 --[[
     Inicializa o modal
+    @param playerManager (table) Instância do PlayerManager.
+    @param inputManager (table) Instância do InputManager.
+    @param floatingTextManager (table) Instância do FloatingTextManager.
 ]]
 function RuneChoiceModal:init(playerManager, inputManager, floatingTextManager)
     self.playerManager = playerManager
     self.inputManager = inputManager
     self.floatingTextManager = floatingTextManager
+    -- Obtém o RuneManager do registro
+    self.runeManager = ManagerRegistry:get("runeManager")
+    print("RuneChoiceModal inicializado.")
 end
 
 --[[
@@ -105,32 +115,37 @@ function RuneChoiceModal:getOptionAtPosition(x, y)
 end
 
 --[[
-    Aplica a habilidade selecionada ao jogador
+    Aplica a habilidade selecionada.
     @param abilityClass Classe da habilidade a ser aplicada
 ]]
 function RuneChoiceModal:applyAbility(abilityClass)
     if not abilityClass then return end
-    
+
     -- Cria uma nova instância da habilidade
     local ability = setmetatable({}, { __index = abilityClass })
-    
+
     -- Inicializa a habilidade com o jogador
     ability:init(self.playerManager)
-    
-    -- Adiciona a habilidade ao jogador
-    self.playerManager:addRune(ability)
-    
-    -- Mostra mensagem de habilidade obtida
-    self.floatingTextManager:addText(
-        self.playerManager.player.position.x,
-        self.playerManager.player.position.y - 30,
-        "Nova Habilidade: " .. ability.name,
-        true,
-        self.playerManager.player.position,
-        {0, 1, 0} -- Cor verde para habilidades
-    )
-    
-    -- Esconde o modal após aplicar a habilidade
+
+    -- Chama o RuneManager para aplicar a habilidade
+    if self.runeManager and self.runeManager.applyRuneAbility then
+        self.runeManager:applyRuneAbility(ability)
+        print(string.format("Habilidade '%s' aplicada via RuneManager.", ability.name or "Desconhecida"))
+
+        -- Mostra mensagem de habilidade obtida
+        self.floatingTextManager:addText(
+            self.playerManager.player.position.x,
+            self.playerManager.player.position.y - 30,
+            "Nova Habilidade: " .. (ability.name or "Desconhecida"),
+            true,
+            self.playerManager.player.position,
+            {0, 1, 0} -- Cor verde para habilidades
+        )
+    else
+        print("ERRO [RuneChoiceModal]: RuneManager ou RuneManager:applyRuneAbility não encontrado!")
+    end
+
+    -- Esconde o modal após a tentativa de aplicar a habilidade
     self:hide()
 end
 

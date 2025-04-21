@@ -3,19 +3,31 @@
     Item que pode ser obtido ao derrotar um boss e que concede novas habilidades ao jogador
 ]]
 
-local Rune = {
-    name = "Runa Base",
-    description = "Uma runa mágica que concede poderes ao portador",
-    rarity = "E", -- E, D, C, B, A, S, SS, SSS
-    abilities = {} -- Lista de habilidades que podem ser obtidas
+local BaseItem = require("src.items.base_item")
+
+local Rune = setmetatable({}, {__index = BaseItem })
+Rune.__index = Rune
+
+-- Mapeamento de Raridade para Nome/Descrição (Exemplo)
+local RARITY_DETAILS = {
+    E = { name_suffix = "Comum", description = "Uma runa básica com potencial oculto." },
+    D = { name_suffix = "Incomum", description = "Uma runa com um leve brilho mágico." },
+    C = { name_suffix = "Rara", description = "Uma runa que emana um poder notável." },
+    B = { name_suffix = "Épica", description = "Uma runa imbuída de forte energia arcana." },
+    A = { name_suffix = "Lendária", description = "Uma runa forjada com magia ancestral." },
+    S = { name_suffix = "Mítica", description = "Uma runa cujo poder rivaliza com os deuses." },
+    SS = { name_suffix = "Divina", description = "Uma runa de poder transcendental." },
+    SSS = { name_suffix = " Suprema", description = "Uma runa que transcende a própria realidade." }
 }
 
-function Rune:new(o)
-    o = o or {}
-    setmetatable(o, self)
-    self.__index = self
-    return o
-end
+-- A função 'new' agora é primariamente tratada por BaseItem,
+-- mas podemos manter uma aqui para inicializações específicas de Rune se necessário no futuro.
+-- Por ora, generateRandom será o construtor principal.
+-- function Rune:new(config)
+--     local instance = BaseItem:new(config)
+--     setmetatable(instance, Rune)
+--     return instance
+-- end
 
 --[[
     Gera uma runa aleatória baseada na raridade
@@ -24,13 +36,27 @@ end
 ]]
 function Rune:generateRandom(rarity)
     rarity = rarity or self:rollRarity()
-    
-    local rune = Rune:new({
-        rarity = rarity,
-        abilities = self:getRandomAbilities(rarity)
-    })
+    local details = RARITY_DETAILS[rarity] or { name_suffix = "Desconhecida", description = "Uma runa de origem misteriosa."}
+    local abilities = self:getRandomAbilities(rarity)
 
-    return rune
+    -- Monta a tabela de configuração para BaseItem:new
+    local config = {
+        type = "rune",
+        name = "Runa " .. details.name_suffix,
+        description = details.description,
+        rarity = rarity,
+        abilities = abilities,
+        icon = "rune_icon" -- Exemplo de ícone padrão para runas
+        -- Runas provavelmente não são stackáveis
+        -- maxStack = 1
+    }
+
+    -- Cria a instância usando BaseItem:new
+    local instance = BaseItem:new(config)
+    -- Garante que a metatable aponte para Rune para métodos específicos de Rune
+    setmetatable(instance, Rune)
+
+    return instance
 end
 
 --[[
@@ -49,9 +75,9 @@ function Rune:rollRarity()
         return "B"
     elseif roll < 0.99 then
         return "A"
-    elseif roll < 1 then
+    elseif roll < 0.995 then
         return "S"
-    elseif roll < 1.01 then
+    elseif roll < 0.999 then
         return "SS"
     else
         return "SSS"
@@ -61,7 +87,7 @@ end
 --[[
     Obtém habilidades aleatórias baseadas na raridade
     @param rarity Raridade da runa
-    @return table Lista de habilidades
+    @return table Lista de referências às classes de habilidade
 ]]
 function Rune:getRandomAbilities(rarity)
     local abilities = {}
@@ -75,26 +101,26 @@ function Rune:getRandomAbilities(rarity)
     elseif rarity == "C" then
         count = 4
     elseif rarity == "B" then
-        count = 4
+        count = 3
     elseif rarity == "A" then
-        count = 5
+        count = 3
     elseif rarity == "S" then
-        count = 6
+        count = 4
     elseif rarity == "SS" then
-        count = 7
+        count = 4
     elseif rarity == "SSS" then
-        count = 8
+        count = 5
     end
     
-    -- Lista de todas as habilidades disponíveis
+    -- Lista de todas as habilidades disponíveis (referências às classes)
     local availableAbilities = {
         require("src.runes.aura"),
         require("src.runes.orbital"),
         require("src.runes.thunder"),
-        -- Adicione mais habilidades aqui conforme forem criadas
+        -- Adicione mais referências de classes de habilidade aqui
     }
     
-    -- Seleciona habilidades aleatórias
+    -- Seleciona classes de habilidades aleatórias
     for i = 1, count do
         if #availableAbilities > 0 then
             local index = math.random(1, #availableAbilities)
@@ -107,14 +133,32 @@ function Rune:getRandomAbilities(rarity)
 end
 
 --[[
-    Aplica as habilidades da runa ao jogador
+    Aplica as habilidades da runa ao jogador.
+    Este método agora opera na *instância* da runa.
     @param player O jogador que receberá as habilidades
 ]]
 function Rune:applyToPlayer(player)
+    if not self.abilities or #self.abilities == 0 then
+        print("Aviso: Tentando aplicar runa sem habilidades definida: ", self.name)
+        return
+    end
+    print(string.format("Aplicando habilidades da %s (%d habilidades) ao jogador...", self.name, #self.abilities))
     for _, abilityClass in ipairs(self.abilities) do
-        local ability = setmetatable({}, { __index = abilityClass })
-        ability:init(player)
-        player:addAbility(ability)
+        if type(abilityClass) == 'table' and abilityClass.init then -- Verifica se é uma classe válida
+            print("- Aplicando habilidade: ", abilityClass.name or "NomeDesconhecido")
+            -- Cria uma instância da habilidade
+            -- Nota: Pode ser necessário ajustar como as habilidades são estruturadas/instanciadas.
+            --       Assumindo que a classe tem um método 'new' ou que podemos setar a metatable.
+            local abilityInstance = setmetatable({}, { __index = abilityClass })
+            -- Idealmente, a classe de habilidade teria um :new() que recebe o jogador/config
+            abilityInstance:init(player) -- Assumindo que init existe e recebe o jogador
+
+            -- Adiciona a *instância* da habilidade ao jogador
+            -- (Assumindo que player:addAbility espera uma instância)
+            player:addAbility(abilityInstance)
+        else
+             print("Aviso: Item inválido na lista de habilidades da runa.")
+        end
     end
 end
 

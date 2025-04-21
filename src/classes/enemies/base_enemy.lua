@@ -81,7 +81,7 @@ function BaseEnemy:update(dt, playerManager, enemies)
     -- Calcula a força de separação total devido a outros inimigos
     local totalSeparationX = 0
     local totalSeparationY = 0
-    local separationStrength = 1.5 -- Fator de força da separação (ajustável)
+    local separationStrength = 10.0 -- Fator de força da separação (AUMENTADO SIGNIFICATIVAMENTE)
 
     -- Verifica colisão com outros inimigos e calcula separação
     for _, other in ipairs(enemies) do
@@ -173,9 +173,9 @@ function BaseEnemy:draw()
     if not self.isAlive then return end
     
     -- Desenha a area de colisão
-    local collisionPosition = self:getCollisionPosition()
-    love.graphics.setColor(1, 0, 0, 0.5)
-    love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
+    -- local collisionPosition = self:getCollisionPosition()
+    -- love.graphics.setColor(1, 0, 0, 0.5)
+    -- love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
 end
 
 function BaseEnemy:takeDamage(damage, isCritical)

@@ -190,24 +190,25 @@ end
 
 --[[
     Take damage
-    @param damage Amount of damage to take
-    @return boolean Whether the player died from this damage
+    Calcula o dano real sofrido após a redução pela defesa e atualiza a vida.
+    Marca o jogador como não-vivo se a vida chegar a zero ou menos.
+    @param damage (number): Quantidade de dano bruto a ser aplicado.
+    @return number: O dano real sofrido após a redução.
 ]]
 function PlayerState:takeDamage(damage)
-    if not self.isAlive then return false end
-    
+    if not self.isAlive then return 0 end -- Retorna 0 dano se já estiver morto
+
     -- Calcula a redução de dano
     local reduction = self:getDamageReduction()
     local actualDamage = math.max(1, math.floor(damage * (1 - reduction)))
-    
+
     self.currentHealth = math.max(0, self.currentHealth - actualDamage)
-    
+
     if self.currentHealth <= 0 then
         self.isAlive = false
-        return true
     end
-    
-    return false
+
+    return actualDamage -- Retorna o dano real sofrido
 end
 
 --[[
@@ -387,6 +388,26 @@ end
 function PlayerState:addKill()
     if not self.isAlive then return end
     self.kills = self.kills + 1
+end
+
+--[[
+    Construtor: Cria e inicializa uma nova instância de PlayerState.
+    @param baseStats (table): Tabela contendo os atributos base.
+    @return table: A nova instância de PlayerState.
+]]
+function PlayerState:new(baseStats)
+    local instance = {}
+    -- Copia propriedades padrão da classe para a instância (opcional, mas pode ser útil)
+    for k, v in pairs(PlayerState) do
+        if type(v) ~= 'function' then -- Não copia funções
+            instance[k] = v
+        end
+    end
+    
+    setmetatable(instance, self)
+    self.__index = self -- Garante que métodos da classe sejam encontrados na instância
+    instance:init(baseStats) -- Chama a função de inicialização existente
+    return instance
 end
 
 return PlayerState 

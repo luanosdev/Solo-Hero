@@ -72,3 +72,17 @@ Esta seção descreve alguns dos principais componentes e como eles interagem.
 
 *   **Recálculo de Atributos de Área:** Atualmente, atributos como `range`, `angleWidth`, `radius` são recalculados dentro do `update` de cada habilidade para garantir que os bônus do jogador (`getTotalRange`, `getTotalArea`) sejam aplicados dinamicamente. Embora funcional, isso pode gerar custo computacional se houver muitas habilidades ativas. 
     *   **Alternativa Futura:** Implementar um sistema de eventos/observador onde o `PlayerState` notifica as habilidades ativas *apenas* quando um atributo relevante muda, ou utilizar um sistema de cache com "dirty flag" no `PlayerState` para evitar recálculos desnecessários a cada frame.
+
+## Possíveis Melhorias Futuras
+
+*   **Introdução de um `AttributesManager`:** Atualmente, o `PlayerState` gerencia os atributos base do jogador e calcula os valores totais. Para maior escalabilidade, especialmente com a adição de mais itens, buffs/debuffs e upgrades complexos, poderíamos introduzir um `AttributesManager`.
+    *   **Responsabilidade:** Centralizar o cálculo dos *atributos efetivos* do jogador (e futuramente outras entidades), considerando valores base (`PlayerState`), modificadores de itens equipados (`InventoryManager`/`PlayerManager`), bônus de runas (`RuneManager`), e buffs/debuffs temporários.
+    *   **Funcionamento:** Outros sistemas consultariam o `AttributesManager` para obter o valor final de um atributo (ex: `getEffectiveAttribute("player", "damage")`) em vez de depender de cálculos dentro do `PlayerState` ou outros locais.
+    *   **Colaboração:** Este manager *colaboraria* com o `PlayerState` (que continuaria armazenando os valores base e o estado atual como HP) e não o substituiria completamente.
+    *   **Benefícios:** Desacoplamento, melhor gerenciamento de modificadores, maior clareza na aplicação de upgrades e bônus.
+    *   **Quando considerar:** Implementar quando o gerenciamento de atributos no `PlayerState` ou a aplicação de modificadores de diversas fontes começar a ficar complexa.
+
+*   **Unificação do Sistema de Pausa:** Atualmente, a pausa do jogo é tratada de duas formas: a tela de inventário (`InventoryScreen`) define explicitamente a flag global `game.isPaused`, enquanto os modais (`LevelUpModal`, `RuneChoiceModal`) dependem da verificação de `modal.visible` em `main.lua` para interromper a atualização do jogo. Embora funcional, isso representa uma inconsistência. 
+    *   **Melhoria Futura:** Unificar a abordagem fazendo com que os modais `:show()` também definam `game.isPaused = true` e os métodos `:hide()` definam `game.isPaused = false`. Isso exigiria passar o controle do estado de pausa para os modais ou usar um sistema de eventos, mas resultaria em uma gestão de pausa mais consistente e centralizada. Considerar essa refatoração quando a gestão de múltiplos estados de pausa/UI se tornar mais complexa.
+
+*   **(Adicione outras ideias futuras aqui)**
