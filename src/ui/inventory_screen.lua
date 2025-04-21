@@ -7,9 +7,11 @@ local glowShader = nil -- Variável para armazenar o shader, se carregado
 
 local InventoryScreen = {}
 InventoryScreen.isVisible = false
-InventoryScreen.slotsPerRow = 6 -- Exemplo, ajuste conforme necessário
-InventoryScreen.slotSize = 48
+InventoryScreen.slotsPerRow = 8 -- Aumentado de 6 para 8
+InventoryScreen.slotSize = 48 -- Tamanho base para inventário
 InventoryScreen.slotSpacing = 5
+InventoryScreen.equipmentSlotSize = 64 -- Tamanho maior para slots de equipamento
+InventoryScreen.runeSlotSize = 32 -- Tamanho menor para runas
 
 -- Função para obter o shader (será chamado pelo main.lua)
 function InventoryScreen.setGlowShader(shader)
@@ -18,15 +20,15 @@ end
 
 -- Função para alternar a visibilidade e pausar/retomar o jogo
 function InventoryScreen.toggle()
-    print("  [InventoryScreen] toggle START. Current isVisible:", InventoryScreen.isVisible) -- DEBUG
+    -- print("  [InventoryScreen] toggle START. Current isVisible:", InventoryScreen.isVisible) -- DEBUG Removido
     InventoryScreen.isVisible = not InventoryScreen.isVisible
-    print("  [InventoryScreen] toggle END. New isVisible:", InventoryScreen.isVisible) -- DEBUG
+    -- print("  [InventoryScreen] toggle END. New isVisible:", InventoryScreen.isVisible) -- DEBUG Removido
     -- A lógica real de pausa/retomada será gerenciada no main.lua
     if InventoryScreen.isVisible then
-        print("Inventário aberto.")
+        -- print("Inventário aberto.") -- DEBUG Removido
         -- TODO: Potencialmente buscar dados frescos do jogador aqui, se necessário
     else
-        print("Inventário fechado.")
+        -- print("Inventário fechado.") -- DEBUG Removido
     end
     return InventoryScreen.isVisible -- Retorna o novo estado
 end
@@ -42,15 +44,15 @@ function InventoryScreen.draw()
 
     local screenW, screenH = love.graphics.getDimensions()
     -- Dimensões e posição do painel principal (Aumentado)
-    local panelW = math.min(screenW * 0.95, 1400) -- Aumentado de 0.9/1200
+    local panelW = math.min(screenW * 0.95, 1400)
     local panelH = math.min(screenH * 0.85, 800)
     local panelX = (screenW - panelW) / 2
     local panelY = (screenH - panelH) / 2
-    print("  [InventoryScreen.draw] Calculou Painel e Seções") -- DEBUG
+    -- print("  [InventoryScreen.draw] Calculou Painel e Seções") -- DEBUG Removido
 
-    print("  [InventoryScreen.draw] Chamando drawWindowFrame...") -- DEBUG
+    -- print("  [InventoryScreen.draw] Chamando drawWindowFrame...") -- DEBUG Removido
     elements.drawWindowFrame(panelX, panelY, panelW, panelH, "CHEERFUL JACK")
-    print("  [InventoryScreen.draw] Retornou de drawWindowFrame") -- DEBUG
+    -- print("  [InventoryScreen.draw] Retornou de drawWindowFrame") -- DEBUG Removido
 
     -- Calcula dimensões e posições das seções
     local padding = 20
@@ -59,29 +61,23 @@ function InventoryScreen.draw()
     local sectionTopY = panelY + titleHeight * 1.5 + padding
     local sectionContentH = panelH - (sectionTopY - panelY) - padding
 
-    -- Larguras das seções (Voltando para 3 seções, ex: 25%, 25%, 50%)
+    -- Larguras das seções (Ajustando para talvez dar mais espaço ao equipamento?)
     local statsW = panelW * 0.25
-    local equipmentW = panelW * 0.25
+    local equipmentW = panelW * 0.30 -- Aumentado
     local inventoryW = panelW - statsW - equipmentW - padding * 4 -- O restante
-    -- local detailsW = ... -- Removido
 
     local statsX = panelX + padding
     local equipmentX = statsX + statsW + padding
     local inventoryX = equipmentX + equipmentW + padding
-    -- local detailsX = ... -- Removido
-    -- print("InventoryScreen.draw - Calculou Seções") -- DEBUG
 
     InventoryScreen.drawStats(statsX, sectionTopY, statsW, sectionContentH)
-
     InventoryScreen.drawEquipment(equipmentX, sectionTopY, equipmentW, sectionContentH)
-
     InventoryScreen.drawInventory(inventoryX, sectionTopY, inventoryW, sectionContentH)
-
 end
 
 -- Desenha a seção de estatísticas (esquerda)
 function InventoryScreen.drawStats(x, y, w, h)
-    print("    [InventoryScreen.drawStats] START") -- DEBUG
+    -- print("    [InventoryScreen.drawStats] START") -- DEBUG Removido
     -- Adiciona Título da Seção
     love.graphics.setFont(fonts.hud)
     love.graphics.setColor(colors.text_highlight)
@@ -136,20 +132,19 @@ function InventoryScreen.drawStats(x, y, w, h)
             -- Valor
             love.graphics.setColor(stat.color or colors.text_value) -- Usa cor específica ou padrão
             local valueStr = tostring(stat.value)
-            local valueWidth = fonts.main:getWidth(valueStr)
             love.graphics.printf(valueStr, x, currentY, w, "right") -- Alinha valor à direita
             currentY = currentY + lineHeight
         end
         -- Impede que o texto ultrapasse a altura da seção de conteúdo
-        if currentY > y + h - lineHeight then break end -- Usa y+h como limite inferior total
+        if currentY > y + h - lineHeight then break end
     end
     love.graphics.setFont(fonts.main) -- Restaura a fonte padrão
-    print("    [InventoryScreen.drawStats] END") -- DEBUG
+    -- print("    [InventoryScreen.drawStats] END") -- DEBUG Removido
 end
 
 -- Desenha a seção de equipamento (centro)
 function InventoryScreen.drawEquipment(x, y, w, h)
-    print("    [InventoryScreen.drawEquipment] START") -- DEBUG
+    -- print("    [InventoryScreen.drawEquipment] START") -- DEBUG Removido
     -- Adiciona Título da Seção
     love.graphics.setFont(fonts.hud)
     love.graphics.setColor(colors.text_highlight)
@@ -158,78 +153,72 @@ function InventoryScreen.drawEquipment(x, y, w, h)
     local contentStartY = y + titleH -- Y onde o conteúdo começa
     local contentH = h - titleH -- Altura disponível
 
-    -- Área de pré-visualização do personagem (placeholder)
-    local previewH = contentH * 0.6
-    local previewW = previewH * 0.6 -- Proporção visual
+    -- Área de pré-visualização do personagem (placeholder) - Mantendo por enquanto
+    local previewH = contentH * 0.5 -- Reduzido para dar espaço aos slots
+    local previewW = previewH * 0.6
     local previewX = x + (w - previewW) / 2
-    -- Ajusta Y da preview para começar abaixo do título
-    local previewY = contentStartY + contentH * 0.05
+    local previewY = contentStartY + contentH * 0.05 -- Um pouco abaixo do título
     love.graphics.setColor(colors.slot_empty_border)
     love.graphics.rectangle("line", previewX, previewY, previewW, previewH)
     love.graphics.setColor(colors.text_label)
-    love.graphics.printf("Visual do Personagem", previewX, previewY + previewH/2 - fonts.main:getHeight()/2, previewW, "center")
+    love.graphics.printf("Visual", previewX, previewY + previewH/2 - fonts.main:getHeight()/2, previewW, "center")
 
-    -- Slots de equipamento (posições de exemplo, ajuste conforme necessário)
-    local slotSize = InventoryScreen.slotSize
-    local spacing = InventoryScreen.slotSpacing * 3 -- Aumentado de 2 para 3 para mais espaço
-    local slots = {
-        -- Coluna Esquerda
-        {id = "head",     relX = -1, relY = 0},
-        {id = "chest",    relX = -1, relY = 1},
-        {id = "legs",     relX = -1, relY = 2},
-        {id = "feet",     relX = -1, relY = 3},
-        -- Coluna Direita
-        {id = "necklace", relX = 1, relY = 0},
-        {id = "backpack", relX = 1, relY = 1},
-        {id = "belt",     relX = 1, relY = 2},
-        {id = "gloves",   relX = 1, relY = 3},
-        -- Abaixo
-        {id = "ring1",    relX = -0.5, relY = 4.5},
-        {id = "ring2",    relX = 0.5,  relY = 4.5},
-        {id = "weapon1",  relX = -0.5, relY = 5.5, sizeMultiplier = 1.5}, -- Slot maior para arma?
-        {id = "weapon2",  relX = 0.5,  relY = 5.5, sizeMultiplier = 1.5},
+    -- Slots de equipamento principais
+    local eqSlotSize = InventoryScreen.equipmentSlotSize
+    local eqSpacing = InventoryScreen.slotSpacing * 2 -- Espaçamento entre slots de equipamento
+
+    -- Posições relativas ao centro da seção ou à preview? Vamos tentar relativo ao centro da seção.
+    local centerX = x + w / 2
+    local startEqY = previewY + previewH + eqSpacing * 2 -- Começa abaixo da preview
+
+    local equipmentSlots = {
+        {id = "weapon",   label="Arma",     relX = -1, relY = 0},
+        {id = "armor",    label="Armadura", relX = 1,  relY = 0},
+        {id = "amulet",   label="Amuleto",  relX = -1, relY = 1},
+        {id = "backpack", label="Mochila",  relX = 1,  relY = 1},
     }
 
-    local equipmentOriginX = previewX + previewW / 2
-    local equipmentOriginY = previewY
-
     love.graphics.setLineWidth(1)
-    for _, slot in ipairs(slots) do
-        local currentSlotSize = slot.sizeMultiplier and slotSize * slot.sizeMultiplier or slotSize
-        local slotX = equipmentOriginX + slot.relX * (slotSize + spacing) - (slot.relX > 0 and currentSlotSize or (slot.relX < 0 and 0 or currentSlotSize/2))
-        local slotY = equipmentOriginY + slot.relY * (slotSize + spacing)
+    for _, slot in ipairs(equipmentSlots) do
+        -- Calcula X baseado no centro, relX (-1 ou 1), tamanho e espaçamento
+        local slotX = centerX + slot.relX * (eqSlotSize / 2 + eqSpacing / 2) - eqSlotSize / 2
+        -- Calcula Y baseado na posição inicial e relY
+        local slotY = startEqY + slot.relY * (eqSlotSize + eqSpacing)
 
-        -- TODO: Obter o item equipado para este slot (PlayerManager.player.equipment[slot.id] ou algo assim)
+        -- TODO: Obter o item equipado para este slot
         local equippedItem = nil -- Exemplo: PlayerManager.player.equipment[slot.id]
 
-        if equippedItem then
-             -- TODO: Desenhar ícone do item
-             -- love.graphics.draw(equippedItem.icon, slotX, slotY, 0, slotSize / equippedItem.icon:getWidth(), slotSize / equippedItem.icon:getHeight())
-             -- Desenhar borda de raridade
-             if elements and elements.drawRarityBorderAndGlow then
-                elements.drawRarityBorderAndGlow(equippedItem.rarity, slotX, slotY, slotSize, slotSize)
-             else -- Fallback se a função de brilho não existir
-                local rarityColor = colors.rarity[equippedItem.rarity or 'E'] or colors.rarity['E']
-                love.graphics.setLineWidth(2)
-                love.graphics.setColor(rarityColor)
-                love.graphics.rectangle("line", slotX, slotY, currentSlotSize, slotSize, 3, 3)
-                love.graphics.setLineWidth(1)
-             end
-        else
-            -- Desenha slot vazio
-            love.graphics.setColor(colors.slot_empty_bg)
-            love.graphics.rectangle("fill", slotX, slotY, currentSlotSize, slotSize, 3, 3)
-            love.graphics.setColor(colors.slot_empty_border)
-            love.graphics.rectangle("line", slotX, slotY, currentSlotSize, slotSize, 3, 3)
-        end
+        InventoryScreen.drawSingleSlot(slotX, slotY, eqSlotSize, eqSlotSize, equippedItem, slot.label)
     end
+
+    -- Slots de Runas
+    local runeSlotSize = InventoryScreen.runeSlotSize
+    local runeSpacing = InventoryScreen.slotSpacing
+    local numRunes = 4 -- Quantidade de runas
+    local totalRunesWidth = numRunes * runeSlotSize + (numRunes - 1) * runeSpacing
+    local runesStartX = centerX - totalRunesWidth / 2
+    local runesY = startEqY + 2 * (eqSlotSize + eqSpacing) -- Abaixo dos slots principais
+
+    love.graphics.setFont(fonts.main)
+    love.graphics.setColor(colors.text_label)
+    love.graphics.printf("Runas", x, runesY - fonts.main:getHeight() * 1.5, w, "center") -- Título para runas
+
+    for i = 1, numRunes do
+        local slotX = runesStartX + (i-1) * (runeSlotSize + runeSpacing)
+        -- TODO: Obter a runa equipada para este slot
+        local equippedRune = nil -- Exemplo: PlayerManager.player.runes[i]
+
+        InventoryScreen.drawSingleSlot(slotX, runesY, runeSlotSize, runeSlotSize, equippedRune)
+    end
+
     love.graphics.setLineWidth(1)
-    print("    [InventoryScreen.drawEquipment] END") -- DEBUG
+    love.graphics.setFont(fonts.main) -- Garante fonte padrão
+    -- print("    [InventoryScreen.drawEquipment] END") -- DEBUG Removido
 end
 
 -- Desenha a seção do inventário (direita)
 function InventoryScreen.drawInventory(x, y, w, h)
-    print("    [InventoryScreen.drawInventory] START") -- DEBUG
+    -- print("    [InventoryScreen.drawInventory] START") -- DEBUG Removido
     -- Adiciona Título da Seção
     love.graphics.setFont(fonts.hud)
     love.graphics.setColor(colors.text_highlight)
@@ -240,186 +229,157 @@ function InventoryScreen.drawInventory(x, y, w, h)
 
     local slotSize = InventoryScreen.slotSize
     local spacing = InventoryScreen.slotSpacing
-    local cols = InventoryScreen.slotsPerRow
-    local rows = math.floor((contentH + spacing) / (slotSize + spacing))
+    local cols = InventoryScreen.slotsPerRow -- Agora 8
+    local rows = 6 -- Fixo em 6 linhas por enquanto
 
     -- Calcula a largura real da grade para centralizar título e itens
     local gridWidth = cols * slotSize + math.max(0, cols - 1) * spacing
     local gridStartX = x + (w - gridWidth) / 2 -- X onde a grade começa
 
-    -- Conta itens atuais e total de slots
+    -- Conta itens atuais e calcula total de slots
     local currentItemCount = 0
+    -- TODO: Obter inventário real do PlayerManager ou similar
     local inventoryItems = { -- Usando placeholder por enquanto
-        { id = "potion_heal", quantity = 6, rarity = "C" }, { id = "scrap", quantity = 19, rarity = "E" }, nil, nil, nil, nil, -- Linha 1
-        { id = "molotov", quantity = 3, rarity = "B" }, { id = "notes", quantity = 2, rarity = "E" }, { id = "ammo_pistol", quantity = 7, rarity = "E" }, { id = "suit", rarity = "A" }, { id = "energy_cell", quantity = 2, rarity = "B" }, nil, -- Linha 2
-        { id = "portal_device", rarity = "S" }, { id = "comic1", rarity = "D" }, { id = "duct_tape", quantity = 35, rarity = "E" }, { id = "crystal_shard", quantity = 6, rarity = "A" }, nil, nil, -- Linha 3
-        { id = "energy_drink", quantity = 20, rarity = "E" }, { id = "component", quantity = 80, rarity = "E" }, { id = "food_can", quantity = 7, rarity = "E" }, { id = "comic2", rarity = "D" }, { id = "medkit", quantity = 1, rarity = "B"}, nil, -- Linha 4
-        { id = "key", quantity = 4, rarity = "E" }, { id = "scissors", quantity = 4, rarity = "E" }, { id = "lighter", quantity = 2, rarity = "E" }, { id = "toolbox", rarity = "B" }, { id = "stimpack", quantity = 4, rarity = "C"}, nil, -- Linha 5
+        { id = "potion_heal", quantity = 6, rarity = "C" }, { id = "scrap", quantity = 19, rarity = "E" }, nil, nil, nil, nil, nil, nil, -- Linha 1 (8 cols)
+        { id = "molotov", quantity = 3, rarity = "B" }, { id = "notes", quantity = 2, rarity = "E" }, { id = "ammo_pistol", quantity = 7, rarity = "E" }, { id = "suit", rarity = "A" }, { id = "energy_cell", quantity = 2, rarity = "B" }, nil, nil, nil, -- Linha 2
+        { id = "portal_device", rarity = "S" }, { id = "comic1", rarity = "D" }, { id = "duct_tape", quantity = 35, rarity = "E" }, { id = "crystal_shard", quantity = 6, rarity = "A" }, nil, nil, nil, nil, -- Linha 3
+        { id = "energy_drink", quantity = 20, rarity = "E" }, { id = "component", quantity = 80, rarity = "E" }, { id = "food_can", quantity = 7, rarity = "E" }, { id = "comic2", rarity = "D" }, { id = "medkit", quantity = 1, rarity = "B"}, nil, nil, nil, -- Linha 4
+        { id = "key", quantity = 4, rarity = "E" }, { id = "scissors", quantity = 4, rarity = "E" }, { id = "lighter", quantity = 2, rarity = "E" }, { id = "toolbox", rarity = "B" }, { id = "stimpack", quantity = 4, rarity = "C"}, nil, nil, nil, -- Linha 5
+         nil, nil, nil, nil, nil, nil, nil, nil, -- Linha 6
     }
+    -- Contagem real dos itens no placeholder
     for _, item in ipairs(inventoryItems) do
         if item then currentItemCount = currentItemCount + 1 end
     end
-    local totalSlots = rows * cols
-    local countText = string.format(" (%d/%d)", currentItemCount, totalSlots)
+    local totalSlots = rows * cols -- 6 * 8 = 48
+    local countText = string.format(" (%d/%d)", currentItemCount, totalSlots) -- TODO: O total deveria vir da mochila?
 
     -- Desenha Título Centralizado com Contagem
     local titleText = "INVENTÁRIO" .. countText
-    -- Alternativa (centralizado na grade): love.graphics.printf(titleText, gridStartX, y, gridWidth, "center")
+    love.graphics.printf(titleText, x, y, w, "center") -- Desenha o título
 
     -- Ajusta Y inicial da grade de slots para ficar abaixo do título
     local startY = contentStartY
     -- Ajusta X inicial da grade para centralizar
     local startX = gridStartX
 
-    --[[ -- COMENTANDO PREPARAÇÃO DO LOOP TAMBÉM ]] -- Removendo comentário do while abaixo
-    -- Dados de exemplo do inventário (já definidos acima para contagem)
-
-    -- DEBUG: Verificar valores antes do loop while
-    --[[ -- Removendo debug prints
-    print(string.format("    [DEBUG] Antes do while: rows=%s, cols=%s, totalSlots=%s, #inventoryItems=%s",
-        tostring(rows), tostring(cols), tostring(totalSlots), tostring(#inventoryItems)))
-    --]]
-
-    -- Substituindo o while por um for para evitar table.insert dentro do draw
+    -- Preenche a tabela inventoryItems se necessário (usando o placeholder)
     local currentSize = #inventoryItems
     if currentSize < totalSlots then
-        -- print(string.format("    [DEBUG] Preenchendo inventário de %d até %d", currentSize + 1, totalSlots)) -- DEBUG Removido
         for i = currentSize + 1, totalSlots do
             inventoryItems[i] = nil -- Atribuição direta
-            -- ADICIONAR verificação de segurança?
-            -- if i > 10000 then print("AVISO: Loop for passou de 10000 iterações!"); break end
         end
+    elseif currentSize > totalSlots then -- Trunca se placeholder for maior
+         for i = currentSize, totalSlots + 1, -1 do
+             inventoryItems[i] = nil
+         end
     end
-    --[[ -- Loop while original comentado
-    while #inventoryItems < totalSlots do
-        -- DEBUG: Verificar condição dentro do loop while (pode gerar muito log)
-        -- print(string.format("    [DEBUG] Dentro do while: #inventoryItems=%d, totalSlots=%d", #inventoryItems, totalSlots))
-        table.insert(inventoryItems, nil) -- Adiciona nil até que o total de slots seja atendido
-        -- ADICIONAR verificação de segurança?
-        -- if #inventoryItems > 10000 then print("AVISO: Loop while passou de 10000 iterações!"); break end
-    end
-    --]]
-    -- print("    [DEBUG] Após o preenchimento: #inventoryItems=", #inventoryItems) -- DEBUG Removido
 
-    --[[ -- Mantendo estes comentados por enquanto --]]
     -- Reativando slotIndex e setLineWidth
     local slotIndex = 1
     love.graphics.setLineWidth(1)
 
-    -- Loop principal para desenhar os slots (Estrutura ativa, conteúdo comentado)
-    -- Reativando conteúdo do loop
+    -- Loop principal para desenhar os slots
     for r = 0, rows - 1 do
         for c = 0, cols - 1 do
-            --[[ -- CONTEÚDO DO LOOP INTERNO AINDA COMENTADO --]]
-            -- Reativando conteúdo:
             local slotX = startX + c * (slotSize + spacing)
             local slotY = startY + r * (slotSize + spacing)
             local item = inventoryItems[slotIndex]
 
-            -- Desenha o fundo do slot
-            love.graphics.setColor(colors.slot_empty_bg)
-            love.graphics.rectangle("fill", slotX, slotY, slotSize, slotSize, 3, 3)
+            -- Usa a função helper para desenhar o slot
+            InventoryScreen.drawSingleSlot(slotX, slotY, slotSize, slotSize, item)
 
-            --[[ -- Removido if item pois item depende de slotIndex --]]
-            -- Reativando lógica do item
-            if item then
-                -- TODO: Desenhar ícone real do item baseado em item.id
-                -- Placeholder: Desenha a primeira letra do ID
-                love.graphics.setColor(colors.white)
-                love.graphics.setFont(fonts.title) -- Usando uma fonte maior para placeholder
-                love.graphics.printf(string.sub(item.id, 1, 1), slotX, slotY + slotSize * 0.1, slotSize, "center")
-                love.graphics.setFont(fonts.main) -- Restaura fonte
-
-                -- Desenha borda e brilho da raridade
-                if elements and elements.drawRarityBorderAndGlow then
-                    elements.drawRarityBorderAndGlow(item.rarity or 'E', slotX, slotY, slotSize, slotSize)
-                else
-                    local rarityColor = colors.rarity[item.rarity or 'E'] or colors.rarity['E']
-                    love.graphics.setLineWidth(2)
-                    love.graphics.setColor(rarityColor)
-                    love.graphics.rectangle("line", slotX, slotY, slotSize, slotSize, 3, 3)
-                    love.graphics.setLineWidth(1)
-                end
-
-                -- Desenha contagem de itens
-                if item.quantity and item.quantity > 1 then
-                    love.graphics.setFont(fonts.stack_count)
-                    local countStr = tostring(item.quantity)
-                    local textW = fonts.stack_count:getWidth(countStr)
-                    local textH = fonts.stack_count:getHeight()
-                    local textX = slotX + slotSize - textW - 3
-                    local textY = slotY + slotSize - textH - 1
-
-                    love.graphics.setColor(0, 0, 0, 0.6)
-                    love.graphics.rectangle("fill", textX - 1, textY - 1, textW + 2, textH + 1, 2, 2)
-                    love.graphics.setColor(colors.white)
-                    love.graphics.print(countStr, textX, textY)
-                    love.graphics.setFont(fonts.main)
-                end
-            else
-                -- Desenha borda do slot vazio
-                love.graphics.setColor(colors.slot_empty_border)
-                love.graphics.rectangle("line", slotX, slotY, slotSize, slotSize, 3, 3)
-            end
-            -- slotIndex = slotIndex + 1 -- Depende de slotIndex
-            -- if slotIndex > totalSlots then break end -- Depende de slotIndex
-            -- Reativando incremento e break interno
             slotIndex = slotIndex + 1
-            if slotIndex > totalSlots then break end
-            --]] -- Fim do comentário original do conteúdo
+            -- Não precisamos mais do break interno aqui se a tabela já tem o tamanho certo
+            -- if slotIndex > totalSlots then break end
         end
-         --[[ -- Break externo comentado também, pois depende de slotIndex --]]
-         -- Reativando break externo
-         if slotIndex > totalSlots then break end -- Segurança externa também
-         --]]
+        -- Nem do break externo
+        -- if slotIndex > totalSlots then break end
     end
 
-    love.graphics.setLineWidth(1) -- Restaurado aqui fora, caso tenha sido alterado
+    love.graphics.setLineWidth(1)
     love.graphics.setFont(fonts.main) -- Garante que a fonte padrão seja restaurada
-    print("    [InventoryScreen.drawInventory] END (Código completo reativado)") -- DEBUG
+    -- print("    [InventoryScreen.drawInventory] END (Código completo reativado)") -- DEBUG Removido
 end
+
+
+-- Função HELPER para desenhar um único slot (equipamento ou inventário)
+function InventoryScreen.drawSingleSlot(slotX, slotY, slotW, slotH, item, label)
+    if item then
+         -- TODO: Desenhar ícone real do item baseado em item.id
+         -- Placeholder: Desenha a primeira letra do ID
+         love.graphics.setColor(colors.white)
+         love.graphics.setFont(fonts.title) -- Usando uma fonte maior para placeholder
+         love.graphics.printf(string.sub(item.id, 1, 1), slotX, slotY + slotH * 0.1, slotW, "center")
+         love.graphics.setFont(fonts.main) -- Restaura fonte
+
+         -- Desenha borda e brilho da raridade
+         if elements and elements.drawRarityBorderAndGlow then
+             elements.drawRarityBorderAndGlow(item.rarity or 'E', slotX, slotY, slotW, slotH)
+         else -- Fallback
+             local rarityColor = colors.rarity[item.rarity or 'E'] or colors.rarity['E']
+             love.graphics.setLineWidth(2)
+             love.graphics.setColor(rarityColor)
+             love.graphics.rectangle("line", slotX, slotY, slotW, slotH, 3, 3)
+             love.graphics.setLineWidth(1)
+         end
+
+         -- Desenha contagem de itens (se aplicável e > 1)
+         if item.quantity and item.quantity > 1 then
+             love.graphics.setFont(fonts.stack_count)
+             local countStr = tostring(item.quantity)
+             local textW = fonts.stack_count:getWidth(countStr)
+             local textH = fonts.stack_count:getHeight()
+             -- Posiciona no canto inferior direito
+             local textX = slotX + slotW - textW - 3
+             local textY = slotY + slotH - textH - 1
+
+             love.graphics.setColor(0, 0, 0, 0.6) -- Fundo semi-transparente
+             love.graphics.rectangle("fill", textX - 1, textY - 1, textW + 2, textH + 1, 2, 2)
+             love.graphics.setColor(colors.white)
+             love.graphics.print(countStr, textX, textY)
+             love.graphics.setFont(fonts.main) -- Restaura fonte
+         end
+    else
+        -- Desenha slot vazio
+        love.graphics.setColor(colors.slot_empty_bg)
+        love.graphics.rectangle("fill", slotX, slotY, slotW, slotH, 3, 3)
+        love.graphics.setColor(colors.slot_empty_border)
+        love.graphics.rectangle("line", slotX, slotY, slotW, slotH, 3, 3)
+
+        -- Desenha label do slot se fornecido (para equipamento)
+        if label then
+            love.graphics.setFont(fonts.main_small)
+            love.graphics.setColor(colors.text_label)
+            love.graphics.printf(label, slotX, slotY + slotH/2 - fonts.main_small:getHeight()/2, slotW, "center")
+            love.graphics.setFont(fonts.main)
+        end
+    end
+end
+
 
 -- Função para processar input quando o inventário está visível
 function InventoryScreen.keypressed(key)
-    -- A tecla 'tab' é tratada em main.lua para garantir que a pausa seja gerenciada corretamente
-    if not InventoryScreen.isVisible then
-        return false -- Não trata input se não estiver visível
-    end
+    if not InventoryScreen.isVisible then return false end
 
-    -- TODO: Adicionar lógica de navegação/interação dentro do inventário (WASD, Enter, Mouse, etc.)
-    if key == "escape" then -- Fecha o inventário com ESC também
-        InventoryScreen.toggle() -- Apenas alterna a visibilidade, a pausa é tratada no main.lua
+    -- TODO: Adicionar lógica de navegação/interação dentro do inventário
+    if key == "escape" or key == "tab" then -- 'tab' também fecha (a pausa é tratada em main.lua)
+        InventoryScreen.toggle()
         return true
     end
 
-    -- Se o inventário está visível mas não tratou a tecla,
-    -- considera o input como tratado para evitar que o jogo o processe
-    print("Inventory handled key:", key) -- Debug
-    return true
+    -- print("Inventory handled key:", key) -- DEBUG Removido
+    return true -- Consome outras teclas por enquanto
 end
 
 -- Função para tratar cliques do mouse quando o inventário está visível
 function InventoryScreen.mousepressed(x, y, button)
-    if not InventoryScreen.isVisible then
-        return false -- Não trata cliques se não estiver visível
-    end
+    if not InventoryScreen.isVisible then return false end
 
-    -- TODO: Adicionar lógica de clique nos slots para ABRIR o ItemDetailsModal
-    -- 1. Calcular em qual seção o clique ocorreu (Inventário ou Equipamento)
-    -- 2. Calcular qual slot foi clicado dentro da seção
-    -- 3. Obter o item naquele slot (se houver)
-    -- 4. Chamar ItemDetailsModal:show(item)
+    -- TODO: Lógica de clique nos slots
+    -- print("Inventory click detection placeholder @", x, y, button) -- DEBUG Removido
 
-    -- Exemplo de detecção de clique na área do inventário (PRECISA REFINAR)
-    -- Precisa das posições X, Y, W, H da seção de inventário calculadas em draw()
-    -- Esta lógica é melhor feita dentro de drawInventory/drawEquipment ou funções helper
-    print("Inventory click detection placeholder @", x, y, button)
-
-
-    -- Se o inventário está visível, considera o clique como tratado (impedindo clique no jogo)
-    -- Mas não impede o clique de ser processado por elementos da UI do inventário
-    -- Se um clique em slot for detectado e abrir o modal, esta função deve retornar true.
-    -- Por enquanto, retornamos true para consumir o clique e evitar que o jogo o receba.
+    -- Consome o clique por enquanto para evitar interação com o jogo
     return true
 end
 
