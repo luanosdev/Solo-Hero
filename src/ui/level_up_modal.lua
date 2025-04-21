@@ -202,32 +202,7 @@ end
 function LevelUpModal:update()
     if not self.visible then return end
     
-    -- Navegação com setas
-    if self.inputManager:isKeyPressed("up") or self.inputManager:isKeyPressed("w") then
-        self.selectedOption = math.max(1, (self.selectedOption or 1) - 1)
-        self.hoveredOption = nil -- Limpa o hover quando usa as setas
-    elseif self.inputManager:isKeyPressed("down") or self.inputManager:isKeyPressed("s") then
-        self.selectedOption = math.min(#self.options, (self.selectedOption or 1) + 1)
-        self.hoveredOption = nil -- Limpa o hover quando usa as setas
-    end
-    
-    -- Seleção com Enter
-    if self.inputManager:isKeyPressed("return") and self.selectedOption then
-        self:applyUpgrade(self.options[self.selectedOption])
-        self:hide()
-    end
-
-    -- Verifica clique do mouse
-    if self.inputManager.mouse.wasLeftButtonPressed then
-        local clickedOption = self:getOptionAtPosition(self.inputManager.mouse.x, self.inputManager.mouse.y)
-        if clickedOption then
-            self.selectedOption = clickedOption
-            self:applyUpgrade(self.options[clickedOption])
-            self:hide()
-        end
-    end
-
-    -- Atualiza a opção com hover do mouse
+    -- Keep Mouse Hover Logic
     local mouseX, mouseY = self.inputManager:getMousePosition()
     local hoveredOption = self:getOptionAtPosition(mouseX, mouseY)
     
@@ -267,29 +242,9 @@ function LevelUpModal:applyUpgrade(option)
     self.playerManager.state:addAttributeBonus(option.attribute, option.bonus)
     
     -- Atualiza os valores totais se necessário
-    if option.attribute == "health" then
+    if option.attribute == "health" or option.attribute == "fixed_health" then -- Check both types
         self.playerManager.state.maxHealth = self.playerManager.state:getTotalHealth()
         self.playerManager.state.currentHealth = self.playerManager.state.maxHealth
-    end
-end
-
-function LevelUpModal:applyAttributeBonus(attribute)
-    if attribute == "fixed_speed" then
-        self.playerState:addAttributeBonus("speed", 0, self.attributes[attribute].bonus)
-    elseif attribute == "fixed_health" then
-        self.playerState:addAttributeBonus("health", 0, self.attributes[attribute].bonus)
-    elseif attribute == "fixed_defense" then
-        self.playerState:addAttributeBonus("defense", 0, self.attributes[attribute].bonus)
-    elseif attribute == "fixed_health_regen" then
-        self.playerState:addAttributeBonus("healthRegen", 0, self.attributes[attribute].bonus)
-    elseif attribute == "fixed_critical_chance" then
-        self.playerState:addAttributeBonus("criticalChance", 0, self.attributes[attribute].bonus)
-    elseif attribute == "fixed_critical_multiplier" then
-        self.playerState:addAttributeBonus("criticalMultiplier", 0, self.attributes[attribute].bonus)
-    elseif attribute == "fixed_multi_attack" then
-        self.playerState:addAttributeBonus("multiAttackChance", 0, self.attributes[attribute].bonus)
-    else
-        self.playerState:addAttributeBonus(attribute, self.attributes[attribute].bonus, 0)
     end
 end
 
@@ -313,25 +268,38 @@ function LevelUpModal:draw()
     for i, option in ipairs(self.options) do
         local optionY = modalY + 120 + (i - 1) * 80
         local optionHeight = 70
-        local isSelected = i == self.selectedOption
-        local isHovered = i == self.hoveredOption
+        local optionX = modalX + 20 -- Define X position
+        local optionWidth = modalWidth - 40 -- Define Width
+
+        local isSelectedByKey = (i == self.selectedOption)
+        local isHoveredByMouse = (i == self.hoveredOption)
 
         -- Define a cor baseada na seleção/hover
-        if isSelected then
-            love.graphics.setColor(colors.text_highlight)
-        elseif isHovered then
-            love.graphics.setColor(colors.text_label)
-        else
-            love.graphics.setColor(colors.text_main)
+        local bgColor = nil
+        local textColor = colors.text_main
+        if isSelectedByKey then
+            elements.drawRarityBorderAndGlow('S', optionX, optionY, optionWidth, optionHeight) -- Exemplo de raridade S para selecionado
+            bgColor = {colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.3}
+            textColor = colors.text_highlight
+        elseif isHoveredByMouse then
+            bgColor = {colors.slot_hover_bg[1], colors.slot_hover_bg[2], colors.slot_hover_bg[3], 0.5}
+            textColor = colors.text_highlight -- Highlight text on hover too
+        end
+
+        -- Desenha fundo se houver hover/seleção
+        if bgColor then
+            love.graphics.setColor(bgColor)
+            love.graphics.rectangle("fill", optionX, optionY, optionWidth, optionHeight, 5, 5)
         end
 
         -- Desenha o ícone
+        love.graphics.setColor(textColor) -- Use text color for icon too
         love.graphics.setFont(fonts.title)
         love.graphics.printf(
             option.icon,
-            modalX + 30,
-            optionY + 10,
-            30,
+            optionX + 10, -- Padding from left
+            optionY + optionHeight / 2 - fonts.title:getHeight() / 2, -- Center vertically
+            30, -- Icon width
             "center"
         )
 
@@ -344,73 +312,73 @@ function LevelUpModal:draw()
         end
 
         love.graphics.setFont(fonts.main)
+        love.graphics.setColor(textColor) -- Use determined text color
         love.graphics.printf(
             string.format("%s %s", option.displayName, bonusText),
-            modalX + 70,
-            optionY + 10,
-            modalWidth - 100,
+            optionX + 50, -- Start text after icon + padding
+            optionY + 10, -- Position near top
+            optionWidth - 60, -- Width for text
             "left"
         )
 
         -- Desenha a descrição
-        love.graphics.setColor(colors.text_label)
+        love.graphics.setColor(colors.text_label) -- Dim color for description
+        love.graphics.setFont(fonts.main_small)
         love.graphics.printf(
             option.description,
-            modalX + 70,
-            optionY + 35,
-            modalWidth - 100,
+            optionX + 50, -- Start text after icon + padding
+            optionY + 35, -- Position below name
+            optionWidth - 60, -- Width for text
             "left"
         )
     end
+end
 
-    -- Desenha as opções de upgrades
-    if self.upgradeOptions and #self.upgradeOptions > 0 then
-        for i, upgrade in ipairs(self.upgradeOptions) do
-            local optionY = modalY + 120 + (#self.options + i - 1) * 80
-            local optionHeight = 70
-            local isSelected = #self.options + i == self.selectedOption
-            local isHovered = #self.options + i == self.hoveredOption
+function LevelUpModal:mousepressed(x, y, button)
+    print("[LevelUpModal:mousepressed] START - Visible:", self.visible)
+    if not self.visible then return false end -- Check if visible
 
-            -- Define a cor baseada na seleção/hover
-            if isSelected then
-                love.graphics.setColor(colors.text_highlight)
-            elseif isHovered then
-                love.graphics.setColor(colors.text_label)
-            else
-                love.graphics.setColor(colors.text_main)
-            end
+    local clickedOption = self:getOptionAtPosition(x, y) -- Calculates which option index (1, 2, or 3) was clicked
+    print("[LevelUpModal:mousepressed] Clicked Option Index:", clickedOption)
+    if clickedOption then
+        self.selectedOption = clickedOption -- Updates internal state
+        self:applyUpgrade(self.options[clickedOption]) -- Calls applyUpgrade with the selected option data
+        self:hide() -- Hides the modal
+        print("[LevelUpModal:mousepressed] Option clicked and handled. Returning true.")
+        return true -- IMPORTANT: Should return true to indicate the click was handled
+    end
+    print("[LevelUpModal:mousepressed] Click was not on an option. Returning false.")
+    return false -- Click was not on an option
+end
 
-            -- Desenha o ícone do upgrade
-            love.graphics.setFont(fonts.title)
-            love.graphics.printf(
-                self.upgrades[upgrade] and self.upgrades[upgrade].icon or "U",
-                modalX + 30,
-                optionY + 10,
-                30,
-                "center"
-            )
+function LevelUpModal:keypressed(key)
+    print("[LevelUpModal:keypressed] START - Key:", key, "Visible:", self.visible)
+    if not self.visible then return false end
 
-            -- Desenha o nome do upgrade
-            love.graphics.setFont(fonts.main)
-            love.graphics.printf(
-                self.upgrades[upgrade] and self.upgrades[upgrade].name or "Upgrade",
-                modalX + 70,
-                optionY + 10,
-                modalWidth - 100,
-                "left"
-            )
-
-            -- Desenha a descrição do upgrade
-            love.graphics.setColor(colors.text_label)
-            love.graphics.printf(
-                self.upgrades[upgrade] and self.upgrades[upgrade].description or "Descrição do upgrade",
-                modalX + 70,
-                optionY + 35,
-                modalWidth - 100,
-                "left"
-            )
+    if key == "up" or key == "w" then
+        self.selectedOption = math.max(1, (self.selectedOption or 1) - 1)
+        self.hoveredOption = nil -- Clear mouse hover if using keyboard
+        print("[LevelUpModal:keypressed] Navigated Up. SelectedIndex:", self.selectedOption)
+        return true -- Key handled
+    elseif key == "down" or key == "s" then
+        self.selectedOption = math.min(#self.options, (self.selectedOption or 1) + 1)
+        self.hoveredOption = nil -- Clear mouse hover if using keyboard
+        print("[LevelUpModal:keypressed] Navigated Down. SelectedIndex:", self.selectedOption)
+        return true -- Key handled
+    elseif key == "return" or key == "kpenter" then
+        if self.selectedOption and self.options[self.selectedOption] then
+            print("[LevelUpModal:keypressed] Enter pressed. Applying upgrade index:", self.selectedOption)
+            self:applyUpgrade(self.options[self.selectedOption])
+            self:hide()
+            return true -- Key handled
+        else
+            print("[LevelUpModal:keypressed] Enter pressed, but no valid option selected:", self.selectedOption)
+            return true -- Still handle the key, just do nothing
         end
     end
+
+    print("[LevelUpModal:keypressed] Key not handled. Returning false.")
+    return false -- Key not handled by this modal
 end
 
 return LevelUpModal 

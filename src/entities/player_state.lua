@@ -113,11 +113,21 @@ end
 
 --[[
     Get total damage (base + bonus)
-    @param baseDamage Valor base do dano
-    @return number Total damage
+    @param baseDamage Valor base do dano (pode ser número ou tabela {min, max})
+    @return number Total damage (calculado com base na média se for range)
 ]]
 function PlayerState:getTotalDamage(baseDamage)
-    local totalDamage = math.floor(baseDamage * (1 + self.levelBonus.damage / 100))
+    local effectiveBase = 0
+    if type(baseDamage) == "table" and baseDamage.min and baseDamage.max then
+        effectiveBase = (baseDamage.min + baseDamage.max) / 2
+    elseif type(baseDamage) == "number" then
+        effectiveBase = baseDamage
+    else
+        print("[PlayerState:getTotalDamage] Aviso: baseDamage inválido -", baseDamage)
+        effectiveBase = 0 -- Ou algum valor padrão
+    end
+
+    local totalDamage = math.floor(effectiveBase * (1 + self.levelBonus.damage / 100))
     return totalDamage
 end
 

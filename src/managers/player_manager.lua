@@ -684,4 +684,17 @@ function PlayerManager:findClosestEnemy(position, enemies)
     return closestEnemy
 end
 
+--[[ -
+    Adiciona uma nova habilidade (runa) à lista de habilidades ativas do jogador.
+    @param abilityInstance (table): A instância da habilidade a ser adicionada.
+]]
+function PlayerManager:addAbility(abilityInstance)
+    if not abilityInstance then
+        print("AVISO [PlayerManager]: Tentativa de adicionar habilidade nula.")
+        return
+    end
+    table.insert(self.runes, abilityInstance)
+    print(string.format("[PlayerManager] Habilidade '%s' adicionada. Total de runas: %d", abilityInstance.name or "Desconhecida", #self.runes))
+end
+
 return PlayerManager

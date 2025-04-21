@@ -5,6 +5,7 @@ local Camera = require("src.config.camera") -- Adicionado para conversão de coo
 -- Adiciona referências às UIs que podem interceptar input
 local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
+print("[InputManager Top Level] type(RuneChoiceModal) after require:", type(RuneChoiceModal)) -- DEBUG
 local InventoryScreen = require("src.ui.inventory_screen")
 local ItemDetailsModal = require("src.ui.item_details_modal") -- Adicionado require direto
 
@@ -169,6 +170,7 @@ end
 
 -- Manipulador de clique do mouse
 function InputManager:mousepressed(x, y, button, isGamePaused) -- Recebe estado de pausa
+    print("InputManager:mousepressed - type(LevelUpModal):", type(LevelUpModal)) -- DEBUG
     -- 1. Verifica se as UIs visíveis querem tratar o clique (usa ItemDetailsModal direto)
     if ItemDetailsModal.isVisible and ItemDetailsModal:mousepressed(x, y, button) then return true end
     if InventoryScreen.isVisible and InventoryScreen.mousepressed(x, y, button) then return true end
