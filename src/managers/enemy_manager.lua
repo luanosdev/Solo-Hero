@@ -52,9 +52,6 @@ function EnemyManager:init(worldId)
     -- Determina o rank do mapa a partir da configuração do mundo
     local mapRank = self.worldConfig.mapRank or "E" -- Assume 'E' se não definido na config
 
-    -- Inicializa o DropManager com o rank do mapa
-    self.dropManager:init(mapRank)
-    
     -- Agenda os tempos iniciais de spawn com base nas regras do primeiro ciclo
     local firstCycle = self.worldConfig.cycles[1]
     if not firstCycle then error("Erro: Primeiro ciclo não encontrado na configuração.") end

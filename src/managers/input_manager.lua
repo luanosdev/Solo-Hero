@@ -267,4 +267,5 @@ end
 -- Atualiza a propriedade position para usar a função getMousePosition
 -- InputManager.mouse.position = InputManager.getMousePosition -- Remover/Comentar: pode causar confusão entre tela/mundo
 
+-- Retorna a tabela do módulo para que possa ser usada com require
 return InputManager 

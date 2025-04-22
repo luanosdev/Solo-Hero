@@ -78,12 +78,18 @@ local PlayerManager = {
 }
 
 -- Inicializa o player manager
-function PlayerManager:init()
-    -- Obtém managers necessários do registro
-    self.inputManager = ManagerRegistry:get("inputManager")
-    self.enemyManager = ManagerRegistry:get("enemyManager")
-    self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
-    self.inventoryManager = ManagerRegistry:get("inventoryManager") -- Obtém do registro
+function PlayerManager:init(config)
+    config = config or {}
+    -- Obtém managers necessários da config
+    self.inputManager = config.inputManager 
+    self.enemyManager = config.enemyManager 
+    self.floatingTextManager = config.floatingTextManager 
+    self.inventoryManager = config.inventoryManager
+
+    -- Validação das dependências
+    if not self.inputManager or not self.enemyManager or not self.floatingTextManager or not self.inventoryManager then
+        error("ERRO CRÍTICO [PlayerManager]: Uma ou mais dependências não foram injetadas!")
+    end
 
     -- Inicializa a classe do player (Warrior como padrão inicial)
     self:initializeClass(Warrior)
@@ -636,26 +642,41 @@ end
 
 -- Adiciona um item ao inventário do jogador.
 -- Delega a lógica para o InventoryManager.
-
--- @param itemInstance (table): A instância do item a ser adicionado.
+-- @param itemBaseId (string): O ID base do item a ser adicionado.
 -- @param quantity (number): A quantidade a ser adicionada.
-function PlayerManager:addInventoryItem(itemInstance, quantity)
+function PlayerManager:addInventoryItem(itemBaseId, quantity)
     if not self.inventoryManager then
         print("ERRO: InventoryManager não inicializado!")
-        return
+        return 0 -- Retorna 0 adicionado em caso de erro
     end
 
-    local leftover = self.inventoryManager:addItem(itemInstance, quantity)
+    -- Obtém nome ANTES de adicionar, caso precise para logs/mensagens
+    local baseData = nil
+    local itemName = itemBaseId -- Fallback para o ID se não conseguir dados base
+    local itemDataMgr = ManagerRegistry:get("itemDataManager") -- Pega o data manager
+    if itemDataMgr then
+        baseData = itemDataMgr:getBaseItemData(itemBaseId)
+        if baseData and baseData.name then
+            itemName = baseData.name
+        end
+    end
 
-    if leftover > 0 then
-        print(string.format("Inventário cheio para %s. %d não foram adicionados.", itemInstance:getName(), leftover))
+    local addedQuantity = self.inventoryManager:addItem(itemBaseId, quantity)
+
+    if addedQuantity < quantity then
+        local leftover = quantity - addedQuantity
+        print(string.format("Inventário cheio para %s. %d não foram adicionados.", itemName, leftover))
         -- TODO: Lidar com itens que não couberam (ex: dropar no chão?)
+        -- Poderia retornar a quantidade que sobrou: return leftover
     else
-        print(string.format("Adicionado %d %s ao inventário.", quantity, itemInstance:getName()))
+        print(string.format("Adicionado %d %s ao inventário.", addedQuantity, itemName))
     end
 
     -- Exibe o estado atual do inventário (para debug)
     self.inventoryManager:printInventory()
+
+    -- Retorna a quantidade que foi realmente adicionada
+    return addedQuantity
 end
 
 -- Encontra o inimigo mais próximo da posição dada

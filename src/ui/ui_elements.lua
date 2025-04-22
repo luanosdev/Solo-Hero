@@ -3,6 +3,20 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local glowShader = nil
 
+-- Helper para formatar números (MOVIDO DE inventory_screen.lua)
+function elements.formatNumber(num)
+    num = math.floor(num or 0) -- Garante que seja um número inteiro
+    if num < 1000 then
+        return tostring(num)
+    elseif num < 1000000 then
+        return string.format("%.1fK", num / 1000):gsub("%.0K", "K")
+    elseif num < 1000000000 then
+        return string.format("%.1fM", num / 1000000):gsub("%.0M", "M")
+    else
+        return string.format("%.1fB", num / 1000000000):gsub("%.0B", "B")
+    end
+end
+
 -- Tabela para armazenar o último valor de vida de cada entidade
 elements.lastHealth = {}
 
@@ -217,6 +231,14 @@ function elements.drawRarityBorderAndGlow(itemRarity, x, y, w, h)
     love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], rarityColor[4])
     love.graphics.rectangle("line", x, y, w, h, 3, 3)
     love.graphics.setLineWidth(1)
+end
+
+-- Função HELPER para desenhar o FUNDO de um slot vazio (MOVIDO DE inventory_screen.lua)
+function elements.drawEmptySlotBackground(slotX, slotY, slotW, slotH)
+    love.graphics.setColor(colors.slot_empty_bg)
+    love.graphics.rectangle("fill", slotX, slotY, slotW, slotH, 3, 3)
+    love.graphics.setColor(colors.slot_empty_border)
+    love.graphics.rectangle("line", slotX, slotY, slotW, slotH, 3, 3)
 end
 
 return elements 

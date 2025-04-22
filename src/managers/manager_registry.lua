@@ -28,14 +28,17 @@ function ManagerRegistry:get(name)
 end
 
 -- Inicializa todos os managers registrados
-function ManagerRegistry:init()
+-- Modificado para aceitar uma tabela opcional de configurações para os inits
+function ManagerRegistry:init(initConfigs)
     if self.initialized then
         error("ManagerRegistry já foi inicializado")
     end
+    initConfigs = initConfigs or {} -- Garante que seja uma tabela
 
     -- Ordem de inicialização é importante
     local initOrder = {
         "inputManager",      -- Input primeiro
+        "itemDataManager",   -- ItemDataManager antes do InventoryManager
         "inventoryManager",  -- Inventário antes do Player
         "playerManager",     -- Player depende do inventário (agora)
         "experienceOrbManager",
@@ -51,7 +54,7 @@ function ManagerRegistry:init()
         local managerData = self.managers[name]
         if managerData and managerData.instance.init then
             print(string.format(" - Inicializando %s...", name))
-            managerData.instance:init()
+            managerData.instance:init(initConfigs[name])
         elseif managerData then
              print(string.format(" - Manager %s registrado, mas sem função init().", name))
         else

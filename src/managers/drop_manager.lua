@@ -18,14 +18,24 @@ local DropManager = {
 
 --[[
     Inicializa o gerenciador de drops
+    @param config (table): Tabela contendo as dependências { playerManager, enemyManager, runeManager, floatingTextManager, itemDataManager, mapRank }
 ]]
-function DropManager:init(mapRank)
+function DropManager:init(config)
+    config = config or {}
     self.activeDrops = {}
-    self.playerManager = ManagerRegistry:get("playerManager")
-    self.enemyManager = ManagerRegistry:get("enemyManager")
-    self.runeManager = ManagerRegistry:get("runeManager")
-    self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
-    self.mapRank = mapRank or "E"
+    -- Obtém managers da config
+    self.playerManager = config.playerManager 
+    self.enemyManager = config.enemyManager 
+    self.runeManager = config.runeManager 
+    self.floatingTextManager = config.floatingTextManager 
+    self.itemDataManager = config.itemDataManager 
+    self.mapRank = config.mapRank or "E" 
+
+    -- Validação
+    if not self.playerManager or not self.enemyManager or not self.runeManager or not self.floatingTextManager or not self.itemDataManager then
+        error("ERRO CRÍTICO [DropManager]: Uma ou mais dependências não foram injetadas!")
+    end
+
     print("DropManager inicializado com rank de mapa:", self.mapRank)
 end
 
@@ -174,28 +184,44 @@ function DropManager:applyDrop(dropConfig)
         print("Coletado: Runa de raridade:", dropConfig.rarity)
         local rune = self.runeManager:generateRune(dropConfig.rarity)
         self.runeManager:applyRune(rune)
+
     elseif dropConfig.type == "jewel" then
-        -- Cria uma instância temporária da joia para obter nome, cor, maxStack, etc.
-        local jewelItem = Jewel:new(dropConfig.rank)
-        print("Coletado:", jewelItem:getName()) -- Usar getter é boa prática
+        print(string.format("[DEBUG] Depois de require ItemDetailsModal - Tipo: %s", type(ItemDetailsModal))) -- DEBUG (Corrigido)
+        -- Construir o ID base da joia
+        local itemBaseId = dropConfig.type .. "_" .. dropConfig.rank 
+        
+        -- Tenta adicionar ao inventário usando o ID base
+        -- PlayerManager.addInventoryItem agora retorna a quantidade realmente adicionada (0 ou 1 neste caso)
+        local addedQuantity = self.playerManager:addInventoryItem(itemBaseId, 1)
 
-        -- Adiciona a joia ao inventário do jogador
-        -- A função addInventoryItem agora lida com a lógica de stack e mensagens
-        self.playerManager:addInventoryItem(jewelItem, 1)
+        -- Só mostra texto flutuante se foi adicionado com sucesso
+        if addedQuantity > 0 then
+            -- Obter dados base para nome e cor (do ItemDataManager)
+            local baseData = nil
+            local itemName = itemBaseId -- Fallback
+            local itemColor = {1, 1, 1} -- Cor branca como fallback
+            if self.itemDataManager then
+                baseData = self.itemDataManager:getBaseItemData(itemBaseId)
+                if baseData then
+                    itemName = baseData.name or itemName
+                    itemColor = baseData.color or itemColor
+                end
+            end
 
-        -- TODO: O texto flutuante poderia ser movido para dentro de addInventoryItem
-        -- ou chamado condicionalmente baseado no retorno de addInventoryItem se quisermos
-        -- indicar sucesso/falha na coleta visualmente.
-        -- Por ora, mantemos como estava, mas a mensagem principal vem do PlayerManager.
-        self.floatingTextManager:addText(
-            self.playerManager.player.position.x,
-            self.playerManager.player.position.y - self.playerManager.radius - 30, -- CORRIGIDO: Usar o raio do PlayerManager
-            "+ " .. jewelItem:getName(), -- Usa o nome completo da joia
-            true,
-            self.playerManager.player.position,
-            jewelItem.color -- Usa a cor da joia
-        )
-
+            -- Mostra texto flutuante
+            self.floatingTextManager:addText(
+                self.playerManager.player.position.x,
+                self.playerManager.player.position.y - self.playerManager.radius - 30,
+                "+ " .. itemName, 
+                true,
+                self.playerManager.player.position,
+                itemColor 
+            )
+        else
+            -- Opcional: Mostrar uma mensagem de "Inventário Cheio" aqui também?
+            print(string.format("Falha ao coletar %s (Inventário provavelmente cheio).", itemBaseId))
+        end
+        
     else
         print("Aviso: Tipo de drop desconhecido:", dropConfig.type)
     end
