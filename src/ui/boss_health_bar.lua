@@ -6,8 +6,8 @@ local BossHealthBar = {
     visible = false,
     boss = nil,
     width = 400,
-    height = 10,
-    padding = 10,
+    height = 15,
+    padding = 15,
     yOffset = 120
 }
 
@@ -38,17 +38,18 @@ function BossHealthBar:draw()
     local y = self.yOffset
 
     -- Desenha a barra de vida usando drawResourceBar
-    elements.drawResourceBar(
-        x,
-        y,
-        self.width,
-        self.height,
-        self.boss.currentHealth,
-        self.boss.maxHealth,
-        self.boss.color,
-        colors.bar_bg,
-        colors.bar_border
-    )
+    elements.drawResourceBar({
+        x = x,
+        y = y,
+        width = self.width,
+        height = self.height,
+        current = self.boss.currentHealth,
+        max = self.boss.maxHealth,
+        segmentInterval = 50, -- Segmentos a cada 20 pontos de vida
+        glow = true,
+        glowColor = {self.boss.color[1], self.boss.color[2], self.boss.color[3], 0.6},
+        glowRadius = 4.0,
+    })
 
     -- Desenha o nome do boss e nível de poder
     love.graphics.setFont(fonts.details_title)

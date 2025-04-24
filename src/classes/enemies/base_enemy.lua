@@ -5,12 +5,13 @@
 
 local FloatingTextManager = require("src.managers.floating_text_manager")
 local ExperienceOrbManager = require("src.managers.experience_orb_manager")
-local elements = require("src.ui.ui_elements")
-local colors = require("src.ui.colors")
+local PlayerManager = require("src.managers.player_manager")
 
 local BaseEnemy = {
-    positionX = 0,
-    positionY = 0,
+    position = {
+        x = 0,
+        y = 0,
+    },
     radius = 8,
     speed = 30,
     maxHealth = 50,
@@ -23,30 +24,48 @@ local BaseEnemy = {
     color = {1, 0, 0}, -- Cor padrão vermelha
     name = "BaseEnemy",
     experienceValue = 10, -- Experiência base para todos os inimigos
-    healthBarWidth = 30 -- Largura padrão da barra de vida
+    healthBarWidth = 30, -- Largura padrão da barra de vida
+    id = 0 -- ID único do inimigo
 }
 
-function BaseEnemy:new(x, y)
-    local enemy = setmetatable({}, { __index = self })
-    enemy.positionX = x
-    enemy.positionY = y
-    enemy.currentHealth = enemy.maxHealth
-    enemy.isAlive = true
-    enemy.lastDamageTime = 0
+function BaseEnemy:new(position, id)
+    local enemy = {}
+    setmetatable(enemy, { __index = self })
     
-    -- Variação aleatória no dano (±20%)
-    local damageVariation = 0.8 + math.random() * 0.4
-    enemy.damage = math.floor(self.damage * damageVariation)
+    -- Copia todas as propriedades base
+    enemy.position = {
+        x = position.x or 0,
+        y = position.y or 0
+    }
+    enemy.radius = self.radius
+    enemy.speed = self.speed
+    enemy.maxHealth = self.maxHealth
+    enemy.currentHealth = self.maxHealth
+    enemy.isAlive = true
+    enemy.damage = self.damage
+    enemy.lastDamageTime = 0
+    enemy.damageCooldown = self.damageCooldown
+    enemy.attackSpeed = self.attackSpeed
+    enemy.color = self.color
+    enemy.name = self.name
+    enemy.id = id or 0 -- Atribui o ID fornecido ou usa 0 como fallback
+    enemy.experienceValue = self.experienceValue
+    enemy.healthBarWidth = self.healthBarWidth
+
+    print(string.format("BaseEnemy criado com ID: %d", enemy.id)) -- Log para debug
     
     return enemy
 end
 
-function BaseEnemy:update(dt, player, enemies)
+function BaseEnemy:update(dt, playerManager, enemies)
     if not self.isAlive then return end
     
-    -- Calcula a direção para o jogador
-    local dx = player.positionX - self.positionX
-    local dy = player.positionY - self.positionY
+    -- Obtém a posição de colisão do jogador
+    local playerCollision = playerManager:getCollisionPosition()
+
+    -- Calcula a direção para o jogador usando a posição de colisão
+    local dx = playerCollision.position.x - self.position.x
+    local dy = (playerCollision.position.y - self.position.y) * 2 -- Ajusta para o modo isométrico
     
     -- Normaliza o vetor de direção
     local length = math.sqrt(dx * dx + dy * dy)
@@ -55,66 +74,92 @@ function BaseEnemy:update(dt, player, enemies)
         dy = dy / length
     end
     
-    -- Calcula a nova posição
-    local newX = self.positionX + dx * self.speed * dt
-    local newY = self.positionY + dy * self.speed * dt
+    -- Calcula a posição alvo inicial baseada na direção do jogador
+    local targetX = self.position.x + dx * self.speed * dt
+    local targetY = self.position.y + dy * self.speed * dt
     
-    -- Verifica se a nova posição colide com algum outro inimigo
-    local canMove = true
+    -- Calcula a força de separação total devido a outros inimigos
+    local totalSeparationX = 0
+    local totalSeparationY = 0
+    local separationStrength = 10.0 -- Fator de força da separação (AUMENTADO SIGNIFICATIVAMENTE)
 
-    -- Verifica colisão com outros inimigos
-    if canMove then
-        for _, other in ipairs(enemies) do
-            if other ~= self and other.isAlive then
-                local distance = math.sqrt(
-                    (other.positionX - newX) * (other.positionX - newX) + 
-                    (other.positionY - newY) * (other.positionY - newY)
-                )
+    -- Verifica colisão com outros inimigos e calcula separação
+    for _, other in ipairs(enemies) do
+        if other ~= self and other.isAlive then
+            -- Usa a posição atual para verificar a colisão, não a posição alvo
+            local distSq = (other.position.x - self.position.x)^2 + ((other.position.y - self.position.y) * 2)^2 -- Ajuste isométrico na distância Y
+            local minDist = self.radius + other.radius
+            
+            if distSq < minDist * minDist and distSq > 0 then -- Evita divisão por zero se distSq for 0
+                local distance = math.sqrt(distSq)
+                local overlap = minDist - distance
                 
-                if distance < (self.radius + other.radius) then
-                    canMove = false
-                    break
-                end
+                -- Calcula vetor de separação normalizado (de other para self)
+                local sepX = self.position.x - other.position.x
+                local sepY = (self.position.y - other.position.y) * 2 -- Ajuste isométrico
+                
+                -- Normaliza
+                sepX = sepX / distance 
+                sepY = sepY / distance 
+                
+                -- Adiciona força de separação proporcional ao overlap
+                -- A força é maior quanto maior o overlap
+                totalSeparationX = totalSeparationX + sepX * overlap * separationStrength
+                totalSeparationY = totalSeparationY + sepY * overlap * separationStrength
+            elseif distSq == 0 then -- Exatamente na mesma posição
+                -- Empurra em uma direção aleatória para separá-los
+                local angle = math.random() * 2 * math.pi
+                totalSeparationX = totalSeparationX + math.cos(angle) * self.radius * separationStrength
+                totalSeparationY = totalSeparationY + math.sin(angle) * self.radius * separationStrength * 0.5 -- Menos força no Y devido à isometria
             end
         end
     end
     
-    -- Só move se não houver colisão
-    if canMove then
-        self.positionX = newX
-        self.positionY = newY
-    end
+    -- Adiciona a força de separação ao movimento alvo
+    -- A separação pode temporariamente mover o inimigo "para trás" se for forte o suficiente
+    targetX = targetX + totalSeparationX * dt -- Escala por dt para movimento mais suave
+    targetY = targetY + totalSeparationY * dt
     
-    -- Verifica colisão com o jogador
-    self:checkPlayerCollision(dt, player)
+    -- Atualiza a posição do inimigo
+    self.position.x = targetX
+    self.position.y = targetY
+    
+    -- Verifica colisão com o jogador usando a posição de colisão
+    self:checkPlayerCollision(dt, playerManager)
 end
 
-function BaseEnemy:checkPlayerCollision(dt, player)
+function BaseEnemy:checkPlayerCollision(dt, playerManager)
+    -- Obtém a posição de colisão do jogador
+    local playerCollision = playerManager:getCollisionPosition()
+
     -- Atualiza o tempo do último dano
     self.lastDamageTime = self.lastDamageTime + dt
     
-    -- Calcula distância entre o inimigo e o jogador
-    local dx = player.positionX - self.positionX
-    local dy = player.positionY - self.positionY
-    local distance = math.sqrt(dx * dx + dy * dy)
+    -- Calcula a distância entre a colisão do jogador e o inimigo
+    -- Obtém a posição de colisão do inimigo
+    local enemyCollision = self:getCollisionPosition()
+    local dx = playerCollision.position.x - enemyCollision.position.x
+    local dy = (playerCollision.position.y - enemyCollision.position.y) * 2 -- Ajusta para o modo isométrico
     
+    local distance = math.sqrt(dx * dx + dy * dy)
+
     -- Se houver colisão (distância menor que a soma dos raios)
-    if distance <= (self.radius + player.radius) then
+    if distance <= (self.radius + playerCollision.radius) then
         -- Verifica se pode causar dano (cooldown)
         if self.lastDamageTime >= self.damageCooldown then
-            -- Causa dano ao jogador
-            if player:takeDamage(self.damage) then
+            -- Causa dano ao jogador usando o PlayerManager
+            if playerManager:takeDamage(self.damage) then
                 -- Se o jogador morreu, remove o inimigo
                 self.isAlive = false
             end
             
             -- Mostra o número de dano
             FloatingTextManager:addText(
-                player.positionX,
-                player.positionY - player.radius - 10,
+                playerCollision.position.x,
+                playerCollision.position.y - playerCollision.radius - 10,
                 "-" .. tostring(self.damage),
                 false, -- Sempre falso pois inimigos não causam dano crítico
-                player,
+                PlayerManager.player.position,
                 {1, 0, 0} -- Cor vermelha para dano ao jogador
             )
             
@@ -127,85 +172,46 @@ end
 function BaseEnemy:draw()
     if not self.isAlive then return end
     
-    local healthBarHeight = 4
-    
-    -- Se for MVP, adiciona efeitos especiais
-    if self.isMVP then
-        healthBarHeight = 8
-        -- Aumenta o tamanho da barra de vida
-        self.healthBarWidth = 60 -- Barra de vida maior para MVPs
-    
-        -- Efeito de pulso para a borda
-        local pulseTime = love.timer.getTime() * 2
-        local pulseScale = 1 + math.sin(pulseTime) * 0.1
-        
-        -- Círculo de brilho externo
-        local glowColor = {
-            self.color[1] * 0.6,
-            self.color[2] * 0.6,
-            self.color[3] * 0.6,
-            0.6
-        }
-        love.graphics.setColor(glowColor)
-        love.graphics.circle("fill", self.positionX, self.positionY, self.radius * 1.5 * pulseScale)
-        
-        -- Borda principal
-        local lighterColor = {
-            self.color[1] * 0.8,
-            self.color[2] * 0.8,
-            self.color[3] * 0.8,
-            1
-        }
-        love.graphics.setColor(lighterColor)
-        love.graphics.circle("line", self.positionX, self.positionY, self.radius * pulseScale)
-
-        -- Desenha a barra de vida usando o elements.drawResourceBar
-        local healthBarX = self.positionX - self.healthBarWidth/2
-        local healthBarY = self.positionY - self.radius - 18
-        
-        elements.drawResourceBar(
-            healthBarX,
-            healthBarY,
-            self.healthBarWidth,
-            healthBarHeight,
-            self.currentHealth,
-            self.maxHealth,
-            self.color,
-            colors.bar_bg,
-            colors.bar_border,
-            false
-        )
-    end
-    
-    -- Desenha o corpo do inimigo
-    love.graphics.setColor(self.color)
-    love.graphics.circle("fill", self.positionX, self.positionY, self.radius)
-    
+    -- Desenha a area de colisão
+    -- local collisionPosition = self:getCollisionPosition()
+    -- love.graphics.setColor(1, 0, 0, 0.5)
+    -- love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
 end
 
 function BaseEnemy:takeDamage(damage, isCritical)
     -- Aplica o dano
     self.currentHealth = self.currentHealth - damage
-    
+    print(string.format("Inimigo ID: %d, Dano: %d, Vida: %d", self.id, damage, self.currentHealth))
     -- Mostra o número de dano
-    FloatingTextManager:addText(
-        self.positionX,
-        self.positionY - self.radius - 10,
+    addFloatingText(
+        self.position.x,
+        self.position.y - self.radius - 10,
         tostring(damage),
-        isCritical,
-        self
+        isCritical
     )
     
     if self.currentHealth <= 0 then
         self.currentHealth = 0
+        
+        -- Marca o inimigo como morto, mas não o remove ainda
         self.isAlive = false
         
         -- Dropa o orbe de experiência
-        ExperienceOrbManager:addOrb(self.positionX, self.positionY, self.experienceValue)
+        ExperienceOrbManager:addOrb(self.position.x, self.position.y, self.experienceValue)
         
         return true -- Retorna true se o inimigo morreu
     end
     return false
+end
+
+function BaseEnemy:getCollisionPosition()
+    return {
+        position = {
+            x = self.position.x,
+            y = self.position.y + 10,
+        },
+        radius = self.radius
+    }
 end
 
 return BaseEnemy 

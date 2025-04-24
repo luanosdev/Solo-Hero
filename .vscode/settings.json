@@ -1,0 +1,48 @@
+{
+    // --- Configurações do Servidor de Linguagem Lua (LuaLS) ---
+    // (Requer a instalação da extensão sumneko.lua)
+    "Lua.runtime.version": "LuaJIT", // Ou a versão específica do Lua que LÖVE usa
+    "Lua.workspace.library": [
+        // Adiciona reconhecimento das APIs do LÖVE 2D
+        // O caminho pode variar dependendo da instalação da extensão LuaLS
+        // Consulte a documentação da extensão se não funcionar
+        "${3rd}/love2d/library" 
+    ],
+    "Lua.workspace.checkThirdParty": false, // Desativa avisos sobre 'require' de libs não encontradas no workspace (útil para LÖVE)
+
+    "Lua.diagnostics.globals": [
+        // Adiciona globais comuns do LÖVE 2D para evitar avisos de 'undefined global'
+        "love",
+        // Adicione outros globais que seu projeto possa definir, se houver
+        "grid" // Exemplo do seu main.lua
+        // "PlayerManager", // Exemplo se você usasse como global antes da refatoração
+        // "EnemyManager" 
+    ],
+    
+    // Permite 'require' usando ponto como separador de caminho (padrão no seu projeto)
+    "Lua.workspace.useGitIgnore": true, // Se você tiver um .gitignore
+    "Lua.completion.callSnippet": "Replace", // Facilita autocompletar funções
+
+    // --- Formatação (Usando o formatador do LuaLS) ---
+    "editor.formatOnSave": true, // Formata ao salvar
+    "[lua]": {
+        "editor.defaultFormatter": "sumneko.lua", // Define como formatador padrão para Lua
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+    "Lua.format.defaultConfig": {
+        "indent_style": "space",
+        "indent_size": "4",
+        "continuation_indent_size": "4"
+        // Adicione outras preferências de formatação aqui
+        // Consulte: https://github.com/LuaLS/lua-language-server/wiki/Format
+    },
+
+    // --- Outras Sugestões ---
+    "files.associations": {
+        // Garante que arquivos .lua sejam reconhecidos como Lua (geralmente automático)
+        "*.lua": "lua"
+    },
+    "editor.suggestSelection": "first", // Sugestões de autocompletar
+    "workbench.editor.enablePreview": false // Abre arquivos diretamente em vez de pré-visualizar
+}

@@ -8,6 +8,7 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local BossHealthBar = require("src.ui.boss_health_bar")
+local PlayerManager = require("src.managers.player_manager")
 
 -- Função auxiliar para formatar tempo
 local function formatTime(s)
@@ -16,196 +17,167 @@ local function formatTime(s)
     return string.format("%02d:%02d", m, sec)
 end
 
--- Função auxiliar para desenhar status do player
+-- Função auxiliar para desenhar status do player com estilo Solo Leveling
 local function drawPlayerStatus(x, y, label, value, color)
-    -- Define a fonte
     love.graphics.setFont(fonts.hud)
     
-    -- Desenha o fundo do texto
     local labelWidth = fonts.hud:getWidth(label)
     local valueWidth = fonts.hud:getWidth(value)
-    local totalWidth = labelWidth + valueWidth + 5
-    local height = fonts.hud:getHeight()
+    local totalWidth = labelWidth + valueWidth + 10
+    local height = fonts.hud:getHeight() + 8
     
-    -- Desenha o texto do label
+    -- Fundo do status com efeito gradiente
+    love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.7)
+    love.graphics.rectangle("fill", x, y, totalWidth, height, 2, 2)
+    
+    -- Borda com efeito de brilho
+    love.graphics.setColor(colors.window_border)
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", x, y, totalWidth, height, 2, 2)
+    
+    -- Desenha o label com efeito de brilho
     love.graphics.setColor(colors.text_label)
-    love.graphics.print(label, x, y)
+    love.graphics.print(label, x + 5, y + 4)
     
-    -- Desenha o texto do valor
+    -- Desenha o valor com efeito de brilho
     love.graphics.setColor(color or colors.text_value)
-    love.graphics.print(value, x + labelWidth + 5, y)
+    love.graphics.print(value, x + labelWidth + 10, y + 4)
+    
+    -- Reset font após desenhar status
+    love.graphics.setFont(fonts.main)
 end
 
 --[[
     Draw the HUD elements
-    @param player Player entity to get status information
 ]]
-function HUD:draw(player)
+function HUD:draw()
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
 
-    -- Desenha a barra de vida do boss se houver um boss ativo
+    -- Desenha a barra de vida do boss
     BossHealthBar:draw()
 
-    -- Barra de XP (Centralizada)
-    -- Calcula a experiência necessária apenas para o próximo nível
-    local experienceForNextLevel = player.experienceToNextLevel - (player.level > 1 and player.experienceToNextLevel / (1 + player.experienceMultiplier) or 0)
-    local currentExperience = player.experience - (player.level > 1 and player.experienceToNextLevel / (1 + player.experienceMultiplier) or 0)
-    local xpPercent = currentExperience / experienceForNextLevel
+    -- Barra de XP com estilo Solo Leveling
+    local experienceForNextLevel = PlayerManager.state.experienceToNextLevel - (PlayerManager.state.level > 1 and PlayerManager.state.experienceToNextLevel / (1 + PlayerManager.state.experienceMultiplier) or 0)
+    local currentExperience = PlayerManager.state.experience - (PlayerManager.state.level > 1 and PlayerManager.state.experienceToNextLevel / (1 + PlayerManager.state.experienceMultiplier) or 0)
     local barW = screenW * 0.4
-    local barH = 18
-    local barX = (screenW - barW) / 2 -- Centraliza horizontalmente
-    local barY = 20 -- Posição fixa no topo
+    local barH = 20
+    local barX = (screenW - barW) / 2
+    local barY = 20
     
-    -- Desenha a barra de progresso
-    elements.drawResourceBar(
-        barX,
-        barY,
-        barW,
-        barH,
-        currentExperience,
-        experienceForNextLevel,
-        colors.xp_fill,
-        colors.bar_bg,
-        colors.bar_border,
-        false  -- Não mostra o texto padrão
-    )
+    -- Desenha a barra de XP com o novo estilo
+    elements.drawResourceBar({
+        x = barX,
+        y = barY,
+        width = barW,
+        height = barH,
+        current = currentExperience,
+        max = experienceForNextLevel,
+        color = colors.xp_fill,
+        bgColor = colors.bar_bg,
+        borderColor = colors.bar_border,
+        showText = true,
+        textColor = colors.text_main,
+        showShadow = true,
+        glow = true,
+        glowColor = colors.xp_fill
+    })
     
-    -- Desenha o texto da XP separadamente
-    local text = string.format("%.0f/%.0f", player.experience, player.experienceToNextLevel)
-    love.graphics.setFont(fonts.hud)  -- Define explicitamente a fonte
-    local textHeight = fonts.hud:getHeight()
-    
-    -- Desenha a sombra do texto
-    love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.printf(text, barX, barY + (barH - textHeight) / 2 + 1, barW, "center")
-    
-    -- Desenha o texto principal
-    love.graphics.setColor(colors.text_main)
-    love.graphics.printf(text, barX, barY + (barH - textHeight) / 2, barW, "center")
-
-    -- Nível do Player (abaixo da barra de XP)
+    -- Nível do Player com estilo Solo Leveling
     love.graphics.setFont(fonts.hud)
-    love.graphics.setColor(colors.text_gold)
-    local levelText = string.format("Nível %d", player.level or 1)
-    love.graphics.printf(levelText, barX, barY + barH + 5, barW, "center")
+    local levelText = string.format("Nível %d", PlayerManager.state.level or 1)
+    local levelWidth = fonts.hud:getWidth(levelText)
+    local levelX = barX + (barW - levelWidth) / 2
+    local levelY = barY + barH + 5
+    
+    -- Fundo do nível
+    love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.7)
+    love.graphics.rectangle("fill", levelX - 10, levelY, levelWidth + 20, fonts.hud:getHeight() + 8, 2, 2)
+    
+    -- Borda com efeito de brilho
+    love.graphics.setColor(colors.window_border)
+    love.graphics.rectangle("line", levelX - 10, levelY, levelWidth + 20, fonts.hud:getHeight() + 8, 2, 2)
+    
+    -- Texto do nível com efeito de brilho
+    love.graphics.setColor(colors.text_highlight)
+    love.graphics.print(levelText, levelX, levelY + 4)
+    
+    -- Reset font após nível
+    love.graphics.setFont(fonts.main)
 
-    -- Informações do Player (Tempo, Kills, Ouro)
-    love.graphics.setFont(fonts.hud)
+    -- Informações do Player com novo estilo
     local textX = barX + barW + 20
-    local textY = barY + barH/2 - fonts.hud:getHeight()/2
+    local textY = barY
+    local spacing = 35
 
-    -- Desenha o fundo das informações
-    local totalWidth = fonts.hud:getWidth("Tempo: 00:00") + fonts.hud:getWidth("Kills: XXXX") + fonts.hud:getWidth("Ouro: XXXX") + 60
-    love.graphics.setColor(0, 0, 0, 0.5)
-    love.graphics.rectangle("fill", textX - 10, textY - 5, totalWidth, fonts.hud:getHeight() + 10, 3, 3)
+    -- Desenha as informações com o novo estilo
+    drawPlayerStatus(textX, textY, "Tempo:", formatTime(PlayerManager.gameTime or 0), colors.text_highlight)
+    drawPlayerStatus(textX + 150, textY, "Kills:", tostring(PlayerManager.kills or 0), colors.text_highlight)
+    drawPlayerStatus(textX + 300, textY, "Ouro:", tostring(PlayerManager.gold or 0), colors.text_gold)
 
-    drawPlayerStatus(textX, textY, "Tempo:", formatTime(player.gameTime or 0), colors.text_highlight)
-    textX = textX + fonts.hud:getWidth("Tempo: 00:00") + 30
-
-    drawPlayerStatus(textX, textY, "Kills:", tostring(player.kills or 0), colors.text_highlight)
-    textX = textX + fonts.hud:getWidth("Kills: XXXX") + 30
-
-    drawPlayerStatus(textX, textY, "Ouro:", tostring(player.gold or 0), colors.text_gold)
-
-    -- Barra de HP
-    local hudBarW = 300
-    local hudBarH = 20
-    local hudBarX = (screenW - hudBarW) / 2
-    local hudBarY_hp = screenH - 100
-    
-    elements.drawResourceBar(
-        hudBarX,
-        hudBarY_hp,
-        hudBarW,
-        hudBarH,
-        player.state.currentHealth or 0,
-        player.state:getTotalHealth() or 100,
-        colors.hp_fill,
-        colors.bar_bg,
-        colors.bar_border,
-        true,
-        colors.text_main,
-        "%.0f/%.0f"
-    )
-
-    -- Status do Player (Atributos) - Agora em uma janela separada
-    local statusWindowW = 250
-    local statusWindowH = 200
-    local statusWindowX = 20
-    local statusWindowY = barY + barH + 40 -- Ajustado para dar espaço ao nível
-
-    -- Fundo da janela de status
-    love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.8)
-    love.graphics.rectangle("fill", statusWindowX, statusWindowY, statusWindowW, statusWindowH, 5, 5)
-    love.graphics.setColor(colors.window_border)
-    love.graphics.rectangle("line", statusWindowX, statusWindowY, statusWindowW, statusWindowH, 5, 5)
-
-    -- Título da janela de status
-    love.graphics.setFont(fonts.hud)
-    love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("Atributos", statusWindowX, statusWindowY + 10, statusWindowW, "center")
-
-    -- Atributos
-    local statusX = statusWindowX + 20
-    local statusY = statusWindowY + 40
-    local statusSpacing = 25
-
-    -- Ataque
-    drawPlayerStatus(statusX, statusY, "Ataque:", string.format("%.1f", player.state:getTotalDamage() or 0), colors.text_highlight)
-    statusY = statusY + statusSpacing
-
-    -- Defesa
-    drawPlayerStatus(statusX, statusY, "Defesa:", string.format("%.1f", player.state:getTotalDefense() or 0), colors.text_highlight)
-    statusY = statusY + statusSpacing
-
-    -- Velocidade
-    drawPlayerStatus(statusX, statusY, "Velocidade:", string.format("%.1f", player.state:getTotalSpeed() or 0), colors.text_highlight)
-    statusY = statusY + statusSpacing
-
-    -- Taxa de Crítico
-    if player.state:getTotalCriticalChance() then
-        drawPlayerStatus(statusX, statusY, "Chance de Crítico:", string.format("%.1f%%", player.state:getTotalCriticalChance() * 100), colors.text_highlight)
-        statusY = statusY + statusSpacing
-    end
-
-    -- Dano Crítico
-    if player.state:getTotalCriticalMultiplier() then
-        drawPlayerStatus(statusX, statusY, "Dano Crítico:", string.format("%.1fx", player.state:getTotalCriticalMultiplier()), colors.text_highlight)
-    end
-
-    -- Status de Auto-Ataque e Auto-Aim
+    -- Status de Auto-Ataque e Auto-Aim com novo estilo
     local autoX = screenW - 250
-    local autoY = screenH - 100  -- Movido um pouco mais para baixo
-    local autoSpacing = 25
+    local autoY = screenH - 100
     local autoWindowW = 230
-    local autoWindowH = 100  -- Aumentado de 85 para 100
+    local autoWindowH = 100
 
-    -- Fundo da janela de Auto-Ataque/Auto-Aim
-    love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.8)
-    love.graphics.rectangle("fill", autoX - 10, autoY - 10, autoWindowW, autoWindowH, 5, 5)
-    love.graphics.setColor(colors.window_border)
-    love.graphics.rectangle("line", autoX - 10, autoY - 10, autoWindowW, autoWindowH, 5, 5)
-
-    -- Título da janela
-    love.graphics.setFont(fonts.hud)
-    love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("Controles", autoX - 10, autoY - 5, autoWindowW, "center")
+    -- Desenha a janela de controles com o novo estilo
+    elements.drawWindowFrame(autoX - 10, autoY - 10, autoWindowW, autoWindowH, "Controles")
 
     -- Auto-Ataque
-    local autoAttackText = "[X] Auto-Ataque: " .. (player.autoAttackEnabled and "ON" or "OFF")
-    love.graphics.setColor(player.autoAttackEnabled and colors.heal or colors.damage_player)
-    love.graphics.printf(autoAttackText, autoX, autoY + 15, autoWindowW - 20, "left")
+    love.graphics.setFont(fonts.hud)
+    local autoAttackText = "[X] Auto-Ataque: " .. (PlayerManager.autoAttackEnabled and "ON" or "OFF")
+    love.graphics.setColor(PlayerManager.autoAttackEnabled and colors.text_highlight or colors.damage_player)
+    love.graphics.print(autoAttackText, autoX, autoY + 15)
+
 
     -- Auto-Aim
-    local autoAimText = "[Z] Auto-Aim: " .. (player.autoAimEnabled and "ON" or "OFF")
-    love.graphics.setColor(player.autoAimEnabled and colors.heal or colors.damage_player)
-    love.graphics.printf(autoAimText, autoX, autoY + 15 + autoSpacing, autoWindowW - 20, "left")
+    local autoAimText = "[Z] Auto-Aim: " .. (PlayerManager.autoAimEnabled and "ON" or "OFF")
+    love.graphics.setColor(PlayerManager.autoAimEnabled and colors.text_highlight or colors.damage_player)
+    love.graphics.print(autoAimText, autoX, autoY + 45)
+
 
     -- Visualização da habilidade
-    local abilityText = "[V] Previa da habilidade: " .. (player:getAbilityVisual() and "ON" or "OFF")
-    love.graphics.setColor(player:getAbilityVisual() and colors.heal or colors.damage_player)
-    love.graphics.printf(abilityText, autoX, autoY + 15 + autoSpacing * 2, autoWindowW - 20, "left")
+    local previewEnabled = PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and PlayerManager.equippedWeapon.attackInstance:getPreview()
+    local abilityText = "[V] Previa da habilidade: " .. (previewEnabled and "ON" or "OFF")
+    love.graphics.setColor(previewEnabled and colors.text_highlight or colors.damage_player)
+    love.graphics.print(abilityText, autoX, autoY + 75)
+
+    
+    -- Reset font no final do HUD
+    love.graphics.setFont(fonts.main)
+
+    --[[
+    -- Janela de teste do drawModernWindow
+    local testWindowX = 50
+    local testWindowY = 50
+    local testWindowW = 300
+    local testWindowH = 200
+
+    -- Exemplo 1: Janela padrão com título centralizado
+    elements.drawModernWindow(testWindowX, testWindowY, testWindowW, testWindowH, {
+        title = "Teste Moderno",
+        titleAlign = "center",
+        glow = true
+    })
+
+    -- Exemplo 2: Janela com cores personalizadas
+    elements.drawModernWindow(testWindowX + testWindowW + 20, testWindowY, testWindowW, testWindowH, {
+        title = "Cores Personalizadas",
+        titleAlign = "center",
+        borderColor = {0.3, 0.6, 1.0, 1.0}, -- Azul Solo Leveling
+        bgColor = {0.1, 0.1, 0.15, 0.9}, -- Preto azulado escuro
+        glowColor = {0.3, 0.6, 1.0, 1.0}, -- Azul Solo Leveling
+        cornerSize = 25
+    })
+
+    -- Exemplo 3: Janela sem título e sem brilho
+    elements.drawModernWindow(testWindowX, testWindowY + testWindowH + 20, testWindowW, testWindowH, {
+        glow = false,
+        cornerSize = 15
+    })
+    ]]
+
 end
 
 return HUD

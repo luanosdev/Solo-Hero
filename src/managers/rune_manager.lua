@@ -1,26 +1,27 @@
-local FloatingTextManager = require("src.managers.floating_text_manager")
+local Rune = require("src.items.rune")
+local RuneChoiceModal = require("src.ui.rune_choice_modal")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 --[[
     Rune Manager
     Gerencia a geração e aplicação de runas no jogo
 ]]
 
-local Rune = require("src.items.rune")
-local RuneChoiceModal = require("src.ui.rune_choice_modal")
 
 local RuneManager = {
     activeRunes = {}, -- Runas atualmente ativas no jogo
-    player = nil -- Referência ao jogador
 }
 
 --[[
     Inicializa o gerenciador de runas
-    @param player Referência ao jogador
 ]]
-function RuneManager:init(player)
-    self.player = player
+function RuneManager:init()
     self.activeRunes = {}
-    RuneChoiceModal:init(player)
+    self.playerManager = ManagerRegistry:get("playerManager")
+    self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
+    self.inputManager = ManagerRegistry:get("inputManager")
+    RuneChoiceModal:init(self.playerManager, self.inputManager, self.floatingTextManager)
+    print("RuneManager inicializado.")
 end
 
 --[[
@@ -39,38 +40,62 @@ end
 ]]
 function RuneManager:applyRune(rune)
     if not rune then return end
-    
+
     -- Mostra o modal de escolha de habilidade
     RuneChoiceModal:show(rune)
-    
+
     -- Adiciona a runa à lista de runas ativas
     table.insert(self.activeRunes, rune)
-    
+
     -- Mostra mensagem de runa obtida
-    FloatingTextManager:addText(
-        self.player.positionX,
-        self.player.positionY - self.player.radius - 30,
+    self.floatingTextManager:addText(
+        self.playerManager.player.position.x,
+        self.playerManager.player.position.y - -30,
         "Nova Runa: " .. rune.name,
         true,
-        self.player,
-        {1, 0.5, 0} -- Cor laranja para runas
+        self.playerManager.player.position,
+        { 1, 0.5, 0 } -- Cor laranja para runas
     )
+end
+
+--[[
+    Aplica uma habilidade específica (instância) originada de uma runa ao jogador.
+    Chamado pelo RuneChoiceModal após o jogador fazer uma escolha.
+    @param abilityInstance (table): A instância da habilidade a ser aplicada.
+    @param runeItem (table): O item runa original que concedeu a habilidade.
+]]
+function RuneManager:applyRuneAbility(abilityInstance, runeItem)
+    if not abilityInstance then
+        print("ERRO [RuneManager]: Tentativa de aplicar habilidade de runa nula.")
+        return
+    end
+    if not runeItem then
+        -- Adiciona um aviso se a runa original não foi passada
+        print("AVISO [RuneManager]: Tentativa de aplicar habilidade sem referência à runa original.")
+    end
+
+    -- Verifica se o PlayerManager e seu método addAbility existem
+    if self.playerManager and self.playerManager.addAbility then
+        print(string.format("[RuneManager] Adicionando habilidade '%s' (da runa '%s') ao PlayerManager...",
+            abilityInstance.name or "Desconhecida", runeItem and runeItem.name or "Original Desconhecida"))
+        -- Passa a instância da habilidade E o item runa original
+        self.playerManager:addAbility(abilityInstance, runeItem)
+    else
+        if not self.playerManager then
+            print("ERRO [RuneManager]: Referência para PlayerManager não encontrada!")
+        else
+            print("ERRO [RuneManager]: Função PlayerManager:addAbility não encontrada!")
+        end
+        -- A habilidade não foi adicionada
+    end
 end
 
 --[[
     Atualiza o estado do gerenciador
     @param dt Delta time
 ]]
-function RuneManager:update(dt)
-    RuneChoiceModal:update(dt)
-end
-
---[[
-    Desenha as runas ativas
-]]
-function RuneManager:draw()
-    -- As habilidades são desenhadas pelo próprio jogador
-    RuneChoiceModal:draw()
+function RuneManager:update()
+    RuneChoiceModal:update()
 end
 
 --[[
@@ -81,4 +106,4 @@ function RuneManager:keypressed(key)
     RuneChoiceModal:keypressed(key)
 end
 
-return RuneManager 
+return RuneManager

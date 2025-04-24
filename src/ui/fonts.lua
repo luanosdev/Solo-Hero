@@ -16,7 +16,7 @@ function fonts.load()
     fonts.hud = love.graphics.newFont(bold_font_file, 15)
     fonts.details_title = love.graphics.newFont(bold_font_file, 20)
     fonts.tooltip = love.graphics.newFont(main_font_file, 13)
-    fonts.stack_count = love.graphics.newFont(font_path.."Roboto-Bold.ttf" or fallback_font, 11)
+    fonts.stack_count = love.graphics.newFont(main_font_file, 11)
 
     love.graphics.setFont(fonts.main)
 end

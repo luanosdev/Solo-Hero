@@ -29,4 +29,4 @@ function FloatingTextManager:addText(x, y, text, isCritical, target, customColor
     table.insert(self.texts, floatingText)
 end
 
-return FloatingTextManager 
+return FloatingTextManager

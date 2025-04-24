@@ -20,6 +20,9 @@ local Player = {
     -- Class
     class = nil,
     
+    -- Equipment
+    equippedWeapon = nil,
+    
     -- Level System
     level = 1,
     experience = 0,
@@ -72,16 +75,34 @@ function Player:init(playerClass)
     self.state = PlayerState
     self.state:init(baseStats)
     
-    -- Initialize ability
-    local AbilityClass = self.class:getInitialAbility()
-    self.attackAbility = setmetatable({}, { __index = AbilityClass })
-    self.attackAbility:init(self)
+    -- Equip starting weapon
+    if self.class.startingWeapon then
+        self:equipWeapon(self.class.startingWeapon)
+    end
     
     -- Set initial position
     self.positionX = 400 -- Posição inicial X
     self.positionY = 300 -- Posição inicial Y
     self.isAlive = true
     self.lastDamageTime = 0
+end
+
+--[[
+    Equip a weapon
+    @param weapon The weapon to equip
+]]
+function Player:equipWeapon(weapon)
+    -- Desequipa a arma atual se houver uma
+    if self.equippedWeapon then
+        self.equippedWeapon:unequip()
+    end
+    
+    -- Equipa a nova arma
+    self.equippedWeapon = weapon:new()
+    self.equippedWeapon:equip(self)
+    
+    -- Atualiza a habilidade de ataque com base na arma
+    self.attackAbility = self.equippedWeapon:getAttackInstance()
 end
 
 --[[
@@ -154,7 +175,7 @@ function Player:update(dt)
         if cooldown <= 0 then
             local targetX, targetY = self:getTargetPosition()
             if targetX and targetY then
-                self:castAbility(targetX, targetY)
+                self:attack(targetX, targetY)
             end
         end
     end
@@ -343,38 +364,6 @@ function Player:increaseMaxHealth(amount)
     self.state:increaseMaxHealth(amount)
 end
 
---[[
-    Cast ability
-    @param x Mouse X position
-    @param y Mouse Y position
-    @return boolean Whether the ability was cast successfully
-]]
-function Player:castAbility(x, y)
-    -- Passa a referência do mundo para a habilidade
-    self.attackAbility.owner.world = { enemies = EnemyManager:getEnemies() }
-    
-    local success = self.attackAbility:cast(x, y)
-    if success then
-        -- Verifica se é uma habilidade instantânea (como ConeSlash)
-        if self.attackAbility.damageType == "physical" then
-            -- Verifica colisão com inimigos
-            local enemies = EnemyManager:getEnemies()
-            for _, enemy in ipairs(enemies) do
-                if enemy.isAlive then
-                    -- Verifica se o inimigo está dentro da área de efeito da habilidade
-                    if self.attackAbility:isPointInArea(enemy.positionX, enemy.positionY) then
-                        if self.attackAbility:applyDamage(enemy) then
-                            self.kills = self.kills + 1
-                            self:addExperience(enemy.experienceValue)
-                            self.gold = self.gold + math.random(1, 5) -- Adiciona 1-5 de ouro por kill
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return success
-end
 
 --[[
     Toggle ability auto-cast
@@ -446,7 +435,7 @@ end
 function Player:mousepressed(x, y, button)
     if button == 1 then -- Left click
         -- Realiza um único ataque
-        self:castAbility(x, y)
+        self:attack(x, y)
     end
 end
 

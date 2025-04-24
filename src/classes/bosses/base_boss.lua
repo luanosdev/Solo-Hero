@@ -5,7 +5,7 @@ local BaseBoss = setmetatable({}, { __index = BaseEnemy })
 -- Configurações base para todos os bosses
 BaseBoss.isBoss = true
 BaseBoss.healthBarWidth = 100 -- Barra de vida maior para bosses
-BaseBoss.experienceValue = 1000 -- Experiência base alta para bosses
+BaseBoss.experienceValue = 10 -- Experiência base alta para bosses
 
 -- Sistema de habilidades
 BaseBoss.abilities = {} -- Tabela de habilidades do boss
@@ -13,8 +13,8 @@ BaseBoss.currentAbilityIndex = 1 -- Índice da habilidade atual
 BaseBoss.abilityCooldown = 0 -- Cooldown entre habilidades
 BaseBoss.abilityTimer = 0 -- Timer para controle de habilidades
 
-function BaseBoss:new(x, y)
-    local boss = BaseEnemy.new(self, x, y)
+function BaseBoss:new(position, id)
+    local boss = BaseEnemy.new(self, position, id)
     setmetatable(boss, { __index = self })
     
     -- Inicializa o sistema de habilidades
@@ -25,7 +25,7 @@ function BaseBoss:new(x, y)
     return boss
 end
 
-function BaseBoss:update(dt, player, enemies)
+function BaseBoss:update(dt, playerManager, enemies)
     if not self.isAlive then return end
     
     -- Atualiza o timer de habilidades
@@ -33,12 +33,12 @@ function BaseBoss:update(dt, player, enemies)
     
     -- Verifica se pode usar uma habilidade
     if self.abilityTimer >= self.abilityCooldown then
-        self:useAbility(player, enemies)
+        self:useAbility(playerManager, enemies)
         self.abilityTimer = 0
     end
     
     -- Chama o update da classe base para movimento e colisão
-    BaseEnemy.update(self, dt, player, enemies)
+    BaseEnemy.update(self, dt, playerManager, enemies)
 end
 
 function BaseBoss:useAbility(player, enemies)
@@ -56,14 +56,7 @@ end
 
 function BaseBoss:draw()
     if not self.isAlive then return end
-    
-    -- Desenha o boss com efeito visual especial
-    love.graphics.setColor(self.color)
-    love.graphics.circle("fill", self.positionX, self.positionY, self.radius)
-    
-    -- Desenha um círculo de brilho ao redor do boss
-    love.graphics.setColor(self.color[1], self.color[2], self.color[3], 0.3)
-    love.graphics.circle("fill", self.positionX, self.positionY, self.radius * 1.5)
+    BaseEnemy.draw(self)
 end
 
 return BaseBoss 
