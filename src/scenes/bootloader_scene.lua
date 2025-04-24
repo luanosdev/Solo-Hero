@@ -8,7 +8,7 @@ local BootloaderScene = {}
 
 local isLoadingComplete = false
 local displayTimer = 0
-local minDisplayTime = 10.5 -- Tempo mínimo em segundos que a cena ficará visível
+local minDisplayTime = 1.5 -- Tempo mínimo em segundos que a cena ficará visível
 
 local logo = nil
 local logoPath = "assets/images/FDK_LOGO_WHITE.png" -- Caminho para a imagem da logo
@@ -65,11 +65,12 @@ function BootloaderScene:update(dt)
 end
 
 --- Chamado a cada frame para desenhar os elementos da cena.
--- Desenha a logo, o título do jogo e o texto "Loading..." piscante.
+-- Desenha a logo redimensionada e o título do jogo.
 function BootloaderScene:draw()
     local w = love.graphics.getWidth()
     local h = love.graphics.getHeight()
 
+    -- Define um fundo preto (caso a imagem tenha transparência)
     love.graphics.setColor(0, 0, 0, 1)
     love.graphics.rectangle("fill", 0, 0, w, h)
     love.graphics.setColor(1, 1, 1, 1) -- Reseta para branco
@@ -96,43 +97,18 @@ function BootloaderScene:draw()
         love.graphics.draw(logo, logoX, logoY, 0, logoScale, logoScale)
     end
 
-    if fonts.title then
+    -- Desenha o Título "Solo Hero"
+    if fonts.title_large then
         love.graphics.setFont(fonts.title_large)
         -- Posiciona abaixo da logo (considerando a altura desenhada 'logoDrawH')
-        local titleY = logoY + logoDrawH + 50 -- Adiciona um padding (15) abaixo da logo redimensionada
+        local titleY = logoY + logoDrawH + 50 -- Adiciona um padding (50) abaixo da logo redimensionada
         if not logo then titleY = h / 2 end   -- Centraliza se não houver logo
         love.graphics.printf(titleText, 0, titleY, w, "center")
     else                                      -- Fallback caso a fonte do título não tenha sido carregada
         love.graphics.printf(titleText, 0, h / 2 + 50, w, "center")
     end
 
-    -- Desenha o texto "Loading..." com cor animada
-    local grayLevel = 0.5          -- Nível de cinza base (0 = preto, 1 = branco)
-    local colorSpeed = math.pi * 0.5 -- Velocidade da animação (ciclo completo a cada 1 segundo)
-
-    -- Calcula um valor oscilante entre 0 e 1 usando seno
-    local oscillation = (math.sin(displayTimer * colorSpeed) + 1) / 2
-
-    -- Interpola a cor entre cinza (grayLevel) e branco (1)
-    local colorComponent = grayLevel + (1 - grayLevel) * oscillation
-
-    -- Define a cor calculada (RGB iguais para escala de cinza) e alfa 1
-    love.graphics.setColor(colorComponent, colorComponent, colorComponent, 1)
-
-    -- Define a fonte (se carregada)
-    if fonts.title then
-        love.graphics.setFont(fonts.title) -- Usa a fonte principal
-    end
-
-    -- Calcula posição vertical
-    local loadingH = (fonts.title and fonts.main:getHeight()) or 16 -- Altura da fonte ou fallback
-    local paddingBottom = 40                                        -- Espaçamento da borda inferior
-    local loadingY = h - loadingH - paddingBottom
-
-    -- Desenha o texto
-    love.graphics.printf(loadingText, 0, loadingY, w, "center")
-
-    -- Restaura a cor padrão para branco para não afetar outros desenhos (importante!)
+    -- Restaura a cor padrão (boa prática, embora não estritamente necessário aqui após remover o loading text)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
