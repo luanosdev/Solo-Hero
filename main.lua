@@ -1,4 +1,5 @@
 -- Main game configuration and initialization
+--[[ Código antigo comentado para integração posterior
 local Camera = require("src.config.camera")
 local AnimationLoader = require("src.animations.animation_loader")
 local LevelUpModal = require("src.ui.level_up_modal")
@@ -20,11 +21,21 @@ local groundTexture
 
 -- Variável de estado de pausa
 local game = { isPaused = false }
+--]]
+
+-- Novo sistema de cenas
+local SceneManager = require("src.core.scene_manager")
 
 function love.load()
+    -- Window settings - Fullscreen (mantido, pode ser útil globalmente)
+    love.window.setMode(0, 0, { fullscreen = true })
+    -- Carrega a primeira cena
+    SceneManager.switchScene("bootloader_scene")
+
+    --[[ Código antigo comentado
     -- Carrega as fontes antes de qualquer uso de UI
     fonts.load()
-    
+
     -- Carrega o shader de brilho (se existir)
     local success, shaderOrErr = pcall(love.graphics.newShader, "assets/shaders/glow.fs")
     if success then
@@ -34,17 +45,14 @@ function love.load()
     else
         print("Warning: Failed to load glow shader. Glow effects partially disabled.", shaderOrErr)
     end
-    
-    -- Window settings - Fullscreen
-    love.window.setMode(0, 0, {fullscreen = true})
-    
+
     -- Carrega a textura do terreno
     groundTexture = love.graphics.newImage("assets/ground.png")
     groundTexture:setWrap("repeat", "repeat")
-    
+
     -- Inicializa todos os managers e suas dependências
     Bootstrap.initialize()
-    
+
     -- Isometric grid configuration
     grid = {
         size = 128,
@@ -52,25 +60,29 @@ function love.load()
         columns = 100,
         color = {0.3, 0.3, 0.3, 0.2}
     }
-    
+
     -- Inicializa a câmera
     camera = Camera:new()
     camera:init()
-    
+
     -- Carrega todas as animações (agora centralizado no AnimationLoader)
     AnimationLoader.loadAll()
     -- Debug info
     print("Jogo iniciado")
     -- Acessando PlayerManager através do Registry após inicialização
-    local playerMgr = ManagerRegistry:get("playerManager") 
+    local playerMgr = ManagerRegistry:get("playerManager")
     if playerMgr and playerMgr.player then
         print("Posição inicial do jogador:", playerMgr.player.position.x, playerMgr.player.position.y)
     else
         print("AVISO: PlayerManager ou player não encontrado após bootstrap!")
     end
+--]]
 end
 
 function love.update(dt)
+    -- Delega o update para a cena atual
+    SceneManager.update(dt)
+    --[[ Código antigo comentado
     -- Permite atualizar a UI do inventário mesmo pausado
     InventoryScreen.update(dt)
     -- Permite atualizar a UI do modal de detalhes mesmo pausado
@@ -97,15 +109,23 @@ function love.update(dt)
 
     -- Atualiza todos os managers do jogo
     ManagerRegistry:update(dt)
+--]]
 end
 
 function love.draw()
+    -- Clear the screen (pode ser definido pela cena, mas um default é bom)
+    love.graphics.clear(0.1, 0.1, 0.1, 1) -- Cor de fundo padrão escura
+
+    -- Delega o draw para a cena atual
+    SceneManager.draw()
+
+    --[[ Código antigo comentado
     -- Clear the screen with a very light background color
     love.graphics.setBackgroundColor(0.95, 0.95, 0.95)
-    
+
     -- Draw the isometric grid
     drawIsometricGrid()
-    
+
     -- Desenha todos os managers
     ManagerRegistry:draw()
 
@@ -118,16 +138,16 @@ function love.draw()
 
     -- Desenha o LevelUpModal acima de tudo
     LevelUpModal:draw()
-    
+
     -- Desenha o RuneChoiceModal acima de tudo
     RuneChoiceModal:draw()
-    
+
     -- Desenha a tela de inventário (se visível)
     InventoryScreen.draw()
 
     -- Desenha o ItemDetailsModal (se visível, por cima do inventário)
     ItemDetailsModal:draw()
-    
+
     -- Debug info dos inimigos (via Registry)
     local enemyMgr = ManagerRegistry:get("enemyManager")
     if enemyMgr then
@@ -165,19 +185,21 @@ function love.draw()
 
     -- Desenha o HUD
     HUD:draw()
+--]]
 end
 
+--[[ Código antigo comentado
 -- Draw the isometric grid pattern
 function drawIsometricGrid()
     local iso_scale = 0.5  -- Isometric perspective scale
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
-    
+
     -- Calcula o tamanho do chunk baseado no tamanho da tela
     local chunkSize = 32  -- número de células por chunk
     local visibleChunksX = math.ceil(screenWidth / (grid.size/2)) / chunkSize + 4  -- chunks visíveis + buffer
     local visibleChunksY = math.ceil(screenHeight / (grid.size/2 * iso_scale)) / chunkSize + 4
-    
+
     -- Obtém o PlayerManager do Registry
     local playerMgr = ManagerRegistry:get("playerManager")
     local playerX, playerY = 0, 0 -- Valores padrão caso o player não seja encontrado
@@ -187,27 +209,27 @@ function drawIsometricGrid()
     else
         print("AVISO: PlayerManager ou player não encontrado no Registry para drawIsometricGrid")
     end
-    
+
     -- Converte a posição do jogador para coordenadas do grid
     local playerGridX = math.floor(playerX / (grid.size/2))
     local playerGridY = math.floor(playerY / (grid.size/2 * iso_scale))
-    
+
     -- Calcula o chunk atual do jogador
     local currentChunkX = math.floor(playerGridX / chunkSize)
     local currentChunkY = math.floor(playerGridY / chunkSize)
-    
+
     -- Define a área de chunks a ser renderizada
     local startChunkX = currentChunkX - math.ceil(visibleChunksX/2)
     local endChunkX = currentChunkX + math.ceil(visibleChunksX/2)
     local startChunkY = currentChunkY - math.ceil(visibleChunksY/2)
     local endChunkY = currentChunkY + math.ceil(visibleChunksY/2)
-    
+
     -- Apply camera transformation
     Camera:attach()
-    
+
     -- Define a cor branca para não afetar a textura
     love.graphics.setColor(1, 1, 1, 1)
-    
+
     -- Renderiza os chunks
     for chunkX = startChunkX, endChunkX do
         for chunkY = startChunkY, endChunkY do
@@ -216,13 +238,13 @@ function drawIsometricGrid()
             local startY = chunkY * chunkSize
             local endX = startX + chunkSize
             local endY = startY + chunkSize
-            
+
             for i = startX, endX do
                 for j = startY, endY do
                     -- Calculate grid point positions
                     local x = (i - j) * (grid.size/2)
                     local y = (i + j) * (grid.size/2 * iso_scale)
-                    
+
                     -- Desenha a textura do terreno
                     love.graphics.draw(
                         groundTexture,
@@ -236,7 +258,7 @@ function drawIsometricGrid()
             end
         end
     end
-    
+
     Camera:detach()
 end
 
@@ -250,8 +272,12 @@ function addFloatingText(x, y, text, isCritical, target, customColor)
         print("AVISO: FloatingTextManager não encontrado no Registry para addFloatingText")
     end
 end
+--]]
 
+-- Delega eventos de input para o SceneManager
 function love.keypressed(key, scancode, isrepeat)
+    SceneManager.keypressed(key, scancode, isrepeat)
+    --[[ Código antigo comentado
     print(string.format("[main.lua] love.keypressed START - key: %s", key)) -- DEBUG
     -- Primeiro, trata a tecla TAB para abrir/fechar o inventário e controlar a pausa
     if key == "tab" then
@@ -270,9 +296,12 @@ function love.keypressed(key, scancode, isrepeat)
     else
         print("AVISO: InputManager não encontrado no Registry para keypressed")
     end
+--]]
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
+    SceneManager.mousepressed(x, y, button, istouch, presses)
+    --[[ Código antigo comentado
     -- Delega o tratamento de cliques para o InputManager via Registry
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
@@ -283,19 +312,25 @@ function love.mousepressed(x, y, button, istouch, presses)
 
     -- OBS: A estrutura do InputManager já verifica Modais e Inventário.
     -- Precisamos ajustar InputManager:mousepressed para incluir ItemDetailsModal na verificação.
+--]]
 end
 
 -- Adiciona funções para keyreleased e mousemoved para delegar também
 function love.keyreleased(key, scancode)
+    SceneManager.keyreleased(key, scancode)
+    --[[ Código antigo comentado
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
         inputMgr:keyreleased(key, game.isPaused)
     else
         print("AVISO: InputManager não encontrado no Registry para keyreleased")
     end
+--]]
 end
 
 function love.mousemoved(x, y, dx, dy, istouch)
+    SceneManager.mousemoved(x, y, dx, dy, istouch)
+    --[[ Código antigo comentado
     -- Geralmente não precisa de verificação de pausa, mas passamos para consistência
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
@@ -303,13 +338,17 @@ function love.mousemoved(x, y, dx, dy, istouch)
     else
         print("AVISO: InputManager não encontrado no Registry para mousemoved")
     end
+--]]
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
+    SceneManager.mousereleased(x, y, button, istouch, presses)
+    --[[ Código antigo comentado
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
         inputMgr:mousereleased(x, y, button, game.isPaused)
     else
         print("AVISO: InputManager não encontrado no Registry para mousereleased")
     end
+--]]
 end
