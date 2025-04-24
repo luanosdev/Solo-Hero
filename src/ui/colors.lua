@@ -47,6 +47,15 @@ local colors = {
     damage_crit = { 0.3, 0.6, 1.0, 1.0 },
     heal = { 0.4, 0.8, 0.4, 1.0 },
 
+    -- Cores dos Tabs do Lobby
+    lobby_background = { 0.15, 0.15, 0.2, 1 },    -- Fundo da cena do Lobby
+    tab_bg = { 0.2, 0.2, 0.25, 1 },               -- Fundo normal do tab
+    tab_hover = { 0.3, 0.3, 0.35, 1 },            -- Fundo do tab com hover
+    tab_highlighted_bg = { 0.1, 0.4, 0.6, 1 },    -- Fundo do tab destacado
+    tab_highlighted_hover = { 0.2, 0.5, 0.7, 1 }, -- Fundo do tab destacado com hover
+    tab_text = { 0.9, 0.9, 0.9, 1 },              -- Cor do texto do tab
+    tab_border = { 0.4, 0.4, 0.45, 1 },           -- Cor da borda do tab
+
     enemyPowerColors = {
         [1] = { 0.7, 0.75, 0.8, 1.0 }, -- Branco azulado
         [2] = { 0.3, 0.6, 1.0, 1.0 },  -- Azul Solo Leveling
