@@ -66,7 +66,7 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
     if isUIBlockingInput then return end
 
     local playerManager = ManagerRegistry:get("playerManager")
-
+    
     -- Executa movimento se houver input
     if self.keys.moveUp or self.keys.moveDown or self.keys.moveLeft or self.keys.moveRight then
         local moveX, moveY = 0, 0
@@ -141,7 +141,7 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
     if key == "f3" then
         self.keys[key] = true
     end
-
+    
     -- Ações específicas do jogador (só se playerManager existir)
     if playerManager then
         if key == "x" then playerManager:toggleAbilityAutoCast() end
@@ -149,13 +149,13 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
         if key == "v" then playerManager:toggleAbilityVisual() end
         if key == "h" then playerManager:heal(20) end
         if key == "g" then playerManager:takeDamage(30) end
-        -- Tests
+    -- Tests
         if key == "f1" then playerManager:levelUp() end
 
-        if key >= "1" and key <= "9" then
-            local index = tonumber(key)
-            playerManager:switchWeapon(index)
-        end
+    if key >= "1" and key <= "9" then
+        local index = tonumber(key)
+        playerManager:switchWeapon(index)
+    end
     end
 
     return false -- Indica que o input não foi exclusivamente tratado por um modal/inventário

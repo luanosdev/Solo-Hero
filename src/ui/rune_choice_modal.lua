@@ -59,7 +59,7 @@ end
 ]]
 function RuneChoiceModal:update()
     if not self.visible then return end
-    
+
     -- Keep Mouse Hover Logic
     local mouseX, mouseY = self.inputManager:getMousePosition()
     self.hoveredOption = self:getOptionAtPosition(mouseX, mouseY)
@@ -77,19 +77,19 @@ function RuneChoiceModal:getOptionAtPosition(x, y)
     local modalHeight = 400
     local modalX = (love.graphics.getWidth() - modalWidth) / 2
     local modalY = (love.graphics.getHeight() - modalHeight) / 2
-    
+
     for i, _ in ipairs(self.abilities) do
         local optionY = modalY + 120 + (i - 1) * 80
         local optionHeight = 70
-        local optionX = modalX + 20 -- Added definition for optionX
-        local optionWidth = modalWidth - 40 -- Added definition for optionWidth
-        
+        local optionX = modalX + 20                        -- Added definition for optionX
+        local optionWidth = modalWidth - 40                -- Added definition for optionWidth
+
         if x >= optionX and x <= optionX + optionWidth and -- Use defined variables
-           y >= optionY and y <= optionY + optionHeight then
+            y >= optionY and y <= optionY + optionHeight then
             return i
         end
     end
-    
+
     return nil
 end
 
@@ -106,10 +106,12 @@ function RuneChoiceModal:applyAbility(abilityClass)
     -- Inicializa a habilidade com o jogador
     ability:init(self.playerManager)
 
-    -- Chama o RuneManager para aplicar a habilidade
+    -- Chama o RuneManager para aplicar a habilidade, passando também a runa original
     if self.runeManager and self.runeManager.applyRuneAbility then
-        self.runeManager:applyRuneAbility(ability)
-        print(string.format("Habilidade '%s' aplicada via RuneManager.", ability.name or "Desconhecida"))
+        -- Passa a instância da habilidade E o item runa original (self.rune)
+        self.runeManager:applyRuneAbility(ability, self.rune)
+        print(string.format("Habilidade '%s' (da runa '%s') aplicada via RuneManager.",
+            ability.name or "Desconhecida", self.rune and self.rune.name or "Original Desconhecida"))
 
         -- Mostra mensagem de habilidade obtida
         self.floatingTextManager:addText(
@@ -118,7 +120,7 @@ function RuneChoiceModal:applyAbility(abilityClass)
             "Nova Habilidade: " .. (ability.name or "Desconhecida"),
             true,
             self.playerManager.player.position,
-            {0, 1, 0} -- Cor verde para habilidades
+            { 0, 1, 0 } -- Cor verde para habilidades
         )
     else
         print("ERRO [RuneChoiceModal]: RuneManager ou RuneManager:applyRuneAbility não encontrado!")
@@ -154,12 +156,12 @@ function RuneChoiceModal:keypressed(key)
         self.selectedIndex = math.max(1, (self.selectedIndex or 1) - 1)
         self.hoveredOption = nil -- Clear mouse hover if using keyboard
         print("[RuneChoiceModal:keypressed] Navigated Up. SelectedIndex:", self.selectedIndex)
-        return true -- Key handled
+        return true              -- Key handled
     elseif key == "down" or key == "s" then
         self.selectedIndex = math.min(#self.abilities, (self.selectedIndex or 1) + 1)
         self.hoveredOption = nil -- Clear mouse hover if using keyboard
         print("[RuneChoiceModal:keypressed] Navigated Down. SelectedIndex:", self.selectedIndex)
-        return true -- Key handled
+        return true              -- Key handled
     elseif key == "return" or key == "kpenter" then
         if self.selectedIndex and self.abilities[self.selectedIndex] then
             print("[RuneChoiceModal:keypressed] Enter pressed. Applying ability index:", self.selectedIndex)
@@ -182,37 +184,37 @@ end
 ]]
 function RuneChoiceModal:draw()
     if not self.visible then return end
-    
+
     -- Desenha fundo semi-transparente
     love.graphics.setColor(0, 0, 0, 0.7)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
-    
+
     -- Configurações do modal
     local modalWidth = 500
     local modalHeight = 400
     local modalX = (love.graphics.getWidth() - modalWidth) / 2
     local modalY = (love.graphics.getHeight() - modalHeight) / 2
-    
+
     -- Desenha o frame do modal usando a função do ui_elements
     elements.drawWindowFrame(modalX, modalY, modalWidth, modalHeight, "Nova Runa!")
-    
+
     -- Título
     love.graphics.setFont(fonts.title)
     love.graphics.setColor(colors.window_title)
-    love.graphics.printf("Escolha uma habilidade:", 
+    love.graphics.printf("Escolha uma habilidade:",
         modalX + 20, modalY + 50, modalWidth - 40, "center")
-    
+
     -- Opções
     love.graphics.setFont(fonts.main)
     for i, ability in ipairs(self.abilities) do
         local optionY = modalY + 120 + (i - 1) * 80
         local optionHeight = 70
-        local optionX = modalX + 20 -- Added optionX definition
+        local optionX = modalX + 20         -- Added optionX definition
         local optionWidth = modalWidth - 40 -- Added optionWidth definition
 
         local isSelectedByKey = (i == self.selectedIndex)
         local isHoveredByMouse = (i == self.hoveredOption)
-        
+
         -- Desenha o fundo da opção com efeito de brilho/hover
         if isSelectedByKey or isHoveredByMouse then
             if isSelectedByKey then
@@ -226,34 +228,34 @@ function RuneChoiceModal:draw()
                 love.graphics.rectangle("fill", optionX, optionY, optionWidth, optionHeight, 5, 5)
             end
         end
-        
+
         -- Ícone (usando o primeiro caractere do nome da habilidade)
-        love.graphics.setColor(1, 0.5, 0) -- Cor laranja para runas
-        love.graphics.printf(ability.name:sub(1, 1), 
+        love.graphics.setColor(1, 0.5, 0)                                           -- Cor laranja para runas
+        love.graphics.printf(ability.name:sub(1, 1),
             optionX + 10, optionY + optionHeight / 2 - fonts.title:getHeight() / 2, -- Centraliza verticalmente
-            40, "center") -- Ajusta a largura para centralizar melhor o ícone
-        
+            40, "center")                                                           -- Ajusta a largura para centralizar melhor o ícone
+
         -- Define a cor do texto baseado na seleção/hover
         local textColor = (isSelectedByKey or isHoveredByMouse) and colors.text_highlight or colors.window_title
         love.graphics.setColor(textColor)
         love.graphics.setFont(fonts.main) -- Garante a fonte correta para o nome
-        
+
         -- Nome da habilidade
-        love.graphics.printf(ability.name, 
+        love.graphics.printf(ability.name,
             optionX + 60, optionY + 10, optionWidth - 70, "left")
-        
+
         -- Descrição
         love.graphics.setColor(colors.white) -- Cor padrão para descrição
         love.graphics.setFont(fonts.main_small)
-        love.graphics.printf(ability.description or "Uma nova habilidade poderosa", 
+        love.graphics.printf(ability.description or "Uma nova habilidade poderosa",
             optionX + 60, optionY + 35, optionWidth - 70, "left")
     end
-    
+
     -- Instruções
     love.graphics.setFont(fonts.main_small)
     love.graphics.setColor(colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.7)
-    love.graphics.printf("Use as setas ou clique para selecionar (Enter para confirmar)", 
+    love.graphics.printf("Use as setas ou clique para selecionar (Enter para confirmar)",
         modalX, modalY + modalHeight - 40, modalWidth, "center")
 end
 
-return RuneChoiceModal 
+return RuneChoiceModal

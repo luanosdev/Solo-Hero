@@ -44,7 +44,7 @@ function love.load()
     
     -- Inicializa todos os managers e suas dependências
     Bootstrap.initialize()
-
+    
     -- Isometric grid configuration
     grid = {
         size = 128,
@@ -121,7 +121,7 @@ function love.draw()
     
     -- Desenha o RuneChoiceModal acima de tudo
     RuneChoiceModal:draw()
-
+    
     -- Desenha a tela de inventário (se visível)
     InventoryScreen.draw()
 
@@ -132,33 +132,33 @@ function love.draw()
     local enemyMgr = ManagerRegistry:get("enemyManager")
     if enemyMgr then
         local enemies = enemyMgr:getEnemies()
-        if #enemies > 0 then
-            love.graphics.setColor(1, 1, 1, 1)
-            local screenWidth = love.graphics.getWidth()
-            local debugText = string.format(
-                "Enemy Info:\nTotal Enemies: %d\nCurrent Cycle: %d\nGame Time: %.1f",
-                #enemies,
+    if #enemies > 0 then
+        love.graphics.setColor(1, 1, 1, 1)
+        local screenWidth = love.graphics.getWidth()
+        local debugText = string.format(
+            "Enemy Info:\nTotal Enemies: %d\nCurrent Cycle: %d\nGame Time: %.1f",
+            #enemies,
                 enemyMgr.currentCycleIndex, -- Acessa propriedade do manager obtido
                 enemyMgr.gameTimer          -- Acessa propriedade do manager obtido
-            )
+        )
 
-            -- Adiciona informações dos bosses vivos
-            local bossCount = 0
-            for _, enemy in ipairs(enemies) do
-                if enemy.isBoss and enemy.isAlive then
-                    bossCount = bossCount + 1
-                    debugText = debugText .. string.format(
-                        "\n\nBoss %d: %s\nVida: %.1f\nPosição: (%.1f, %.1f)",
-                        bossCount,
-                        enemy.name or "(sem nome)",
-                        enemy.currentHealth or (enemy.state and enemy.state.currentHealth) or 0,
-                        enemy.positionX or 0,
-                        enemy.positionY or 0
-                    )
-                end
+        -- Adiciona informações dos bosses vivos
+        local bossCount = 0
+        for _, enemy in ipairs(enemies) do
+            if enemy.isBoss and enemy.isAlive then
+                bossCount = bossCount + 1
+                debugText = debugText .. string.format(
+                    "\n\nBoss %d: %s\nVida: %.1f\nPosição: (%.1f, %.1f)",
+                    bossCount,
+                    enemy.name or "(sem nome)",
+                    enemy.currentHealth or (enemy.state and enemy.state.currentHealth) or 0,
+                    enemy.positionX or 0,
+                    enemy.positionY or 0
+                )
             end
-            love.graphics.print(debugText, screenWidth - 200, 10)
         end
+        love.graphics.print(debugText, screenWidth - 200, 10)
+    end
     else
         print("AVISO: EnemyManager não encontrado no Registry para debug info")
     end

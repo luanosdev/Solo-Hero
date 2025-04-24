@@ -62,7 +62,7 @@ local function drawPlacedItem(visualX, visualY, visualW, visualH, placedItemInst
 end
 
 -- Desenha a seção do inventário (direita)
-function InventoryGridSection.draw(x, y, w, h)
+function InventoryGridSection:draw(x, y, w, h)
     -- Obtém o InventoryManager do Registry
     local inventoryMgr = ManagerRegistry:get("inventoryManager")
     if not inventoryMgr then
@@ -76,13 +76,13 @@ function InventoryGridSection.draw(x, y, w, h)
     end
 
     -- Obtém dados da grade do InventoryManager
-    local inventoryGrid = inventoryMgr:getInventoryGrid() -- Agora existe!
-    local rows = inventoryMgr.rows or 6 -- Acessa diretamente a propriedade
-    local cols = inventoryMgr.cols or 7 -- Acessa diretamente a propriedade
+    local inventoryGrid = inventoryMgr:getInventoryGrid()     -- Agora existe!
+    local rows = inventoryMgr.rows or 6                       -- Acessa diretamente a propriedade
+    local cols = inventoryMgr.cols or 7                       -- Acessa diretamente a propriedade
     local currentItemCount = inventoryMgr:getTotalItemCount() -- Chama o novo método
-    
+
     -- Define slotSize e spacing localmente (não pertencem ao InventoryManager)
-    local slotSize = 58 
+    local slotSize = 58
     local spacing = 5
 
     love.graphics.setFont(fonts.title)
@@ -93,9 +93,20 @@ function InventoryGridSection.draw(x, y, w, h)
     local contentH = h - titleH
 
     local gridWidth = cols * slotSize + math.max(0, cols - 1) * spacing
-    local gridStartX = x + (w - gridWidth) / 2
+
+    -- Remove debug print
+    -- print(string.format("[DEBUG GridSection:draw] Tipos antes de calcular gridStartX: x=%s, w=%s, gridWidth=%s", type(x), type(w), type(gridWidth)))
+
+    -- Agora self existe e x, w são números
+    self.gridStartX = x + (w - gridWidth) / 2
+    self.gridStartY = contentStartY
+    self.gridRows = rows -- Armazena para uso em helpers
+    self.gridCols = cols
+    self.slotSize = slotSize
+    self.slotSpacing = spacing
+
     local startY = contentStartY
-    local startX = gridStartX
+    local startX = self.gridStartX
 
     -- Desenha o título com a contagem real de itens
     local countText = string.format(" (%d itens)", currentItemCount)
@@ -110,18 +121,18 @@ function InventoryGridSection.draw(x, y, w, h)
         for c = 1, cols do
             local slotX = startX + (c - 1) * (slotSize + spacing)
             local slotY = startY + (r - 1) * (slotSize + spacing)
-            
+
             -- Acessa a grid real obtida do InventoryManager
             -- inventoryGrid[r][c] agora contém a instância do item ou nil
-            local placedItemInstance = inventoryGrid[r] and inventoryGrid[r][c] or nil 
+            local placedItemInstance = inventoryGrid[r] and inventoryGrid[r][c] or nil
 
             if placedItemInstance then
                 -- Verifica se este item já foi desenhado (importante para itens > 1x1)
-                if not drawnItemInstances[placedItemInstance] then 
+                if not drawnItemInstances[placedItemInstance] then
                     -- Obtém dimensões do grid da instância
                     local itemW = placedItemInstance.gridWidth or 1
                     local itemH = placedItemInstance.gridHeight or 1
-                    
+
                     -- Calcula o tamanho visual total do item
                     local itemVisualW = itemW * slotSize + math.max(0, itemW - 1) * spacing
                     local itemVisualH = itemH * slotSize + math.max(0, itemH - 1) * spacing
@@ -129,9 +140,9 @@ function InventoryGridSection.draw(x, y, w, h)
                     -- Chama helper local para desenhar o item no slot inicial (slotX, slotY)
                     -- O helper foi ajustado para não usar .itemRef
                     drawPlacedItem(slotX, slotY, itemVisualW, itemVisualH, placedItemInstance)
-                    
+
                     -- Marca esta instância específica como desenhada
-                    drawnItemInstances[placedItemInstance] = true 
+                    drawnItemInstances[placedItemInstance] = true
                 end
             else
                 -- Desenha um slot vazio se não houver item
@@ -144,4 +155,4 @@ function InventoryGridSection.draw(x, y, w, h)
     love.graphics.setFont(fonts.main)
 end
 
-return InventoryGridSection 
+return InventoryGridSection

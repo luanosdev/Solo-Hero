@@ -5,7 +5,7 @@
 
 local BaseItem = require("src.items.base_item")
 
-local Rune = setmetatable({}, {__index = BaseItem })
+local Rune = setmetatable({}, { __index = BaseItem })
 Rune.__index = Rune
 
 -- Mapeamento de Raridade para Nome/Descrição (Exemplo)
@@ -18,6 +18,18 @@ local RARITY_DETAILS = {
     S = { name_suffix = "Mítica", description = "Uma runa cujo poder rivaliza com os deuses." },
     SS = { name_suffix = "Divina", description = "Uma runa de poder transcendental." },
     SSS = { name_suffix = " Suprema", description = "Uma runa que transcende a própria realidade." }
+}
+
+-- NOVO: Mapeamento de Raridade para Nível Máximo
+local RARITY_TO_MAX_LEVEL = {
+    E = 5,
+    D = 10,
+    C = 15,
+    B = 20,
+    A = 25,
+    S = 30,
+    SS = 35, -- Extrapolado
+    SSS = 40 -- Extrapolado
 }
 
 -- A função 'new' agora é primariamente tratada por BaseItem,
@@ -36,8 +48,10 @@ local RARITY_DETAILS = {
 ]]
 function Rune:generateRandom(rarity)
     rarity = rarity or self:rollRarity()
-    local details = RARITY_DETAILS[rarity] or { name_suffix = "Desconhecida", description = "Uma runa de origem misteriosa."}
+    local details = RARITY_DETAILS[rarity] or
+        { name_suffix = "Desconhecida", description = "Uma runa de origem misteriosa." }
     local abilities = self:getRandomAbilities(rarity)
+    local maxLevel = RARITY_TO_MAX_LEVEL[rarity] or 1 -- Calcula maxLevel (fallback 1)
 
     -- Monta a tabela de configuração para BaseItem:new
     local config = {
@@ -46,7 +60,9 @@ function Rune:generateRandom(rarity)
         description = details.description,
         rarity = rarity,
         abilities = abilities,
-        icon = "rune_icon" -- Exemplo de ícone padrão para runas
+        icon = "rune_icon", -- Exemplo de ícone padrão para runas
+        level = 1,          -- Adiciona nível inicial
+        maxLevel = maxLevel -- Adiciona nível máximo calculado
         -- Runas provavelmente não são stackáveis
         -- maxStack = 1
     }
@@ -92,7 +108,7 @@ end
 function Rune:getRandomAbilities(rarity)
     local abilities = {}
     local count = 1
-    
+
     -- Define quantas habilidades a runa terá baseado na raridade
     if rarity == "E" then
         count = 2
@@ -111,7 +127,7 @@ function Rune:getRandomAbilities(rarity)
     elseif rarity == "SSS" then
         count = 5
     end
-    
+
     -- Lista de todas as habilidades disponíveis (referências às classes)
     local availableAbilities = {
         require("src.runes.aura"),
@@ -119,7 +135,7 @@ function Rune:getRandomAbilities(rarity)
         require("src.runes.thunder"),
         -- Adicione mais referências de classes de habilidade aqui
     }
-    
+
     -- Seleciona classes de habilidades aleatórias
     for i = 1, count do
         if #availableAbilities > 0 then
@@ -128,7 +144,7 @@ function Rune:getRandomAbilities(rarity)
             table.remove(availableAbilities, index)
         end
     end
-    
+
     return abilities
 end
 
@@ -157,9 +173,9 @@ function Rune:applyToPlayer(player)
             -- (Assumindo que player:addAbility espera uma instância)
             player:addAbility(abilityInstance)
         else
-             print("Aviso: Item inválido na lista de habilidades da runa.")
+            print("Aviso: Item inválido na lista de habilidades da runa.")
         end
     end
 end
 
-return Rune 
+return Rune

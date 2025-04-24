@@ -2,7 +2,7 @@
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
-local glowShader = nil -- Variável para armazenar o shader, se carregado
+local glowShader = nil                                           -- Variável para armazenar o shader, se carregado
 local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado
 -- local player = require("src.entities.player") -- Assumindo que os dados do jogador virão daqui
 
@@ -19,11 +19,11 @@ local InventoryGridSection = require("src.ui.inventory.sections.inventory_grid_s
 
 local InventoryScreen = {}
 InventoryScreen.isVisible = false
-InventoryScreen.slotsPerRow = 7 -- Reduzido de 8 para 7
-InventoryScreen.slotSize = 58 -- Aumentado de 48 (48 * 1.2 = 57.6 -> 58)
+InventoryScreen.slotsPerRow = 7        -- Reduzido de 8 para 7
+InventoryScreen.slotSize = 58          -- Aumentado de 48 (48 * 1.2 = 57.6 -> 58)
 InventoryScreen.slotSpacing = 5
 InventoryScreen.equipmentSlotSize = 64 -- Tamanho maior para slots de equipamento
-InventoryScreen.runeSlotSize = 32 -- Tamanho menor para runas
+InventoryScreen.runeSlotSize = 32      -- Tamanho menor para runas
 
 -- Função para obter o shader (será chamado pelo main.lua)
 function InventoryScreen.setGlowShader(shader)
@@ -72,23 +72,28 @@ function InventoryScreen.draw() -- Removido playerManager como argumento
     -- Calcula dimensões e posições das seções
     local padding = 20
     local titleHeight = fonts.title:getHeight()
-    -- Ajusta Y inicial das seções para caber títulos internos
     local sectionTopY = panelY + titleHeight * 1.5 + padding
     local sectionContentH = panelH - (sectionTopY - panelY) - padding
 
-    -- Larguras das seções (Ajustando para talvez dar mais espaço ao equipamento?)
-    local statsW = panelW * 0.25
-    local equipmentW = panelW * 0.30 -- Aumentado
-    local inventoryW = panelW - statsW - equipmentW - padding * 4 -- O restante
+    -- Larguras das seções (Ajustadas para 25%, 35%, 40% da área útil e centralizadas)
+    local totalPaddingWidth = padding * 4 -- Padding esquerdo, 2x entre seções, padding direito
+    local sectionAreaW = panelW - totalPaddingWidth
 
+    -- Define as larguras baseadas nas proporções da área útil
+    local statsW = sectionAreaW * 0.25
+    local equipmentW = sectionAreaW * 0.35
+    -- Calcula a última largura para garantir que a soma seja exata
+    local inventoryW = sectionAreaW - statsW - equipmentW
+
+    -- Calcula as posições X começando após o padding esquerdo
     local statsX = panelX + padding
     local equipmentX = statsX + statsW + padding
     local inventoryX = equipmentX + equipmentW + padding
 
-    -- Chama as funções de desenho das seções refatoradas
+    -- Chama as funções de desenho das seções refatoradas com novos W e X
     StatsSection.draw(statsX, sectionTopY, statsW, sectionContentH, playerManager)
-    EquipmentSection.draw(equipmentX, sectionTopY, equipmentW, sectionContentH) -- Chama a seção movida
-    InventoryGridSection.draw(inventoryX, sectionTopY, inventoryW, sectionContentH) -- Chama a seção movida
+    EquipmentSection:draw(equipmentX, sectionTopY, equipmentW, sectionContentH)
+    InventoryGridSection:draw(inventoryX, sectionTopY, inventoryW, sectionContentH)
 end
 
 -- Desenha a seção de equipamento (centro)
@@ -122,4 +127,4 @@ function InventoryScreen.mousepressed(x, y, button)
     return true
 end
 
-return InventoryScreen 
+return InventoryScreen
