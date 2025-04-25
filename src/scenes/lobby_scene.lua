@@ -4,6 +4,10 @@ local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local LobbyPortalManager = require("src.managers.lobby_portal_manager")
 local Formatters = require("src.utils.formatters")
+local ItemDataManager = require("src.managers.item_data_manager")
+local ItemGridUI = require("src.ui.item_grid_ui")
+local LobbyStorageManager = require("src.managers.lobby_storage_manager")
+local LoadoutManager = require("src.managers.loadout_manager")
 
 --- Cena principal do Lobby.
 -- Exibe o mapa de fundo quando "Portais" está ativo e a barra de navegação inferior.
@@ -19,6 +23,9 @@ LobbyScene.fogShaderPath = "assets/shaders/fog_noise.fs"
 LobbyScene.noiseTime = 0 ---@type number Contador de tempo para animar o ruído
 LobbyScene.activeTabIndex = 0 ---@type integer
 LobbyScene.portalManager = nil ---@type LobbyPortalManager|nil Instância do gerenciador de portais
+LobbyScene.itemDataManager = nil ---@type ItemDataManager|nil Instância do gerenciador de dados de itens
+LobbyScene.lobbyStorageManager = nil ---@type LobbyStorageManager|nil Instância do gerenciador de armazenamento do lobby
+LobbyScene.loadoutManager = nil ---@type LoadoutManager|nil Instância do gerenciador de loadout
 
 -- Estado de Zoom/Pan e Seleção de Portal
 LobbyScene.selectedPortal = nil ---@type PortalData|nil Portal atualmente selecionado.
@@ -51,15 +58,26 @@ LobbyScene.fogNoiseSpeed = 0.08 ---@type number Velocidade de movimento da névo
 LobbyScene.fogDensityPower = 2.5 ---@type number Expoente para controlar a densidade (maior = mais denso/opaco)
 LobbyScene.fogBaseColor = { 0.3, 0.4, 0.6, 1.0 } ---@type table Cor base da névoa (para combinar com o filtro do mapa)
 
+-- <<< NOVO: IDs constantes para as abas >>>
+local TabIds = {
+    VENDOR = 1,
+    CRAFTING = 2,
+    EQUIPMENT = 3,
+    PORTALS = 4,
+    HEROES = 5,
+    SETTINGS = 6,
+    QUIT = 7,
+}
+
 -- Configuração dos botões/tabs inferiores
 local tabs = {
-    { text = "Vendedor" },
-    { text = "Criação" },
-    { text = "Equipamento" },
-    { text = "Portais" }, -- Será definido como ativo no :load
-    { text = "Herois" },
-    { text = "Configurações" },
-    { text = "Sair" },
+    { id = TabIds.VENDOR,    text = "Vendedor" }, -- ID em Inglês, Texto em Português
+    { id = TabIds.CRAFTING,  text = "Criação" },
+    { id = TabIds.EQUIPMENT, text = "Equipamento" },
+    { id = TabIds.PORTALS,   text = "Portais" }, -- Será definido como ativo no :load
+    { id = TabIds.HEROES,    text = "Herois" },
+    { id = TabIds.SETTINGS,  text = "Configurações" },
+    { id = TabIds.QUIT,      text = "Sair" },
 }
 
 local tabSettings = {
@@ -83,8 +101,11 @@ function LobbyScene:load(args)
     print("LobbyScene:load")
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
-    self.noiseTime = 0                            -- Reseta o tempo do ruído
-    self.portalManager = LobbyPortalManager:new() -- <<< CRIA INSTÂNCIA
+    self.noiseTime = 0                                                       -- Reseta o tempo do ruído
+    self.portalManager = LobbyPortalManager:new()                            -- <<< CRIA INSTÂNCIA PORTAL
+    self.itemDataManager = ItemDataManager:new()                             -- <<< CRIA INSTÂNCIA ITEM DATA
+    self.lobbyStorageManager = LobbyStorageManager:new(self.itemDataManager) -- <<< ADICIONADO
+    self.loadoutManager = LoadoutManager:new(self.itemDataManager)           -- <<< ADICIONADO
 
     -- Reseta estado de zoom/seleção
     self.selectedPortal = nil
@@ -143,8 +164,8 @@ function LobbyScene:load(args)
         tab.h = tabSettings.height
         tab.isHovering = false
         currentX = currentX + tabWidth + tabSettings.padding
-        -- Define o tab "Portais" como ativo inicialmente
-        if tab.text == "Portais" then
+        -- Define o tab "Portais" como ativo inicialmente (usando ID)
+        if tab.id == TabIds.PORTALS then
             self.activeTabIndex = i
         end
     end
@@ -235,7 +256,8 @@ function LobbyScene:update(dt)
     self.noiseTime = self.noiseTime + dt
 
     -- 4. Atualiza o Portal Manager
-    local isMapActive = tabs[self.activeTabIndex] and tabs[self.activeTabIndex].text == "Portais"
+    local activeTab = tabs[self.activeTabIndex]                      -- Pega a aba ativa pelo índice
+    local isMapActive = activeTab and activeTab.id == TabIds.PORTALS -- <<< Já usa ID correto
     -- Calcula transformação ATUAL do mapa para passar ao manager
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
@@ -261,7 +283,8 @@ function LobbyScene:draw()
 
     -- Desenha o fundo (mapa ou cor sólida)
     local activeTab = tabs[self.activeTabIndex]
-    local drawMapCondition = (activeTab and activeTab.text == "Portais") or
+
+    local drawMapCondition = (activeTab and activeTab.id == TabIds.PORTALS) or
         self
         .isZoomedIn -- Desenha mapa se tab Portais OU se zoom ativo
 
@@ -286,12 +309,80 @@ function LobbyScene:draw()
         -- Desenha os portais usando o manager com a transformação atual
         self.portalManager:draw(currentMapScale, currentMapDrawX, currentMapDrawY, self.selectedPortal)
         love.graphics.setColor(colors.white)
+
+        --[[ -- REMOVIDO BLOCO DE DESENHO DAS OUTRAS ABAS DE DENTRO DO IF DO MAPA
+        -- <<< NOVO: Desenha conteúdo específico da aba ativa >>>
+        if activeTab then
+           ... (código das outras abas estava aqui erroneamente)
+        end
+        --]]
     else
         -- Desenha fundo padrão se não for para desenhar o mapa
         love.graphics.setColor(colors.lobby_background)
         love.graphics.rectangle("fill", 0, 0, screenW, screenH)
         love.graphics.setColor(colors.white)
-    end
+
+        -- <<< CORREÇÃO: Bloco de desenho das outras abas movido para cá >>>
+        if activeTab then
+            if activeTab.id == TabIds.EQUIPMENT then
+                -- Define as áreas para as grades (ex: Storage à esquerda, Loadout à direita)
+                local padding = 20
+                local availableW = screenW - padding * 3                 -- Espaço total menos paddings
+                local storageW = math.floor(availableW * 0.65)           -- Storage ocupa 65%
+                local loadoutW = math.floor(availableW * 0.35)           -- Loadout ocupa 35%
+                local gridH = screenH - tabSettings.height - padding * 2 -- Altura disponível acima das tabs
+
+                local storageArea = { x = padding, y = padding, w = storageW, h = gridH }
+                local loadoutArea = { x = padding * 2 + storageW, y = padding, w = loadoutW, h = gridH }
+
+                -- Desenha Grade do Armazenamento (Storage)
+                if self.lobbyStorageManager and self.itemDataManager then
+                    local storageItems = self.lobbyStorageManager:getItems() -- Itens da seção ativa
+                    local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
+                    local sectionInfo = {
+                        total = self.lobbyStorageManager:getTotalSections(),
+                        active = self.lobbyStorageManager:getActiveSectionIndex()
+                    }
+                    ItemGridUI.drawItemGrid(storageItems, storageRows, storageCols,
+                        storageArea.x, storageArea.y, storageArea.w, storageArea.h,
+                        self.itemDataManager, sectionInfo)
+                else
+                    love.graphics.setColor(colors.red)
+                    love.graphics.printf("Erro: Storage Manager não inicializado!",
+                        storageArea.x + storageArea.w / 2, storageArea.y + storageArea.h / 2, 0, "center")
+                    love.graphics.setColor(colors.white)
+                end
+
+                -- Desenha Grade do Loadout
+                if self.loadoutManager and self.itemDataManager then
+                    local loadoutItems = self.loadoutManager:getItems()
+                    local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
+                    ItemGridUI.drawItemGrid(loadoutItems, loadoutRows, loadoutCols,
+                        loadoutArea.x, loadoutArea.y, loadoutArea.w, loadoutArea.h,
+                        self.itemDataManager, nil) -- nil para sectionInfo
+                else
+                    love.graphics.setColor(colors.red)
+                    love.graphics.printf("Erro: Loadout Manager não inicializado!",
+                        loadoutArea.x + loadoutArea.w / 2, loadoutArea.y + loadoutArea.h / 2, 0, "center")
+                    love.graphics.setColor(colors.white)
+                end
+            elseif activeTab.id == TabIds.VENDOR then
+                -- Espaço para desenhar a UI do Vendedor
+                love.graphics.printf("VENDEDOR", screenW / 2, screenH / 2, 0, "center")
+            elseif activeTab.id == TabIds.CRAFTING then
+                -- Espaço para desenhar a UI de Criação
+                love.graphics.printf("CRIAÇÃO", screenW / 2, screenH / 2, 0, "center")
+            elseif activeTab.id == TabIds.HEROES then
+                -- Espaço para desenhar a UI de Herois
+                love.graphics.printf("HEROIS", screenW / 2, screenH / 2, 0, "center")
+            elseif activeTab.id == TabIds.SETTINGS then
+                -- Espaço para desenhar a UI de Configurações
+                love.graphics.printf("CONFIGURAÇÕES", screenW / 2, screenH / 2, 0, "center")
+                -- (Aba "Portais" é tratada acima com o mapa)
+                -- (Aba "Sair"/QUIT não tem conteúdo visual próprio)
+            end
+        end -- Fim do if activeTab (dentro do else)
+    end     -- Fim do if drawMapCondition / else
 
     -- Desenha o Modal de Detalhes (se um portal estiver selecionado)
     if self.selectedPortal then
@@ -445,11 +536,12 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
             if tab.isHovering then -- O estado de hover é atualizado no :update
                 tabClicked = true
                 print(string.format("LobbyScene: Tab '%s' clicado!", tab.text))
-                if tab.text == "Sair" then
+                if tab.id == TabIds.QUIT then  -- <<< MUDANÇA AQUI
                     print("LobbyScene: Solicitando encerramento do jogo via SceneManager...")
                     SceneManager.requestQuit() -- Pede ao manager para encerrar
                 else
-                    self.activeTabIndex = i    -- Define o tab clicado como ativo
+                    self.activeTabIndex =
+                        i -- Define o tab clicado como ativo
                     -- Garante que o zoom seja cancelado se mudar de tab
                     if self.isZoomedIn then
                         print("LobbyScene: Mudança de tab cancelando zoom.")
@@ -464,7 +556,7 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
         if tabClicked then return end
 
         -- 3. Se não clicou em tab E a tab "Portais" está ativa
-        local isMapActive = tabs[self.activeTabIndex] and tabs[self.activeTabIndex].text == "Portais"
+        local isMapActive = tabs[self.activeTabIndex] and tabs[self.activeTabIndex].id == TabIds.PORTALS
         if isMapActive then
             -- Verifica clique nos PORTAIS via Manager
             local clickedPortalData = self.portalManager:handleMouseClick(x, y)
@@ -478,6 +570,35 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                 self.mapTargetPanY = clickedPortalData.mapY
                 -- A animação de zoom/pan começará no próximo update
             end
+            -- <<< NOVO: Se não clicou em tab E a tab "Equipamento" está ativa >>>
+        elseif tabs[self.activeTabIndex] and tabs[self.activeTabIndex].id == TabIds.EQUIPMENT then -- <<< Já usa ID correto
+            -- Verifica clique nas abas do Storage
+            if self.lobbyStorageManager then
+                -- Define as áreas novamente (poderia ser armazenado em self se performance for problema)
+                local padding = 20
+                local availableW = love.graphics.getWidth() - padding * 3
+                local storageW = math.floor(availableW * 0.65)
+                local screenH = love.graphics.getHeight()
+                local gridH = screenH - tabSettings.height - padding * 2
+                local storageArea = { x = padding, y = padding, w = storageW, h = gridH }
+
+                local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
+                local sectionInfo = {
+                    total = self.lobbyStorageManager:getTotalSections(),
+                    active = self.lobbyStorageManager:getActiveSectionIndex()
+                }
+
+                local clickedTabIndex = ItemGridUI.handleMouseClick(x, y, sectionInfo,
+                    storageArea.x, storageArea.y, storageArea.w, storageArea.h,
+                    storageRows, storageCols)
+
+                if clickedTabIndex then
+                    self.lobbyStorageManager:setActiveSection(clickedTabIndex)
+                    -- Não faz mais nada neste clique
+                    return
+                end
+            end
+            -- TODO: Verificar clique para iniciar drag-and-drop (próximo passo)
         end
     end
 end
@@ -493,13 +614,22 @@ function LobbyScene:unload()
     -- Shader não precisa de release explícito
     self.fogShader = nil
 
-    -- <<< NOVO: Salva os portais ao descarregar a cena >>>
+    -- <<< NOVO: Salva os portais E o inventário ao descarregar a cena >>>
     if self.portalManager then
-        self.portalManager:saveState() -- <<< NOVO
+        self.portalManager:saveState()
+    end
+    if self.lobbyStorageManager then -- <<< ADICIONADO
+        self.lobbyStorageManager:saveStorage()
+    end
+    if self.loadoutManager then -- <<< ADICIONADO
+        self.loadoutManager:saveLoadout()
     end
 
-    -- Não precisamos chamar cleanup no manager, ele será coletado pelo GC
+    -- Não precisamos chamar cleanup nos managers, eles serão coletados pelo GC
     self.portalManager = nil
+    self.itemDataManager = nil     -- Limpa referência <<< ADICIONADO
+    self.lobbyStorageManager = nil -- Limpa referência <<< ADICIONADO
+    self.loadoutManager = nil      -- Limpa referência <<< ADICIONADO
 end
 
 return LobbyScene

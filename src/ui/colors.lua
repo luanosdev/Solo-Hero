@@ -24,6 +24,12 @@ local colors = {
     slot_empty_bg = { 0.07, 0.08, 0.1, 0.8 },
     slot_empty_border = { 0.3, 0.35, 0.4, 0.6 },
     slot_hover_bg = { 0.1, 0.15, 0.2, 0.7 },
+    -- <<< NOVAS CORES PARA SLOTS DE INVENTÁRIO/STORAGE >>>
+    inventory_slot_bg = { 0.1, 0.12, 0.15, 0.9 },    -- Similar ao modal_bg, mas talvez um pouco mais opaco
+    inventory_slot_border = { 0.4, 0.45, 0.5, 0.7 }, -- Similar ao window_border
+    item_quantity_text = { 0.9, 0.9, 0.9, 1.0 },     -- Cor para texto de quantidade
+    black_transparent_more = { 0, 0, 0, 0.7 },       -- Preto mais transparente para sombra de texto
+    red = { 1, 0, 0, 1 },                            -- Cor vermelha básica para erros
 
     rarity = {
         SS = { 1.0, 0.84, 0.0, 1.0 }, -- Dourado Brilhante (para SS)
