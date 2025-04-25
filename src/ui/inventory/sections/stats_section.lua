@@ -25,19 +25,35 @@ local StatsSection = {}
 -- Desenha a seção de estatísticas (esquerda) (Movido de inventory_screen)
 -- Recebe playerManager como argumento
 function StatsSection.draw(x, y, w, h, playerManager)
+    -- <<< VERIFICAÇÃO ADICIONADA PARA playerManager NULO (MOCK) >>>
+    if not playerManager then
+        -- Desenha um placeholder ou mensagem se o playerManager for nulo
+        love.graphics.setFont(fonts.main)
+        love.graphics.setColor(colors.text_label)
+        love.graphics.printf("Dados do Herói (Indisponível)", x, y + h / 2, w, "center")
+        return -- Sai da função se não há dados para mostrar
+    end
+    -- <<< FIM VERIFICAÇÃO >>>
+
     local state = playerManager.state -- Acessa o estado do jogador
 
     -- Definições de espaçamento padrão (reduzido)
-    local lineHeight = fonts.main:getHeight() * 1.1 -- Reduzido para ser mais compacto
+    local lineHeight = fonts.main:getHeight() * 1.1            -- Reduzido para ser mais compacto
     local sectionTitleLineHeight = fonts.hud:getHeight() * 1.5 -- Espaço após títulos de seção
-    local sectionSpacing = lineHeight * 1.5 -- Espaço entre seções principais (baseado no novo lineHeight)
+    local sectionSpacing = lineHeight *
+        1.5                                                    -- Espaço entre seções principais (baseado no novo lineHeight)
 
-    -- Título da Seção (Maior)
-    love.graphics.setFont(fonts.title) -- Fonte Maior para o título principal
-    love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("HERÓI", x, y, w, "center")
-    local titleH = fonts.title:getHeight() * 1.2 -- Espaçamento após título principal
-    local currentY = y + titleH
+    -- <<< REMOÇÃO DO TÍTULO INTERNO >>>
+    -- Título da Seção (Maior) (REMOVIDO)
+    -- love.graphics.setFont(fonts.title) -- Fonte Maior para o título principal
+    -- love.graphics.setColor(colors.text_highlight)
+    -- love.graphics.printf("HERÓI", x, y, w, "center")
+    -- local titleH = fonts.title:getHeight() * 1.2 -- Espaçamento após título principal
+    -- local currentY = y + titleH
+    -- <<< FIM REMOÇÃO >>>
+
+    -- <<< AJUSTE: currentY começa diretamente em 'y' (a posição inicial passada) >>>
+    local currentY = y
 
     -- Subtítulo: DADOS EM JOGO
     love.graphics.setFont(fonts.hud)
@@ -61,7 +77,7 @@ function StatsSection.draw(x, y, w, h, playerManager)
     love.graphics.print("Nível", x, currentY)
     love.graphics.setColor(colors.text_value) -- Ou outra cor se preferir
     love.graphics.printf(tostring(state.level), x, currentY, w, "right")
-    currentY = currentY + lineHeight -- Avança Y para a próxima linha
+    currentY = currentY + lineHeight          -- Avança Y para a próxima linha
 
     -- Experiência
     love.graphics.setColor(colors.text_label)
@@ -76,7 +92,8 @@ function StatsSection.draw(x, y, w, h, playerManager)
     love.graphics.setFont(fonts.main_small)
     love.graphics.setColor(colors.text_label)
     -- USA HELPER MOVIDO para elements
-    love.graphics.printf("(" .. elements.formatNumber(xpNeeded) .. " para próximo nivel)", x, currentY - fonts.main:getHeight()*0.1, w, "right")
+    love.graphics.printf("(" .. elements.formatNumber(xpNeeded) .. " para próximo nivel)", x,
+        currentY - fonts.main:getHeight() * 0.1, w, "right")
     love.graphics.setFont(fonts.main)
     currentY = currentY + lineHeight * 0.8 -- Espaço menor ainda OK
 
@@ -96,10 +113,10 @@ function StatsSection.draw(x, y, w, h, playerManager)
     currentY = currentY + sectionTitleLineHeight -- Espaçamento padrão após título de seção
 
     local memoryStats = {
-        {label = "Força", value = 15},
-        {label = "Destreza", value = 12},
-        {label = "Inteligência", value = 18},
-        {label = "Vitalidade", value = 14}
+        { label = "Força",        value = 15 },
+        { label = "Destreza",     value = 12 },
+        { label = "Inteligência", value = 18 },
+        { label = "Vitalidade",   value = 14 }
     }
 
     love.graphics.setFont(fonts.main)
@@ -109,10 +126,10 @@ function StatsSection.draw(x, y, w, h, playerManager)
         love.graphics.setColor(colors.text_value)
         local valueStr = tostring(stat.value)
         love.graphics.printf(valueStr, x, currentY, w, "right")
-        currentY = currentY + lineHeight -- Usar lineHeight reduzido
+        currentY = currentY + lineHeight                -- Usar lineHeight reduzido
         if currentY > y + h - lineHeight then break end -- Segurança
     end
-    currentY = currentY + sectionSpacing -- Espaço entre seções principais
+    currentY = currentY + sectionSpacing                -- Espaço entre seções principais
 
     -- Seção de Atributos (baseados no state)
     love.graphics.setFont(fonts.hud)
@@ -122,13 +139,13 @@ function StatsSection.draw(x, y, w, h, playerManager)
 
     -- Estrutura para buscar e exibir atributos
     local attributesToShow = {
-        {label = "Vida Máxima",      baseKey="baseHealth", percKey="health", fixedKey="health", totalFunc=state.getTotalHealth, format = "%d"},
-        {label = "Defesa",           baseKey="baseDefense", percKey="defense", fixedKey="defense", totalFunc=state.getTotalDefense, format = "%d"},
-        {label = "Velocidade Mov.",  baseKey="baseSpeed", percKey="speed", fixedKey="speed", totalFunc=state.getTotalSpeed, format = "%.1f"},
-        {label = "Chance Crítico",   baseKey="baseCriticalChance", percKey="criticalChance", fixedKey="criticalChance", totalFunc=state.getTotalCriticalChance, format = "%.1f%%"},
-        {label = "Mult. Crítico",    baseKey="baseCriticalMultiplier", percKey="criticalMultiplier", fixedKey="criticalMultiplier", totalFunc=state.getTotalCriticalMultiplier, format = "%.1fx"},
-        {label = "Regen. Vida",      baseKey="baseHealthRegen", percKey="healthRegen", fixedKey="healthRegen", totalFunc=state.getTotalHealthRegen, format = "%.1f/Vida p/s"}, -- Formato original, será ajustado no display
-        {label = "Chance Atq. Múlt.", baseKey="baseMultiAttackChance", percKey="multiAttackChance", fixedKey=nil, totalFunc=state.getTotalMultiAttackChance, formatter = formatMultiAttack}, -- Usa formatter especial
+        { label = "Vida Máxima",       baseKey = "baseHealth",             percKey = "health",             fixedKey = "health",             totalFunc = state.getTotalHealth,             format = "%d" },
+        { label = "Defesa",            baseKey = "baseDefense",            percKey = "defense",            fixedKey = "defense",            totalFunc = state.getTotalDefense,            format = "%d" },
+        { label = "Velocidade Mov.",   baseKey = "baseSpeed",              percKey = "speed",              fixedKey = "speed",              totalFunc = state.getTotalSpeed,              format = "%.1f" },
+        { label = "Chance Crítico",    baseKey = "baseCriticalChance",     percKey = "criticalChance",     fixedKey = "criticalChance",     totalFunc = state.getTotalCriticalChance,     format = "%.1f%%" },
+        { label = "Mult. Crítico",     baseKey = "baseCriticalMultiplier", percKey = "criticalMultiplier", fixedKey = "criticalMultiplier", totalFunc = state.getTotalCriticalMultiplier, format = "%.1fx" },
+        { label = "Regen. Vida",       baseKey = "baseHealthRegen",        percKey = "healthRegen",        fixedKey = "healthRegen",        totalFunc = state.getTotalHealthRegen,        format = "%.1f/Vida p/s" },      -- Formato original, será ajustado no display
+        { label = "Chance Atq. Múlt.", baseKey = "baseMultiAttackChance",  percKey = "multiAttackChance",  fixedKey = "multiAttackChance",  totalFunc = state.getTotalMultiAttackChance,  formatter = formatMultiAttack }, -- Usa formatter especial
     }
     local baseColor = colors.text_value
     local percBonusColor = colors.text_gold
@@ -177,9 +194,10 @@ function StatsSection.draw(x, y, w, h, playerManager)
                 baseStr = string.format("%.1f", baseValue * 100):gsub("%.0$", "")
             end
             local percStr = string.format("+%.0f%%", percValue)
-            local fixedStr = attr.fixedKey and fixedValue ~= 0 and string.format("%+.1f", fixedValue):gsub("%.0$", "") or nil
+            local fixedStr = attr.fixedKey and fixedValue ~= 0 and string.format("%+.1f", fixedValue):gsub("%.0$", "") or
+                nil
             if attr.label == "Chance Crítico" and fixedStr then
-                 fixedStr = string.format("%+.1f%%", fixedValue * 100):gsub("%.0%%", "%%")
+                fixedStr = string.format("%+.1f%%", fixedValue * 100):gsub("%.0%%", "%%")
             end
 
             -- Calcula larguras para alinhamento à direita (DOS DETALHES)
@@ -263,7 +281,7 @@ function StatsSection.draw(x, y, w, h, playerManager)
         local operatorColor = colors.text_label
 
         local weaponStatsToDraw = {}
-        table.insert(weaponStatsToDraw, {label = "Nome", value = equippedWeapon.name or "Desconhecido", simple = true})
+        table.insert(weaponStatsToDraw, { label = "Nome", value = equippedWeapon.name or "Desconhecido", simple = true })
         local baseDamageValue = equippedWeapon.damage or 0
         local baseDamageStrToDisplay = "?"
         local avgBaseDamageForTotalCalc = 0
@@ -274,24 +292,48 @@ function StatsSection.draw(x, y, w, h, playerManager)
             baseDamageStrToDisplay = string.format("%d", baseDamageValue)
             avgBaseDamageForTotalCalc = baseDamageValue
         end
-        table.insert(weaponStatsToDraw, {label = "Dano Total", baseValueStr = baseDamageStrToDisplay, percBonus = state.levelBonus.damage or 0, totalValue = state:getTotalDamage(avgBaseDamageForTotalCalc), format = "%d", detail = true})
+        table.insert(weaponStatsToDraw,
+            {
+                label = "Dano Total",
+                baseValueStr = baseDamageStrToDisplay,
+                percBonus = state.levelBonus.damage or 0,
+                totalValue =
+                    state:getTotalDamage(avgBaseDamageForTotalCalc),
+                format = "%d",
+                detail = true
+            })
 
         if equippedWeapon.attackInstance and equippedWeapon.attackInstance.cooldown and equippedWeapon.attackInstance.cooldown > 0 then
             local weaponCooldown = equippedWeapon.attackInstance.cooldown
             local percBonus = state.levelBonus.attackSpeed or 0
             local effectiveCooldown = weaponCooldown / (1 + percBonus / 100)
             local attacksPerSecond = (effectiveCooldown > 0) and (1 / effectiveCooldown) or 0
-            table.insert(weaponStatsToDraw, {label = "Atq./Seg", value = attacksPerSecond, format = "%.2f", simple = true})
+            table.insert(weaponStatsToDraw,
+                { label = "Atq./Seg", value = attacksPerSecond, format = "%.2f", simple = true })
         end
         if equippedWeapon.range then
             local baseRange = equippedWeapon.range
             local percBonusRange = state.levelBonus.range or 0
             local totalRange = baseRange * (1 + percBonusRange / 100)
-            table.insert(weaponStatsToDraw, {label = "Alcance", baseValue = baseRange, percBonus = percBonusRange, totalValue = totalRange, format = "%.1f", detail = true})
+            table.insert(weaponStatsToDraw,
+                {
+                    label = "Alcance",
+                    baseValue = baseRange,
+                    percBonus = percBonusRange,
+                    totalValue = totalRange,
+                    format =
+                    "%.1f",
+                    detail = true
+                })
         end
-        if equippedWeapon.attackInstance and equippedWeapon.attackInstance.damageType then table.insert(weaponStatsToDraw, {label = "Tipo Dano", value = equippedWeapon.attackInstance.damageType, simple = true}) end
+        if equippedWeapon.attackInstance and equippedWeapon.attackInstance.damageType then
+            table.insert(
+                weaponStatsToDraw,
+                { label = "Tipo Dano", value = equippedWeapon.attackInstance.damageType, simple = true })
+        end
         if equippedWeapon.attackInstance and equippedWeapon.attackInstance.cooldown then
-            table.insert(weaponStatsToDraw, {label = "Cooldown Base", value = equippedWeapon.attackInstance.cooldown, format = "%.2fs", simple = true})
+            table.insert(weaponStatsToDraw,
+                { label = "Cooldown Base", value = equippedWeapon.attackInstance.cooldown, format = "%.2fs", simple = true })
         end
         if equippedWeapon.angle then
             local baseAngleRad = equippedWeapon.angle
@@ -316,14 +358,16 @@ function StatsSection.draw(x, y, w, h, playerManager)
             if stat.simple then
                 love.graphics.setColor(colors.text_value)
                 local valueStr = "?"
-                xpcall(function() valueStr = stat.format and string.format(stat.format, stat.value) or tostring(stat.value) end,
+                xpcall(
+                    function() valueStr = stat.format and string.format(stat.format, stat.value) or tostring(stat.value) end,
                     function(err) print("[Error][StatsSection] " .. err) end)
                 love.graphics.printf(valueStr, x, currentY, w, "right")
             elseif stat.detail then
                 local totalStr, baseStr, percStr = "?", "?", "?"
 
                 -- Format Total
-                xpcall(function() totalStr = string.format(stat.format, stat.totalValue) end, function(err) print("[Error][StatsSection] " .. err) end)
+                xpcall(function() totalStr = string.format(stat.format, stat.totalValue) end,
+                    function(err) print("[Error][StatsSection] " .. err) end)
 
                 -- Format Base
                 xpcall(function()

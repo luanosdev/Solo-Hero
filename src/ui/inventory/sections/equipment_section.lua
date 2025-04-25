@@ -164,12 +164,17 @@ function EquipmentSection:draw(x, y, w, h)
     local playerState = playerManager.state -- Referência ao estado (para stats, talvez?)
     local equippedWeapon = playerManager.equippedWeapon
 
-    -- 1. Área do Título
-    love.graphics.setFont(fonts.title)
-    love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("EQUIPAMENTO", x, y, w, "center")
-    local titleH = fonts.title:getHeight() * 1.2
-    local currentY = y + titleH + 10 -- Y atual para posicionar elementos
+    -- <<< REMOÇÃO DO TÍTULO INTERNO >>>
+    -- 1. Área do Título (REMOVIDO)
+    -- love.graphics.setFont(fonts.title)
+    -- love.graphics.setColor(colors.text_highlight)
+    -- love.graphics.printf("EQUIPAMENTO", x, y, w, "center")
+    -- local titleH = fonts.title:getHeight() * 1.2
+    -- local currentY = y + titleH + 10 -- Y atual para posicionar elementos
+    -- <<< FIM REMOÇÃO >>>
+
+    -- <<< AJUSTE: currentY começa diretamente em 'y' (a posição inicial passada) >>>
+    local currentY = y
 
     -- 3. Área da Grade de Equipamento 2x2
     -- local eqSlotW = w * 0.8 -- AJUSTADO: Mesma largura do slot de arma (REMOVIDO)

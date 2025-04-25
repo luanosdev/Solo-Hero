@@ -1,4 +1,4 @@
--- src/managers/item_data_manager.lua
+---@class ItemDataManager
 local ItemDataManager = {}
 
 -- Banco de dados central de itens (será preenchido em init)

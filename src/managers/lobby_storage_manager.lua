@@ -1,7 +1,7 @@
 local PersistenceManager = require("src.core.persistence_manager")
 -- local ItemDataManager = require("src.managers.item_data_manager") -- Será injetado
 
---- Gerencia o armazenamento persistente do jogador no Lobby (baú com seções).
+---@class LobbyStorageManager
 local LobbyStorageManager = {}
 LobbyStorageManager.__index = LobbyStorageManager
 

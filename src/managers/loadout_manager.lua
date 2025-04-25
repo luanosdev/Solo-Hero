@@ -1,8 +1,10 @@
 local PersistenceManager = require("src.core.persistence_manager")
--- local ItemDataManager = require("src.managers.item_data_manager") -- Será injetado
 
---- Gerencia os itens equipados pelo jogador para levar ao portal (mochila/loadout).
-local LoadoutManager = {}
+---@class LoadoutManager
+local LoadoutManager = {
+    itemDataManager = nil ---@type ItemDataManager
+}
+
 LoadoutManager.__index = LoadoutManager
 
 local SAVE_FILE = "loadout_save.dat"
@@ -16,15 +18,14 @@ local DEFAULT_LOADOUT_COLS = 4
 local nextInstanceId = 1 -- Reinicia em 1, IDs são locais para o loadout
 
 --- Cria uma nova instância do gerenciador de loadout.
---- @param itemDataManager Instância do ItemDataManager.
+--- @param itemDataManager ItemDataManager Instância do ItemDataManager.
 --- @return LoadoutManager
 function LoadoutManager:new(itemDataManager)
     print("[LoadoutManager] Criando nova instância...")
     local instance = setmetatable({}, LoadoutManager)
     instance.itemDataManager = itemDataManager
     if not instance.itemDataManager then
-        print("ERRO CRÍTICO [LoadoutManager]: itemDataManager não foi injetado!")
-        return nil
+        error("ERRO CRÍTICO [LoadoutManager]: itemDataManager não foi injetado!")
     end
 
     instance.rows = DEFAULT_LOADOUT_ROWS

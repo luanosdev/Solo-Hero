@@ -8,6 +8,10 @@ local ItemDataManager = require("src.managers.item_data_manager")
 local ItemGridUI = require("src.ui.item_grid_ui")
 local LobbyStorageManager = require("src.managers.lobby_storage_manager")
 local LoadoutManager = require("src.managers.loadout_manager")
+local StatsSection = require("src.ui.inventory.sections.stats_section")
+local EquipmentSection = require("src.ui.inventory.sections.equipment_section")
+local MockPlayerManager = require("src.managers.mock_player_manager")
+local ManagerRegistry = require("src.managers.manager_registry") -- << GARANTIR REQUIRE AQUI
 
 --- Cena principal do Lobby.
 -- Exibe o mapa de fundo quando "Portais" está ativo e a barra de navegação inferior.
@@ -106,6 +110,10 @@ function LobbyScene:load(args)
     self.itemDataManager = ItemDataManager:new()                             -- <<< CRIA INSTÂNCIA ITEM DATA
     self.lobbyStorageManager = LobbyStorageManager:new(self.itemDataManager) -- <<< ADICIONADO
     self.loadoutManager = LoadoutManager:new(self.itemDataManager)           -- <<< ADICIONADO
+
+    local mockPlayerManagerInstance = MockPlayerManager:new()
+    ManagerRegistry:register("playerManager", mockPlayerManagerInstance)
+    print("LobbyScene: MockPlayerManager registrado no ManagerRegistry.")
 
     -- Reseta estado de zoom/seleção
     self.selectedPortal = nil
@@ -309,33 +317,65 @@ function LobbyScene:draw()
         -- Desenha os portais usando o manager com a transformação atual
         self.portalManager:draw(currentMapScale, currentMapDrawX, currentMapDrawY, self.selectedPortal)
         love.graphics.setColor(colors.white)
-
-        --[[ -- REMOVIDO BLOCO DE DESENHO DAS OUTRAS ABAS DE DENTRO DO IF DO MAPA
-        -- <<< NOVO: Desenha conteúdo específico da aba ativa >>>
-        if activeTab then
-           ... (código das outras abas estava aqui erroneamente)
-        end
-        --]]
     else
         -- Desenha fundo padrão se não for para desenhar o mapa
         love.graphics.setColor(colors.lobby_background)
         love.graphics.rectangle("fill", 0, 0, screenW, screenH)
         love.graphics.setColor(colors.white)
 
-        -- <<< CORREÇÃO: Bloco de desenho das outras abas movido para cá >>>
         if activeTab then
             if activeTab.id == TabIds.EQUIPMENT then
-                -- Define as áreas para as grades (ex: Storage à esquerda, Loadout à direita)
                 local padding = 20
-                local availableW = screenW - padding * 3                 -- Espaço total menos paddings
-                local storageW = math.floor(availableW * 0.65)           -- Storage ocupa 65%
-                local loadoutW = math.floor(availableW * 0.35)           -- Loadout ocupa 35%
-                local gridH = screenH - tabSettings.height - padding * 2 -- Altura disponível acima das tabs
+                local topPadding = 100
+                local areaY = topPadding                   -- <<< USA PADDING SUPERIOR MAIOR
+                local areaW = screenW                      -- Largura total da tela
+                local areaH = screenH - tabSettings.height -- Altura acima das tabs
 
-                local storageArea = { x = padding, y = padding, w = storageW, h = gridH }
-                local loadoutArea = { x = padding * 2 + storageW, y = padding, w = loadoutW, h = gridH }
+                local sectionTopY = areaY
+                local titleFont = fonts.title or love.graphics.getFont()
+                local titleHeight = titleFont:getHeight()
+                local contentMarginY = 20 -- Margem vertical entre título e conteúdo
+                local contentStartY = sectionTopY + titleHeight + contentMarginY
+                local sectionContentH = areaH - contentStartY - padding
+                local totalPaddingWidth = padding * 5
+                local sectionAreaW = areaW - totalPaddingWidth
 
-                -- Desenha Grade do Armazenamento (Storage)
+                -- Divide a área útil
+                local statsW = math.floor(sectionAreaW * 0.25)
+                local equipmentW = math.floor(sectionAreaW * 0.25)
+                local storageW = math.floor(sectionAreaW * 0.35)
+                local loadoutW = sectionAreaW - statsW - equipmentW - storageW
+
+                -- Calcula posições
+                local statsX = padding
+                local equipmentX = statsX + statsW + padding
+                local storageX = equipmentX + equipmentW + padding
+                local loadoutX = storageX + storageW + padding
+
+                love.graphics.setFont(titleFont)
+                love.graphics.setColor(colors.text_highlight)
+                love.graphics.printf("ATRIBUTOS", statsX, sectionTopY, statsW, "center")
+                love.graphics.printf("EQUIPAMENTO", equipmentX, sectionTopY, equipmentW, "center")
+                love.graphics.printf("ARMAZENAMENTO", storageX, sectionTopY, storageW, "center") -- <<< Título Storage na 3a pos
+                love.graphics.printf("MOCHILA", loadoutX, sectionTopY, loadoutW, "center")
+                love.graphics.setColor(colors.white)                                             -- Reset color
+                love.graphics.setFont(fonts.main or titleFont)                                   -- Reset font
+
+                -- 1. Desenha Seção de Atributos (Stats) - Seção 1
+                local mockPM = ManagerRegistry:get("playerManager")                           -- Obtém o mock
+                if mockPM then
+                    StatsSection.draw(statsX, contentStartY, statsW, sectionContentH, mockPM) -- << USA COORDS STATS
+                else
+                    love.graphics.setColor(colors.red)
+                    love.graphics.printf("Erro: Mock Player Manager não encontrado!", statsX + statsW / 2,
+                        contentStartY + sectionContentH / 2, 0, "center")
+                    love.graphics.setColor(colors.white)
+                end
+
+                -- 2. Desenha Seção de Equipamento/Runas (Equipment) - Seção 2
+                EquipmentSection:draw(equipmentX, contentStartY, equipmentW, sectionContentH) -- << USA COORDS EQUIP
+
+                -- 3. Desenha Grade do Armazenamento (Storage) - Seção 3
                 if self.lobbyStorageManager and self.itemDataManager then
                     local storageItems = self.lobbyStorageManager:getItems() -- Itens da seção ativa
                     local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
@@ -344,26 +384,26 @@ function LobbyScene:draw()
                         active = self.lobbyStorageManager:getActiveSectionIndex()
                     }
                     ItemGridUI.drawItemGrid(storageItems, storageRows, storageCols,
-                        storageArea.x, storageArea.y, storageArea.w, storageArea.h,
+                        storageX, contentStartY, storageW, sectionContentH, -- << USA COORDS STORAGE
                         self.itemDataManager, sectionInfo)
                 else
                     love.graphics.setColor(colors.red)
                     love.graphics.printf("Erro: Storage Manager não inicializado!",
-                        storageArea.x + storageArea.w / 2, storageArea.y + storageArea.h / 2, 0, "center")
+                        storageX + storageW / 2, contentStartY + sectionContentH / 2, 0, "center") -- << USA COORDS STORAGE
                     love.graphics.setColor(colors.white)
                 end
 
-                -- Desenha Grade do Loadout
+                -- 4. Desenha Grade do Loadout - Seção 4
                 if self.loadoutManager and self.itemDataManager then
                     local loadoutItems = self.loadoutManager:getItems()
                     local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
                     ItemGridUI.drawItemGrid(loadoutItems, loadoutRows, loadoutCols,
-                        loadoutArea.x, loadoutArea.y, loadoutArea.w, loadoutArea.h,
-                        self.itemDataManager, nil) -- nil para sectionInfo
+                        loadoutX, contentStartY, loadoutW, sectionContentH, -- << USA COORDS LOADOUT
+                        self.itemDataManager, nil)                          -- nil para sectionInfo
                 else
                     love.graphics.setColor(colors.red)
                     love.graphics.printf("Erro: Loadout Manager não inicializado!",
-                        loadoutArea.x + loadoutArea.w / 2, loadoutArea.y + loadoutArea.h / 2, 0, "center")
+                        loadoutX + loadoutW / 2, contentStartY + sectionContentH / 2, 0, "center") -- << USA COORDS LOADOUT
                     love.graphics.setColor(colors.white)
                 end
             elseif activeTab.id == TabIds.VENDOR then
@@ -378,11 +418,9 @@ function LobbyScene:draw()
             elseif activeTab.id == TabIds.SETTINGS then
                 -- Espaço para desenhar a UI de Configurações
                 love.graphics.printf("CONFIGURAÇÕES", screenW / 2, screenH / 2, 0, "center")
-                -- (Aba "Portais" é tratada acima com o mapa)
-                -- (Aba "Sair"/QUIT não tem conteúdo visual próprio)
             end
-        end -- Fim do if activeTab (dentro do else)
-    end     -- Fim do if drawMapCondition / else
+        end
+    end
 
     -- Desenha o Modal de Detalhes (se um portal estiver selecionado)
     if self.selectedPortal then
@@ -630,6 +668,12 @@ function LobbyScene:unload()
     self.itemDataManager = nil     -- Limpa referência <<< ADICIONADO
     self.lobbyStorageManager = nil -- Limpa referência <<< ADICIONADO
     self.loadoutManager = nil      -- Limpa referência <<< ADICIONADO
+
+    -- <<< DESREGISTRA O MOCK PLAYER MANAGER >>>
+    if ManagerRegistry then
+        ManagerRegistry:unregister("playerManager")
+        print("LobbyScene: MockPlayerManager desregistrado.")
+    end
 end
 
 return LobbyScene

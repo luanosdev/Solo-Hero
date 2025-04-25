@@ -1,3 +1,4 @@
+---@class ManagerRegistry
 local ManagerRegistry = {
     managers = {},
     initialized = false
@@ -56,7 +57,7 @@ function ManagerRegistry:init(initConfigs)
             print(string.format(" - Inicializando %s...", name))
             managerData.instance:init(initConfigs[name])
         elseif managerData then
-             print(string.format(" - Manager %s registrado, mas sem função init().", name))
+            print(string.format(" - Manager %s registrado, mas sem função init().", name))
         else
             print(string.format(" - AVISO: Manager %s na initOrder não está registrado!", name))
         end
@@ -97,4 +98,8 @@ function ManagerRegistry:draw()
     end
 end
 
-return ManagerRegistry 
+function ManagerRegistry:unregister(name)
+    self.managers[name] = nil
+end
+
+return ManagerRegistry

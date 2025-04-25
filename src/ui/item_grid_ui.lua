@@ -16,7 +16,6 @@ local sectionTabConfig = {
     height = 30,
     width = 40,
     padding = 5,
-    yOffset = -35 -- Deslocamento para cima a partir do topo da grade
 }
 
 --- Desenha uma grade de itens dentro da área especificada.
@@ -46,12 +45,13 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
     local gridTotalHeight = currentGridRows * slotTotalHeight - gridConfig.padding
 
     local startX = areaX + (areaW - gridTotalWidth) / 2
-    local startY = areaY + (areaH - gridTotalHeight) / 2
+    local startY = areaY -- Versão nova que alinha ao topo da areaY fornecida
 
     -- Desenha as abas das seções (se sectionInfo for fornecido)
     if sectionInfo and sectionInfo.total and sectionInfo.active then
-        local tabY = startY + sectionTabConfig.yOffset
-        local currentTabX = startX
+        local tabY = startY + gridTotalHeight + gridConfig.padding -- Posiciona abaixo da grade com padding
+        local currentTabX = startX                                 -- Começa sempre alinhado à esquerda da grade
+
         for i = 1, sectionInfo.total do
             local tabRect = {
                 x = currentTabX,
@@ -193,10 +193,10 @@ function ItemGridUI.handleMouseClick(mx, my, sectionInfo, areaX, areaY, areaW, a
     local gridTotalWidth = currentGridCols * slotTotalWidth - gridConfig.padding
     local gridTotalHeight = currentGridRows * slotTotalHeight - gridConfig.padding
     local startX = areaX + (areaW - gridTotalWidth) / 2
-    local startY = areaY + (areaH - gridTotalHeight) / 2
+    local startY = areaY -- Versão nova que alinha ao topo da areaY fornecida
 
     -- Posição Y das abas
-    local tabY = startY + sectionTabConfig.yOffset
+    local tabY = startY + gridTotalHeight + gridConfig.padding -- Posiciona abaixo da grade com padding
     local currentTabX = startX
 
     for i = 1, sectionInfo.total do
