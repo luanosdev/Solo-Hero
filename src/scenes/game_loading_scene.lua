@@ -9,7 +9,7 @@ local GameLoadingScene = {}
 GameLoadingScene.portalData = nil          -- <<< NOVO: Para armazenar dados do portal
 local timer = 0
 local timeToSwitch = 3.0                   -- Aumentei um pouco o tempo de carregamento simulado
-local loadingText = "Enrando no Portal..." -- <<< Texto ajustado
+local loadingText = "Entrando no Portal..." -- <<< Texto ajustado
 
 --- Chamado quando a cena é carregada.
 -- Reinicia o temporizador e armazena dados do portal.
