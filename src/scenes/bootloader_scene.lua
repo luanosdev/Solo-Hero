@@ -17,7 +17,7 @@ local loadingText = "Loading..."
 
 --- Chamado uma vez quando a cena é carregada pelo SceneManager.
 -- Carrega as fontes e a imagem da logo.
--- @param args (table|nil) Argumentos passados pelo SceneManager.switchScene (não utilizado aqui).
+---@param args table|nil Argumentos passados pelo SceneManager.switchScene (não utilizado aqui).
 function BootloaderScene:load(args)
     print("BootloaderScene:load - Carregando fontes e logo...")
     isLoadingComplete = false
@@ -51,7 +51,7 @@ end
 --- Chamado a cada frame para atualizar a lógica da cena.
 -- Incrementa o temporizador e verifica se o carregamento está completo e
 -- o tempo mínimo de exibição foi atingido para trocar para a LobbyScene.
--- @param dt (number) Delta time.
+---@param dt number Delta time.
 function BootloaderScene:update(dt)
     displayTimer = displayTimer + dt
 

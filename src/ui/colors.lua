@@ -26,12 +26,24 @@ local colors = {
     slot_hover_bg = { 0.1, 0.15, 0.2, 0.7 },
 
     rarity = {
-        S = { 0.3, 0.6, 1.0, 1.0 }, -- Azul Solo Leveling
-        A = { 0.8, 0.3, 0.3, 1.0 }, -- Vermelho escuro
-        B = { 0.4, 0.4, 0.8, 1.0 }, -- Azul médio
-        C = { 0.4, 0.6, 0.4, 1.0 }, -- Verde escuro
-        D = { 0.5, 0.5, 0.5, 1.0 }, -- Cinza médio
-        E = { 0.7, 0.7, 0.7, 1.0 }, -- Cinza claro
+        SS = { 1.0, 0.84, 0.0, 1.0 }, -- Dourado Brilhante (para SS)
+        S = { 0.3, 0.6, 1.0, 1.0 },   -- Azul Solo Leveling
+        A = { 0.8, 0.3, 0.3, 1.0 },   -- Vermelho escuro
+        B = { 0.4, 0.4, 0.8, 1.0 },   -- Azul médio
+        C = { 0.4, 0.6, 0.4, 1.0 },   -- Verde escuro
+        D = { 0.5, 0.5, 0.5, 1.0 },   -- Cinza médio
+        E = { 0.7, 0.7, 0.7, 1.0 },   -- Cinza claro
+    },
+
+    -- Mapeamento de Rank para Cor (pode referenciar 'rarity' ou ter cores próprias)
+    rank = {
+        SS = { 1.0, 0.84, 0.0, 1.0 }, -- Dourado Brilhante
+        S  = { 0.3, 0.6, 1.0, 1.0 },  -- Azul Solo Leveling
+        A  = { 0.8, 0.3, 0.3, 1.0 },  -- Vermelho escuro
+        B  = { 0.4, 0.4, 0.8, 1.0 },  -- Azul médio
+        C  = { 0.4, 0.6, 0.4, 1.0 },  -- Verde escuro
+        D  = { 0.5, 0.5, 0.5, 1.0 },  -- Cinza médio
+        E  = { 0.7, 0.7, 0.7, 1.0 }   -- Cinza claro
     },
 
     -- Cores para feedback de drag-and-drop

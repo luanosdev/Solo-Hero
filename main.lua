@@ -27,6 +27,9 @@ local game = { isPaused = false }
 local SceneManager = require("src.core.scene_manager")
 
 function love.load()
+    math.randomseed(os.time())              -- <<< NOVO: Inicializa o gerador de números aleatórios
+    love.filesystem.setIdentity("SoloHero") -- <<< NOVO: Define a pasta de salvamento
+
     -- Window settings - Fullscreen (mantido, pode ser útil globalmente)
     love.window.setMode(0, 0, { fullscreen = true })
     -- Carrega a primeira cena
@@ -80,7 +83,20 @@ function love.load()
 end
 
 function love.update(dt)
-    -- Delega o update para a cena atual
+    -- Verifica se o SceneManager solicitou o encerramento
+    if SceneManager.isQuitRequested() then
+        print("main.lua: SceneManager solicitou quit. Descarregando cena atual...")
+        -- Garante que a cena atual seja descarregada antes de sair
+        if SceneManager.currentScene and SceneManager.currentScene.unload then
+            SceneManager.currentScene:unload()
+            SceneManager.currentScene = nil -- Limpa referência
+        end
+        print("main.lua: Chamando love.event.quit()")
+        love.event.quit() -- Encerra o jogo
+        return            -- Interrompe o update aqui
+    end
+
+    -- Delega o update para a cena atual (se não for encerrar)
     SceneManager.update(dt)
     --[[ Código antigo comentado
     -- Permite atualizar a UI do inventário mesmo pausado
