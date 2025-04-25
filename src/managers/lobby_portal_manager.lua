@@ -1,6 +1,7 @@
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")                              -- Pode ser necessário para desenhar info
 local PersistenceManager = require("src.core.persistence_manager") -- <<< NOVO REQUIRE
+local Formatters = require("src.utils.formatters")                 -- <<< NOVO REQUIRE
 
 --- Gerencia a criação, atualização e desenho dos portais no Lobby.
 ---@class LobbyPortalManager
@@ -8,7 +9,7 @@ local LobbyPortalManager = {}
 LobbyPortalManager.__index = LobbyPortalManager
 
 -- Configurações
-LobbyPortalManager.DEFAULT_NUM_PORTALS = 5
+LobbyPortalManager.DEFAULT_NUM_PORTALS = 7
 LobbyPortalManager.PORTAL_INTERACT_RADIUS = 10
 
 -- <<< NOVO: Configuração da animação dos feixes >>>
@@ -60,16 +61,6 @@ local function generateRandomPortal(mapW, mapH)
     portal.radius = LobbyPortalManager.PORTAL_INTERACT_RADIUS
     portal.isHovering = false
     return portal
-end
-
---- Formata o tempo em segundos para MM:SS.
----@param seconds number
----@return string
-local function formatTime(seconds)
-    seconds = math.max(0, math.floor(seconds))
-    local min = math.floor(seconds / 60)
-    local sec = seconds % 60
-    return string.format("%02d:%02d", min, sec)
 end
 
 --- Cria uma nova instância do gerenciador de portais.
@@ -150,15 +141,17 @@ end
 ---@param dt number Delta time.
 ---@param mx number Posição X do mouse.
 ---@param my number Posição Y do mouse.
----@param isMapActive boolean Indica se a visualização do mapa está ativa.
+---@param allowPortalHover boolean Indica se é permitido atualizar os timers e hover dos portais.
 ---@param mapScale number Escala atual de desenho do mapa.
 ---@param mapDrawX number Coordenada X do canto superior esquerdo do mapa desenhado.
 ---@param mapDrawY number Coordenada Y do canto superior esquerdo do mapa desenhado.
-function LobbyPortalManager:update(dt, mx, my, isMapActive, mapScale, mapDrawX, mapDrawY)
+function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDrawX, mapDrawY)
     local portalsToRemove = {}
 
-    if isMapActive and self.mapW > 0 then
+    -- Só atualiza timers e hover se permitido pela cena
+    if allowPortalHover then
         for i, portal in ipairs(self.activePortals) do
+            -- Decrementa o timer
             portal.timer = portal.timer - dt
             if portal.timer <= 0 then
                 table.insert(portalsToRemove, i)
@@ -173,11 +166,14 @@ function LobbyPortalManager:update(dt, mx, my, isMapActive, mapScale, mapDrawX, 
             end
         end
     else
-        -- Garante que não haja hover se o mapa não estiver ativo
-        for _, portal in ipairs(self.activePortals) do portal.isHovering = false end
+        -- Garante que não haja hover e NÃO atualiza timers se não permitido
+        for _, portal in ipairs(self.activePortals) do
+            portal.isHovering = false
+            -- Timer não é decrementado aqui
+        end
     end
 
-    -- Remove portais expirados
+    -- Remove portais expirados (isso pode acontecer mesmo se o timer parou de ser decrementado neste frame)
     for i = #portalsToRemove, 1, -1 do
         local indexToRemove = portalsToRemove[i]
         print(string.format("LobbyPortalManager: Removendo portal expirado: %s", self.activePortals[indexToRemove].name))
@@ -193,93 +189,97 @@ end
 ---@param mapScale number Escala atual de desenho do mapa.
 ---@param mapDrawX number Coordenada X do canto superior esquerdo do mapa desenhado.
 ---@param mapDrawY number Coordenada Y do canto superior esquerdo do mapa desenhado.
-function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY)
+---@param selectedPortalData PortalData|nil Dados do portal atualmente selecionado na cena (para destaque/escala).
+function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalData)
     local portalFont = fonts.main_small or fonts.main
     local portalFontHeight = portalFont:getHeight()
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
-    -- Assume que a cor já foi resetada para branco antes de chamar esta função
 
     love.graphics.setFont(portalFont)
     love.graphics.setLineWidth(2)
 
-    local ellipseYFactor = 0.6 -- <<< NOVO: Fator para achatar a elipse verticalmente (simula perspectiva)
+    local ellipseYFactor = 0.6 -- Fator para achatar a elipse verticalmente
 
     for i, portal in ipairs(self.activePortals) do
-        -- Recalcula/Usa screen coords
         portal.screenX = mapDrawX + portal.mapX * mapScale
         portal.screenY = mapDrawY + portal.mapY * mapScale
 
-        -- Otimização: Só desenha se estiver perto da tela visível (aproximado com raio X)
-        if portal.screenX >= -portal.radius and portal.screenX <= screenW + portal.radius and
-            portal.screenY >= -portal.radius * ellipseYFactor and portal.screenY <= screenH + portal.radius * ellipseYFactor then
+        -- Define se este portal é o selecionado
+        local isSelected = selectedPortalData and
+            (portal.name == selectedPortalData.name) -- Compara por nome (ou outro ID único)
+
+        -- Otimização: Só desenha se estiver perto da tela visível
+        local checkRadius = isSelected and portal.radius * mapScale or
+            portal
+            .radius -- Raio de verificação maior se selecionado e com zoom
+        if portal.screenX >= -checkRadius and portal.screenX <= screenW + checkRadius and
+            portal.screenY >= -checkRadius * ellipseYFactor and portal.screenY <= screenH + checkRadius * ellipseYFactor then
             local r, g, b, a = portal.color[1], portal.color[2], portal.color[3], portal.color[4]
 
-            -- Efeito de hover simples (aumenta o raio)
+            -- Calcula raios base e escala de hover
             local baseRadiusX = portal.radius
             local hoverScale = portal.isHovering and 1.2 or 1.0
-            local drawRadiusX = baseRadiusX * hoverScale
-            local drawRadiusY = baseRadiusX * ellipseYFactor * hoverScale -- <<< USA FATOR Y
+
+            -- <<< NOVO: Aplica escala adicional se for o portal selecionado >>>
+            local selectionScale = isSelected and mapScale or 1.0 -- Escala com o zoom do mapa se selecionado
+            selectionScale = math.max(1.0, selectionScale * 0.8)  -- Garante escala mínima e suaviza um pouco
+
+            -- Aplica todas as escalas
+            local finalScale = hoverScale * selectionScale
+            local drawRadiusX = baseRadiusX * finalScale
+            local drawRadiusY = baseRadiusX * ellipseYFactor * finalScale
 
             -- Desenha a elipse do portal com mais transparência
-            love.graphics.setColor(r, g, b, 0.5)                                                    -- <<< ALFA REDUZIDO para preenchimento
-            love.graphics.ellipse("fill", portal.screenX, portal.screenY, drawRadiusX, drawRadiusY) -- <<< USA ELLIPSE
-            love.graphics.setColor(r * 1.2, g * 1.2, b * 1.2, 0.8)                                  -- <<< ALFA REDUZIDO para linha
-            love.graphics.ellipse("line", portal.screenX, portal.screenY, drawRadiusX, drawRadiusY) -- <<< USA ELLIPSE
+            love.graphics.setColor(r, g, b, 0.5)
+            love.graphics.ellipse("fill", portal.screenX, portal.screenY, drawRadiusX, drawRadiusY)
+            love.graphics.setColor(r * 1.2, g * 1.2, b * 1.2, 0.8)
+            love.graphics.ellipse("line", portal.screenX, portal.screenY, drawRadiusX, drawRadiusY)
 
-            -- <<< NOVO: Desenha MÚLTIPLOS feixes de luz VERTICAIS aleatórios >>>
-            local numBeams = 50           -- Número de feixes a desenhar
-            local baseBeamHeight = 20     -- Altura média dos feixes
-            local baseBeamAlpha = 0.3     -- Alpha médio dos feixes
-            love.graphics.setLineWidth(1) -- Linhas finas para os feixes
-
+            -- Desenha feixes de luz (não escalam com o zoom para não ficarem enormes)
+            local numBeams = 15
+            local baseBeamHeight = isSelected and 70 * mapScale or 70 -- Feixes mais altos se selecionado e com zoom
+            local baseBeamAlpha = 0.3
+            love.graphics.setLineWidth(1)
             for i = 1, numBeams do
-                local angle = math.random() * 2 * math.pi -- Ângulo aleatório na elipse (mantido para posição)
-                local startX = portal.screenX + drawRadiusX * math.cos(angle)
-                local startY = portal.screenY + drawRadiusY * math.sin(angle)
-
-                -- <<< MODIFICADO: Variação de altura e alpha baseada no tempo >>>
+                local angle = math.random() * 2 * math.pi
+                -- <<< MODIFICADO: Usa drawRadiusX/Y finais para posicionar feixes >>>
+                local beamStartX = portal.screenX + drawRadiusX * math.cos(angle)
+                local beamStartY = portal.screenY + drawRadiusY * math.sin(angle)
                 local time = love.timer.getTime()
                 local speed = LobbyPortalManager.beamAnimationSpeed
-
-                -- Fator de altura varia suavemente com sin (entre 0.6 e 1.4)
                 local heightFactor = 1.0 + 0.4 * math.sin(time * speed + angle * 2)
-                -- Fator de alpha varia suavemente com cos (entre 0.5 e 1.5, será limitado)
                 local alphaFactor = 1.0 + 0.5 * math.cos(time * speed * 0.7 + angle)
-
                 local currentBeamHeight = baseBeamHeight * heightFactor
                 local currentBeamAlpha = baseBeamAlpha * alphaFactor
-                currentBeamAlpha = math.min(0.8, math.max(0.05, currentBeamAlpha)) -- Garante alpha entre 0.05 e 0.8
-
+                currentBeamAlpha = math.min(0.8, math.max(0.05, currentBeamAlpha))
                 love.graphics.setColor(r, g, b, currentBeamAlpha)
-                love.graphics.line(startX, startY, startX, startY - currentBeamHeight)
+                love.graphics.line(beamStartX, beamStartY, beamStartX, beamStartY - currentBeamHeight)
             end
+            love.graphics.setLineWidth(2) -- Restaura largura
 
-            love.graphics.setLineWidth(2) -- Restaura largura para a linha da próxima elipse (se houver outra)
-            -- <<< FIM NOVO >>>
-
-            -- Desenha informações acima do portal (ajusta Y baseado no raio Y da elipse)
-            local textY = portal.screenY - drawRadiusY - portalFontHeight * 2 - 5 -- <<< USA drawRadiusY
-            local infoText = string.format("[%s] %s", portal.rank, portal.name)
-            local timerText = formatTime(portal.timer)
-            local infoWidth = portalFont:getWidth(infoText)
-            local timerWidth = portalFont:getWidth(timerText)
-            local infoTextX = portal.screenX - infoWidth / 2   -- <<< NOVO: X centralizado para info
-            local timerTextX = portal.screenX - timerWidth / 2 -- <<< NOVO: X centralizado para timer
-
-            -- Sombra do texto
-            love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], 0.7)
-            love.graphics.print(infoText, infoTextX + 1, textY + 1)                      -- <<< USA infoTextX
-            love.graphics.print(timerText, timerTextX + 1, textY + portalFontHeight + 1) -- <<< USA timerTextX
-
-            -- Texto principal
-            love.graphics.setColor(portal.color)
-            love.graphics.print(infoText, infoTextX, textY)                      -- <<< USA infoTextX
-            love.graphics.setColor(colors.white)
-            love.graphics.print(timerText, timerTextX, textY + portalFontHeight) -- <<< USA timerTextX
+            -- Desenha informações acima do portal (somente se NÃO selecionado, para não colidir com modal)
+            if not isSelected then
+                local textY = portal.screenY - drawRadiusY - portalFontHeight * 2 - 5
+                local infoText = string.format("[%s] %s", portal.rank, portal.name)
+                local timerText = Formatters.formatTime(portal.timer)
+                local infoWidth = portalFont:getWidth(infoText)
+                local timerWidth = portalFont:getWidth(timerText)
+                local infoTextX = portal.screenX - infoWidth / 2
+                local timerTextX = portal.screenX - timerWidth / 2
+                -- Sombra
+                love.graphics.setColor(colors.black[1], colors.black[2], colors.black[3], 0.7)
+                love.graphics.print(infoText, infoTextX + 1, textY + 1)
+                love.graphics.print(timerText, timerTextX + 1, textY + portalFontHeight + 1)
+                -- Texto
+                love.graphics.setColor(portal.color)
+                love.graphics.print(infoText, infoTextX, textY)
+                love.graphics.setColor(colors.white)
+                love.graphics.print(timerText, timerTextX, textY + portalFontHeight)
+            end
         end
     end
-    love.graphics.setLineWidth(1) -- Reseta largura da linha
+    love.graphics.setLineWidth(1) -- Reseta largura da linha final
 end
 
 --- Verifica se o clique foi em algum portal e retorna os dados do portal se houver.

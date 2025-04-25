@@ -68,6 +68,22 @@ local colors = {
     tab_text = { 0.9, 0.9, 0.9, 1 },              -- Cor do texto do tab
     tab_border = { 0.4, 0.4, 0.45, 1 },           -- Cor da borda do tab
 
+    -- Cor do Modal de Detalhes do Portal
+    modal_bg = { 0.1, 0.12, 0.15, 0.9 }, -- Fundo do modal (escuro, semitransparente)
+    modal_border = { 0.3, 0.5, 0.7, 1 }, -- Borda do modal (azul acinzentado)
+
+    -- Cores dos Botões do Modal
+    button_primary_bg = { 0.2, 0.5, 0.8, 1 }, -- Azul para botão principal (Entrar)
+    button_primary_hover = { 0.3, 0.6, 0.9, 1 },
+    button_primary_text = { 1, 1, 1, 1 },
+    button_secondary_bg = { 0.4, 0.4, 0.45, 1 }, -- Cinza para botão secundário (Cancelar)
+    button_secondary_hover = { 0.5, 0.5, 0.55, 1 },
+    button_secondary_text = { 1, 1, 1, 1 },
+    button_border = { 0.6, 0.6, 0.65, 1 }, -- Borda comum para botões
+
+    -- Cor do Mapa do Lobby
+    map_tint = { 0.3, 0.4, 0.6, 1.0 }, -- <<< NOVA COR
+
     enemyPowerColors = {
         [1] = { 0.7, 0.75, 0.8, 1.0 }, -- Branco azulado
         [2] = { 0.3, 0.6, 1.0, 1.0 },  -- Azul Solo Leveling

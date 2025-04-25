@@ -289,4 +289,46 @@ function elements.drawTabButton(config)
     -- love.graphics.setFont(fonts.main) -- Exemplo
 end
 
+--- Desenha um botão genérico com texto, suporte a hover e cores customizáveis.
+-- @param config (table) Tabela de configuração com os seguintes campos:
+--   rect (table): Tabela com {x, y, w, h} para a posição e tamanho.
+--   text (string): Texto a ser exibido no botão.
+--   isHovering (boolean): Se o mouse está sobre o botão.
+--   font (Font): Fonte a ser usada para o texto.
+--   colors (table): Tabela opcional com cores:
+--     bgColor (table): Cor de fundo normal.
+--     hoverColor (table): Cor de fundo com hover.
+--     textColor (table): Cor do texto.
+--     borderColor (table): Cor da borda.
+function elements.drawButton(config)
+    local rect = config.rect
+    local text = config.text or ""
+    local isHovering = config.isHovering or false
+    local font = config.font or love.graphics.getFont()
+    local cols = config.colors or {}
+
+    -- Define cores padrão se não fornecidas
+    local bgColor = isHovering and (cols.hoverColor or colors.tab_hover) or (cols.bgColor or colors.tab_bg)
+    local textColor = cols.textColor or colors.tab_text
+    local borderColor = cols.borderColor or colors.tab_border
+
+    -- Desenha o fundo
+    love.graphics.setColor(bgColor)
+    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h, 3, 3) -- Cantos levemente arredondados
+
+    -- Desenha a borda
+    love.graphics.setColor(borderColor)
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", rect.x, rect.y, rect.w, rect.h, 3, 3)
+
+    -- Desenha o texto
+    love.graphics.setFont(font)
+    love.graphics.setColor(textColor)
+    local textWidth = font:getWidth(text)
+    local textHeight = font:getHeight()
+    local textX = rect.x + (rect.w - textWidth) / 2
+    local textY = rect.y + (rect.h - textHeight) / 2
+    love.graphics.print(text, math.floor(textX), math.floor(textY)) -- Usa math.floor para evitar serrilhado
+end
+
 return elements
