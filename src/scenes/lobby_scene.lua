@@ -57,7 +57,7 @@ local tabs = {
     { text = "Criação" },
     { text = "Equipamento" },
     { text = "Portais" }, -- Será definido como ativo no :load
-    { text = "Personagens" },
+    { text = "Herois" },
     { text = "Configurações" },
     { text = "Sair" },
 }
