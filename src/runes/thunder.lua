@@ -7,7 +7,7 @@ local ThunderRune = {}
 
 ThunderRune.name = "Runa do Trovão"
 ThunderRune.description = "Faz raios caírem em inimigos aleatórios periodicamente"
-ThunderRune.damage = 30
+ThunderRune.damage = 200
 ThunderRune.damageType = "thunder"
 ThunderRune.color = {0.2, 0.6, 1, 0.3} -- Cor azul para o raio
 
