@@ -1,5 +1,6 @@
 local colors = require("src.ui.colors")
-local fonts = require("src.ui.fonts") -- Pode ser necessário para desenhar info
+local fonts = require("src.ui.fonts")                              -- Pode ser necessário para desenhar info
+local PersistenceManager = require("src.core.persistence_manager") -- <<< NOVO REQUIRE
 
 --- Gerencia a criação, atualização e desenho dos portais no Lobby.
 ---@class LobbyPortalManager
@@ -94,12 +95,39 @@ function LobbyPortalManager:initialize(mapW, mapH, numPortals)
     print(string.format("LobbyPortalManager: Inicializando com mapa %dx%d, alvo de %d portais.", self.mapW, self.mapH,
         self.numPortals))
 
-    -- 1. Tenta carregar e atualizar portais salvos
-    local loadedPortals = self:loadAndUpdatePortals()
-    self.activePortals = loadedPortals -- Define os portais ativos como os que foram carregados
-    print(string.format("Após carregamento, existem %d portais ativos.", #self.activePortals))
+    self.activePortals = {} -- Começa com a lista vazia
+    local loadedData = PersistenceManager.loadData("portals_save.dat")
 
-    -- 2. Gera portais que faltam para atingir o número desejado
+    if loadedData and type(loadedData) == "table" and loadedData.timestamp and loadedData.portals then
+        local currentTime = os.time()
+        local savedTimestamp = loadedData.timestamp
+        local elapsedTime = math.max(0, currentTime - savedTimestamp)
+        print(string.format("LobbyPortalManager: Dados carregados. Tempo desde último save: %d segundos.", elapsedTime))
+
+        local loadedCount = 0
+        local expiredCount = 0
+        for _, portalData in ipairs(loadedData.portals) do
+            portalData.timer = portalData.timer - elapsedTime
+            portalData.isHovering = false
+            portalData.screenX = 0
+            portalData.screenY = 0
+            if portalData.timer > 0 then
+                table.insert(self.activePortals, portalData) -- Adiciona portal válido à lista
+                loadedCount = loadedCount + 1
+            else
+                expiredCount = expiredCount + 1
+            end
+        end
+        print(string.format("LobbyPortalManager: Processados %d portais salvos. %d válidos, %d expiraram.",
+            loadedCount + expiredCount, loadedCount, expiredCount))
+    else
+        print("LobbyPortalManager: Nenhum dado válido carregado. Iniciando com portais vazios.")
+        -- activePortals já está vazio
+    end
+
+    print(string.format("Após carregamento/processamento, existem %d portais ativos.", #self.activePortals))
+
+    -- Gera portais que faltam para atingir o número desejado
     local numMissing = self.numPortals - #self.activePortals
     if numMissing > 0 then
         print(string.format("Gerando %d portais novos para atingir o total de %d.", numMissing, self.numPortals))
@@ -111,7 +139,6 @@ function LobbyPortalManager:initialize(mapW, mapH, numPortals)
             print("Aviso: Dimensões do mapa inválidas ou não informadas. Não foi possível gerar portais faltantes.")
         end
     elseif numMissing < 0 then
-        -- Situação inesperada: mais portais carregados que o alvo. Apenas loga.
         print(string.format("Aviso: Foram carregados %d portais, que é mais que o alvo de %d.", #self.activePortals,
             self.numPortals))
     end
@@ -276,165 +303,21 @@ end
 -- end
 
 --[[---------------------------------------------------------------------------
-  Funções Auxiliares de Serialização/Deserialização Simples
+    Funções de Salvamento e Carregamento de Portais
 ---------------------------------------------------------------------------]]
 
---- Converte um valor Lua simples para sua representação em string Lua.
---- Suporta nil, boolean, number, string e tabelas (recursivamente, sem ciclos).
----@param value any Valor a ser serializado.
----@return string String representando o valor em código Lua.
-local function serializeValue(value)
-    local t = type(value)
-    if t == "nil" then
-        return "nil"
-    elseif t == "boolean" then
-        return tostring(value)
-    elseif t == "number" then
-        return tostring(value)
-    elseif t == "string" then
-        return string.format("%q", value) -- Usa aspas e escapa caracteres
-    elseif t == "table" then
-        local parts = {}
-        -- Verifica se é array ou tabela chave-valor (simplificado)
-        local is_array = true
-        local count = 0
-        for k, _ in pairs(value) do
-            count = count + 1
-            if type(k) ~= "number" or k < 1 or k > #value then
-                is_array = false
-            end
-        end
-        if #value ~= count then is_array = false end
-
-        if is_array then
-            for i = 1, #value do
-                table.insert(parts, serializeValue(value[i]))
-            end
-        else
-            for k, v in pairs(value) do
-                -- Assume que chaves são strings ou números válidos como identificadores se possível
-                local keyStr
-                if type(k) == "string" and k:match("^[a-zA-Z_][a-zA-Z0-9_]*$") then
-                    keyStr = k
-                else
-                    keyStr = "[" .. serializeValue(k) .. "]"
-                end
-                table.insert(parts, keyStr .. " = " .. serializeValue(v))
-            end
-        end
-        return "{" .. table.concat(parts, ", ") .. "}"
-    else
-        error("Tipo não suportado para serialização: " .. t)
-    end
-end
-
---- Tenta deserializar uma string Lua em um valor Lua.
---- ATENÇÃO: Usa loadstring, que pode ser inseguro se a string vier de fontes não confiáveis.
----@param str string String Lua a ser deserializada (espera-se que retorne um valor).
----@return any Valor deserializado ou nil em caso de erro.
-local function deserializeString(str)
-    local func, err = loadstring("return " .. str) -- Adiciona 'return' para obter o valor
-    if not func then
-        print("Erro ao carregar string para deserialização: ", err)
-        return nil
-    end
-    local success, valueOrErr = pcall(func)
-    if not success then
-        print("Erro ao executar string para deserialização: ", valueOrErr)
-        return nil
-    end
-    return valueOrErr
-end
-
---[[---------------------------------------------------------------------------
-  Funções de Salvamento e Carregamento de Portais
----------------------------------------------------------------------------]]
-LobbyPortalManager.saveFilePath = "portals_save.dat"
-
---- Salva o estado atual dos portais e o timestamp.
-function LobbyPortalManager:savePortals()
-    print("LobbyPortalManager: savePortals() - Iniciando salvamento...")
-    local saveData = {
+--- Salva o estado atual dos portais usando o PersistenceManager.
+function LobbyPortalManager:saveState()
+    print("LobbyPortalManager: Solicitando salvamento de estado...")
+    local dataToSave = {
         timestamp = os.time(),
         portals = self.activePortals
     }
-
-    print("LobbyPortalManager: savePortals() - Tentando serializar dados...")
-    local serializeSuccess, resultOrError = pcall(serializeValue, saveData)
-
-    if not serializeSuccess then
-        print(string.format("LobbyPortalManager: savePortals() - ERRO ao serializar: %s", tostring(resultOrError)))
-        return -- Aborta o salvamento
+    local success = PersistenceManager.saveData("portals_save.dat", dataToSave)
+    if not success then
+        print("LobbyPortalManager: Falha ao solicitar salvamento de estado ao PersistenceManager.")
+        -- Pode adicionar tratamento de erro adicional aqui se necessário
     end
-
-    -- Se chegou aqui, serializeSuccess é true e resultOrError contém a string serializada
-    local actualSerializedData = resultOrError
-    print(string.format("LobbyPortalManager: savePortals() - Serialização bem-sucedida (tamanho: %d bytes).",
-        #actualSerializedData))
-
-    print(string.format("LobbyPortalManager: savePortals() - Tentando escrever em '%s'...", self.saveFilePath))
-    local writeSuccess, w_err = love.filesystem.write(self.saveFilePath, actualSerializedData) -- <<< Usa a string correta
-    if writeSuccess then
-        print(string.format("LobbyPortalManager: savePortals() - Arquivo '%s' escrito com SUCESSO.", self.saveFilePath))
-    else
-        print(string.format("LobbyPortalManager: savePortals() - ERRO ao escrever arquivo '%s': %s", self.saveFilePath,
-            tostring(w_err)))
-    end
-end
-
---- Carrega portais salvos e atualiza seus timers.
----@return PortalData[] Lista de portais carregados e ainda válidos.
-function LobbyPortalManager:loadAndUpdatePortals()
-    print("LobbyPortalManager: Tentando carregar portais salvos...")
-    local loadedValidPortals = {} -- Começa com lista vazia
-
-    local fileInfo = love.filesystem.getInfo(self.saveFilePath)
-
-    if fileInfo and fileInfo.type == "file" and fileInfo.size > 0 then
-        print(string.format("Arquivo de save '%s' encontrado.", self.saveFilePath))
-        local content, read_err = love.filesystem.read(self.saveFilePath)
-        if not content then
-            print(string.format("ERRO ao ler arquivo de save '%s': %s. Nenhum portal carregado.", self.saveFilePath,
-                tostring(read_err)))
-            return loadedValidPortals -- Retorna lista vazia
-        end
-
-        print("Deserializando dados...")
-        local savedData = deserializeString(content)
-
-        if savedData and type(savedData) == "table" and savedData.timestamp and savedData.portals then
-            local currentTime = os.time()
-            local savedTimestamp = savedData.timestamp
-            local elapsedTime = math.max(0, currentTime - savedTimestamp)
-            print(string.format("Tempo desde último save: %d segundos.", elapsedTime))
-
-            local loadedCount = 0
-            local expiredCount = 0
-            for _, portalData in ipairs(savedData.portals) do
-                portalData.timer = portalData.timer - elapsedTime
-                -- Importante: Resetar estado volátil
-                portalData.isHovering = false
-                portalData.screenX = 0
-                portalData.screenY = 0
-                if portalData.timer > 0 then
-                    table.insert(loadedValidPortals, portalData) -- Adiciona à lista de retorno
-                    loadedCount = loadedCount + 1
-                else
-                    expiredCount = expiredCount + 1
-                end
-            end
-            print(string.format("Processados %d portais salvos. %d válidos, %d expiraram.", loadedCount + expiredCount,
-                loadedCount, expiredCount))
-        else
-            print("ERRO: Formato de dados inválido no arquivo de save. Ignorando save.")
-            -- Não retorna nada, resultando em lista vazia
-        end
-    else
-        print(string.format("Arquivo de save '%s' não encontrado ou vazio.", self.saveFilePath))
-        -- Não retorna nada, resultando em lista vazia
-    end
-
-    return loadedValidPortals -- Retorna a lista de portais carregados válidos
 end
 
 return LobbyPortalManager

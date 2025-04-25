@@ -268,7 +268,7 @@ function LobbyScene:unload()
 
     -- <<< NOVO: Salva os portais ao descarregar a cena >>>
     if self.portalManager then
-        self.portalManager:savePortals()
+        self.portalManager:saveState() -- <<< NOVO
     end
 
     -- Não precisamos chamar cleanup no manager, ele será coletado pelo GC
