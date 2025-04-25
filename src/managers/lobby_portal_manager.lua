@@ -15,6 +15,12 @@ LobbyPortalManager.PORTAL_INTERACT_RADIUS = 10
 -- <<< NOVO: Configuração da animação dos feixes >>>
 LobbyPortalManager.beamAnimationSpeed = 0.5
 
+-- <<< NOVO: Constantes para área de spawn >>>
+local SPAWN_MARGIN_TOP = 300
+local SPAWN_MARGIN_BOTTOM = 300
+local SPAWN_MARGIN_RIGHT = 200
+local SPAWN_EXCLUSION_LEFT = 700 -- Margem + área da água à esquerda
+
 -- Tabela de pesos para a raridade dos ranks
 local portalRankWeights = {
     { rank = "E",  weight = 50 },
@@ -44,14 +50,30 @@ local function getRandomWeightedRank()
     return portalRankWeights[#portalRankWeights].rank
 end
 
---- Gera dados para um novo portal aleatório.
+--- Gera dados para um novo portal aleatório, respeitando as margens.
 ---@param mapW number Largura do mapa (imagem original).
 ---@param mapH number Altura do mapa (imagem original).
 ---@return PortalData
 local function generateRandomPortal(mapW, mapH)
     local portal = {}
-    portal.mapX = math.random(50, mapW - 50)
-    portal.mapY = math.random(50, mapH - 50)
+
+    -- Calcula limites válidos para X e Y
+    local minX = SPAWN_EXCLUSION_LEFT
+    local maxX = mapW - SPAWN_MARGIN_RIGHT
+    local minY = SPAWN_MARGIN_TOP
+    local maxY = mapH - SPAWN_MARGIN_BOTTOM
+
+    -- Garante que os limites sejam válidos (mapa não muito pequeno)
+    if minX >= maxX or minY >= maxY then
+        print(string.format("AVISO generateRandomPortal: Margens inválidas para mapa %dx%d. Spawning no centro.", mapW,
+            mapH))
+        portal.mapX = mapW / 2
+        portal.mapY = mapH / 2
+    else
+        portal.mapX = math.random(minX, maxX)
+        portal.mapY = math.random(minY, maxY)
+    end
+
     portal.screenX = 0
     portal.screenY = 0
     portal.rank = getRandomWeightedRank()
