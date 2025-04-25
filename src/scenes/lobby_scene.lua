@@ -408,14 +408,16 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
             -- Verifica clique no botão Entrar
             if self.modalButtonEnterHover then
                 modalClicked = true
-                print(string.format("LobbyScene: Botão 'Entrar' clicado para portal '%s'.", self.selectedPortal.name))
-                -- TODO: Trocar para cena de loading
+                print(string.format(
+                    "LobbyScene: Botão 'Entrar' clicado para portal '%s'. Trocando para GameLoadingScene...",
+                    self.selectedPortal.name))
+                -- TODO: Trocar para cena de loading <<< REMOVER TODO
                 -- SceneManager.switchScene("loading_scene", { portalData = self.selectedPortal })
-                print("-> Transição para loading (simulada)...")
-                -- Resetar estado para voltar ao normal
-                self.selectedPortal = nil
-                self.isZoomedIn = false
-                -- Verifica clique no botão Cancelar
+                -- print("-> Transição para loading (simulada)...") -- <<< REMOVER PRINT SIMULADO
+                SceneManager.switchScene("game_loading_scene", { portalData = self.selectedPortal }) -- <<< CHAMADA REAL
+                -- Resetar estado para voltar ao normal (não é mais necessário aqui, a cena será descarregada)
+                -- self.selectedPortal = nil
+                -- self.isZoomedIn = false
             elseif self.modalButtonCancelHover then
                 modalClicked = true
                 print("LobbyScene: Botão 'Cancelar' clicado.")

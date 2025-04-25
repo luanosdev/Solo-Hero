@@ -6,15 +6,22 @@ local fonts = require("src.ui.fonts") -- Requer o módulo de fontes
 -- Atualmente, simula o carregamento com um temporizador.
 local GameLoadingScene = {}
 
+GameLoadingScene.portalData = nil          -- <<< NOVO: Para armazenar dados do portal
 local timer = 0
-local timeToSwitch = 3.0 -- Aumentei um pouco o tempo de carregamento simulado
-local loadingText = "Carregando Jogo..."
+local timeToSwitch = 3.0                   -- Aumentei um pouco o tempo de carregamento simulado
+local loadingText = "Enrando no Portal..." -- <<< Texto ajustado
 
 --- Chamado quando a cena é carregada.
--- Reinicia o temporizador de carregamento simulado.
--- @param args (table|nil) Argumentos da cena anterior (não usado aqui).
+-- Reinicia o temporizador e armazena dados do portal.
+-- @param args table|nil Argumentos da cena anterior (espera-se { portalData = ... }).
 function GameLoadingScene:load(args)
-    print("GameLoadingScene:load - Simulando carregamento do jogo...")
+    self.portalData = args and args.portalData or nil -- Armazena os dados recebidos
+    if self.portalData then
+        print(string.format("GameLoadingScene:load - Carregando portal '%s' (Rank %s)...", self.portalData.name,
+            self.portalData.rank))
+    else
+        print("GameLoadingScene:load - Aviso: Nenhum dado de portal recebido. Carregando jogo padrão...")
+    end
     timer = 0
     -- TODO: Iniciar carregamento real de assets/sistemas aqui (preferencialmente assíncrono)
 end
@@ -42,30 +49,32 @@ function GameLoadingScene:draw()
     love.graphics.setColor(0.1, 0.1, 0.1, 1)
     love.graphics.rectangle("fill", 0, 0, w, h)
 
-    -- Desenha o texto "Carregando Jogo..." com cor animada
-    local grayLevel = 0.5            -- Nível de cinza base
-    local colorSpeed = math.pi * 0.5 -- Velocidade da animação (mais lenta agora)
-
-    -- Calcula a oscilação da cor usando o timer da cena
+    -- Calcula cor animada
+    local grayLevel = 0.5
+    local colorSpeed = math.pi * 0.5
     local oscillation = (math.sin(timer * colorSpeed) + 1) / 2
-
-    -- Interpola a cor
     local colorComponent = grayLevel + (1 - grayLevel) * oscillation
-
-    -- Define a cor calculada
     love.graphics.setColor(colorComponent, colorComponent, colorComponent, 1)
 
-    -- Define a fonte (se carregada)
-    if fonts.title then -- Usando a fonte title para o loading
-        love.graphics.setFont(fonts.title)
-    end
+    -- Define a fonte
+    local mainFont = fonts.title or love.graphics.getFont()
+    local detailFont = fonts.main_small or love.graphics.getFont()
+    love.graphics.setFont(mainFont)
 
-    -- Calcula posição vertical centralizada
-    local loadingH = (fonts.title and fonts.title:getHeight()) or 24 -- Altura da fonte ou fallback
-    local loadingY = (h / 2) - (loadingH / 2)
+    -- Calcula posição vertical centralizada para texto principal
+    local loadingH = mainFont:getHeight()
+    local loadingY = (h / 2) - (loadingH) -- Um pouco acima do centro
 
-    -- Desenha o texto centralizado
+    -- Desenha o texto principal centralizado
     love.graphics.printf(loadingText, 0, loadingY, w, "center")
+
+    -- <<< NOVO: Desenha nome e rank do portal abaixo >>>
+    if self.portalData then
+        love.graphics.setFont(detailFont)
+        local portalText = string.format("%s [%s]", self.portalData.name, self.portalData.rank)
+        local detailY = loadingY + loadingH + 10 -- Posição abaixo do texto principal
+        love.graphics.printf(portalText, 0, detailY, w, "center")
+    end
 
     -- Restaura a cor padrão para branco
     love.graphics.setColor(1, 1, 1, 1)
