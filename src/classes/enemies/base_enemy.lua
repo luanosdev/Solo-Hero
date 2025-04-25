@@ -3,9 +3,7 @@
     Classe base para todos os tipos de inimigos
 ]]
 
-local FloatingTextManager = require("src.managers.floating_text_manager")
-local ExperienceOrbManager = require("src.managers.experience_orb_manager")
-local PlayerManager = require("src.managers.player_manager")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local BaseEnemy = {
     position = {
@@ -153,13 +151,14 @@ function BaseEnemy:checkPlayerCollision(dt, playerManager)
                 self.isAlive = false
             end
             
+            local floatingTextManager = ManagerRegistry:get("floatingTextManager")
             -- Mostra o número de dano
-            FloatingTextManager:addText(
+            floatingTextManager:addText(
                 playerCollision.position.x,
                 playerCollision.position.y - playerCollision.radius - 10,
                 "-" .. tostring(self.damage),
                 false, -- Sempre falso pois inimigos não causam dano crítico
-                PlayerManager.player.position,
+                playerManager.player.position,
                 {1, 0, 0} -- Cor vermelha para dano ao jogador
             )
             
@@ -183,7 +182,8 @@ function BaseEnemy:takeDamage(damage, isCritical)
     self.currentHealth = self.currentHealth - damage
     print(string.format("Inimigo ID: %d, Dano: %d, Vida: %d", self.id, damage, self.currentHealth))
     -- Mostra o número de dano
-    addFloatingText(
+    local floatingTextManager = ManagerRegistry:get("floatingTextManager")
+    floatingTextManager:addText(
         self.position.x,
         self.position.y - self.radius - 10,
         tostring(damage),
@@ -197,7 +197,8 @@ function BaseEnemy:takeDamage(damage, isCritical)
         self.isAlive = false
         
         -- Dropa o orbe de experiência
-        ExperienceOrbManager:addOrb(self.position.x, self.position.y, self.experienceValue)
+        local experienceOrbManager = ManagerRegistry:get("experienceOrbManager")
+        experienceOrbManager:addOrb(self.position.x, self.position.y, self.experienceValue)
         
         return true -- Retorna true se o inimigo morreu
     end
