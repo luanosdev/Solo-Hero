@@ -7,7 +7,7 @@ local OrbitalRune = {}
 
 OrbitalRune.name = "Orbes Orbitais"
 OrbitalRune.description = "Cria orbes que orbitam ao redor do jogador e causam dano aos inimigos próximos"
-OrbitalRune.damage = 15
+OrbitalRune.damage = 150
 OrbitalRune.damageType = "orbital"
 OrbitalRune.color = {0, 0.8, 1, 0.3} -- Cor azul para os orbes
 

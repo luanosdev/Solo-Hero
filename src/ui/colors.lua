@@ -26,12 +26,24 @@ local colors = {
     slot_hover_bg = { 0.1, 0.15, 0.2, 0.7 },
 
     rarity = {
-        S = { 0.3, 0.6, 1.0, 1.0 }, -- Azul Solo Leveling
-        A = { 0.8, 0.3, 0.3, 1.0 }, -- Vermelho escuro
-        B = { 0.4, 0.4, 0.8, 1.0 }, -- Azul médio
-        C = { 0.4, 0.6, 0.4, 1.0 }, -- Verde escuro
-        D = { 0.5, 0.5, 0.5, 1.0 }, -- Cinza médio
-        E = { 0.7, 0.7, 0.7, 1.0 }, -- Cinza claro
+        SS = { 1.0, 0.84, 0.0, 1.0 }, -- Dourado Brilhante (para SS)
+        S = { 0.3, 0.6, 1.0, 1.0 },   -- Azul Solo Leveling
+        A = { 0.8, 0.3, 0.3, 1.0 },   -- Vermelho escuro
+        B = { 0.4, 0.4, 0.8, 1.0 },   -- Azul médio
+        C = { 0.4, 0.6, 0.4, 1.0 },   -- Verde escuro
+        D = { 0.5, 0.5, 0.5, 1.0 },   -- Cinza médio
+        E = { 0.7, 0.7, 0.7, 1.0 },   -- Cinza claro
+    },
+
+    -- Mapeamento de Rank para Cor (pode referenciar 'rarity' ou ter cores próprias)
+    rank = {
+        SS = { 1.0, 0.84, 0.0, 1.0 }, -- Dourado Brilhante
+        S  = { 0.3, 0.6, 1.0, 1.0 },  -- Azul Solo Leveling
+        A  = { 0.8, 0.3, 0.3, 1.0 },  -- Vermelho escuro
+        B  = { 0.4, 0.4, 0.8, 1.0 },  -- Azul médio
+        C  = { 0.4, 0.6, 0.4, 1.0 },  -- Verde escuro
+        D  = { 0.5, 0.5, 0.5, 1.0 },  -- Cinza médio
+        E  = { 0.7, 0.7, 0.7, 1.0 }   -- Cinza claro
     },
 
     -- Cores para feedback de drag-and-drop
@@ -46,6 +58,31 @@ local colors = {
     damage_enemy = { 0.85, 0.9, 0.95, 1.0 },
     damage_crit = { 0.3, 0.6, 1.0, 1.0 },
     heal = { 0.4, 0.8, 0.4, 1.0 },
+
+    -- Cores dos Tabs do Lobby
+    lobby_background = { 0.15, 0.15, 0.2, 1 },    -- Fundo da cena do Lobby
+    tab_bg = { 0.2, 0.2, 0.25, 1 },               -- Fundo normal do tab
+    tab_hover = { 0.3, 0.3, 0.35, 1 },            -- Fundo do tab com hover
+    tab_highlighted_bg = { 0.1, 0.4, 0.6, 1 },    -- Fundo do tab destacado
+    tab_highlighted_hover = { 0.2, 0.5, 0.7, 1 }, -- Fundo do tab destacado com hover
+    tab_text = { 0.9, 0.9, 0.9, 1 },              -- Cor do texto do tab
+    tab_border = { 0.4, 0.4, 0.45, 1 },           -- Cor da borda do tab
+
+    -- Cor do Modal de Detalhes do Portal
+    modal_bg = { 0.1, 0.12, 0.15, 0.9 }, -- Fundo do modal (escuro, semitransparente)
+    modal_border = { 0.3, 0.5, 0.7, 1 }, -- Borda do modal (azul acinzentado)
+
+    -- Cores dos Botões do Modal
+    button_primary_bg = { 0.2, 0.5, 0.8, 1 }, -- Azul para botão principal (Entrar)
+    button_primary_hover = { 0.3, 0.6, 0.9, 1 },
+    button_primary_text = { 1, 1, 1, 1 },
+    button_secondary_bg = { 0.4, 0.4, 0.45, 1 }, -- Cinza para botão secundário (Cancelar)
+    button_secondary_hover = { 0.5, 0.5, 0.55, 1 },
+    button_secondary_text = { 1, 1, 1, 1 },
+    button_border = { 0.6, 0.6, 0.65, 1 }, -- Borda comum para botões
+
+    -- Cor do Mapa do Lobby
+    map_tint = { 0.3, 0.4, 0.6, 1.0 }, -- <<< NOVA COR
 
     enemyPowerColors = {
         [1] = { 0.7, 0.75, 0.8, 1.0 }, -- Branco azulado

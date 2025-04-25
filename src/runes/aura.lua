@@ -8,7 +8,7 @@ local Aura = {}
 Aura.name = "Aura de Dano"
 Aura.description = "Causa dano aos inimigos próximos periodicamente"
 Aura.cooldown = 1 -- Tempo entre cada pulso de dano
-Aura.damage = 10
+Aura.damage = 50
 Aura.damageType = "aura"
 Aura.color = {0.8, 0, 0.8, 0.03} -- Cor roxa suave para a aura base
 

@@ -36,7 +36,7 @@ function elements.drawWindowFrame(x, y, w, h, title)
 
     if glowShader then
         love.graphics.setShader(glowShader)
-        local glowColor = {colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.5}
+        local glowColor = { colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.5 }
         glowShader:send("glowColor", glowColor)
         glowShader:send("glowRadius", 4.0)
         love.graphics.setLineWidth(5)
@@ -77,20 +77,20 @@ function elements.drawResourceBar(config)
         textColor = colors.text_main,
         textFormat = "%d/%d",
         showShadow = true,
-        shadowColor = {0, 0, 0, 0.5},
+        shadowColor = { 0, 0, 0, 0.5 },
         segments = 0,
         segmentInterval = 0, -- Intervalo entre os segmentos (em unidades do recurso)
-        segmentColor = nil, -- Se nil, usa a cor da borda
+        segmentColor = nil,  -- Se nil, usa a cor da borda
         glow = false,
         glowColor = nil,
         glowRadius = 4.0,
         -- Configurações opcionais para largura dinâmica
         dynamicWidth = false, -- Ativa/desativa largura dinâmica
-        baseWidth = 60, -- Largura base da barra
-        maxWidth = 120, -- Largura máxima da barra
-        scaleFactor = 0.5, -- Fator de escala para o crescimento da barra
-        minValue = 100, -- Valor mínimo para começar a crescer
-        maxValue = 2000 -- Valor máximo para parar de crescer
+        baseWidth = 60,       -- Largura base da barra
+        maxWidth = 120,       -- Largura máxima da barra
+        scaleFactor = 0.5,    -- Fator de escala para o crescimento da barra
+        minValue = 100,       -- Valor mínimo para começar a crescer
+        maxValue = 2000       -- Valor máximo para parar de crescer
     }
 
     -- Mescla as configurações com os valores padrão
@@ -159,33 +159,34 @@ function elements.drawResourceBar(config)
     if config.segments > 0 or config.segmentInterval > 0 then
         local segmentColor = config.segmentColor or config.borderColor
         love.graphics.setColor(segmentColor[1], segmentColor[2], segmentColor[3], segmentColor[4] or 1)
-        
+
         if config.segments > 0 then
             -- Segmentos uniformemente distribuídos
             local segmentWidth = config.width / config.segments
             for i = 1, config.segments - 1 do
                 local x = config.x + segmentWidth * i
-                love.graphics.line(x, config.y, x, config.y + config.height/2)
+                love.graphics.line(x, config.y, x, config.y + config.height / 2)
             end
         else
             -- Segmentos baseados no intervalo
             local segmentValue = config.segmentInterval
             while segmentValue < config.max do
                 local segmentX = config.x + (segmentValue / config.max) * config.width
-                love.graphics.line(segmentX, config.y, segmentX, config.y + config.height/2)
+                love.graphics.line(segmentX, config.y, segmentX, config.y + config.height / 2)
                 segmentValue = segmentValue + config.segmentInterval
             end
         end
     end
 
     -- Desenha a borda
-    love.graphics.setColor(config.borderColor[1], config.borderColor[2], config.borderColor[3], config.borderColor[4] or 1)
+    love.graphics.setColor(config.borderColor[1], config.borderColor[2], config.borderColor[3],
+        config.borderColor[4] or 1)
     love.graphics.rectangle("line", config.x, config.y, config.width, config.height)
 
     -- Aplica o efeito de brilho se necessário
     if config.glow and glowShader then
         love.graphics.setShader(glowShader)
-        local glowCol = config.glowColor or {config.color[1], config.color[2], config.color[3], 0.6}
+        local glowCol = config.glowColor or { config.color[1], config.color[2], config.color[3], 0.6 }
         glowShader:send("glowColor", glowCol)
         glowShader:send("glowRadius", config.glowRadius)
         love.graphics.setLineWidth(2)
@@ -204,7 +205,8 @@ function elements.drawResourceBar(config)
 
         -- Desenha a sombra do texto se necessário
         if config.showShadow then
-            love.graphics.setColor(config.shadowColor[1], config.shadowColor[2], config.shadowColor[3], config.shadowColor[4] or 1)
+            love.graphics.setColor(config.shadowColor[1], config.shadowColor[2], config.shadowColor[3],
+                config.shadowColor[4] or 1)
             love.graphics.print(text, textX + 1, textY + 1)
         end
 
@@ -219,7 +221,7 @@ function elements.drawRarityBorderAndGlow(itemRarity, x, y, w, h)
 
     if glowShader then
         love.graphics.setShader(glowShader)
-        local glowCol = {rarityColor[1], rarityColor[2], rarityColor[3], 0.6}
+        local glowCol = { rarityColor[1], rarityColor[2], rarityColor[3], 0.6 }
         glowShader:send("glowColor", glowCol)
         glowShader:send("glowRadius", 4.0)
         love.graphics.setLineWidth(5)
@@ -241,4 +243,92 @@ function elements.drawEmptySlotBackground(slotX, slotY, slotW, slotH)
     love.graphics.rectangle("line", slotX, slotY, slotW, slotH, 3, 3)
 end
 
-return elements 
+--- Desenha um botão de tabulação, com suporte a estado de hover e destaque.
+-- @param config (table) Tabela de configuração com os seguintes campos:
+--   x (number): Posição X do botão.
+--   y (number): Posição Y do botão.
+--   w (number): Largura do botão.
+--   h (number): Altura do botão.
+--   text (string): Texto a ser exibido no botão.
+--   isHovering (boolean): true se o mouse estiver sobre o botão.
+--   highlighted (boolean): true se o botão deve ter a aparência de destaque.
+--   font (Font): Objeto de fonte a ser usado para o texto.
+--   colors (table): Tabela contendo as cores a serem usadas:
+--     bgColor (table): Cor de fundo padrão {r, g, b}.
+--     hoverColor (table): Cor de fundo ao passar o mouse {r, g, b}.
+--     highlightedBgColor (table): Cor de fundo destacada {r, g, b}.
+--     highlightedHoverColor (table): Cor de fundo destacada com hover {r, g, b}.
+--     textColor (table): Cor do texto {r, g, b}.
+--     borderColor (table|nil): Cor da borda opcional {r, g, b}. Se nil, sem borda.
+function elements.drawTabButton(config)
+    local currentBgColor
+    -- Define a cor de fundo base (normal ou destacada)
+    if config.highlighted then
+        currentBgColor = config.isHovering and config.colors.highlightedHoverColor or config.colors.highlightedBgColor
+    else
+        currentBgColor = config.isHovering and config.colors.hoverColor or config.colors.bgColor
+    end
+
+    love.graphics.setColor(currentBgColor)
+    love.graphics.rectangle("fill", config.x, config.y, config.w, config.h)
+
+    -- Desenha borda se definida
+    if config.colors.borderColor then
+        love.graphics.setColor(config.colors.borderColor)
+        love.graphics.rectangle("line", config.x, config.y, config.w, config.h)
+    end
+
+    -- Desenha o texto do tab centralizado
+    local font = config.font or love.graphics.getFont()
+    local fontHeight = font:getHeight()
+    love.graphics.setFont(font)
+    love.graphics.setColor(config.colors.textColor)
+    love.graphics.printf(config.text, config.x, config.y + (config.h - fontHeight) / 2, config.w, "center")
+
+    -- Importante: Resetar a fonte padrão depois, se necessário, ou garantir que a cena faça isso.
+    -- love.graphics.setFont(fonts.main) -- Exemplo
+end
+
+--- Desenha um botão genérico com texto, suporte a hover e cores customizáveis.
+-- @param config (table) Tabela de configuração com os seguintes campos:
+--   rect (table): Tabela com {x, y, w, h} para a posição e tamanho.
+--   text (string): Texto a ser exibido no botão.
+--   isHovering (boolean): Se o mouse está sobre o botão.
+--   font (Font): Fonte a ser usada para o texto.
+--   colors (table): Tabela opcional com cores:
+--     bgColor (table): Cor de fundo normal.
+--     hoverColor (table): Cor de fundo com hover.
+--     textColor (table): Cor do texto.
+--     borderColor (table): Cor da borda.
+function elements.drawButton(config)
+    local rect = config.rect
+    local text = config.text or ""
+    local isHovering = config.isHovering or false
+    local font = config.font or love.graphics.getFont()
+    local cols = config.colors or {}
+
+    -- Define cores padrão se não fornecidas
+    local bgColor = isHovering and (cols.hoverColor or colors.tab_hover) or (cols.bgColor or colors.tab_bg)
+    local textColor = cols.textColor or colors.tab_text
+    local borderColor = cols.borderColor or colors.tab_border
+
+    -- Desenha o fundo
+    love.graphics.setColor(bgColor)
+    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h, 3, 3) -- Cantos levemente arredondados
+
+    -- Desenha a borda
+    love.graphics.setColor(borderColor)
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", rect.x, rect.y, rect.w, rect.h, 3, 3)
+
+    -- Desenha o texto
+    love.graphics.setFont(font)
+    love.graphics.setColor(textColor)
+    local textWidth = font:getWidth(text)
+    local textHeight = font:getHeight()
+    local textX = rect.x + (rect.w - textWidth) / 2
+    local textY = rect.y + (rect.h - textHeight) / 2
+    love.graphics.print(text, math.floor(textX), math.floor(textY)) -- Usa math.floor para evitar serrilhado
+end
+
+return elements
