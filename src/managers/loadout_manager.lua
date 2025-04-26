@@ -7,7 +7,6 @@ local LoadoutManager = {
 
 LoadoutManager.__index = LoadoutManager
 
-local SAVE_FILE = "loadout_save.dat"
 local DEFAULT_LOADOUT_ROWS = 8
 local DEFAULT_LOADOUT_COLS = 4
 
@@ -33,16 +32,12 @@ function LoadoutManager:new(itemDataManager)
     instance.grid = {}  -- Grade 2D para referência rápida de ocupação
     instance.items = {} -- Tabela de instâncias de itens { [instanceId] = itemInstanceData }
 
-    -- Tenta carregar dados existentes
-    if not instance:loadLoadout() then
-        print("[LoadoutManager] Nenhum save encontrado. Inicializando loadout vazio.")
-        -- Inicializa grid vazia se o carregamento falhar
-        instance:_createEmptyGrid(instance.rows, instance.cols)
-        instance.items = {} -- Garante que a tabela de itens esteja vazia
-        nextInstanceId = 1  -- Reseta contador local
-    end
+    -- REMOVIDO: Carregamento não é feito no construtor, mas sim pelo HunterManager
+    instance:_createEmptyGrid(instance.rows, instance.cols) -- Sempre começa vazio
+    instance.items = {}                                     -- Garante que a tabela de itens esteja vazia
+    nextInstanceId = 1                                      -- Reseta contador local
 
-    print(string.format("[LoadoutManager] Pronto. Loadout %dx%d carregado/inicializado.",
+    print(string.format("[LoadoutManager] Pronto. Manager inicializado com grid %dx%d.",
         instance.rows, instance.cols))
 
     return instance
@@ -259,12 +254,10 @@ end
 
 --- Helper interno para obter dados base do item (igual ao LobbyStorageManager).
 function LoadoutManager:_getItemBaseData(itemBaseId)
-    if self.itemDataManager and self.itemDataManager.getData then
-        return self.itemDataManager:getData(itemBaseId)
-    elseif self.itemDataManager and self.itemDataManager.getBaseItemData then
+    if self.itemDataManager and self.itemDataManager.getBaseItemData then
         return self.itemDataManager:getBaseItemData(itemBaseId)
     else
-        print("AVISO [LoadoutManager]: itemDataManager ausente ou método de busca de dados não encontrado.")
+        print("AVISO [LoadoutManager]: itemDataManager ausente ou método getBaseItemData não encontrado.")
         return nil
     end
 end
@@ -305,15 +298,23 @@ end
 
 -- == Funções de Persistência ==
 
---- Salva o estado atual do loadout.
-function LoadoutManager:saveLoadout()
-    print("[LoadoutManager] Solicitando salvamento do loadout...")
+--- Salva o estado atual do loadout para um caçador específico.
+--- @param hunterId string ID do caçador para quem salvar o loadout.
+--- @return boolean True se salvou com sucesso.
+function LoadoutManager:saveLoadout(hunterId)
+    if not hunterId then
+        print("ERRO [LoadoutManager:saveLoadout]: hunterId não fornecido!")
+        return false
+    end
+    local filename = string.format("loadout_%s.dat", hunterId) -- Nome dinâmico
+    print(string.format("[LoadoutManager] Solicitando salvamento do loadout para '%s' em '%s'...", hunterId, filename))
+
     local dataToSave = {
         version = 1,
-        rows = self.rows, -- Salva dimensões caso mudem
+        rows = self.rows,
         cols = self.cols,
         items = {},
-        nextInstanceId = nextInstanceId -- Salva o próximo ID local
+        nextInstanceId = nextInstanceId
     }
 
     for id, item in pairs(self.items) do
@@ -325,44 +326,51 @@ function LoadoutManager:saveLoadout()
         }
     end
 
-    local success = PersistenceManager.saveData(SAVE_FILE, dataToSave)
+    local success = PersistenceManager.saveData(filename, dataToSave)
     if success then
-        print("[LoadoutManager] Loadout salvo com sucesso.")
+        print(string.format("[LoadoutManager] Loadout para '%s' salvo com sucesso.", hunterId))
     else
-        print("ERRO [LoadoutManager]: Falha ao salvar o loadout.")
+        print(string.format("ERRO [LoadoutManager]: Falha ao salvar loadout para '%s'.", hunterId))
     end
     return success
 end
 
---- Carrega o estado do loadout do arquivo de save.
---- @return boolean True se carregou com sucesso, False caso contrário.
-function LoadoutManager:loadLoadout()
-    print("[LoadoutManager] Tentando carregar loadout...")
-    local loadedData = PersistenceManager.loadData(SAVE_FILE)
+--- Carrega o estado do loadout de um caçador específico.
+--- @param hunterId string ID do caçador de quem carregar o loadout.
+--- @return boolean True se carregou com sucesso (ou arquivo não existe), False se houve erro de leitura/formato.
+function LoadoutManager:loadLoadout(hunterId)
+    if not hunterId then
+        print("ERRO [LoadoutManager:loadLoadout]: hunterId não fornecido!")
+        return false
+    end
+    local filename = string.format("loadout_%s.dat", hunterId) -- Nome dinâmico
+    print(string.format("[LoadoutManager] Tentando carregar loadout para '%s' de '%s'...", hunterId, filename))
 
-    if not loadedData or type(loadedData) ~= "table" then
-        print("[LoadoutManager] Nenhum dado de save válido encontrado para o loadout.")
+    local loadedData = PersistenceManager.loadData(filename)
+
+    -- Limpa estado atual ANTES de carregar
+    self:_createEmptyGrid(self.rows, self.cols)
+    self.items = {}
+    nextInstanceId = 1 -- Reseta ID local
+
+    if not loadedData then
+        print(string.format("[LoadoutManager] Nenhum save encontrado para '%s'. Loadout permanecerá vazio.", hunterId))
+        return true
+    end
+
+    if type(loadedData) ~= "table" or loadedData.version ~= 1 then
+        print(string.format(
+            "AVISO [LoadoutManager]: Dados de save para '%s' inválidos ou versão incompatível (versão %s). Ignorando save.",
+            hunterId, tostring(loadedData.version or '??')))
         return false
     end
 
-    if loadedData.version ~= 1 then
-        print(string.format("AVISO [LoadoutManager]: Versão do save (%s) incompatível com a atual (1).",
-            tostring(loadedData.version)))
-        -- Adicionar lógica de migração aqui se necessário
-    end
-
-    -- Carrega dimensões (ou usa padrão se não salvas)
     self.rows = loadedData.rows or DEFAULT_LOADOUT_ROWS
     self.cols = loadedData.cols or DEFAULT_LOADOUT_COLS
+    self:_createEmptyGrid(self.rows, self.cols)
 
-    -- Carrega o próximo ID local
     nextInstanceId = loadedData.nextInstanceId or 1
-
-    -- Recria a grade e os itens
-    self:_createEmptyGrid(self.rows, self.cols) -- Cria grid com as dimensões carregadas/padrão
-    self.items = {}                             -- Limpa itens antes de carregar
     local maxInstanceIdFound = 0
-    local itemCount = 0                         -- Contador de itens carregados
 
     if loadedData.items and type(loadedData.items) == "table" then
         for id, itemSaveData in pairs(loadedData.items) do
@@ -384,46 +392,45 @@ function LoadoutManager:loadLoadout()
                         maxStack = baseData.maxStack or (baseData.stackable and 99) or 1,
                         name = baseData.name,
                         icon = baseData.icon,
+                        rarity = baseData.rarity or 'E'
                     }
                     self.items[numInstanceId] = newItemInstance
-                    itemCount = itemCount + 1 -- Incrementa contador de itens
 
-                    -- Marca a grade
                     for r = itemSaveData.row, itemSaveData.row + height - 1 do
                         for c = itemSaveData.col, itemSaveData.col + width - 1 do
                             if self.grid[r] and self.grid[r][c] == nil then
                                 self.grid[r][c] = numInstanceId
                             else
                                 print(string.format(
-                                    "ERRO/AVISO [LoadoutManager]: Célula de grid [%d,%d] inválida ou já ocupada ao carregar item %d (%s).",
-                                    r, c, numInstanceId, itemSaveData.itemBaseId))
+                                    "ERRO/AVISO [LoadoutManager]: Célula de grid [%d,%d] inválida ou já ocupada ao carregar item %d (%s) para '%s'. Verifique save ou lógica.",
+                                    r, c, numInstanceId, itemSaveData.itemBaseId, hunterId))
                             end
                         end
                     end
                     maxInstanceIdFound = math.max(maxInstanceIdFound, numInstanceId)
                 else
                     print(string.format(
-                        "AVISO [LoadoutManager]: Não foi possível encontrar dados base para o item ID '%s' (instância %d) ao carregar save. Item ignorado.",
-                        tostring(itemSaveData.itemBaseId), numInstanceId))
+                        "AVISO [LoadoutManager]: Não foi possível encontrar dados base para item '%s' (instância %d) ao carregar loadout de '%s'. Item ignorado.",
+                        tostring(itemSaveData.itemBaseId), numInstanceId, hunterId))
                 end
             else
                 print(string.format(
-                    "AVISO [LoadoutManager]: ID de instância inválido ('%s') encontrado ao carregar itens. Ignorando.",
-                    tostring(id)))
+                    "AVISO [LoadoutManager]: ID de instância inválido ('%s') encontrado ao carregar loadout de '%s'. Ignorando.",
+                    tostring(id), hunterId))
             end
         end
     end
 
-    -- Ajusta nextInstanceId local
     if nextInstanceId <= maxInstanceIdFound then
-        print(string.format("AVISO [LoadoutManager]: nextInstanceId local (%d) ajustado para %d.", nextInstanceId,
-            maxInstanceIdFound + 1))
+        print(string.format(
+            "AVISO [LoadoutManager]: nextInstanceId (%d) para '%s' era menor/igual ao maior ID carregado (%d). Ajustando para %d.",
+            nextInstanceId, hunterId, maxInstanceIdFound, maxInstanceIdFound + 1))
         nextInstanceId = maxInstanceIdFound + 1
     end
 
-    print(string.format("[LoadoutManager] Carregamento concluído. %d itens carregados. Próximo ID local: %d",
-        itemCount, nextInstanceId)) -- Usa o contador itemCount
-
+    local itemCount = 0; for _ in pairs(self.items) do itemCount = itemCount + 1 end
+    print(string.format("[LoadoutManager] Carregamento para '%s' concluído. %d itens carregados. Próximo ID local: %d",
+        hunterId, itemCount, nextInstanceId))
     return true
 end
 
