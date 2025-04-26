@@ -232,6 +232,32 @@ function LobbyStorageManager:addItemAt(itemInstance, targetRow, targetCol)
     return true
 end
 
+--- NOVO: Tenta adicionar uma instância de item específica em qualquer espaço livre NA SEÇÃO ATIVA.
+--- Utiliza _findFreeSpace e addItemAt.
+--- @param itemInstance table A instância completa do item a adicionar.
+--- @return boolean True se conseguiu adicionar, false caso contrário.
+function LobbyStorageManager:addItemInstance(itemInstance)
+    local activeSection = self.sections[self.activeSectionIndex]
+    if not activeSection or not itemInstance then
+        print("ERRO [LobbyStorageManager:addItemInstance]: Seção ativa inválida ou item inválido.")
+        return false
+    end
+
+    local width = itemInstance.gridWidth or 1
+    local height = itemInstance.gridHeight or 1
+    -- Procura espaço na seção ativa
+    local freeSpace = self:_findFreeSpace(activeSection, width, height)
+
+    if freeSpace then
+        -- Reusa a lógica de addItemAt para colocar na seção ativa
+        return self:addItemAt(itemInstance, freeSpace.row, freeSpace.col)
+    else
+        print(string.format("[LobbyStorageManager:addItemInstance] Sem espaço na seção ativa para item %d (%s)",
+            itemInstance.instanceId, itemInstance.itemBaseId))
+        return false
+    end
+end
+
 -- == Funções Auxiliares de Item (Operam em uma Seção Específica) ==
 
 --- Helper interno para obter dados base do item.

@@ -250,6 +250,27 @@ function LoadoutManager:addItemAt(itemInstance, targetRow, targetCol)
     return true
 end
 
+--- NOVO: Tenta adicionar uma instância de item específica em qualquer espaço livre.
+--- Utiliza _findFreeSpace e addItemAt.
+--- @param itemInstance table A instância completa do item a adicionar.
+--- @return boolean True se conseguiu adicionar, false caso contrário.
+function LoadoutManager:addItemInstance(itemInstance)
+    if not itemInstance then return false end
+
+    local width = itemInstance.gridWidth or 1
+    local height = itemInstance.gridHeight or 1
+    local freeSpace = self:_findFreeSpace(width, height)
+
+    if freeSpace then
+        -- Reusa a lógica de addItemAt para colocar no espaço encontrado
+        return self:addItemAt(itemInstance, freeSpace.row, freeSpace.col)
+    else
+        print(string.format("[LoadoutManager:addItemInstance] Sem espaço para item %d (%s)", itemInstance.instanceId,
+            itemInstance.itemBaseId))
+        return false
+    end
+end
+
 -- == Funções Auxiliares ==
 
 --- Helper interno para obter dados base do item (igual ao LobbyStorageManager).
@@ -347,6 +368,17 @@ function LoadoutManager:loadLoadout(hunterId)
     print(string.format("[LoadoutManager] Tentando carregar loadout para '%s' de '%s'...", hunterId, filename))
 
     local loadedData = PersistenceManager.loadData(filename)
+
+    if loadedData then
+        print("DEBUG: Dados crus carregados de", filename, ":")
+        if loadedData.items then
+            local count = 0
+            for _ in pairs(loadedData.items) do count = count + 1 end
+            print(string.format("  -> Tabela 'items' encontrada com %d entradas.", count))
+        else
+            print("  -> Tabela 'items' NÃO encontrada nos dados carregados.")
+        end
+    end
 
     -- Limpa estado atual ANTES de carregar
     self:_createEmptyGrid(self.rows, self.cols)

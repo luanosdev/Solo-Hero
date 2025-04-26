@@ -212,20 +212,91 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
 
     currentY = currentY + numRows * newSlotH + (numRows - 1) * eqSpacing + 15
 
-    -- Desenha Slot da Arma
+    -- Desenha Slot da Arma (Lógica Separada Novamente)
     local weaponSlotH = 75
     local weaponSlotW = w * 0.8
     local weaponSlotX = x + (w - weaponSlotW) / 2
     local weaponSlotY = currentY
     local weaponSlotId = SLOT_IDS.WEAPON
     local weaponInstance = equippedItems[weaponSlotId]
-    drawSingleSlot(weaponSlotX, weaponSlotY, weaponSlotW, weaponSlotH, weaponInstance, "Arma")
+
+    -- Desenha o fundo do slot
+    elements.drawWindowFrame(weaponSlotX - 2, weaponSlotY - 2, weaponSlotW + 4, weaponSlotH + 4, nil,
+        colors.slot_empty_bg, colors.slot_empty_border)
+    local bgColor = colors.slot_empty_bg
+    if bgColor then
+        love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
+    else
+        love.graphics
+            .setColor(0.1, 0.1, 0.1, 0.8)
+    end
+    love.graphics.rectangle("fill", weaponSlotX, weaponSlotY, weaponSlotW, weaponSlotH, 3, 3)
+    love.graphics.setColor(1, 1, 1, 1)
+
+    if weaponInstance then
+        local rarity = weaponInstance.rarity or 'E'
+        local name = weaponInstance.name or "Arma"
+        -- Tenta obter dados base para stats mais detalhados (dano, etc.)
+        local baseData = hunterManager.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
+        local damage = baseData and baseData.damage or (weaponInstance.damage or 0)
+        local attackSpeed = baseData and baseData.attackSpeed or (weaponInstance.attackSpeed or 0)
+        -- damageType precisaria ser definido nos dados base se quisermos exibi-lo
+        local damageType = "Físico" -- Placeholder
+
+        -- Desenha Ícone
+        if weaponInstance.icon and type(weaponInstance.icon) == "userdata" then
+            local icon = weaponInstance.icon
+            local iw, ih = icon:getDimensions()
+            local iconSize = weaponSlotH * 0.8 -- Ajusta tamanho do ícone
+            local scale = math.min(iconSize / iw, iconSize / ih)
+            local iconDrawW, iconDrawH = iw * scale, ih * scale
+            local iconX = weaponSlotX + 10
+            local iconY = weaponSlotY + (weaponSlotH - iconDrawH) / 2
+            love.graphics.draw(icon, iconX, iconY, 0, scale, scale)
+            -- Desenha borda no ícone
+            elements.drawRarityBorderAndGlow(rarity, iconX, iconY, iconDrawW, iconDrawH)
+        else
+            -- Placeholder de Ícone
+            local iconSize = weaponSlotH * 0.8
+            local iconX = weaponSlotX + 10
+            local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2
+            elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
+            love.graphics.setColor(colors.white)
+            love.graphics.setFont(fonts.title)
+            love.graphics.printf(string.sub(name, 1, 1), iconX, iconY + iconSize * 0.1, iconSize, "center")
+            love.graphics.setFont(fonts.main)
+            elements.drawRarityBorderAndGlow(rarity, iconX, iconY, iconSize, iconSize)
+        end
+
+        -- Desenha Informações da Arma (Nome, Dano, etc.)
+        local infoX = weaponSlotX + 10 + (weaponSlotH * 0.8) + 15 -- Posição X após o espaço do ícone
+        local infoY = weaponSlotY + 5
+        love.graphics.setFont(fonts.main_large)                   -- Usa main_large para nome
+        love.graphics.setColor(colors.rarity[rarity] or colors.white)
+        love.graphics.print(name, infoX, infoY)
+        infoY = infoY + fonts.main_large:getHeight() + 5
+
+        love.graphics.setFont(fonts.main)
+        love.graphics.setColor(colors.text_main)
+        love.graphics.printf(string.format("Dano: %.1f", damage), infoX, infoY, weaponSlotW - (infoX - weaponSlotX) - 10,
+            "left")
+        infoY = infoY + fonts.main:getHeight() + 2
+        love.graphics.printf(string.format("Vel. Atq: %.2f/s", attackSpeed), infoX, infoY,
+            weaponSlotW - (infoX - weaponSlotX) - 10, "left")
+        -- Adicionar Range se desejado
+    else
+        -- Slot de arma vazio
+        love.graphics.setFont(fonts.main)
+        love.graphics.setColor(colors.text_label)
+        love.graphics.printf("Sem Arma Equipada", weaponSlotX, weaponSlotY + weaponSlotH / 2 - fonts.main:getHeight() / 2,
+            weaponSlotW, "center")
+    end
+
+    -- <<< ADICIONADO: Registra a área do slot da arma >>>
     slotAreasTable[weaponSlotId] = { x = weaponSlotX, y = weaponSlotY, w = weaponSlotW, h = weaponSlotH }
 
-    -- TODO: Adicionar slots de Runa abaixo da arma (e registrar suas áreas)
-
-    -- Atualiza currentY para depois da grade 2x2
-    currentY = currentY + numRows * newSlotH + (numRows - 1) * eqSpacing + 15
+    -- TODO: Adicionar slots de Runa abaixo da arma
+    currentY = weaponSlotY + weaponSlotH + 15 -- Atualiza currentY para depois da arma
 
     -- 5. Área das Runas (Layout 2x2 - Mesmo tamanho dos Equipamentos)
     -- Adiciona Título "RUNAS" como texto simples

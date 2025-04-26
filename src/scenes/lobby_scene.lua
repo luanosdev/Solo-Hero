@@ -835,141 +835,164 @@ function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
         if self.isDragging then
             print("Drag finalizado.")
 
-            -- Verifica drop em SLOT DE EQUIPAMENTO PRIMEIRO >>>
+            -- Verifica qual aba está ativa
+            local activeTab = tabs[self.activeTabIndex]
+
+            -- Verifica drop em SLOT DE EQUIPAMENTO PRIMEIRO (somente se a aba Equipamento estiver ativa)
             local droppedOnEquipmentSlot = false
-            local targetEquipmentSlotId = nil
-            for slotId, area in pairs(self.equipmentSlotAreas or {}) do
-                if x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
-                    droppedOnEquipmentSlot = true
-                    targetEquipmentSlotId = slotId
-                    print(string.format("Drop detectado sobre o slot de equipamento: %s", slotId))
-                    break
+            if activeTab and activeTab.id == TabIds.EQUIPMENT then
+                local targetEquipmentSlotId = nil
+
+                for slotId, area in pairs(self.equipmentSlotAreas or {}) do
+                    if x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
+                        droppedOnEquipmentSlot = true
+                        targetEquipmentSlotId = slotId
+                        break
+                    end
                 end
-            end
 
-            if droppedOnEquipmentSlot then
-                -- Verifica se o item é compatível com o slot
-                local baseData = self.itemDataManager:getBaseItemData(self.draggedItem.itemBaseId)
-                -- TODO: Melhorar essa verificação - Mapear slotId para itemType esperado
-                local isCompatible = (targetEquipmentSlotId == SLOT_IDS.WEAPON and baseData.type == "weapon")
-                -- or (targetEquipmentSlotId == SLOT_IDS.HEAD and baseData.type == "helmet") -- etc.
+                if droppedOnEquipmentSlot then
+                    local itemToEquip = self
+                        .draggedItem -- Guarda referência ANTES de qualquer ação
+                    if not itemToEquip then
+                        print("ERRO: draggedItem é nil ao tentar equipar!")
+                        return
+                    end -- Checagem de segurança
+                    print(string.format("DEBUG: Tentando equipar item ID %d (%s) no slot %s", itemToEquip.instanceId,
+                        itemToEquip.itemBaseId, targetEquipmentSlotId))
 
-                if isCompatible then
-                    print(string.format("Item %s compatível com slot %s. Tentando equipar...",
-                        self.draggedItem.itemBaseId, targetEquipmentSlotId))
+                    local baseData = self.itemDataManager:getBaseItemData(itemToEquip.itemBaseId)
+                    if not baseData then
+                        print("ERRO: baseData é nil para item", itemToEquip.itemBaseId)
+                        return
+                    end
 
-                    local sourceManager = (self.sourceGridId == "storage") and self.lobbyStorageManager or
-                        self.loadoutManager
-                    local itemToEquip = self.draggedItem -- Guarda referência
+                    -- TODO: Melhorar essa verificação
+                    local isCompatible = (targetEquipmentSlotId == SLOT_IDS.WEAPON and baseData.type == "weapon")
+                    print(string.format("DEBUG: Verificação de compatibilidade: slot=%s, itemType=%s, isCompatible=%s",
+                        targetEquipmentSlotId, baseData.type, tostring(isCompatible)))
 
-                    -- Tenta equipar o item
-                    local equipped, oldItemInstance = self.hunterManager:equipItem(itemToEquip, targetEquipmentSlotId)
+                    if isCompatible then
+                        local sourceManager = (self.sourceGridId == "storage") and self.lobbyStorageManager or
+                            self.loadoutManager
 
-                    if equipped then
-                        -- Se equipou com sucesso, remove da origem
-                        local removed = sourceManager:removeItemByInstanceId(itemToEquip.instanceId)
-                        if not removed then
-                            print(string.format("ERRO GRAVE: Item %d equipado, mas falha ao remover da origem %s!",
-                                itemToEquip.instanceId, self.sourceGridId))
-                            -- Tenta desequipar? Ou deixa assim? Por enquanto, loga o erro.
-                        else
-                            print(string.format("Item %d removido de %s após equipar.", itemToEquip.instanceId,
-                                self.sourceGridId))
-                        end
+                        -- Tenta equipar o item
+                        print("DEBUG: Chamando hunterManager:equipItem...")
+                        local equipped, oldItemInstance = self.hunterManager:equipItem(itemToEquip, targetEquipmentSlotId)
+                        print(string.format("DEBUG: hunterManager:equipItem retornou: equipped=%s, oldItemInstance=%s",
+                            tostring(equipped), tostring(oldItemInstance)))
 
-                        -- Se havia um item antigo, tenta adicioná-lo de volta à origem
-                        if oldItemInstance then
-                            print(string.format("Tentando devolver item antigo (%s, ID: %d) para %s",
-                                oldItemInstance.itemBaseId, oldItemInstance.instanceId, self.sourceGridId))
-                            -- Tenta adicionar de volta. Se falhar, o item pode ficar "no limbo" (precisa de UI de recuperação?)
-                            local addedBack = sourceManager:addItem(oldItemInstance.itemBaseId,
-                                oldItemInstance.quantity or 1)
-                            if addedBack == (oldItemInstance.quantity or 1) then
-                                print("Item antigo devolvido com sucesso.")
+                        if equipped then
+                            -- Se equipou com sucesso, remove da origem
+                            local removed = sourceManager:removeItemByInstanceId(itemToEquip.instanceId)
+                            if not removed then
+                                print(string.format("ERRO GRAVE: Item %d equipado, mas falha ao remover da origem %s!",
+                                    itemToEquip.instanceId, self.sourceGridId))
+                                -- Tenta desequipar? Ou deixa assim? Por enquanto, loga o erro.
                             else
-                                print("ERRO: Falha ao devolver item antigo ao inventário! Item pode ter sido perdido.")
-                                -- TODO: Implementar sistema para itens perdidos/caídos no chão?
+                                print(string.format("Item %d removido de %s após equipar.", itemToEquip.instanceId,
+                                    self.sourceGridId))
                             end
+
+                            -- Se havia um item antigo, tenta adicioná-lo de volta à origem
+                            if oldItemInstance then
+                                print(string.format("Tentando devolver item antigo (%s, ID: %d) para %s",
+                                    oldItemInstance.itemBaseId, oldItemInstance.instanceId, self.sourceGridId))
+                                -- Tenta adicionar a INSTÂNCIA de volta usando a nova função
+                                local addedBack = sourceManager:addItemInstance(oldItemInstance)
+                                if addedBack then
+                                    print("Item antigo devolvido com sucesso.")
+                                else
+                                    print("ERRO: Falha ao devolver item antigo ao inventário (", self.sourceGridId,
+                                        ")! Sem espaço? Item pode ter sido perdido.")
+                                    -- TODO: Implementar sistema para itens perdidos/caídos no chão?
+                                end
+                            end
+                        else
+                            print("Falha ao equipar o item (hunterManager:equipItem retornou false).")
+                            -- Não faz nada, item permanece na origem
                         end
                     else
-                        print("Falha ao equipar o item (hunterManager:equipItem retornou false).")
-                        -- Não faz nada, item permanece na origem
+                        print(string.format("Item %s (%s) incompatível com o slot %s.", itemToEquip.itemBaseId,
+                            baseData.type, targetEquipmentSlotId))
+                        -- Drop inválido, não faz nada
+                    end
+
+                    -- <<< ADICIONADO: Limpa estado de drag e retorna APÓS tratar drop no equipamento >>>
+                    self.isDragging = false
+                    self.draggedItem = nil
+                    self.sourceGridId = nil
+                    self.targetGridId = nil
+                    self.targetSlotCoords = nil
+                    self.isDropValid = false
+                    self.draggedItemOffsetX = 0
+                    self.draggedItemOffsetY = 0
+                    return -- Consome o evento
+                end
+            end            -- Fim do IF da aba Equipamento
+
+            -- Se não dropou em slot de equipamento (ou a aba não era a de Equipamento)
+            -- Continua com a lógica para drop em Storage/Loadout
+            if self.isDropValid and self.targetGridId and self.targetSlotCoords then
+                print(string.format("Drop válido em %s [%d,%d]", self.targetGridId, self.targetSlotCoords.row,
+                    self.targetSlotCoords.col))
+
+                local sourceManager = (self.sourceGridId == "storage") and self.lobbyStorageManager or
+                    self.loadoutManager
+                local targetManager = (self.targetGridId == "storage") and self.lobbyStorageManager or
+                    self.loadoutManager
+                local itemToMove = self.draggedItem -- Guarda referência
+
+                -- 1. Remove da origem
+                -- Para storage, removeItemByInstanceId retorna (success, sectionIndex)
+                -- Para loadout, retorna apenas success. Precisamos tratar isso.
+                local removed, removedFromSectionIndex
+                if self.sourceGridId == "storage" then
+                    removed, removedFromSectionIndex = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
+                else
+                    removed = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
+                end
+
+                if removed then
+                    -- 2. Adiciona ao destino
+                    -- Se movendo para storage, precisamos garantir que a seção ativa está correta?
+                    -- Por agora, a validação (canPlaceItemAt) e adição (addItemAt) já ocorrem na seção ativa do storage.
+                    -- Se o source e target são storage, mas seções diferentes, isso pode ser um problema.
+                    -- TODO: Revisar fluxo se movendo entre seções do storage.
+                    local added = targetManager:addItemAt(itemToMove, self.targetSlotCoords.row,
+                        self.targetSlotCoords.col)
+                    if not added then
+                        print("ERRO CRÍTICO: Falha ao adicionar item ao destino (", self.targetGridId,
+                            ") após remover da origem (", self.sourceGridId, ")! Tentando devolver...")
+                        -- Tenta devolver para a origem
+                        local returnRow, returnCol = itemToMove.row, itemToMove.col -- Posição original do item
+                        if self.sourceGridId == "storage" and removedFromSectionIndex then
+                            -- Se estava no storage e sabemos a seção, tenta devolver lá
+                            print(string.format("  Tentando devolver para Storage Seção %d, pos [%d,%d]",
+                                removedFromSectionIndex, returnRow, returnCol))
+                            -- TODO: Precisaria de um método que adiciona a uma seção específica, não só a ativa?
+                            -- Por enquanto, tentamos adicionar de volta à seção ATIVA, o que pode falhar.
+                            sourceManager:addItemAt(itemToMove, returnRow, returnCol) -- Pode falhar
+                        else
+                            -- Tenta adicionar de volta (loadout ou storage ativo)
+                            sourceManager:addItemAt(itemToMove, returnRow, returnCol)
+                        end
+                        -- TODO: Adicionar verificação se a devolução funcionou e tratar item perdido.
+                    else
+                        print(string.format("Item %d movido de %s para %s [%d,%d]",
+                            itemToMove.instanceId, self.sourceGridId, self.targetGridId,
+                            self.targetSlotCoords.row, self.targetSlotCoords.col))
                     end
                 else
-                    print(string.format("Item %s (%s) incompatível com o slot %s.", self.draggedItem.itemBaseId,
-                        baseData.type, targetEquipmentSlotId))
-                    -- Drop inválido, não faz nada
+                    print(string.format("ERRO: Falha ao remover item %d da origem %s.", itemToMove.instanceId,
+                        self.sourceGridId))
                 end
             else
-                if self.isDropValid and self.targetGridId and self.targetSlotCoords then
-                    print(string.format("Drop válido em %s [%d,%d]", self.targetGridId, self.targetSlotCoords.row,
-                        self.targetSlotCoords.col))
-
-                    local sourceManager = (self.sourceGridId == "storage") and self.lobbyStorageManager or
-                        self.loadoutManager
-                    local targetManager = (self.targetGridId == "storage") and self.lobbyStorageManager or
-                        self.loadoutManager
-                    local itemToMove = self.draggedItem -- Guarda referência
-
-                    -- 1. Remove da origem
-                    -- Para storage, removeItemByInstanceId retorna (success, sectionIndex)
-                    -- Para loadout, retorna apenas success. Precisamos tratar isso.
-                    local removed, removedFromSectionIndex
-                    if self.sourceGridId == "storage" then
-                        removed, removedFromSectionIndex = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
-                    else
-                        removed = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
-                    end
-
-                    if removed then
-                        -- 2. Adiciona ao destino
-                        -- Se movendo para storage, precisamos garantir que a seção ativa está correta?
-                        -- Por agora, a validação (canPlaceItemAt) e adição (addItemAt) já ocorrem na seção ativa do storage.
-                        -- Se o source e target são storage, mas seções diferentes, isso pode ser um problema.
-                        -- TODO: Revisar fluxo se movendo entre seções do storage.
-                        local added = targetManager:addItemAt(itemToMove, self.targetSlotCoords.row,
-                            self.targetSlotCoords.col)
-                        if not added then
-                            print("ERRO CRÍTICO: Falha ao adicionar item ao destino (", self.targetGridId,
-                                ") após remover da origem (", self.sourceGridId, ")! Tentando devolver...")
-                            -- Tenta devolver para a origem
-                            local returnRow, returnCol = itemToMove.row, itemToMove.col -- Posição original do item
-                            if self.sourceGridId == "storage" and removedFromSectionIndex then
-                                -- Se estava no storage e sabemos a seção, tenta devolver lá
-                                print(string.format("  Tentando devolver para Storage Seção %d, pos [%d,%d]",
-                                    removedFromSectionIndex, returnRow, returnCol))
-                                -- TODO: Precisaria de um método que adiciona a uma seção específica, não só a ativa?
-                                -- Por enquanto, tentamos adicionar de volta à seção ATIVA, o que pode falhar.
-                                sourceManager:addItemAt(itemToMove, returnRow, returnCol) -- Pode falhar
-                            else
-                                -- Tenta adicionar de volta (loadout ou storage ativo)
-                                sourceManager:addItemAt(itemToMove, returnRow, returnCol)
-                            end
-                            -- TODO: Adicionar verificação se a devolução funcionou e tratar item perdido.
-                        else
-                            print(string.format("Item %d movido de %s para %s [%d,%d]",
-                                itemToMove.instanceId, self.sourceGridId, self.targetGridId,
-                                self.targetSlotCoords.row, self.targetSlotCoords.col))
-                        end
-                    else
-                        print(string.format("ERRO: Falha ao remover item %d da origem %s.", itemToMove.instanceId,
-                            self.sourceGridId))
-                    end
-                else
-                    print("Drop inválido ou fora de uma grade.")
-                end
+                print("Drop inválido ou fora de uma grade válida.") -- Mensagem ligeiramente alterada
             end
 
-            -- Limpa o estado de drag
+            -- Limpa o estado de drag (se não foi consumido pelo drop no equipamento)
             self.isDragging = false
-            self.draggedItem = nil
-            self.sourceGridId = nil
-            self.targetGridId = nil
-            self.targetSlotCoords = nil
-            self.isDropValid = false
-            self.draggedItemOffsetX = 0
-            self.draggedItemOffsetY = 0
-            return -- Consome o evento de soltar se estava arrastando
         end
     end
 end
@@ -994,8 +1017,8 @@ function LobbyScene:unload()
     end
     if self.hunterManager then
         -- <<< ALTERADO: Salva dados do caçador ativo E o estado do manager >>>
-        self.hunterManager:saveActiveHunterData() -- Salva loadout, etc.
-        self.hunterManager:saveState()            -- Salva qual caçador está ativo
+        self.hunterManager:saveActiveHunterData(self.hunterManager:getActiveHunterId())
+        self.hunterManager:saveState() -- Salva qual caçador está ativo
     end
 
     -- Não precisamos chamar cleanup nos managers, eles serão coletados pelo GC
