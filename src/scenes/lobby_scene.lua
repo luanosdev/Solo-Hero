@@ -11,6 +11,7 @@ local LoadoutManager = require("src.managers.loadout_manager")
 local StatsSection = require("src.ui.inventory.sections.stats_section")
 local EquipmentSection = require("src.ui.inventory.sections.equipment_section")
 local MockPlayerManager = require("src.managers.mock_player_manager")
+local CharacterData = require("src.data.character_data")
 local ManagerRegistry = require("src.managers.manager_registry") -- << GARANTIR REQUIRE AQUI
 
 --- Cena principal do Lobby.
@@ -30,6 +31,7 @@ LobbyScene.portalManager = nil ---@type LobbyPortalManager|nil Instância do ger
 LobbyScene.itemDataManager = nil ---@type ItemDataManager|nil Instância do gerenciador de dados de itens
 LobbyScene.lobbyStorageManager = nil ---@type LobbyStorageManager|nil Instância do gerenciador de armazenamento do lobby
 LobbyScene.loadoutManager = nil ---@type LoadoutManager|nil Instância do gerenciador de loadout
+LobbyScene.selectedCharacterStats = nil -- <<< NOVO: Stats base do personagem atual
 
 -- Estado de Zoom/Pan e Seleção de Portal
 LobbyScene.selectedPortal = nil ---@type PortalData|nil Portal atualmente selecionado.
@@ -111,9 +113,19 @@ function LobbyScene:load(args)
     self.lobbyStorageManager = LobbyStorageManager:new(self.itemDataManager) -- <<< ADICIONADO
     self.loadoutManager = LoadoutManager:new(self.itemDataManager)           -- <<< ADICIONADO
 
+    -- <<< CRIA E REGISTRA O MOCK PLAYER MANAGER (Mantido por enquanto) >>>
     local mockPlayerManagerInstance = MockPlayerManager:new()
     ManagerRegistry:register("playerManager", mockPlayerManagerInstance)
     print("LobbyScene: MockPlayerManager registrado no ManagerRegistry.")
+
+    -- <<< CARREGA STATS BASE DO PERSONAGEM PADRÃO (GUERREIRO) >>>
+    self.selectedCharacterStats = CharacterData.warrior
+    if not self.selectedCharacterStats then
+        print("AVISO [LobbyScene]: Não foi possível carregar os stats base do guerreiro!")
+        self.selectedCharacterStats = {} -- Usa tabela vazia como fallback
+    else
+        print("LobbyScene: Stats base do Guerreiro carregados.")
+    end
 
     -- Reseta estado de zoom/seleção
     self.selectedPortal = nil
@@ -352,32 +364,37 @@ function LobbyScene:draw()
                 local storageX = equipmentX + equipmentW + padding
                 local loadoutX = storageX + storageW + padding
 
+                -- <<< DESENHA TÍTULOS DAS SEÇÕES (NOVA ORDEM) >>>
                 love.graphics.setFont(titleFont)
                 love.graphics.setColor(colors.text_highlight)
                 love.graphics.printf("ATRIBUTOS", statsX, sectionTopY, statsW, "center")
                 love.graphics.printf("EQUIPAMENTO", equipmentX, sectionTopY, equipmentW, "center")
-                love.graphics.printf("ARMAZENAMENTO", storageX, sectionTopY, storageW, "center") -- <<< Título Storage na 3a pos
+                love.graphics.printf("ARMAZENAMENTO", storageX, sectionTopY, storageW, "center")
                 love.graphics.printf("MOCHILA", loadoutX, sectionTopY, loadoutW, "center")
-                love.graphics.setColor(colors.white)                                             -- Reset color
-                love.graphics.setFont(fonts.main or titleFont)                                   -- Reset font
+                love.graphics.setColor(colors.white)
+                love.graphics.setFont(fonts.main or titleFont)
+
+                -- <<< DESENHA CONTEÚDO DAS SEÇÕES (NOVA ORDEM) >>>
 
                 -- 1. Desenha Seção de Atributos (Stats) - Seção 1
-                local mockPM = ManagerRegistry:get("playerManager")                           -- Obtém o mock
-                if mockPM then
-                    StatsSection.draw(statsX, contentStartY, statsW, sectionContentH, mockPM) -- << USA COORDS STATS
+                if self.selectedCharacterStats then
+                    StatsSection.drawBaseStats(statsX, contentStartY, statsW, sectionContentH,
+                        self.selectedCharacterStats)
                 else
                     love.graphics.setColor(colors.red)
-                    love.graphics.printf("Erro: Mock Player Manager não encontrado!", statsX + statsW / 2,
+                    love.graphics.printf("Erro: Stats base do personagem não carregados!", statsX + statsW / 2,
                         contentStartY + sectionContentH / 2, 0, "center")
                     love.graphics.setColor(colors.white)
                 end
 
                 -- 2. Desenha Seção de Equipamento/Runas (Equipment) - Seção 2
-                EquipmentSection:draw(equipmentX, contentStartY, equipmentW, sectionContentH) -- << USA COORDS EQUIP
+                EquipmentSection:draw(equipmentX, contentStartY, equipmentW, sectionContentH)
 
                 -- 3. Desenha Grade do Armazenamento (Storage) - Seção 3
                 if self.lobbyStorageManager and self.itemDataManager then
-                    local storageItems = self.lobbyStorageManager:getItems() -- Itens da seção ativa
+                    local storageItems = self.lobbyStorageManager:getItems(self.lobbyStorageManager
+                        :getActiveSectionIndex()) -- Itens da seção ativa
+
                     local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
                     local sectionInfo = {
                         total = self.lobbyStorageManager:getTotalSections(),
@@ -540,13 +557,10 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                 print(string.format(
                     "LobbyScene: Botão 'Entrar' clicado para portal '%s'. Trocando para GameLoadingScene...",
                     self.selectedPortal.name))
-                -- TODO: Trocar para cena de loading <<< REMOVER TODO
-                -- SceneManager.switchScene("loading_scene", { portalData = self.selectedPortal })
-                -- print("-> Transição para loading (simulada)...") -- <<< REMOVER PRINT SIMULADO
-                SceneManager.switchScene("game_loading_scene", { portalData = self.selectedPortal }) -- <<< CHAMADA REAL
-                -- Resetar estado para voltar ao normal (não é mais necessário aqui, a cena será descarregada)
-                -- self.selectedPortal = nil
-                -- self.isZoomedIn = false
+                SceneManager.switchScene("game_loading_scene", {
+                    portalData = self.selectedPortal,
+                    characterBaseStats = self.selectedCharacterStats -- Passa os stats carregados
+                })
             elseif self.modalButtonCancelHover then
                 modalClicked = true
                 print("LobbyScene: Botão 'Cancelar' clicado.")

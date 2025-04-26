@@ -427,4 +427,79 @@ function StatsSection.draw(x, y, w, h, playerManager)
     love.graphics.setFont(fonts.main)
 end
 
+--- NOVA FUNÇÃO: Desenha apenas os atributos base para o Lobby.
+---@param x number Posição X da área.
+---@param y number Posição Y da área.
+---@param w number Largura da área.
+---@param h number Altura da área.
+---@param baseStats table Tabela contendo os atributos base (ex: CharacterData.warrior).
+function StatsSection.drawBaseStats(x, y, w, h, baseStats)
+    if not baseStats then
+        love.graphics.setFont(fonts.main)
+        love.graphics.setColor(colors.text_label)
+        love.graphics.printf("Selecione um Herói", x, y + h / 2, w, "center")
+        return
+    end
+
+    local lineHeight = fonts.main:getHeight() * 1.2 -- Espaçamento padrão
+    local currentY = y
+
+    -- Exibe Nome e Descrição (se disponíveis)
+    if baseStats.name then
+        love.graphics.setFont(fonts.hud)
+        love.graphics.setColor(colors.text_highlight)
+        love.graphics.printf(baseStats.name:upper(), x, currentY, w, "left")
+        currentY = currentY + fonts.hud:getHeight() * 1.1
+    end
+    if baseStats.description then
+        love.graphics.setFont(fonts.main_small)
+        love.graphics.setColor(colors.text_label)
+        love.graphics.printf(baseStats.description, x, currentY, w - 5, "left") -- Pequeno ajuste na largura
+        currentY = currentY + fonts.main_small:getHeight() * 2                  -- Espaço maior após descrição
+    end
+
+    -- Título da Seção de Atributos Base
+    love.graphics.setFont(fonts.hud)
+    love.graphics.setColor(colors.text_highlight)
+    love.graphics.printf("ATRIBUTOS BASE", x, currentY, w, "left")
+    currentY = currentY + fonts.hud:getHeight() * 1.5
+
+    -- Lista de atributos base para exibir
+    local baseAttributesToShow = {
+        { label = "Vida",           key = "baseHealth",             format = "%d" },
+        { label = "Defesa",         key = "baseDefense",            format = "%d" },
+        { label = "Velocidade",     key = "baseSpeed",              format = "%.1f m/s" },
+        { label = "Chance Crítico", key = "baseCriticalChance",     format = "%.1f%%",  multiplier = 100 },
+        { label = "Dano Crítico",   key = "baseCriticalMultiplier", format = "%.1fx" },
+        { label = "Regen. Vida",    key = "baseHealthRegen",        format = "%.1f/s" },
+        { label = "Atq. Múltiplo",  key = "baseMultiAttackChance",  format = "%.1f%%",  multiplier = 100 },
+        { label = "Vel. Ataque",    key = "baseAttackSpeed",        format = "%.2f/s" },
+        { label = "Dano Base",      key = "baseDamage",             format = "%d" },
+        -- Adicionar mais se necessário
+    }
+
+    love.graphics.setFont(fonts.main)
+    love.graphics.setColor(colors.text_value)
+
+    for _, attr in ipairs(baseAttributesToShow) do
+        local value = baseStats[attr.key]
+        if value ~= nil then
+            love.graphics.setColor(colors.text_label)
+            love.graphics.print(attr.label, x, currentY)
+
+            local displayValue = value * (attr.multiplier or 1)
+            local valueStr = string.format(attr.format, displayValue)
+
+            love.graphics.setColor(colors.text_value)
+            love.graphics.printf(valueStr, x, currentY, w, "right")
+            currentY = currentY + lineHeight
+        end
+        -- Parar se exceder a altura da área
+        if currentY > y + h - lineHeight then break end
+    end
+
+    love.graphics.setFont(fonts.main) -- Reset final
+    love.graphics.setColor(colors.white)
+end
+
 return StatsSection

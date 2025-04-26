@@ -31,16 +31,7 @@ function LobbyStorageManager:new(itemDataManager)
     instance.sectionRows = DEFAULT_SECTION_ROWS
     instance.sectionCols = DEFAULT_SECTION_COLS
 
-    -- Tenta carregar dados existentes
-    if not instance:loadStorage() then
-        print("[LobbyStorageManager] Nenhum save encontrado. Inicializando com seções padrão.")
-        -- Inicializa com o número padrão de seções vazias se o carregamento falhar
-        for i = 1, STARTING_SECTIONS do
-            instance.sections[i] = instance:_createEmptySection(instance.sectionRows, instance.sectionCols)
-        end
-        -- Reseta IDs se está começando do zero
-        nextInstanceId = 1
-    end
+    instance:loadStorage()
 
     -- Garante que o índice ativo seja válido
     if not instance.sections[instance.activeSectionIndex] then
@@ -271,8 +262,9 @@ function LobbyStorageManager:_addItemToSection(section, itemBaseId, quantity)
                 gridHeight = height,
                 stackable = stackable,
                 maxStack = maxStack,
-                name = baseData.name, -- Adiciona o nome para facilitar debug/tooltips
-                icon = baseData.icon, -- Adiciona o ícone diretamente se disponível nos dados base
+                name = baseData.name,            -- Adiciona o nome para facilitar debug/tooltips
+                icon = baseData.icon,            -- Adiciona o ícone diretamente se disponível nos dados base
+                rarity = baseData.rarity or 'E', -- Adiciona a raridade (fallback para 'E')
                 -- Outros dados como rarity, description podem ser adicionados aqui
             }
             section.items[instanceId] = newItemInstance
@@ -387,11 +379,14 @@ function LobbyStorageManager:loadStorage()
     local loadedData = PersistenceManager.loadData(SAVE_FILE)
 
     if not loadedData or type(loadedData) ~= "table" then
-        print("[LobbyStorageManager] Nenhum dado de save válido encontrado para o armazenamento.")
+        print("[LobbyStorageManager] Nenhum dado de save válido encontrado.")
+        -- <<< ADICIONADO: Popula com itens iniciais se o save não existir >>>
+        self:_initializeEmptyStorage()
+        self:_populateInitialItems()
+        -- <<< FIM ADIÇÃO >>>
         return false
     end
 
-    -- Verifica versão (para compatibilidade futura)
     if loadedData.version ~= 1 then
         print(string.format(
             "AVISO [LobbyStorageManager]: Versão do save (%s) incompatível com a atual (1). Tentando carregar mesmo assim...",
@@ -442,7 +437,8 @@ function LobbyStorageManager:loadStorage()
                                     stackable = baseData.stackable or false,
                                     maxStack = baseData.maxStack or (baseData.stackable and 99) or 1,
                                     name = baseData.name,
-                                    icon = baseData.icon
+                                    icon = baseData.icon,
+                                    rarity = baseData.rarity or 'E',
                                     -- Adicionar outros dados base aqui se necessário
                                 }
                                 newSection.items[numInstanceId] = newItemInstance
@@ -501,7 +497,10 @@ function LobbyStorageManager:loadStorage()
         self.sections[1] = self:_createEmptySection(self.sectionRows, self.sectionCols)
         self.activeSectionIndex = 1
         nextInstanceId = 1 -- Reseta ID se começou do zero
-        return false       -- Indica que o carregamento não foi totalmente bem-sucedido em termos de conteúdo
+        -- <<< ADICIONADO: Popula a seção recém-criada >>>
+        self:_populateInitialItems()
+        -- <<< FIM ADIÇÃO >>>
+        return false -- Indica que o carregamento não foi totalmente bem-sucedido em termos de conteúdo
     end
 
     -- Garante que activeSectionIndex seja válido após o carregamento
@@ -513,6 +512,32 @@ function LobbyStorageManager:loadStorage()
     end
 
     return true
+end
+
+--- Helper para inicializar armazenamento vazio (quando save falha ou não existe).
+function LobbyStorageManager:_initializeEmptyStorage()
+    print("[LobbyStorageManager] Inicializando armazenamento vazio...")
+    self.sections = {}
+    for i = 1, STARTING_SECTIONS do
+        self.sections[i] = self:_createEmptySection(self.sectionRows, self.sectionCols)
+    end
+    self.activeSectionIndex = 1
+    nextInstanceId = 1 -- Reseta contador de ID
+end
+
+--- Helper para adicionar itens iniciais (chamado após _initializeEmptyStorage).
+function LobbyStorageManager:_populateInitialItems()
+    print("[LobbyStorageManager] Populando com itens iniciais...") -- Mantendo um log geral
+    local section = self.sections[1]                               -- Popula a primeira seção
+    if not section then
+        print("ERRO: Seção 1 não encontrada ao popular itens iniciais.")
+        return
+    end
+
+    -- Adicione chamadas a _addItemToSection aqui
+    self:_addItemToSection(section, "ammo_pistol", 55)
+    self:_addItemToSection(section, "medkit", 3)
+    self:_addItemToSection(section, "rifle", 1) -- Exemplo de item 2x2 (se existir)
 end
 
 return LobbyStorageManager

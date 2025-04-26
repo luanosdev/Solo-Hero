@@ -95,14 +95,19 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
             local slotX = startX + (col - 1) * slotTotalWidth
             local slotY = startY + (row - 1) * slotTotalHeight
 
-            -- Desenha o fundo do slot
-            love.graphics.setColor(colors.inventory_slot_bg)
-            love.graphics.rectangle("fill", slotX, slotY, gridConfig.slotSize, gridConfig.slotSize, 5, 5)
-
-            -- Desenha a borda do slot
-            love.graphics.setColor(colors.inventory_slot_border)
-            love.graphics.setLineWidth(1)
-            love.graphics.rectangle("line", slotX, slotY, gridConfig.slotSize, gridConfig.slotSize, 5, 5)
+            -- Desenha slot usando elements.drawWindowFrame
+            elements.drawWindowFrame(slotX - 2, slotY - 2, gridConfig.slotSize + 4, gridConfig.slotSize + 4, nil,
+                colors.slot_empty_bg, colors.slot_empty_border)
+            -- Desenha fundo interno
+            local bgColor = colors.slot_empty_bg
+            if bgColor then
+                love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
+            else
+                love
+                    .graphics.setColor(0.1, 0.1, 0.1, 0.8)
+            end
+            love.graphics.rectangle("fill", slotX, slotY, gridConfig.slotSize, gridConfig.slotSize, 3, 3)
+            love.graphics.setColor(colors.white) -- Reset color
         end
     end
 
@@ -127,23 +132,46 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
                 itemDataCache[itemInfo.itemBaseId] = itemData
             end
 
-            if itemData then
-                -- Desenha o ícone do item (se existir nos dados base)
-                -- Prioriza ícone da instância, se existir (pode ser diferente do base)
-                local iconToDraw = itemInfo.icon or (itemData and itemData.icon)
+            if itemData or itemInfo.name then -- Usa itemInfo.name como fallback se data falhar
+                -- <<< ADICIONADO: Fundo Preto + Overlay de Raridade >>>
+                -- 1. Fundo Preto
+                love.graphics.setColor(0, 0, 0, 1) -- Preto opaco
+                love.graphics.rectangle("fill", itemSlotX, itemSlotY, itemDrawW, itemDrawH, 3, 3)
+
+                -- 2. Overlay Transparente da Raridade
+                local rarity = itemInfo.rarity or 'E'
+                local rarityColor = colors.rarity[rarity] or colors.rarity['E']
+                if rarityColor then
+                    love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], 0.3) -- Usa alpha 0.3
+                    love.graphics.rectangle("fill", itemSlotX, itemSlotY, itemDrawW, itemDrawH, 3, 3)
+                end
+                love.graphics.setColor(colors.white) -- Reset para branco antes de desenhar ícone
+                -- <<< FIM ADIÇÃO FUNDO >>>
+
+                -- Desenha ícone (se existir)
+                local iconToDraw = itemInfo.icon -- Usa ícone da instância primeiro (se tivermos)
+                -- Se não tiver na instância, tenta pegar do itemData (já feito no cache)
+                if not iconToDraw and itemData then iconToDraw = itemData.icon end
+
+                local iconDrawSize = gridConfig.itemIconSize
+                local iconX = itemSlotX + (itemDrawW - iconDrawSize) / 2
+                local iconY = itemSlotY + (itemDrawH - iconDrawSize) / 2
+
                 if iconToDraw and type(iconToDraw) == "userdata" and iconToDraw:typeOf("Image") then
-                    local iconDrawSize = gridConfig.itemIconSize
-                    -- Centraliza o ícone no espaço total do item (útil para itens > 1x1)
-                    local iconX = itemSlotX + (itemDrawW - iconDrawSize) / 2
-                    local iconY = itemSlotY + (itemDrawH - iconDrawSize) / 2
                     local scale = iconDrawSize / math.max(iconToDraw:getWidth(), iconToDraw:getHeight())
                     love.graphics.setColor(colors.white)
                     love.graphics.draw(iconToDraw, iconX, iconY, 0, scale, scale)
                 else
-                    -- Fallback: Desenha o ID do item se não houver ícone
+                    -- Fallback: Desenha a primeira letra do NOME (se disponível)
                     love.graphics.setColor(colors.white)
-                    love.graphics.printf(itemInfo.itemBaseId, itemSlotX, itemSlotY + itemDrawH / 3, itemDrawW, "center")
+                    local placeholderText = itemInfo.name and string.sub(itemInfo.name, 1, 1) or "?"
+                    love.graphics.setFont(fonts.title) -- Fonte maior para placeholder
+                    love.graphics.printf(placeholderText, itemSlotX, itemSlotY + itemDrawH * 0.1, itemDrawW, "center")
+                    love.graphics.setFont(slotFont)    -- Restaura fonte do slot
                 end
+
+                -- Desenha borda/brilho da raridade (USA DADOS DA INSTÂNCIA)
+                elements.drawRarityBorderAndGlow(rarity, itemSlotX, itemSlotY, itemDrawW, itemDrawH)
 
                 -- Desenha a quantidade (se maior que 1)
                 if itemInfo.quantity and itemInfo.quantity > 1 then
