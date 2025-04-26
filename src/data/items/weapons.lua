@@ -1,20 +1,21 @@
 -- src/data/items/weapons.lua
 local weapons = {
-    rifle = { -- ID usado no placeholder da UI
+    rifle = { -- Mantido do original
         id = "rifle",
         name = "Rifle",
         type = "weapon",
         rarity = "A",
         description = "Arma de longo alcance.",
-        icon = nil, -- TODO: Adicionar path do ícone
+        icon = nil,
         gridWidth = 1,
         gridHeight = 3,
         stackable = false,
         maxStack = 1,
-        -- weapon stats...
+        damage = 50,       -- Placeholder
+        attackSpeed = 1.0, -- Placeholder
+        range = 300,       -- Placeholder
     },
-    -- Adicione outras armas base aqui...
-    skull_staff = {
+    skull_staff = {        -- Mantido do original
         id = "skull_staff",
         name = "Cajado da Caveira",
         type = "weapon",
@@ -25,17 +26,99 @@ local weapons = {
         gridHeight = 3,
         stackable = false,
         maxStack = 1,
-        -- Stats placeholder:
         damage = 15,
         attackSpeed = 1.1,
         range = 150,
     },
-    -- Exemplo:
-    -- wooden_sword = {
-    --    id = "wooden_sword", name = "Espada de Madeira", type = "weapon", rarity = "E",
-    --    description = "Melhor que nada.", icon = nil,
-    --    gridWidth = 1, gridHeight = 2, stackable = false, maxStack = 1,
-    --    damage = { min = 3, max = 5 }, attackSpeed = 1.2, range = 50,
-    -- },
+    hammer = {
+        id = "hammer",
+        name = "Martelo de Guerra",
+        type = "weapon",
+        rarity = "A",                     -- "rare"
+        description = "Um martelo pesado que causa dano em área ao redor do impacto.",
+        icon = nil,
+        gridWidth = 2,
+        gridHeight = 3,
+        stackable = false,
+        maxStack = 1,
+        damage = 180,
+        attackSpeed = 0.83, -- 1 / 1.2
+        range = 80,
+    },
+    wooden_sword = {
+        id = "wooden_sword",
+        name = "Espada de Madeira",
+        type = "weapon",
+        rarity = "E",                           -- Default
+        description = "Uma espada simples feita de madeira",
+        icon = nil, -- Assumido
+        gridWidth = 1,
+        gridHeight = 3,
+        stackable = false,
+        maxStack = 1,
+        damage = 100,
+        attackSpeed = 1.25, -- 1 / 0.8
+        range = 200,
+    },
+    dual_daggers = {
+        id = "dual_daggers",
+        name = "Adagas Gêmeas",
+        type = "weapon",
+        rarity = "C",                           -- "uncommon"
+        description = "Adagas rápidas que golpeiam alternadamente em metades de um cone frontal.",
+        icon = nil, -- Assumido
+        gridWidth = 2,
+        gridHeight = 2,
+        stackable = false,
+        maxStack = 1,
+        damage = 20,
+        attackSpeed = 3.33, -- 1 / 0.3
+        range = 150,
+    },
+    flamethrower = {
+        id = "flamethrower",
+        name = "Lança-Chamas",
+        type = "weapon",
+        rarity = "S",                           -- "rare"
+        description = "Dispara um fluxo contínuo de partículas de fogo lentas.",
+        icon = nil, -- Assumido
+        gridWidth = 2,
+        gridHeight = 3,
+        stackable = false,
+        maxStack = 1,
+        damage = 20,
+        attackSpeed = 5.56, -- 1 / 0.18
+        range = 180,
+    },
+    bow = {
+        id = "bow",
+        name = "Arco Curto",
+        type = "weapon",
+        rarity = "D",                  -- "common"
+        description = "Um arco simples que dispara três flechas.",
+        icon = nil, -- Assumido
+        gridWidth = 2,
+        gridHeight = 2,
+        stackable = false,
+        maxStack = 1,
+        damage = 33,
+        attackSpeed = 1.25, -- 1 / 0.8
+        range = 250,
+    },
+    chain_laser = {
+        id = "chain_laser",
+        name = "Laser Encadeado",
+        type = "weapon",
+        rarity = "S", -- "epic"
+        description = "Dispara um raio que salta entre inimigos próximos.",
+        icon = nil,   -- Assumido
+        gridWidth = 1,
+        gridHeight = 3,
+        stackable = false,
+        maxStack = 1,
+        damage = 35,
+        attackSpeed = 1.43, -- 1 / 0.7
+        range = 200,        -- Default assumption
+    },
 }
 return weapons

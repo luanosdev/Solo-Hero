@@ -622,9 +622,12 @@ function LobbyStorageManager:_populateInitialItems()
     end
 
     -- Adicione chamadas a _addItemToSection aqui
-    self:_addItemToSection(section, "ammo_pistol", 55)
-    self:_addItemToSection(section, "medkit", 3)
-    self:_addItemToSection(section, "skull_staff", 1) -- Exemplo de item 2x2 (se existir)
+    self:_addItemToSection(section, "chain_laser", 1)
+    self:_addItemToSection(section, "bow", 1)
+    self:_addItemToSection(section, "flamethrower", 1)
+    self:_addItemToSection(section, "dual_daggers", 1)
+    self:_addItemToSection(section, "wooden_sword", 1)
+    self:_addItemToSection(section, "hammer", 1)
 end
 
 return LobbyStorageManager
