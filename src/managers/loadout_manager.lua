@@ -189,6 +189,72 @@ function LoadoutManager:removeItemInstance(instanceId, quantity)
     end
 end
 
+--- Remove uma instância de item específica pelo ID.
+-- Wrapper simples para consistência com LobbyStorageManager.
+--- @param instanceId number ID da instância a remover.
+--- @return boolean Retorna true se removeu, false caso contrário.
+function LoadoutManager:removeItemByInstanceId(instanceId)
+    local success = self:removeItemInstance(instanceId, nil) -- Chama a função existente para remover tudo
+    if success then
+        print(string.format("[LoadoutManager] Item %d removido.", instanceId))
+    else
+        print(string.format("AVISO [LoadoutManager] Tentativa de remover item %d (não encontrado)", instanceId))
+    end
+    return success
+end
+
+--- Verifica se um item pode ser colocado na posição especificada.
+-- Não modifica o estado, apenas verifica.
+--- @param itemInstance table A instância do item a ser colocada.
+--- @param targetRow number Linha alvo.
+--- @param targetCol number Coluna alvo.
+--- @return boolean True se o espaço estiver livre e dentro dos limites.
+function LoadoutManager:canPlaceItemAt(itemInstance, targetRow, targetCol)
+    if not itemInstance then return false end
+    local width = itemInstance.gridWidth or 1
+    local height = itemInstance.gridHeight or 1
+    -- Usa a função _isAreaFree do próprio loadout
+    return self:_isAreaFree(targetRow, targetCol, width, height)
+end
+
+--- Adiciona uma instância de item específica na posição dada.
+-- Assume que a validade já foi checada com canPlaceItemAt.
+--- @param itemInstance table A instância completa do item a ser adicionada.
+--- @param targetRow number Linha alvo.
+--- @param targetCol number Coluna alvo.
+--- @return boolean True se adicionado com sucesso.
+function LoadoutManager:addItemAt(itemInstance, targetRow, targetCol)
+    if not itemInstance or not targetRow or not targetCol then
+        print("ERRO [LoadoutManager:addItemAt]: Argumentos inválidos.")
+        return false
+    end
+
+    local instanceId = itemInstance.instanceId
+    local width = itemInstance.gridWidth or 1
+    local height = itemInstance.gridHeight or 1
+
+    -- Atualiza posição na instância
+    itemInstance.row = targetRow
+    itemInstance.col = targetCol
+
+    -- Adiciona à tabela de itens
+    self.items[instanceId] = itemInstance
+
+    -- Marca a grade
+    for r = targetRow, targetRow + height - 1 do
+        for c = targetCol, targetCol + width - 1 do
+            if self.grid[r] then
+                self.grid[r][c] = instanceId
+            else
+                print(string.format("ERRO [LoadoutManager:addItemAt]: Linha %d inválida na grade ao marcar!", r))
+            end
+        end
+    end
+    print(string.format("[LoadoutManager:addItemAt] Item %d (%s) adicionado em [%d,%d]", instanceId,
+        itemInstance.itemBaseId, targetRow, targetCol))
+    return true
+end
+
 -- == Funções Auxiliares ==
 
 --- Helper interno para obter dados base do item (igual ao LobbyStorageManager).

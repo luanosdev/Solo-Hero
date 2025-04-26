@@ -100,6 +100,19 @@ local tabSettings = {
     }
 }
 
+-- <<< NOVO: Variáveis de Estado para Drag-and-Drop >>>
+LobbyScene.isDragging = false ---@type boolean Se um item está sendo arrastado.
+LobbyScene.draggedItem = nil ---@type table|nil A instância do item sendo arrastado.
+LobbyScene.draggedItemOffsetX = 0 ---@type number Offset X do clique no item.
+LobbyScene.draggedItemOffsetY = 0 ---@type number Offset Y do clique no item.
+LobbyScene.sourceGridId = nil ---@type string|nil ID da grade de origem ("storage" ou "loadout").
+LobbyScene.targetGridId = nil ---@type string|nil ID da grade de destino.
+LobbyScene.targetSlotCoords = nil ---@type table|nil Coordenadas {row, col} do slot alvo.
+LobbyScene.isDropValid = false ---@type boolean Se a posição atual do drop é válida.
+LobbyScene.storageGridArea = {} ---@type table Retângulo da área da grade de storage {x,y,w,h}
+LobbyScene.loadoutGridArea = {} ---@type table Retângulo da área da grade de loadout {x,y,w,h}
+-- <<< FIM DRAG-AND-DROP STATE >>>
+
 --- Chamado quando a cena é carregada.
 -- Calcula layout dos tabs, carrega imagem do mapa e define tab inicial.
 ---@param args table|nil
@@ -288,6 +301,41 @@ function LobbyScene:update(dt)
     -- Só permite hover nos portais se a tab Portais estiver ativa E não houver zoom/modal ativo
     local allowPortalHover = isMapActive and not self.isZoomedIn and not tabHoverHandled and not modalHoverHandled
     self.portalManager:update(dt, mx, my, allowPortalHover, currentMapScale, currentMapDrawX, currentMapDrawY)
+
+    -- <<< NOVO: ATUALIZAÇÃO DO DRAG-AND-DROP >>>
+    if self.isDragging then
+        -- Reseta informações do alvo a cada frame
+        self.targetGridId = nil
+        self.targetSlotCoords = nil
+        self.isDropValid = false
+
+        local isMouseOverStorage = mx >= self.storageGridArea.x and mx < self.storageGridArea.x + self.storageGridArea.w and
+            my >= self.storageGridArea.y and my < self.storageGridArea.y + self.storageGridArea.h
+        local isMouseOverLoadout = mx >= self.loadoutGridArea.x and mx < self.loadoutGridArea.x + self.loadoutGridArea.w and
+            my >= self.loadoutGridArea.y and my < self.loadoutGridArea.y + self.loadoutGridArea.h
+
+        if isMouseOverStorage then
+            self.targetGridId = "storage"
+            local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
+            self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, storageRows, storageCols,
+                self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h)
+            if self.targetSlotCoords then
+                self.isDropValid = self.lobbyStorageManager:canPlaceItemAt(self.draggedItem, self.targetSlotCoords.row,
+                    self.targetSlotCoords.col)
+            end
+        elseif isMouseOverLoadout then
+            self.targetGridId = "loadout"
+            local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
+            self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, loadoutRows, loadoutCols,
+                self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h)
+            if self.targetSlotCoords then
+                self.isDropValid = self.loadoutManager:canPlaceItemAt(self.draggedItem, self.targetSlotCoords.row,
+                    self.targetSlotCoords.col)
+            end
+        end
+        -- Se não estiver sobre nenhuma grade válida, targetGridId e targetSlotCoords permanecem nil, isDropValid é false.
+    end
+    -- <<< FIM DRAG-AND-DROP UPDATE >>>
 end
 
 --- Desenha os elementos da cena.
@@ -364,6 +412,11 @@ function LobbyScene:draw()
                 local storageX = equipmentX + equipmentW + padding
                 local loadoutX = storageX + storageW + padding
 
+                -- <<< ARMAZENA AS ÁREAS DAS GRADES EM SELF >>>
+                self.storageGridArea = { x = storageX, y = contentStartY, w = storageW, h = sectionContentH }
+                self.loadoutGridArea = { x = loadoutX, y = contentStartY, w = loadoutW, h = sectionContentH }
+                -- <<< FIM ARMAZENAMENTO >>>
+
                 -- <<< DESENHA TÍTULOS DAS SEÇÕES (NOVA ORDEM) >>>
                 love.graphics.setFont(titleFont)
                 love.graphics.setColor(colors.text_highlight)
@@ -401,12 +454,13 @@ function LobbyScene:draw()
                         active = self.lobbyStorageManager:getActiveSectionIndex()
                     }
                     ItemGridUI.drawItemGrid(storageItems, storageRows, storageCols,
-                        storageX, contentStartY, storageW, sectionContentH, -- << USA COORDS STORAGE
+                        self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h,
                         self.itemDataManager, sectionInfo)
                 else
                     love.graphics.setColor(colors.red)
                     love.graphics.printf("Erro: Storage Manager não inicializado!",
-                        storageX + storageW / 2, contentStartY + sectionContentH / 2, 0, "center") -- << USA COORDS STORAGE
+                        self.storageGridArea.x + self.storageGridArea.w / 2,
+                        self.storageGridArea.y + self.storageGridArea.h / 2, 0, "center") -- << USA COORDS STORAGE
                     love.graphics.setColor(colors.white)
                 end
 
@@ -415,14 +469,54 @@ function LobbyScene:draw()
                     local loadoutItems = self.loadoutManager:getItems()
                     local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
                     ItemGridUI.drawItemGrid(loadoutItems, loadoutRows, loadoutCols,
-                        loadoutX, contentStartY, loadoutW, sectionContentH, -- << USA COORDS LOADOUT
-                        self.itemDataManager, nil)                          -- nil para sectionInfo
+                        self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h,
+                        self.itemDataManager, nil) -- nil para sectionInfo
                 else
                     love.graphics.setColor(colors.red)
                     love.graphics.printf("Erro: Loadout Manager não inicializado!",
-                        loadoutX + loadoutW / 2, contentStartY + sectionContentH / 2, 0, "center") -- << USA COORDS LOADOUT
+                        self.loadoutGridArea.x + self.loadoutGridArea.w / 2,
+                        self.loadoutGridArea.y + self.loadoutGridArea.h / 2, 0, "center") -- << USA COORDS LOADOUT
                     love.graphics.setColor(colors.white)
                 end
+
+                -- <<< NOVO: DESENHO DO DRAG-AND-DROP >>>
+                if self.isDragging and self.draggedItem then
+                    local mx, my = love.mouse.getPosition()
+                    -- Desenha o item fantasma
+                    local ghostX = mx - self.draggedItemOffsetX
+                    local ghostY = my - self.draggedItemOffsetY
+                    elements.drawItemGhost(ghostX, ghostY, self.draggedItem, 0.75) -- Função a ser criada em elements
+
+                    -- Desenha o indicador de drop
+                    if self.targetGridId and self.targetSlotCoords then
+                        local targetArea = (self.targetGridId == "storage") and self.storageGridArea or
+                            self.loadoutGridArea
+                        local targetManager = (self.targetGridId == "storage") and self.lobbyStorageManager or
+                            self.loadoutManager
+
+                        local targetRows, targetCols
+                        if targetManager then -- Garante que o manager existe
+                            if self.targetGridId == "storage" then
+                                targetRows, targetCols = targetManager:getActiveSectionDimensions()
+                            else -- loadout
+                                targetRows, targetCols = targetManager:getDimensions()
+                            end
+
+                            -- Só desenha se obteve as dimensões
+                            if targetRows and targetCols then
+                                elements.drawDropIndicator(
+                                    targetArea.x, targetArea.y, targetArea.w, targetArea.h,
+                                    targetRows, targetCols,
+                                    self.targetSlotCoords.row, self.targetSlotCoords.col,
+                                    self.draggedItem.gridWidth or 1, self.draggedItem.gridHeight or 1,
+                                    self.isDropValid
+                                )
+                            end
+                        end
+                        -- <<< FIM CORREÇÃO >>>
+                    end
+                end
+                -- <<< FIM DRAG-AND-DROP DRAW >>>
             elseif activeTab.id == TabIds.VENDOR then
                 -- Espaço para desenhar a UI do Vendedor
                 love.graphics.printf("VENDEDOR", screenW / 2, screenH / 2, 0, "center")
@@ -607,6 +701,69 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
         -- Se clicou em uma tab, não processa mais nada
         if tabClicked then return end
 
+        -- <<< NOVO: LÓGICA PARA INICIAR DRAG-AND-DROP >>>
+        local activeTab = tabs[self.activeTabIndex]
+        if activeTab and activeTab.id == TabIds.EQUIPMENT then
+            local itemClicked = nil
+            local clickedGridId = nil
+            local itemOffsetX, itemOffsetY = 0, 0
+
+            -- Verifica clique na grade de Armazenamento
+            if self.lobbyStorageManager and self.storageGridArea.w > 0 then -- Garante que a área foi calculada
+                local storageItems = self.lobbyStorageManager:getItems(self.lobbyStorageManager:getActiveSectionIndex())
+                local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
+                itemClicked = ItemGridUI.getItemInstanceAtCoords(x, y, storageItems, storageRows, storageCols,
+                    self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h)
+                if itemClicked then
+                    clickedGridId = "storage"
+                end
+            end
+
+            -- Verifica clique na grade de Loadout (se não clicou no storage)
+            if not itemClicked and self.loadoutManager and self.loadoutGridArea.w > 0 then
+                local loadoutItems = self.loadoutManager:getItems()
+                local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
+                itemClicked = ItemGridUI.getItemInstanceAtCoords(x, y, loadoutItems, loadoutRows, loadoutCols,
+                    self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h)
+                if itemClicked then
+                    clickedGridId = "loadout"
+                end
+            end
+
+            -- Se um item foi clicado, inicia o arraste
+            if itemClicked and clickedGridId then
+                self.isDragging = true
+                self.draggedItem = itemClicked -- Armazena a instância completa
+                self.sourceGridId = clickedGridId
+
+                -- Calcula o offset do clique dentro do item
+                local itemScreenX = 0
+                local itemScreenY = 0
+                local gridConfig = require("src.ui.item_grid_ui")
+                    .__gridConfig -- Acessa config do grid (pode precisar ajustar)
+                local slotTotalWidth = (gridConfig and gridConfig.slotSize or 48) +
+                    (gridConfig and gridConfig.padding or 5)
+                local slotTotalHeight = (gridConfig and gridConfig.slotSize or 48) +
+                    (gridConfig and gridConfig.padding or 5)
+
+                if clickedGridId == "storage" then
+                    itemScreenX = self.storageGridArea.x + (itemClicked.col - 1) * slotTotalWidth
+                    itemScreenY = self.storageGridArea.y + (itemClicked.row - 1) * slotTotalHeight
+                else -- loadout
+                    itemScreenX = self.loadoutGridArea.x + (itemClicked.col - 1) * slotTotalWidth
+                    itemScreenY = self.loadoutGridArea.y + (itemClicked.row - 1) * slotTotalHeight
+                end
+                self.draggedItemOffsetX = x - itemScreenX
+                self.draggedItemOffsetY = y - itemScreenY
+
+                print(string.format("Iniciando arraste do item %d (%s) da grade %s", itemClicked.instanceId,
+                    itemClicked.itemBaseId, clickedGridId))
+                return -- Consome o clique
+            end
+
+            -- <<< FIM DRAG-AND-DROP INIT >>>
+        end
+
         -- 3. Se não clicou em tab E a tab "Portais" está ativa
         local isMapActive = tabs[self.activeTabIndex] and tabs[self.activeTabIndex].id == TabIds.PORTALS
         if isMapActive then
@@ -651,6 +808,74 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                 end
             end
             -- TODO: Verificar clique para iniciar drag-and-drop (próximo passo)
+        end
+    end
+end
+
+--- NOVO: Processa o soltar do mouse, finalizando o drag-and-drop.
+function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
+    if buttonIdx == 1 then
+        if self.isDragging then
+            print("Drag finalizado.")
+            if self.isDropValid and self.targetGridId and self.targetSlotCoords then
+                print(string.format("Drop válido em %s [%d,%d]", self.targetGridId, self.targetSlotCoords.row,
+                    self.targetSlotCoords.col))
+
+                local sourceManager = (self.sourceGridId == "storage") and self.lobbyStorageManager or
+                    self.loadoutManager
+                local targetManager = (self.targetGridId == "storage") and self.lobbyStorageManager or
+                    self.loadoutManager
+                local itemToMove = self.draggedItem -- Guarda referência antes de limpar estado
+
+                -- 1. Remove do origem
+                local removed, removedFromSectionIndex = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
+
+                if removed then
+                    -- 2. Adiciona ao destino
+                    -- Se movendo para storage, garante que a seção alvo é a ativa
+                    if self.targetGridId == "storage" and targetManager:getActiveSectionIndex() ~= removedFromSectionIndex then
+                        -- Se a origem era outra seção do storage, NÃO muda a seção ativa para adicionar.
+                        -- A função addItemAt do storage já opera na seção ativa.
+                        -- Precisamos garantir que a seção ativa seja a correta ANTES de chamar addItemAt.
+                        -- ISSO INDICA UMA LIMITAÇÃO: Por enquanto, só podemos dropar na seção ATIVA do storage.
+                        -- TODO: Permitir drop em outras seções? Exigiria mudar a seção ativa ou modificar addItemAt.
+                        print("AVISO: Tentando dropar em seção inativa do storage. Usando seção ativa.")
+                        -- Neste caso, a validação canPlaceItemAt já usou a seção ativa, então está ok.
+                    end
+
+                    local added = targetManager:addItemAt(itemToMove, self.targetSlotCoords.row,
+                        self.targetSlotCoords.col)
+                    if not added then
+                        print(
+                            "ERRO CRÍTICO: Falha ao adicionar item ao destino após remover da origem! Tentando devolver...")
+                        -- Tenta devolver para a origem (melhor esforço, pode falhar se posição original ocupada)
+                        if removedFromSectionIndex and self.sourceGridId == "storage" then
+                            targetManager:setActiveSection(removedFromSectionIndex) -- Tenta voltar para seção original
+                        end
+                        local returned = sourceManager:addItemAt(itemToMove, itemToMove.row, itemToMove.col)
+                        if not returned then
+                            print("ERRO GRAVE: Não foi possível devolver o item à origem! Item perdido?")
+                            -- TODO: Tratar item perdido (ex: adicionar a uma lista de "itens perdidos")
+                        end
+                    end
+                else
+                    print(string.format("ERRO: Falha ao remover item %d da origem %s.", itemToMove.instanceId,
+                        self.sourceGridId))
+                end
+            else
+                print("Drop inválido ou fora de uma grade.")
+            end
+
+            -- Limpa o estado de drag independentemente do sucesso/falha do drop
+            self.isDragging = false
+            self.draggedItem = nil
+            self.sourceGridId = nil
+            self.targetGridId = nil
+            self.targetSlotCoords = nil
+            self.isDropValid = false
+            self.draggedItemOffsetX = 0
+            self.draggedItemOffsetY = 0
+            return -- Consome o evento de soltar se estava arrastando
         end
     end
 end

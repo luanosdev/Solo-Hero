@@ -153,6 +153,85 @@ function LobbyStorageManager:removeItemInstance(instanceId, quantity)
     return self:_removeItemInstanceFromSection(activeSection, instanceId, quantity)
 end
 
+--- Remove uma instância de item específica pelo ID, de qualquer seção.
+-- Útil para drag-and-drop.
+--- @param instanceId number ID da instância a remover.
+--- @return boolean, number|nil Retorna true e o índice da seção se removeu, false e nil caso contrário.
+function LobbyStorageManager:removeItemByInstanceId(instanceId)
+    for index, section in pairs(self.sections) do
+        if section.items[instanceId] then
+            local success = self:_removeItemInstanceFromSection(section, instanceId, nil) -- Remove tudo
+            if success then
+                print(string.format("[LobbyStorageManager] Item %d removido da seção %d", instanceId, index))
+                return true, index
+            else
+                -- Isso não deveria acontecer se o item foi encontrado, mas por segurança:
+                print(string.format("ERRO [LobbyStorageManager] Falha ao remover item %d encontrado na seção %d",
+                    instanceId, index))
+                return false, index
+            end
+        end
+    end
+    print(string.format("AVISO [LobbyStorageManager] Tentativa de remover item %d (não encontrado)", instanceId))
+    return false, nil -- Item não encontrado em nenhuma seção
+end
+
+--- Verifica se um item pode ser colocado na posição especificada na seção ativa.
+-- Não modifica o estado, apenas verifica.
+--- @param itemInstance table A instância do item a ser colocada.
+--- @param targetRow number Linha alvo.
+--- @param targetCol number Coluna alvo.
+--- @return boolean True se o espaço estiver livre e dentro dos limites.
+function LobbyStorageManager:canPlaceItemAt(itemInstance, targetRow, targetCol)
+    local activeSection = self.sections[self.activeSectionIndex]
+    if not activeSection or not itemInstance then return false end
+
+    local width = itemInstance.gridWidth or 1
+    local height = itemInstance.gridHeight or 1
+
+    -- Verifica se a área está livre NA SEÇÃO ATIVA
+    return self:_isAreaFree(activeSection, targetRow, targetCol, width, height)
+end
+
+--- Adiciona uma instância de item específica na posição dada na seção ativa.
+-- Assume que a validade já foi checada com canPlaceItemAt.
+--- @param itemInstance table A instância completa do item a ser adicionada.
+--- @param targetRow number Linha alvo.
+--- @param targetCol number Coluna alvo.
+--- @return boolean True se adicionado com sucesso.
+function LobbyStorageManager:addItemAt(itemInstance, targetRow, targetCol)
+    local activeSection = self.sections[self.activeSectionIndex]
+    if not activeSection or not itemInstance or not targetRow or not targetCol then
+        print("ERRO [LobbyStorageManager:addItemAt]: Argumentos inválidos.")
+        return false
+    end
+
+    local instanceId = itemInstance.instanceId
+    local width = itemInstance.gridWidth or 1
+    local height = itemInstance.gridHeight or 1
+
+    -- Atualiza posição na instância
+    itemInstance.row = targetRow
+    itemInstance.col = targetCol
+
+    -- Adiciona à tabela de itens da seção
+    activeSection.items[instanceId] = itemInstance
+
+    -- Marca a grade
+    for r = targetRow, targetRow + height - 1 do
+        for c = targetCol, targetCol + width - 1 do
+            if activeSection.grid[r] then
+                activeSection.grid[r][c] = instanceId
+            else
+                print(string.format("ERRO [LobbyStorageManager:addItemAt]: Linha %d inválida na grade ao marcar!", r))
+            end
+        end
+    end
+    print(string.format("[LobbyStorageManager:addItemAt] Item %d (%s) adicionado em [%d,%d]", instanceId,
+        itemInstance.itemBaseId, targetRow, targetCol))
+    return true
+end
+
 -- == Funções Auxiliares de Item (Operam em uma Seção Específica) ==
 
 --- Helper interno para obter dados base do item.
@@ -262,11 +341,15 @@ function LobbyStorageManager:_addItemToSection(section, itemBaseId, quantity)
                 gridHeight = height,
                 stackable = stackable,
                 maxStack = maxStack,
-                name = baseData.name,            -- Adiciona o nome para facilitar debug/tooltips
-                icon = baseData.icon,            -- Adiciona o ícone diretamente se disponível nos dados base
-                rarity = baseData.rarity or 'E', -- Adiciona a raridade (fallback para 'E')
-                -- Outros dados como rarity, description podem ser adicionados aqui
+                name = baseData.name, -- Adiciona o nome para facilitar debug/tooltips
+                icon = baseData.icon, -- Adiciona o ícone diretamente se disponível nos dados base
+                rarity = baseData.rarity or 'E'
             }
+            -- <<< LOG ADICIONADO para verificar o ícone >>>
+            print(string.format("  [_addItemToSection] Processando item %s. Tipo do baseData.icon: %s", itemBaseId,
+                type(baseData.icon)))
+            print(string.format("    -> Tipo do newItemInstance.icon: %s", type(newItemInstance.icon)))
+            -- <<< FIM LOG >>>
             section.items[instanceId] = newItemInstance
 
             -- Marcar a grade
@@ -424,6 +507,9 @@ function LobbyStorageManager:loadStorage()
                             if baseData then
                                 local width = baseData.gridWidth or 1
                                 local height = baseData.gridHeight or 1
+                                -- <<< LOG ADICIONADO para verificar o ícone >>>
+                                print(string.format("  [LoadStorage] Processando item %s. Tipo do baseData.icon: %s",
+                                    itemSaveData.itemBaseId, type(baseData.icon)))
                                 -- Recria a instância completa do item
                                 local newItemInstance = {
                                     instanceId = numInstanceId,
@@ -438,9 +524,10 @@ function LobbyStorageManager:loadStorage()
                                     maxStack = baseData.maxStack or (baseData.stackable and 99) or 1,
                                     name = baseData.name,
                                     icon = baseData.icon,
-                                    rarity = baseData.rarity or 'E',
-                                    -- Adicionar outros dados base aqui se necessário
+                                    rarity = baseData.rarity or 'E'
                                 }
+                                print(string.format("    -> Tipo do newItemInstance.icon: %s", type(newItemInstance.icon)))
+                                -- <<< FIM LOG >>>
                                 newSection.items[numInstanceId] = newItemInstance
 
                                 -- Marca a grade da seção
@@ -537,7 +624,7 @@ function LobbyStorageManager:_populateInitialItems()
     -- Adicione chamadas a _addItemToSection aqui
     self:_addItemToSection(section, "ammo_pistol", 55)
     self:_addItemToSection(section, "medkit", 3)
-    self:_addItemToSection(section, "rifle", 1) -- Exemplo de item 2x2 (se existir)
+    self:_addItemToSection(section, "skull_staff", 1) -- Exemplo de item 2x2 (se existir)
 end
 
 return LobbyStorageManager

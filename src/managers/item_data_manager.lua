@@ -8,8 +8,8 @@ ItemDataManager.itemDatabase = {}
 local function loadAndMergeData()
     local mergedDatabase = {}
     local itemFiles = {
-        "src.data.items.jewels", 
-        "src.data.items.weapons", 
+        "src.data.items.jewels",
+        "src.data.items.weapons",
         "src.data.items.consumables",
         "src.data.items.materials",
         "src.data.items.ammo",
@@ -23,10 +23,35 @@ local function loadAndMergeData()
             local itemCount = 0
             for itemId, itemData in pairs(dataOrError) do
                 if mergedDatabase[itemId] then
-                    print(string.format("AVISO [ItemDataManager]: ID de item duplicado '%s' encontrado em %s. Sobrescrevendo.", itemId, filePath))
+                    print(string.format(
+                        "AVISO [ItemDataManager]: ID de item duplicado '%s' encontrado em %s. Sobrescrevendo.", itemId,
+                        filePath))
                 end
                 -- Garante que o ID dentro da tabela seja o mesmo que a chave (opcional, mas bom para consistência)
-                itemData.id = itemId 
+                itemData.id = itemId
+
+                -- Processa o campo 'icon' para carregar a imagem
+                if itemData.icon and type(itemData.icon) == 'string' then
+                    local imagePath = itemData.icon
+                    -- Usamos pcall para capturar erros de carregamento de imagem (ex: arquivo não encontrado)
+                    local success_img, imgOrError = pcall(love.graphics.newImage, imagePath)
+                    if success_img then
+                        itemData.icon = imgOrError -- Substitui o path pela imagem carregada
+                    else
+                        -- Log de erro se a imagem não puder ser carregada
+                        print(string.format(
+                            "ERRO [ItemDataManager]: Falha ao carregar ícone para '%s' de '%s'. Erro: %s",
+                            itemId, imagePath, tostring(imgOrError)))
+                        itemData.icon = nil -- Define como nil para evitar erros posteriores
+                    end
+                elseif itemData.icon then
+                    -- Caso 'icon' exista mas não seja uma string, loga um aviso e define como nil
+                    print(string.format(
+                        "AVISO [ItemDataManager]: Campo 'icon' para '%s' não é uma string (tipo: %s). Definindo como nil.",
+                        itemId, type(itemData.icon)))
+                    itemData.icon = nil
+                end
+
                 mergedDatabase[itemId] = itemData
                 itemCount = itemCount + 1
             end
@@ -62,7 +87,7 @@ end
 -- Inicialização carrega os dados
 function ItemDataManager:init()
     self.itemDatabase = loadAndMergeData() -- Carrega e mescla os dados
-    
+
     local count = 0
     for _ in pairs(self.itemDatabase) do count = count + 1 end
     print("ItemDataManager inicializado com", count, "itens base.")
@@ -70,9 +95,9 @@ end
 
 -- Construtor
 function ItemDataManager:new()
-    local instance = setmetatable({}, {__index = self})
+    local instance = setmetatable({}, { __index = self })
     instance:init()
     return instance
 end
 
-return ItemDataManager 
+return ItemDataManager

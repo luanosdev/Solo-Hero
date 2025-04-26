@@ -244,22 +244,22 @@ function elements.drawEmptySlotBackground(slotX, slotY, slotW, slotH)
 end
 
 --- Desenha um botão de tabulação, com suporte a estado de hover e destaque.
--- @param config (table) Tabela de configuração com os seguintes campos:
---   x (number): Posição X do botão.
---   y (number): Posição Y do botão.
---   w (number): Largura do botão.
---   h (number): Altura do botão.
---   text (string): Texto a ser exibido no botão.
---   isHovering (boolean): true se o mouse estiver sobre o botão.
---   highlighted (boolean): true se o botão deve ter a aparência de destaque.
---   font (Font): Objeto de fonte a ser usado para o texto.
---   colors (table): Tabela contendo as cores a serem usadas:
---     bgColor (table): Cor de fundo padrão {r, g, b}.
---     hoverColor (table): Cor de fundo ao passar o mouse {r, g, b}.
---     highlightedBgColor (table): Cor de fundo destacada {r, g, b}.
---     highlightedHoverColor (table): Cor de fundo destacada com hover {r, g, b}.
---     textColor (table): Cor do texto {r, g, b}.
---     borderColor (table|nil): Cor da borda opcional {r, g, b}. Se nil, sem borda.
+---@param config table Tabela de configuração com os seguintes campos:
+---   x (number): Posição X do botão.
+---   y (number): Posição Y do botão.
+---   w (number): Largura do botão.
+---   h (number): Altura do botão.
+---   text (string): Texto a ser exibido no botão.
+---   isHovering (boolean): true se o mouse estiver sobre o botão.
+---   highlighted (boolean): true se o botão deve ter a aparência de destaque.
+---   font (Font): Objeto de fonte a ser usado para o texto.
+---   colors (table): Tabela contendo as cores a serem usadas:
+---   bgColor (table): Cor de fundo padrão {r, g, b}.
+---   hoverColor (table): Cor de fundo ao passar o mouse {r, g, b}.
+---   highlightedBgColor (table): Cor de fundo destacada {r, g, b}.
+---   highlightedHoverColor (table): Cor de fundo destacada com hover {r, g, b}.
+---   textColor (table): Cor do texto {r, g, b}.
+---   borderColor (table|nil): Cor da borda opcional {r, g, b}. Se nil, sem borda.
 function elements.drawTabButton(config)
     local currentBgColor
     -- Define a cor de fundo base (normal ou destacada)
@@ -290,16 +290,16 @@ function elements.drawTabButton(config)
 end
 
 --- Desenha um botão genérico com texto, suporte a hover e cores customizáveis.
--- @param config (table) Tabela de configuração com os seguintes campos:
---   rect (table): Tabela com {x, y, w, h} para a posição e tamanho.
---   text (string): Texto a ser exibido no botão.
---   isHovering (boolean): Se o mouse está sobre o botão.
---   font (Font): Fonte a ser usada para o texto.
---   colors (table): Tabela opcional com cores:
---     bgColor (table): Cor de fundo normal.
---     hoverColor (table): Cor de fundo com hover.
---     textColor (table): Cor do texto.
---     borderColor (table): Cor da borda.
+---@param config table Tabela de configuração com os seguintes campos:
+---   rect (table): Tabela com {x, y, w, h} para a posição e tamanho.
+---   text (string): Texto a ser exibido no botão.
+---   isHovering (boolean): Se o mouse está sobre o botão.
+---   font (Font): Fonte a ser usada para o texto.
+---   colors (table): Tabela opcional com cores:
+---   bgColor (table): Cor de fundo normal.
+---   hoverColor (table): Cor de fundo com hover.
+---   textColor (table): Cor do texto.
+---   borderColor (table): Cor da borda.
 function elements.drawButton(config)
     local rect = config.rect
     local text = config.text or ""
@@ -329,6 +329,96 @@ function elements.drawButton(config)
     local textX = rect.x + (rect.w - textWidth) / 2
     local textY = rect.y + (rect.h - textHeight) / 2
     love.graphics.print(text, math.floor(textX), math.floor(textY)) -- Usa math.floor para evitar serrilhado
+end
+
+--- NOVO: Desenha um "fantasma" do item seguindo o mouse.
+---@param x number Posição X do canto superior esquerdo do fantasma.
+---@param y number Posição Y do canto superior esquerdo do fantasma.
+---@param itemInstance table Instância do item a desenhar.
+---@param alpha number Nível de transparência (0 a 1).
+function elements.drawItemGhost(x, y, itemInstance, alpha)
+    if not itemInstance then return end
+    alpha = alpha or 0.75 -- Padrão para 75% de opacidade
+
+    -- Calcula dimensões visuais baseado no grid
+    local gridConfig = require("src.ui.item_grid_ui").__gridConfig -- Pode precisar ajustar acesso
+    local slotSize = (gridConfig and gridConfig.slotSize or 48)
+    local padding = (gridConfig and gridConfig.padding or 5)
+    local slotTotalWidth = slotSize + padding
+    local slotTotalHeight = slotSize + padding
+
+    local width = itemInstance.gridWidth or 1
+    local height = itemInstance.gridHeight or 1
+    local visualW = width * slotTotalWidth - padding
+    local visualH = height * slotTotalHeight - padding
+
+    -- 1. Desenha um fundo semi-transparente (opcional, mas ajuda visibilidade)
+    love.graphics.setColor(0, 0, 0, alpha * 0.5) -- Preto com metade da opacidade do item
+    love.graphics.rectangle("fill", x, y, visualW, visualH, 3, 3)
+
+    -- 2. Desenha o ícone com a transparência principal
+    love.graphics.setColor(1, 1, 1, alpha)
+    local iconToDraw = itemInstance.icon
+    if iconToDraw and type(iconToDraw) == "userdata" and iconToDraw:typeOf("Image") then
+        -- Calcula a escala necessária para preencher visualW e visualH
+        local originalW = iconToDraw:getWidth()
+        local originalH = iconToDraw:getHeight()
+        local scaleX = visualW / originalW
+        local scaleY = visualH / originalH
+        -- Desenha a imagem escalonada na posição x, y
+        love.graphics.draw(iconToDraw, x, y, 0, scaleX, scaleY)
+    else
+        -- Fallback: Desenha letra do nome
+        local placeholderText = itemInstance.name and string.sub(itemInstance.name, 1, 1) or "?"
+        local fnt = fonts.title or love.graphics.getFont()
+        local oldFnt = love.graphics.getFont()
+        love.graphics.setFont(fnt)
+        love.graphics.printf(placeholderText, x, y + visualH * 0.1, visualW, "center")
+        love.graphics.setFont(oldFnt)
+    end
+
+    -- 3. Desenha a borda da raridade (também com alpha)
+    local rarity = itemInstance.rarity or 'E'
+    elements.drawRarityBorderAndGlow(rarity, x, y, visualW, visualH, alpha)
+
+    love.graphics.setColor(1, 1, 1, 1) -- Reseta cor
+end
+
+--- NOVO: Desenha um indicador de slot alvo para o drop.
+---@param areaX, areaY, areaW, areaH number Área da grade alvo.
+---@param gridRows, gridCols number Dimensões da grade alvo.
+---@param targetRow, targetCol number Coordenadas do slot alvo.
+---@param itemW, itemH number Dimensões do item (em slots).
+---@param isValid boolean Se o drop na posição é válido.
+function elements.drawDropIndicator(areaX, areaY, areaW, areaH, gridRows, gridCols, targetRow, targetCol, itemW, itemH,
+                                    isValid)
+    -- Calcula posição/dimensões da grade
+    local gridConfig = require("src.ui.item_grid_ui").__gridConfig
+    local slotSize = (gridConfig and gridConfig.slotSize or 48)
+    local padding = (gridConfig and gridConfig.padding or 5)
+    local slotTotalWidth = slotSize + padding
+    local slotTotalHeight = slotSize + padding
+    local gridTotalWidth = gridCols * slotTotalWidth - padding
+    local gridTotalHeight = gridRows * slotTotalHeight - padding
+    local startX = areaX + (areaW - gridTotalWidth) / 2
+    local startY = areaY
+
+    -- Calcula retângulo do indicador
+    local indicatorX = startX + (targetCol - 1) * slotTotalWidth
+    local indicatorY = startY + (targetRow - 1) * slotTotalHeight
+    local indicatorW = itemW * slotTotalWidth - padding
+    local indicatorH = itemH * slotTotalHeight - padding
+
+    -- Define a cor baseada na validade
+    local color = isValid and colors.placement_valid or colors.placement_invalid
+    if not color then
+        color = isValid and { 0, 1, 0 } or { 1, 0, 0 } -- Fallback Verde/Vermelho
+    end
+
+    -- Desenha o retângulo semi-transparente
+    love.graphics.setColor(color[1], color[2], color[3], 0.5) -- 50% alpha
+    love.graphics.rectangle("fill", indicatorX, indicatorY, indicatorW, indicatorH, 3, 3)
+    love.graphics.setColor(1, 1, 1, 1)                        -- Reseta cor
 end
 
 return elements

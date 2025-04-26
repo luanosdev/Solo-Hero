@@ -132,8 +132,7 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
                 itemDataCache[itemInfo.itemBaseId] = itemData
             end
 
-            if itemData or itemInfo.name then -- Usa itemInfo.name como fallback se data falhar
-                -- <<< ADICIONADO: Fundo Preto + Overlay de Raridade >>>
+            if itemData or itemInfo.name then      -- Usa itemInfo.name como fallback se data falhar
                 -- 1. Fundo Preto
                 love.graphics.setColor(0, 0, 0, 1) -- Preto opaco
                 love.graphics.rectangle("fill", itemSlotX, itemSlotY, itemDrawW, itemDrawH, 3, 3)
@@ -141,36 +140,35 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
                 -- 2. Overlay Transparente da Raridade
                 local rarity = itemInfo.rarity or 'E'
                 local rarityColor = colors.rarity[rarity] or colors.rarity['E']
+
                 if rarityColor then
-                    love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], 0.3) -- Usa alpha 0.3
+                    love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], 0.5) -- Mantém 50% alpha
                     love.graphics.rectangle("fill", itemSlotX, itemSlotY, itemDrawW, itemDrawH, 3, 3)
                 end
-                love.graphics.setColor(colors.white) -- Reset para branco antes de desenhar ícone
-                -- <<< FIM ADIÇÃO FUNDO >>>
+                love.graphics.setColor(colors.white) -- Reset para branco antes de desenhar ícone/placeholder
 
-                -- Desenha ícone (se existir)
-                local iconToDraw = itemInfo.icon -- Usa ícone da instância primeiro (se tivermos)
-                -- Se não tiver na instância, tenta pegar do itemData (já feito no cache)
+                -- 3. Desenha Ícone (se existir)
+                local iconToDraw = itemInfo.icon
                 if not iconToDraw and itemData then iconToDraw = itemData.icon end
 
-                local iconDrawSize = gridConfig.itemIconSize
-                local iconX = itemSlotX + (itemDrawW - iconDrawSize) / 2
-                local iconY = itemSlotY + (itemDrawH - iconDrawSize) / 2
-
-                if iconToDraw and type(iconToDraw) == "userdata" and iconToDraw:typeOf("Image") then
-                    local scale = iconDrawSize / math.max(iconToDraw:getWidth(), iconToDraw:getHeight())
-                    love.graphics.setColor(colors.white)
-                    love.graphics.draw(iconToDraw, iconX, iconY, 0, scale, scale)
+                local iconExists = iconToDraw and type(iconToDraw) == "userdata" and iconToDraw:typeOf("Image")
+                if iconExists then
+                    -- Desenha o ícone escalonado
+                    local originalW = iconToDraw:getWidth()
+                    local originalH = iconToDraw:getHeight()
+                    local scaleX = itemDrawW / originalW
+                    local scaleY = itemDrawH / originalH
+                    love.graphics.draw(iconToDraw, itemSlotX, itemSlotY, 0, scaleX, scaleY)
                 else
-                    -- Fallback: Desenha a primeira letra do NOME (se disponível)
+                    -- 4. Desenha placeholder APENAS se não houver ícone
                     love.graphics.setColor(colors.white)
                     local placeholderText = itemInfo.name and string.sub(itemInfo.name, 1, 1) or "?"
-                    love.graphics.setFont(fonts.title) -- Fonte maior para placeholder
+                    love.graphics.setFont(fonts.title)
                     love.graphics.printf(placeholderText, itemSlotX, itemSlotY + itemDrawH * 0.1, itemDrawW, "center")
-                    love.graphics.setFont(slotFont)    -- Restaura fonte do slot
+                    love.graphics.setFont(slotFont)
                 end
 
-                -- Desenha borda/brilho da raridade (USA DADOS DA INSTÂNCIA)
+                -- 5. Desenha borda/brilho da raridade (Usa a mesma variável 'rarity')
                 elements.drawRarityBorderAndGlow(rarity, itemSlotX, itemSlotY, itemDrawW, itemDrawH)
 
                 -- Desenha a quantidade (se maior que 1)
@@ -178,9 +176,10 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
                     love.graphics.setColor(colors.item_quantity_text)
                     local qtyText = tostring(itemInfo.quantity)
                     local textW = slotFont:getWidth(qtyText)
-                    -- Posiciona no canto inferior direito do PRIMEIRO slot do item
-                    local textX = itemSlotX + gridConfig.slotSize - textW - 3
-                    local textY = itemSlotY + gridConfig.slotSize - slotFont:getHeight() - 2
+                    -- Posiciona o canto inferior direito no ultimo slot do item
+                    local textX = itemSlotX + itemDrawW - textW - 3
+                    local textY = itemSlotY + itemDrawH - slotFont:getHeight() - 2
+
                     love.graphics.setColor(colors.black_transparent_more)
                     love.graphics.print(qtyText, textX + 1, textY + 1)
                     love.graphics.setColor(colors.item_quantity_text)
@@ -238,6 +237,86 @@ function ItemGridUI.handleMouseClick(mx, my, sectionInfo, areaX, areaY, areaW, a
     end
 
     return nil -- Nenhum clique em aba
+end
+
+--- NOVO: Retorna a instância do item sob as coordenadas do mouse.
+-- @param mx number Coordenada X do mouse.
+-- @param my number Coordenada Y do mouse.
+-- @param items table Tabela de itens da grade { [instanceId] = itemInstanceData }.
+-- @param gridRows number Número de linhas da grade.
+-- @param gridCols number Número de colunas da grade.
+-- @param areaX number Coordenada X da área da grade.
+-- @param areaY number Coordenada Y da área da grade.
+-- @param areaW number Largura da área da grade.
+-- @param areaH number Altura da área da grade.
+-- @return table|nil A tabela da instância do item ou nil.
+function ItemGridUI.getItemInstanceAtCoords(mx, my, items, gridRows, gridCols, areaX, areaY, areaW, areaH)
+    if not items then return nil end
+
+    -- Recalcula posição/dimensões da grade
+    local currentGridRows = gridRows or 1
+    local currentGridCols = gridCols or 1
+    local slotTotalWidth = gridConfig.slotSize + gridConfig.padding
+    local slotTotalHeight = gridConfig.slotSize + gridConfig.padding
+    local gridTotalWidth = currentGridCols * slotTotalWidth - gridConfig.padding
+    local gridTotalHeight = currentGridRows * slotTotalHeight - gridConfig.padding
+    local startX = areaX + (areaW - gridTotalWidth) / 2
+    local startY = areaY -- Alinhado ao topo
+
+    -- Itera pelos itens para encontrar qual está sob o mouse
+    for instanceId, itemInfo in pairs(items) do
+        if itemInfo and itemInfo.row and itemInfo.col then
+            local itemSlotX = startX + (itemInfo.col - 1) * slotTotalWidth
+            local itemSlotY = startY + (itemInfo.row - 1) * slotTotalHeight
+            local itemDrawW = (itemInfo.gridWidth or 1) * slotTotalWidth - gridConfig.padding
+            local itemDrawH = (itemInfo.gridHeight or 1) * slotTotalHeight - gridConfig.padding
+
+            -- Verifica se o mouse está dentro do retângulo do item
+            if mx >= itemSlotX and mx < itemSlotX + itemDrawW and my >= itemSlotY and my < itemSlotY + itemDrawH then
+                return itemInfo -- Retorna a instância completa do item
+            end
+        end
+    end
+
+    return nil -- Nenhum item encontrado nas coordenadas
+end
+
+--- NOVO: Retorna as coordenadas (linha, coluna) do slot da grade sob o mouse.
+-- @param mx number Coordenada X do mouse.
+-- @param my number Coordenada Y do mouse.
+-- @param gridRows number Número de linhas da grade.
+-- @param gridCols number Número de colunas da grade.
+-- @param areaX number Coordenada X da área da grade.
+-- @param areaY number Coordenada Y da área da grade.
+-- @param areaW number Largura da área da grade.
+-- @param areaH number Altura da área da grade.
+-- @return table|nil Tabela {row, col} ou nil se fora da grade.
+function ItemGridUI.getSlotCoordsAtMouse(mx, my, gridRows, gridCols, areaX, areaY, areaW, areaH)
+    -- Recalcula posição/dimensões da grade
+    local currentGridRows = gridRows or 1
+    local currentGridCols = gridCols or 1
+    local slotTotalWidth = gridConfig.slotSize + gridConfig.padding
+    local slotTotalHeight = gridConfig.slotSize + gridConfig.padding
+    local gridTotalWidth = currentGridCols * slotTotalWidth - gridConfig.padding
+    local gridTotalHeight = currentGridRows * slotTotalHeight - gridConfig.padding
+    local startX = areaX + (areaW - gridTotalWidth) / 2
+    local startY = areaY -- Alinhado ao topo
+
+    -- Verifica se o mouse está dentro dos limites da grade
+    if mx >= startX and mx < startX + gridTotalWidth and my >= startY and my < startY + gridTotalHeight then
+        -- Calcula a linha e coluna relativas
+        local relativeX = mx - startX
+        local relativeY = my - startY
+        local col = math.floor(relativeX / slotTotalWidth) + 1
+        local row = math.floor(relativeY / slotTotalHeight) + 1
+
+        -- Garante que estão dentro dos limites reais da grade
+        if row >= 1 and row <= currentGridRows and col >= 1 and col <= currentGridCols then
+            return { row = row, col = col }
+        end
+    end
+
+    return nil -- Mouse fora da área da grade
 end
 
 return ItemGridUI
