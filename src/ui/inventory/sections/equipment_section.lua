@@ -220,21 +220,31 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
     local weaponSlotId = SLOT_IDS.WEAPON
     local weaponInstance = equippedItems[weaponSlotId]
 
-    -- Desenha o fundo do slot
+    -- Define as cores base do slot (padrão ou baseado na raridade da arma)
+    local slotBgColor = colors.slot_empty_bg
+    local slotBorderColor = colors.slot_empty_border
+    local rarityColor = nil
+    if weaponInstance then
+        rarityColor = colors.rarity[weaponInstance.rarity or 'E'] or colors.rarity['E']
+        -- Define cor de fundo como a da raridade com MUITA transparência
+        slotBgColor = { rarityColor[1], rarityColor[2], rarityColor[3], 0.15 } -- Alpha baixo (15%)
+        -- Define cor da borda como a da raridade (alpha original da cor)
+        slotBorderColor = rarityColor
+    end
+
+    -- Desenha o fundo do slot usando as cores definidas
     elements.drawWindowFrame(weaponSlotX - 2, weaponSlotY - 2, weaponSlotW + 4, weaponSlotH + 4, nil,
-        colors.slot_empty_bg, colors.slot_empty_border)
-    local bgColor = colors.slot_empty_bg
-    if bgColor then
-        love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
+        slotBgColor, slotBorderColor)
+    -- Desenha preenchimento interno (com mesma cor de fundo)
+    if slotBgColor then
+        love.graphics.setColor(slotBgColor[1], slotBgColor[2], slotBgColor[3], slotBgColor[4] or 1)
     else
-        love.graphics
-            .setColor(0.1, 0.1, 0.1, 0.8)
+        love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
     end
     love.graphics.rectangle("fill", weaponSlotX, weaponSlotY, weaponSlotW, weaponSlotH, 3, 3)
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(1, 1, 1, 1) -- Reset
 
     if weaponInstance then
-        local rarity = weaponInstance.rarity or 'E'
         local name = weaponInstance.name or "Arma"
         -- Tenta obter dados base para stats mais detalhados (dano, etc.)
         local baseData = hunterManager.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
@@ -243,36 +253,42 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
         -- damageType precisaria ser definido nos dados base se quisermos exibi-lo
         local damageType = "Físico" -- Placeholder
 
-        -- Desenha Ícone
+        -- Desenha Ícone (ROTACIONADO E ESCALADO)
         if weaponInstance.icon and type(weaponInstance.icon) == "userdata" then
             local icon = weaponInstance.icon
             local iw, ih = icon:getDimensions()
-            local iconSize = weaponSlotH * 0.8 -- Ajusta tamanho do ícone
-            local scale = math.min(iconSize / iw, iconSize / ih)
-            local iconDrawW, iconDrawH = iw * scale, ih * scale
-            local iconX = weaponSlotX + 10
-            local iconY = weaponSlotY + (weaponSlotH - iconDrawH) / 2
-            love.graphics.draw(icon, iconX, iconY, 0, scale, scale)
-            -- Desenha borda no ícone
-            elements.drawRarityBorderAndGlow(rarity, iconX, iconY, iconDrawW, iconDrawH)
+
+            -- Calcula escala para encaixar o ícone ROTACIONADO dentro do slot
+            -- Dimensões rotacionadas: largura=ih, altura=iw
+            local scale = math.min(weaponSlotW / ih, weaponSlotH / iw)
+
+            -- Define o centro da imagem original como origem da rotação/escala
+            local ox, oy = iw / 2, ih / 2
+
+            -- Define a posição para desenhar (centro do slot)
+            local drawX = weaponSlotX + weaponSlotW / 2
+            local drawY = weaponSlotY + weaponSlotH / 2
+
+            love.graphics.setColor(1, 1, 1, 1) -- Garante branco
+            -- Desenha com rotação de 90 graus (math.pi/2)
+            love.graphics.draw(icon, drawX, drawY, math.pi / 2, scale, scale, ox, oy)
         else
-            -- Placeholder de Ícone
-            local iconSize = weaponSlotH * 0.8
-            local iconX = weaponSlotX + 10
+            -- Placeholder de Ícone (Não rotacionado)
+            local iconSize = math.min(weaponSlotW, weaponSlotH) * 0.8 -- Ajusta ao menor lado
+            local iconX = weaponSlotX + (weaponSlotW - iconSize) / 2
             local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2
             elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
             love.graphics.setColor(colors.white)
             love.graphics.setFont(fonts.title)
             love.graphics.printf(string.sub(name, 1, 1), iconX, iconY + iconSize * 0.1, iconSize, "center")
             love.graphics.setFont(fonts.main)
-            elements.drawRarityBorderAndGlow(rarity, iconX, iconY, iconSize, iconSize)
         end
 
         -- Desenha Informações da Arma (Nome, Dano, etc.)
-        local infoX = weaponSlotX + 10 + (weaponSlotH * 0.8) + 15 -- Posição X após o espaço do ícone
+        local infoX = weaponSlotX + 10          -- Começa à esquerda
         local infoY = weaponSlotY + 5
-        love.graphics.setFont(fonts.main_large)                   -- Usa main_large para nome
-        love.graphics.setColor(colors.rarity[rarity] or colors.white)
+        love.graphics.setFont(fonts.main_large) -- Usa main_large para nome
+        love.graphics.setColor(colors.rarity[rarityColor] or colors.white)
         love.graphics.print(name, infoX, infoY)
         infoY = infoY + fonts.main_large:getHeight() + 5
 
