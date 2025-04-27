@@ -380,9 +380,10 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                     self.sourceGridId = dragStartData.sourceGridId
                     self.draggedItemOffsetX = dragStartData.offsetX
                     self.draggedItemOffsetY = dragStartData.offsetY
-                    self.draggedItemIsRotated = false -- <<< Reseta rotação visual no início do drag
-                    print(string.format("LobbyScene: Drag iniciado: Item %d (%s) from %s", self.draggedItem.instanceId,
-                        self.draggedItem.itemBaseId, self.sourceGridId))
+                    self.draggedItemIsRotated = dragStartData.isRotated or false
+                    print(string.format("LobbyScene: Drag iniciado: Item %d (%s) from %s. Estava rotacionado: %s",
+                        self.draggedItem.instanceId,
+                        self.draggedItem.itemBaseId, self.sourceGridId, tostring(self.draggedItemIsRotated)))
                     return
                 elseif consumed then
                     return -- Consumiu sem iniciar drag (ex: tab storage)

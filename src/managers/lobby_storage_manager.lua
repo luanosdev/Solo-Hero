@@ -1,4 +1,5 @@
 local PersistenceManager = require("src.core.persistence_manager")
+local ItemGridLogic = require("src.core.item_grid_logic")
 -- local ItemDataManager = require("src.managers.item_data_manager") -- Será injetado
 
 ---@class LobbyStorageManager
@@ -199,27 +200,8 @@ function LobbyStorageManager:canPlaceItemAt(item, targetRow, targetCol, checkWid
     local itemW = checkWidth or item.gridWidth or 1
     local itemH = checkHeight or item.gridHeight or 1
 
-    -- 1. Verifica limites da grade
-    if targetRow < 1 or targetCol < 1 or targetRow + itemH - 1 > section.rows or targetCol + itemW - 1 > section.cols then
-        -- print(string.format("DEBUG (canPlaceItemAt - Storage): Fora dos limites [%d,%d] para item %dx%d em grid %dx%d", targetRow, targetCol, itemW, itemH, section.rows, section.cols))
-        return false -- Fora dos limites da grade
-    end
-
-    -- 2. Verifica colisão com outros itens na grade
-    for r = targetRow, targetRow + itemH - 1 do
-        for c = targetCol, targetCol + itemW - 1 do
-            if section.grid[r] and section.grid[r][c] then
-                -- Verifica se a célula ocupada pertence ao item que estamos tentando mover (caso de swap futuro?)
-                if section.grid[r][c] ~= item.instanceId then
-                    -- print(string.format("DEBUG (canPlaceItemAt - Storage): Colisão em [%d,%d] com item ID %s", r, c, tostring(section.grid[r][c])))
-                    return false -- Já ocupado por outro item
-                end
-            end
-        end
-    end
-
-    -- print(string.format("DEBUG (canPlaceItemAt - Storage): Posição [%d,%d] válida para item %dx%d", targetRow, targetCol, itemW, itemH))
-    return true -- Espaço livre
+    return ItemGridLogic.canPlaceItemAt(section.grid, section.rows, section.cols, item.instanceId, targetRow, targetCol,
+        itemW, itemH)
 end
 
 --- Adiciona um item em uma posição específica na seção ativa.
@@ -251,15 +233,15 @@ function LobbyStorageManager:addItemAt(item, targetRow, targetCol, isRotated)
     -- Se já existe (caso de mover item que foi pego da mesma seção), atualiza. Senão, adiciona.
     section.items[item.instanceId] = item
 
-    -- Ocupa os slots na grade
-    for r = targetRow, targetRow + itemH - 1 do
-        for c = targetCol, targetCol + itemW - 1 do
-            if not section.grid[r] then section.grid[r] = {} end
-            section.grid[r][c] = item.instanceId -- Marca com ID da instância
-        end
-    end
+    -- <<< INÍCIO: CORREÇÃO PARA MARCAR GRID >>>
+    -- Calcula dimensões REAIS de ocupação baseadas na rotação ARMAZENADA
+    local actualW = item.isRotated and itemH or itemW
+    local actualH = item.isRotated and itemW or itemH
 
-    print(string.format("(Storage) Item %d (%s) adicionado/atualizado na seção %d em [%d,%d], Rotacionado: %s",
+    ItemGridLogic.markGridOccupied(section.grid, section.rows, section.cols, item.instanceId, targetRow, targetCol,
+        actualW, actualH)
+
+    print(string.format("(Storage) Item %d     (%s) adicionado/atualizado na seção %d em [%d,%d], Rotacionado: %s",
         item.instanceId, item.itemBaseId,
         self.activeSectionIndex, targetRow, targetCol, tostring(item.isRotated)))
     return true
@@ -278,12 +260,13 @@ function LobbyStorageManager:addItemInstance(itemInstance)
 
     local width = itemInstance.gridWidth or 1
     local height = itemInstance.gridHeight or 1
-    -- Procura espaço na seção ativa
-    local freeSpace = self:_findFreeSpace(activeSection, width, height)
+    local freeSpace = ItemGridLogic.findFreeSpace(activeSection.grid, activeSection.rows, activeSection.cols, width,
+        height)
 
     if freeSpace then
         -- Reusa a lógica de addItemAt para colocar na seção ativa
-        return self:addItemAt(itemInstance, freeSpace.row, freeSpace.col)
+        -- Passa isRotated como nil ou false por padrão aqui, pois estamos apenas adicionando, não movendo um item rotacionado
+        return self:addItemAt(itemInstance, freeSpace.row, freeSpace.col, itemInstance.isRotated or false)
     else
         print(string.format("[LobbyStorageManager:addItemInstance] Sem espaço na seção ativa para item %d (%s)",
             itemInstance.instanceId, itemInstance.itemBaseId))
@@ -312,44 +295,6 @@ function LobbyStorageManager:_getNextInstanceId()
     local id = nextInstanceId
     nextInstanceId = nextInstanceId + 1
     return id
-end
-
---- Helper interno para verificar se uma área está livre em uma seção específica.
---- @param section table A seção a ser verificada.
---- @param startRow number Linha inicial.
---- @param startCol number Coluna inicial.
---- @param width number Largura do item.
---- @param height number Altura do item.
---- @return boolean True se a área estiver livre.
-function LobbyStorageManager:_isAreaFree(section, startRow, startCol, width, height)
-    if startRow < 1 or startRow + height - 1 > section.rows or startCol < 1 or startCol + width - 1 > section.cols then
-        return false
-    end
-    for r = startRow, startRow + height - 1 do
-        for c = startCol, startCol + width - 1 do
-            -- Verifica se a célula existe antes de acessar
-            if not section.grid[r] or section.grid[r][c] ~= nil then
-                return false -- Célula fora dos limites ou ocupada
-            end
-        end
-    end
-    return true
-end
-
---- Helper interno para encontrar espaço livre em uma seção específica.
---- @param section table A seção onde procurar.
---- @param width number Largura do item.
---- @param height number Altura do item.
---- @return table|nil Posição {row, col} ou nil se não encontrar.
-function LobbyStorageManager:_findFreeSpace(section, width, height)
-    for r = 1, section.rows - height + 1 do
-        for c = 1, section.cols - width + 1 do
-            if self:_isAreaFree(section, r, c, width, height) then
-                return { row = r, col = c }
-            end
-        end
-    end
-    return nil
 end
 
 --- Lógica principal para adicionar item a uma seção específica.
@@ -385,7 +330,7 @@ function LobbyStorageManager:_addItemToSection(section, itemBaseId, quantity)
     -- 2. Tentar Colocar Novos Stacks/Itens
     while remainingQuantity > 0 do
         local amountForThisInstance = stackable and math.min(remainingQuantity, maxStack) or 1
-        local freeSpace = self:_findFreeSpace(section, width, height)
+        local freeSpace = ItemGridLogic.findFreeSpace(section.grid, section.rows, section.cols, width, height)
 
         if freeSpace then
             local instanceId = self:_getNextInstanceId()
@@ -395,6 +340,7 @@ function LobbyStorageManager:_addItemToSection(section, itemBaseId, quantity)
                 quantity = amountForThisInstance,
                 row = freeSpace.row,
                 col = freeSpace.col,
+                isRotated = false,
                 -- Inclui dados base para conveniência
                 gridWidth = width,
                 gridHeight = height,
@@ -411,18 +357,10 @@ function LobbyStorageManager:_addItemToSection(section, itemBaseId, quantity)
             -- <<< FIM LOG >>>
             section.items[instanceId] = newItemInstance
 
-            -- Marcar a grade
-            for r = freeSpace.row, freeSpace.row + height - 1 do
-                for c = freeSpace.col, freeSpace.col + width - 1 do
-                    if section.grid[r] then -- Garante que a linha existe
-                        section.grid[r][c] = instanceId
-                    end
-                end
-            end
+            self:addItemAt(newItemInstance, freeSpace.row, freeSpace.col, newItemInstance.isRotated)
 
             addedQuantity = addedQuantity + amountForThisInstance
             remainingQuantity = remainingQuantity - amountForThisInstance
-            -- print(string.format("Colocado novo item/stack %s (ID %d) em [%d,%d] q: %d", itemBaseId, instanceId, freeSpace.row, freeSpace.col, amountForThisInstance))
 
             if not stackable and remainingQuantity > 0 then
                 -- print(string.format("Item %s não empilhável, procurando espaço para próxima instância.", itemBaseId))
@@ -459,13 +397,15 @@ function LobbyStorageManager:_removeItemInstanceFromSection(section, instanceId,
     else
         -- Remove a instância inteira
         -- Limpa a grade
-        for r = instance.row, instance.row + (instance.gridHeight or 1) - 1 do
-            for c = instance.col, instance.col + (instance.gridWidth or 1) - 1 do
-                if section.grid[r] then -- Verifica se a linha existe
-                    section.grid[r][c] = nil
-                end
-            end
-        end
+        -- Calcula dimensões REAIS de ocupação baseadas na rotação ARMAZENADA
+        local itemW = instance.gridWidth or 1
+        local itemH = instance.gridHeight or 1
+        local actualW = instance.isRotated and itemH or itemW
+        local actualH = instance.isRotated and itemW or itemH
+
+        ItemGridLogic.clearGridArea(section.grid, section.rows, section.cols, instanceId, instance.row, instance.col,
+            actualW, actualH)
+
         -- Remove da tabela de itens
         section.items[instanceId] = nil
         -- print(string.format("Removida instância %d (%s) da seção.", instanceId, instance.itemBaseId))

@@ -282,7 +282,8 @@ function EquipmentScreen:handleMousePress(x, y, buttonIdx)
                 item = itemClicked,
                 sourceGridId = clickedGridId,
                 offsetX = itemOffsetX,
-                offsetY = itemOffsetY
+                offsetY = itemOffsetY,
+                isRotated = itemClicked.isRotated or false
             }
             return true, dragStartData -- Consumiu e iniciou drag
         end
@@ -345,15 +346,6 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                 targetEquipmentSlotId, baseData.type, tostring(isCompatible)))
 
             if isCompatible then
-                -- <<< APLICA ROTAÇÃO VISUAL AO ITEM REAL ANTES DE EQUIPAR >>>
-                if dragState.draggedItemIsRotated then
-                    local oldW = itemToEquip.gridWidth or 1
-                    local oldH = itemToEquip.gridHeight or 1
-                    itemToEquip.gridWidth = oldH
-                    itemToEquip.gridHeight = oldW
-                    print("(EquipmentScreen) Rotação aplicada ao item", itemToEquip.instanceId)
-                end
-
                 local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
                     self.loadoutManager
 

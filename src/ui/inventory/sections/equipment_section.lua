@@ -262,8 +262,11 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
             local ox, oy = iw / 2, ih / 2
             local drawX, drawY
 
-            -- Verifica dimensões para decidir se rotaciona
-            if weaponInstance.gridWidth and weaponInstance.gridHeight and weaponInstance.gridWidth > weaponInstance.gridHeight then
+            local baseGridW = baseData and baseData.gridWidth or 1 -- Usa baseData que já pegamos antes
+            local baseGridH = baseData and baseData.gridHeight or 1
+
+            -- Verifica dimensões BASE para decidir se rotaciona
+            if baseGridW > baseGridH then
                 -- Arma já é 'horizontal' (largura > altura), não rotacionar
                 rotation = 0
                 -- Escala para caber sem rotação (com 90% de padding)

@@ -1,4 +1,5 @@
 local PersistenceManager = require("src.core.persistence_manager")
+local ItemGridLogic = require("src.core.item_grid_logic")
 
 ---@class LoadoutManager
 local LoadoutManager = {
@@ -72,6 +73,27 @@ end
 
 -- == Funções de Manipulação de Itens ==
 
+--- Verifica se um item pode ser colocado em uma posição específica.
+---@param item table Instância do item a ser colocado.
+---@param targetRow integer Linha alvo (1-indexed).
+---@param targetCol integer Coluna alvo (1-indexed).
+---@param checkWidth integer|nil Largura a ser usada para a checagem (usa item.gridWidth se nil).
+---@param checkHeight integer|nil Altura a ser usada para a checagem (usa item.gridHeight se nil).
+---@return boolean True se o item pode ser colocado, false caso contrário.
+function LoadoutManager:canPlaceItemAt(item, targetRow, targetCol, checkWidth, checkHeight)
+    if not item or not targetRow or not targetCol then
+        print("ERRO (canPlaceItemAt - Loadout): Parâmetros inválidos.")
+        return false
+    end
+
+    -- Usa as dimensões fornecidas para a checagem, ou as do item como fallback
+    local itemW = checkWidth or item.gridWidth or 1
+    local itemH = checkHeight or item.gridHeight or 1
+
+    return ItemGridLogic.canPlaceItemAt(self.grid, self.rows, self.cols, item.instanceId, targetRow, targetCol, itemW,
+        itemH)
+end
+
 --- Adiciona um item (ou quantidade) ao loadout.
 --- @param itemBaseId string ID base do item.
 --- @param quantity number Quantidade a adicionar.
@@ -110,7 +132,7 @@ function LoadoutManager:addItem(itemBaseId, quantity)
     -- 2. Tentar Colocar Novos Stacks/Itens
     while remainingQuantity > 0 do
         local amountForThisInstance = stackable and math.min(remainingQuantity, maxStack) or 1
-        local freeSpace = self:_findFreeSpace(width, height) -- Busca no grid do loadout
+        local freeSpace = ItemGridLogic.findFreeSpace(self.grid, self.rows, self.cols, width, height)
 
         if freeSpace then
             local instanceId = self:_getNextInstanceId() -- Usa o contador local do loadout
@@ -120,6 +142,7 @@ function LoadoutManager:addItem(itemBaseId, quantity)
                 quantity = amountForThisInstance,
                 row = freeSpace.row,
                 col = freeSpace.col,
+                isRotated = false,
                 gridWidth = width,
                 gridHeight = height,
                 stackable = stackable,
@@ -129,14 +152,7 @@ function LoadoutManager:addItem(itemBaseId, quantity)
             }
             self.items[instanceId] = newItemInstance
 
-            -- Marcar a grade
-            for r = freeSpace.row, freeSpace.row + height - 1 do
-                for c = freeSpace.col, freeSpace.col + width - 1 do
-                    if self.grid[r] then
-                        self.grid[r][c] = instanceId
-                    end
-                end
-            end
+            self:addItemAt(newItemInstance, freeSpace.row, freeSpace.col, newItemInstance.isRotated)
 
             addedQuantity = addedQuantity + amountForThisInstance
             remainingQuantity = remainingQuantity - amountForThisInstance
@@ -172,13 +188,16 @@ function LoadoutManager:removeItemInstance(instanceId, quantity)
         return true
     else
         -- Remove a instância inteira
-        for r = instance.row, instance.row + (instance.gridHeight or 1) - 1 do
-            for c = instance.col, instance.col + (instance.gridWidth or 1) - 1 do
-                if self.grid[r] then
-                    self.grid[r][c] = nil
-                end
-            end
-        end
+        -- <<< INÍCIO: CORREÇÃO PARA LIMPAR GRID >>>
+        -- Calcula dimensões REAIS de ocupação baseadas na rotação ARMAZENADA
+        local itemW = instance.gridWidth or 1
+        local itemH = instance.gridHeight or 1
+        local actualW = instance.isRotated and itemH or itemW
+        local actualH = instance.isRotated and itemW or itemH
+
+        ItemGridLogic.clearGridArea(self.grid, self.rows, self.cols, instanceId, instance.row, instance.col, actualW,
+            actualH)
+
         self.items[instanceId] = nil
         return true
     end
@@ -196,46 +215,6 @@ function LoadoutManager:removeItemByInstanceId(instanceId)
         print(string.format("AVISO [LoadoutManager] Tentativa de remover item %d (não encontrado)", instanceId))
     end
     return success
-end
-
---- Verifica se um item pode ser colocado em uma posição específica.
----@param item table Instância do item a ser colocado.
----@param targetRow integer Linha alvo (1-indexed).
----@param targetCol integer Coluna alvo (1-indexed).
----@param checkWidth integer|nil Largura a ser usada para a checagem (usa item.gridWidth se nil).
----@param checkHeight integer|nil Altura a ser usada para a checagem (usa item.gridHeight se nil).
----@return boolean True se o item pode ser colocado, false caso contrário.
-function LoadoutManager:canPlaceItemAt(item, targetRow, targetCol, checkWidth, checkHeight)
-    if not item or not targetRow or not targetCol then
-        print("ERRO (canPlaceItemAt - Loadout): Parâmetros inválidos.")
-        return false
-    end
-
-    -- Usa as dimensões fornecidas para a checagem, ou as do item como fallback
-    local itemW = checkWidth or item.gridWidth or 1
-    local itemH = checkHeight or item.gridHeight or 1
-
-    -- 1. Verifica limites da grade
-    if targetRow < 1 or targetCol < 1 or targetRow + itemH - 1 > self.rows or targetCol + itemW - 1 > self.cols then
-        -- print(string.format("DEBUG (canPlaceItemAt - Loadout): Fora dos limites [%d,%d] para item %dx%d em grid %dx%d", targetRow, targetCol, itemW, itemH, self.rows, self.cols))
-        return false -- Fora dos limites da grade
-    end
-
-    -- 2. Verifica colisão com outros itens na grade
-    for r = targetRow, targetRow + itemH - 1 do
-        for c = targetCol, targetCol + itemW - 1 do
-            if self.grid[r] and self.grid[r][c] then
-                -- Verifica se a célula ocupada pertence ao item que estamos tentando mover
-                if self.grid[r][c] ~= item.instanceId then
-                    -- print(string.format("DEBUG (canPlaceItemAt - Loadout): Colisão em [%d,%d] com item ID %s", r, c, tostring(self.grid[r][c])))
-                    return false -- Já ocupado por outro item
-                end
-            end
-        end
-    end
-
-    -- print(string.format("DEBUG (canPlaceItemAt - Loadout): Posição [%d,%d] válida para item %dx%d", targetRow, targetCol, itemW, itemH))
-    return true -- Espaço livre
 end
 
 --- Adiciona um item em uma posição específica na grade.
@@ -263,13 +242,14 @@ function LoadoutManager:addItemAt(item, targetRow, targetCol, isRotated)
     -- Adiciona o item à lista
     self.items[item.instanceId] = item
 
-    -- Ocupa os slots na grade
-    for r = targetRow, targetRow + itemH - 1 do
-        for c = targetCol, targetCol + itemW - 1 do
-            if not self.grid[r] then self.grid[r] = {} end
-            self.grid[r][c] = item.instanceId -- Marca com ID da instância
-        end
-    end
+    -- <<< INÍCIO: CORREÇÃO PARA MARCAR GRID >>>
+    -- Calcula dimensões REAIS de ocupação baseadas na rotação ARMAZENADA
+    local actualW = item.isRotated and itemH or itemW
+    local actualH = item.isRotated and itemW or itemH
+
+    ItemGridLogic.markGridOccupied(self.grid, self.rows, self.cols, item.instanceId, targetRow, targetCol, actualW,
+        actualH)
+
     print(string.format("(Loadout) Item %d (%s) adicionado/atualizado em [%d,%d], Rotacionado: %s", item.instanceId,
         item.itemBaseId, targetRow,
         targetCol, tostring(item.isRotated)))
@@ -285,11 +265,12 @@ function LoadoutManager:addItemInstance(itemInstance)
 
     local width = itemInstance.gridWidth or 1
     local height = itemInstance.gridHeight or 1
-    local freeSpace = self:_findFreeSpace(width, height)
+    local freeSpace = ItemGridLogic.findFreeSpace(self.grid, self.rows, self.cols, width, height)
 
     if freeSpace then
         -- Reusa a lógica de addItemAt para colocar no espaço encontrado
-        return self:addItemAt(itemInstance, freeSpace.row, freeSpace.col)
+        -- Passa isRotated como nil ou false por padrão aqui, pois estamos apenas adicionando, não movendo um item rotacionado
+        return self:addItemAt(itemInstance, freeSpace.row, freeSpace.col, itemInstance.isRotated or false)
     else
         print(string.format("[LoadoutManager:addItemInstance] Sem espaço para item %d (%s)", itemInstance.instanceId,
             itemInstance.itemBaseId))
@@ -314,33 +295,6 @@ function LoadoutManager:_getNextInstanceId()
     local id = nextInstanceId
     nextInstanceId = nextInstanceId + 1
     return id
-end
-
---- Helper interno para verificar se uma área está livre no grid do loadout.
-function LoadoutManager:_isAreaFree(startRow, startCol, width, height)
-    if startRow < 1 or startRow + height - 1 > self.rows or startCol < 1 or startCol + width - 1 > self.cols then
-        return false
-    end
-    for r = startRow, startRow + height - 1 do
-        for c = startCol, startCol + width - 1 do
-            if not self.grid[r] or self.grid[r][c] ~= nil then
-                return false
-            end
-        end
-    end
-    return true
-end
-
---- Helper interno para encontrar espaço livre no grid do loadout.
-function LoadoutManager:_findFreeSpace(width, height)
-    for r = 1, self.rows - height + 1 do
-        for c = 1, self.cols - width + 1 do
-            if self:_isAreaFree(r, c, width, height) then
-                return { row = r, col = c }
-            end
-        end
-    end
-    return nil
 end
 
 -- == Funções de Persistência ==
