@@ -90,22 +90,18 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState)
     self.equipmentSlotAreas = {}
 
     -- 1. Desenha Seção de Stats (Stats) - Seção 1
-    love.graphics.setFont(fonts.main_large)
-    love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("Stats", statsX, sectionTopY, statsW, "center")
-
     if self.hunterManager then -- Verifica se hunterManager existe
         local activeHunterId = self.hunterManager:getActiveHunterId()
         local hunterData = activeHunterId and self.hunterManager.hunters[activeHunterId]
-        local finalStats = self.hunterManager:getActiveHunterFinalStats() -- Já calculamos antes
+        local finalStats = self.hunterManager:getActiveHunterFinalStats()
         local archetypeIds = hunterData and hunterData.archetypeIds
-        local archetypeManager = self.hunterManager.archetypeManager      -- Acesso direto ao manager injetado
+        local archetypeManager = self.hunterManager.archetypeManager
 
-        -- Verifica se temos todos os dados necessários
         if finalStats and next(finalStats) and archetypeIds and archetypeManager then
-            -- <<< CHAMA drawBaseStats COM OS NOVOS ARGUMENTOS >>>
+            -- <<< PASSA mx, my PARA drawBaseStats >>>
+            local mx, my = love.mouse.getPosition()
             StatsSection.drawBaseStats(statsX, contentStartY, statsW, sectionContentH,
-                finalStats, archetypeIds, archetypeManager)
+                finalStats, archetypeIds, archetypeManager, mx, my)
         else
             love.graphics.setColor(colors.red)
             local errorMsg = "Erro ao obter dados do caçador:"

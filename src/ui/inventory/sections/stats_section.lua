@@ -1,7 +1,7 @@
 -- src/ui/inventory/sections/stats_section.lua
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
-local elements = require("src.ui.ui_elements")    -- Para formatNumber
+local elements = require("src.ui.ui_elements")    -- Para formatNumber e drawTooltipBox
 local Constants = require("src.config.constants") -- <<< IMPORTANTE: Precisamos dos stats base
 
 -- Helper para formatar Chance de Ataque Múltiplo (Movido de inventory_screen)
@@ -57,10 +57,19 @@ local function formatArchetypeModifier(key, value)
         formattedValue = string.format("%+.1f", value):gsub("%.0$", "")
         -- Adiciona % para chances
         if string.find(statName, "Chance") then formattedValue = formattedValue .. "%" end
+        -- Ajuste específico para critDamage manter o 'x'
+        if statName == "critDamage" then
+            formattedValue = string.format("%+.0f", value * 100) ..
+                "x" -- Assume que o valor é multiplicador (ex: 0.2 para +20x)
+        end
     elseif modifierType == "mult" then
         -- Converte multiplicador para percentual (ex: 1.1 -> +10%, 0.9 -> -10%)
         local percentage = (value - 1) * 100
         formattedValue = string.format("%+.0f%%", percentage)
+        -- Ajuste para range e area
+        if statName == "range" or statName == "attackArea" then
+            formattedValue = string.format("x%.1f", value) -- Mostra como multiplicador direto
+        end
     else
         formattedValue = tostring(value) -- Fallback
     end
@@ -69,6 +78,11 @@ local function formatArchetypeModifier(key, value)
 end
 
 local StatsSection = {}
+
+-- Variáveis para estado do tooltip (escopo do módulo)
+local hoveredAttributeKey = nil
+local tooltipLines = {}
+local tooltipX, tooltipY = 0, 0
 
 -- Desenha a seção de estatísticas (esquerda) (Movido de inventory_screen)
 -- Recebe playerManager como argumento
@@ -475,7 +489,7 @@ function StatsSection.draw(x, y, w, h, playerManager)
     love.graphics.setFont(fonts.main)
 end
 
---- NOVA FUNÇÃO: Desenha apenas os atributos base para o Lobby.
+--- NOVA FUNÇÃO: Desenha apenas os atributos base para o Lobby, com tooltip.
 ---@param x number Posição X da área.
 ---@param y number Posição Y da área.
 ---@param w number Largura da área.
@@ -483,15 +497,15 @@ end
 ---@param finalStats table Tabela contendo os atributos FINAIS calculados.
 ---@param archetypeIds table Lista de IDs dos arquétipos do caçador.
 ---@param archetypeManager ArchetypeManager Instância do ArchetypeManager.
-function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archetypeManager) -- <<< NOVOS PARÂMETROS
+---@param mx number Posição X do mouse.
+---@param my number Posição Y do mouse.
+function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archetypeManager, mx, my) -- <<< NOVOS PARÂMETROS MX, MY
     if not finalStats or not next(finalStats) then
         love.graphics.setFont(fonts.main)
         love.graphics.setColor(colors.text_label)
         love.graphics.printf("Herói sem stats calculados?", x, y + h / 2, w, "center")
         return
     end
-    -- <<< REMOVIDA VERIFICAÇÃO DE archetypeIds/archetypeManager aqui, feita na chamada >>>
-
     local baseStats = Constants.HUNTER_DEFAULT_STATS
     if not baseStats then
         love.graphics.setFont(fonts.main)
@@ -501,11 +515,14 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
     end
 
     local lineHeight = fonts.main:getHeight() * 1.2
-    local smallLineHeight = fonts.main_small:getHeight() * 1.1
     local hudLineHeight = fonts.hud:getHeight() * 1.5
     local currentY = y
-    local sectionStartY = y   -- Guarda o Y inicial da seção para checagem de altura
-    local availableHeight = h -- Altura total disponível para a seção
+    local sectionStartY = y
+    local availableHeight = h
+
+    -- Reseta estado do hover a cada frame
+    local currentlyHoveringKey = nil
+    tooltipLines = {}
 
     -- Título da Seção de Atributos
     love.graphics.setFont(fonts.hud)
@@ -513,182 +530,133 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
     love.graphics.printf("ATRIBUTOS DO CAÇADOR", x, currentY, w, "left")
     currentY = currentY + hudLineHeight
 
-    -- Lista de atributos para exibir
     local attributesToShow = {
         { label = "Vida",            key = "health",            format = "%d" },
         { label = "Defesa",          key = "defense",           format = "%d" },
         { label = "Velocidade",      key = "moveSpeed",         format = "%.1f",   suffix = " m/s" },
         { label = "Chance Crítico",  key = "critChance",        format = "%.1f%%", multiplier = 100 },
-        { label = "Dano Crítico",    key = "critDamage",        format = "%.1fx",  multiplier = 100,   baseMultiplier = 100 },
+        { label = "Dano Crítico",    key = "critDamage",        format = "%.0fx",  multiplier = 100 }, -- Exibido como 150x, 170x etc
         { label = "Regen. Vida/s",   key = "healthPerTick",     format = "%.1f/s" },
         { label = "Delay Regen.",    key = "healthRegenDelay",  format = "%.1fs" },
         { label = "Atq. Múltiplo",   key = "multiAttackChance", format = "%.1f%%", multiplier = 100 },
         { label = "Vel. Ataque",     key = "attackSpeed",       format = "%.2f/s" },
-        { label = "Bônus Exp",       key = "expBonus",          format = "%.0f%%", multiplier = 100,   baseMultiplier = 100 },
-        { label = "Redução Recarga", key = "cooldownReduction", format = "%.0f%%", multiplier = -100,  baseValue = 1,        displayMultiplier = 100 },
-        { label = "Alcance",         key = "range",             format = "x%.1f",  baseMultiplier = 1, displayMultiplier = 1 },
-        { label = "Área Ataque",     key = "attackArea",        format = "x%.1f",  baseMultiplier = 1, displayMultiplier = 1 },
+        { label = "Bônus Exp",       key = "expBonus",          format = "%.0f%%", multiplier = 100 },
+        { label = "Redução Recarga", key = "cooldownReduction", format = "%.0f%%", isReduction = true }, -- Flag para cálculo especial
+        { label = "Alcance",         key = "range",             format = "x%.1f" },
+        { label = "Área Ataque",     key = "attackArea",        format = "x%.1f" },
         { label = "Raio Coleta",     key = "pickupRadius",      format = "%d" },
-        { label = "Bônus Cura",      key = "healingBonus",      format = "%.0f%%", multiplier = 100,   baseMultiplier = 100 },
+        { label = "Bônus Cura",      key = "healingBonus",      format = "%.0f%%", multiplier = 100 },
         { label = "Slots Runa",      key = "runeSlots",         format = "%d" },
     }
 
     love.graphics.setFont(fonts.main)
-    local baseColor = colors.text_value
-    local bonusColor = colors.text_gold
-    local totalColor = colors.text_highlight
-    local operatorColor = colors.text_label
 
-    -- Loop para desenhar Atributos
     for _, attr in ipairs(attributesToShow) do
         local finalValue = finalStats[attr.key]
         local defaultValue = baseStats[attr.key]
 
         if finalValue ~= nil and defaultValue ~= nil then
-            love.graphics.setColor(colors.text_label)
-            love.graphics.print(attr.label, x, currentY)
-
+            -- Calcula valor final formatado para exibição principal
             local displayMultiplier = attr.multiplier or 1
-            local baseDisplayMultiplier = attr.baseMultiplier or displayMultiplier
-            local displaySuffix = attr.suffix or ""
-            local finalDisplayValue = finalValue * displayMultiplier
-            local defaultDisplayValue = defaultValue * baseDisplayMultiplier
+            local finalDisplayValue = finalValue
+            local displayFormat = attr.format
 
-            if attr.key == "cooldownReduction" then
-                finalDisplayValue = (1 - finalValue) * (attr.displayMultiplier or 100)
-                defaultDisplayValue = (1 - (attr.baseValue or defaultValue)) * (attr.displayMultiplier or 100)
-                attr.format = "%.0f%%"
+            if attr.isReduction then -- Caso especial Redução Recarga
+                finalDisplayValue = (1 - finalValue) * 100
             elseif attr.key == "critDamage" then
-                finalDisplayValue = finalValue * 100
-                defaultDisplayValue = defaultValue * 100
-                attr.format = "%.0fx"
-            elseif attr.key == "range" or attr.key == "attackArea" then
-                finalDisplayValue = finalValue
-                defaultDisplayValue = defaultValue
-                attr.format = "x%.1f"
-            end
-
-            local bonusDisplayValue = finalDisplayValue - defaultDisplayValue
-            local finalStr = string.format(attr.format, finalDisplayValue) .. displaySuffix
-            local defaultStr = string.format(attr.format, defaultDisplayValue)
-            local bonusStr = ""
-            if math.abs(bonusDisplayValue) > 0.01 then
-                bonusStr = string.format("%+.1f", bonusDisplayValue):gsub("%.0$", "")
-                if string.find(attr.format, "%%") then bonusStr = bonusStr .. "%" end
-                bonusStr = bonusStr:gsub("%%+%%", "%%")
-                if attr.key == "critDamage" then
-                    bonusStr = string.format("%+.0f", bonusDisplayValue) .. "x"
-                elseif attr.key == "range" or attr.key == "attackArea" then
-                    bonusStr = string.format("%+.1f", bonusDisplayValue)
-                end
-            end
-
-            local totalWidth = fonts.main:getWidth(finalStr)
-            local defaultWidth = fonts.main:getWidth(defaultStr)
-            local bonusWidth = fonts.main:getWidth(bonusStr)
-            local currentDrawX = x + w
-
-            currentDrawX = currentDrawX - totalWidth
-            love.graphics.setColor(totalColor)
-            love.graphics.print(finalStr, currentDrawX, currentY)
-
-            if bonusStr ~= "" then
-                currentDrawX = currentDrawX - fonts.main:getWidth(" = ")
-                love.graphics.setColor(operatorColor)
-                love.graphics.print(" = ", currentDrawX, currentY)
-                currentDrawX = currentDrawX - fonts.main:getWidth(" )")
-                love.graphics.setColor(operatorColor)
-                love.graphics.print(")", currentDrawX, currentY)
-                currentDrawX = currentDrawX - bonusWidth
-                love.graphics.setColor(bonusColor)
-                love.graphics.print(bonusStr, currentDrawX, currentY)
-                currentDrawX = currentDrawX - fonts.main:getWidth(" (")
-                love.graphics.setColor(operatorColor)
-                love.graphics.print(" (", currentDrawX, currentY)
-                currentDrawX = currentDrawX - defaultWidth
-                love.graphics.setColor(baseColor)
-                love.graphics.print(defaultStr, currentDrawX, currentY)
+                finalDisplayValue = finalValue * 100 -- Mostra 150x, 170x
             else
-                currentDrawX = currentDrawX - fonts.main:getWidth(" = ")
-                love.graphics.setColor(operatorColor)
-                love.graphics.print(" = ", currentDrawX, currentY)
-                currentDrawX = currentDrawX - defaultWidth
-                love.graphics.setColor(baseColor)
-                love.graphics.print(defaultStr, currentDrawX, currentY)
+                finalDisplayValue = finalValue * displayMultiplier
             end
+            local finalStr = string.format(displayFormat, finalDisplayValue) .. (attr.suffix or "")
+
+            -- Verifica Hover na linha atual
+            local lineY = currentY
+            local lineH = lineHeight
+            local isHovering = (mx >= x and mx < x + w and my >= lineY and my < lineY + lineH)
+
+            -- Desenha Label e Valor Final
+            local labelColor = colors.text_label
+            local valueColor = colors.text_value
+            if isHovering then
+                labelColor = colors.text_highlight -- Destaca label no hover
+                valueColor = colors.text_highlight -- Destaca valor no hover
+                currentlyHoveringKey = attr.key    -- Armazena a chave do atributo em hover
+            end
+
+            love.graphics.setColor(labelColor)
+            love.graphics.print(attr.label, x, lineY)
+            love.graphics.setColor(valueColor)
+            love.graphics.printf(finalStr, x, lineY, w, "right")
+
+            -- Prepara dados do tooltip SE estiver em hover
+            if isHovering then
+                tooltipLines = {}
+                tooltipX = mx + 15 -- Posição do tooltip relativa ao mouse
+                tooltipY = my
+
+                -- 1. Linha Base
+                local baseDisplayValue = defaultValue
+                if attr.isReduction then
+                    baseDisplayValue = (1 - defaultValue) * 100
+                elseif attr.key == "critDamage" then
+                    baseDisplayValue = defaultValue * 100
+                else
+                    baseDisplayValue = defaultValue * (attr.baseMultiplier or displayMultiplier)
+                end
+                local baseStr = string.format(displayFormat, baseDisplayValue)
+                table.insert(tooltipLines, { text = "Base: " .. baseStr, color = colors.text_label })
+
+                -- 2. Linhas de Arquétipos
+                local hasArchetypeBonus = false
+                if archetypeIds and archetypeManager then
+                    table.insert(tooltipLines, { text = "Arquétipos:", color = colors.text_highlight }) -- Subtítulo
+                    for _, archId in ipairs(archetypeIds) do
+                        local archData = archetypeManager:getArchetypeData(archId)
+                        if archData and archData.modifiers then
+                            local foundModifier = false
+                            for modKey, modValue in pairs(archData.modifiers) do
+                                local statName = modKey:match("^(.+)_([^_]+)$")
+                                if statName == attr.key then
+                                    local modifierStr = formatArchetypeModifier(modKey, modValue)
+                                    -- Remove o nome do stat do início (já estamos no tooltip do stat)
+                                    modifierStr = modifierStr:gsub("^[^:]+:%s*", "")
+                                    table.insert(tooltipLines,
+                                        {
+                                            text = " - " .. archData.name .. ": " .. modifierStr,
+                                            color = colors.rank
+                                                [archData.rank or 'E']
+                                        })
+                                    hasArchetypeBonus = true
+                                    foundModifier = true
+                                    -- Não precisa de break, pode haver _add e _mult
+                                end
+                            end
+                        end
+                    end
+                end
+                if not hasArchetypeBonus and #tooltipLines > 1 then -- Se tem subtítulo mas nenhum bônus
+                    table.insert(tooltipLines, { text = " (Nenhum)", color = colors.text_label })
+                elseif #tooltipLines == 1 then                      -- Se só tem a linha Base (nem desenhou subtitulo Arquétipo)
+                    table.remove(tooltipLines)                      -- Remove o subtitulo se não houver bônus
+                end
+
+                -- 3. Linha Final (Opcional, já visível na tela)
+                table.insert(tooltipLines, { text = "-----------", color = colors.text_label })
+                table.insert(tooltipLines, { text = "Final: " .. finalStr, color = colors.text_highlight })
+            end
+
             currentY = currentY + lineHeight
         end
+        -- Parar se exceder a altura da área
         if currentY > sectionStartY + availableHeight - lineHeight then break end
     end
 
-    -- <<< INÍCIO: NOVA SUBSEÇÃO DE ARQUÉTIPOS >>>
-    currentY = currentY + lineHeight * 0.5 -- Pequeno espaço antes da nova seção
-
-    -- Verifica se ainda há espaço vertical suficiente
-    if currentY < sectionStartY + availableHeight - hudLineHeight then
-        love.graphics.setFont(fonts.hud)
-        love.graphics.setColor(colors.text_highlight)
-        love.graphics.printf("ARQUÉTIPOS", x, currentY, w, "left")
-        currentY = currentY + hudLineHeight
-
-        if archetypeIds and #archetypeIds > 0 and archetypeManager then
-            for _, archetypeId in ipairs(archetypeIds) do
-                -- Verifica espaço antes de desenhar o arquétipo
-                if currentY > sectionStartY + availableHeight - lineHeight then break end
-
-                local archetypeData = archetypeManager:getArchetypeData(archetypeId)
-                if archetypeData then
-                    local rankColor = colors.rank[archetypeData.rank or 'E'] or colors.white
-                    local rankText = string.format(" [%s]", archetypeData.rank or '?')
-                    local nameText = archetypeData.name or "Desconhecido"
-                    local nameWidth = fonts.main:getWidth(nameText)
-                    local rankWidth = fonts.main_small:getWidth(rankText)
-
-                    -- Desenha Nome
-                    love.graphics.setFont(fonts.main)
-                    love.graphics.setColor(colors.text_value)
-                    love.graphics.print(nameText, x, currentY)
-
-                    -- Desenha Rank (ao lado do nome, com cor)
-                    love.graphics.setFont(fonts.main_small)
-                    love.graphics.setColor(rankColor)
-                    love.graphics.print(rankText, x + nameWidth + 2, currentY + 1) -- Pequeno offset
-
-                    currentY = currentY + lineHeight * 0.8                         -- Espaço menor após nome+rank
-
-                    -- Desenha Modificadores
-                    if archetypeData.modifiers then
-                        love.graphics.setFont(fonts.main_small)
-                        love.graphics.setColor(colors.text_label) -- Cor mais suave para modificadores
-                        local modifierIndent = x + 10             -- Indenta os modificadores
-                        for modKey, modValue in pairs(archetypeData.modifiers) do
-                            -- Verifica espaço antes de desenhar modificador
-                            if currentY > sectionStartY + availableHeight - smallLineHeight then break end
-
-                            local modifierStr = formatArchetypeModifier(modKey, modValue)
-                            love.graphics.print(modifierStr, modifierIndent, currentY)
-                            currentY = currentY + smallLineHeight
-                        end
-                        currentY = currentY + smallLineHeight * 0.3 -- Pequeno espaço extra após modificadores
-                    else
-                        currentY = currentY + smallLineHeight * 0.5 -- Espaço mesmo se não houver mods
-                    end
-                else
-                    -- Desenha placeholder se archetypeData não for encontrado
-                    love.graphics.setFont(fonts.main_small)
-                    love.graphics.setColor(colors.red)
-                    love.graphics.print(" - Arquetipo ID: " .. archetypeId .. " (Não encontrado)", x + 5, currentY)
-                    currentY = currentY + smallLineHeight
-                end
-            end
-        else
-            love.graphics.setFont(fonts.main_small)
-            love.graphics.setColor(colors.text_label)
-            love.graphics.printf("Nenhum arquétipo atribuído.", x, currentY, w, "left")
-            currentY = currentY + smallLineHeight
-        end
+    -- <<< DESENHA TOOLTIP (se houver algo para mostrar) >>>
+    if #tooltipLines > 0 then
+        elements.drawTooltipBox(tooltipX, tooltipY, tooltipLines)
     end
-    -- <<< FIM: NOVA SUBSEÇÃO DE ARQUÉTIPOS >>>
+    -- <<< FIM DESENHO TOOLTIP >>>
 
     love.graphics.setFont(fonts.main) -- Reset final
     love.graphics.setColor(colors.white)

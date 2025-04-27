@@ -437,4 +437,60 @@ function elements.drawDropIndicator(areaX, areaY, areaW, areaH, gridRows, gridCo
     love.graphics.setColor(1, 1, 1, 1)                        -- Reseta cor
 end
 
+--- NOVO: Desenha uma caixa de tooltip com várias linhas de texto coloridas.
+---@param x number Posição X do canto superior esquerdo do tooltip.
+---@param y number Posição Y do canto superior esquerdo do tooltip.
+---@param lines table Tabela de linhas, onde cada linha é { text = "...", color = {r,g,b,a} }.
+function elements.drawTooltipBox(x, y, lines)
+    if not lines or #lines == 0 then return end
+
+    local tooltipFont = fonts.tooltip or fonts.main_small or love.graphics.getFont()
+    local padding = 8
+    local lineHeight = tooltipFont:getHeight() * 1.1
+    local maxWidth = 0
+    local totalHeight = padding * 2 + (#lines * lineHeight) - (lineHeight * 0.1) -- Ajusta altura total
+
+    -- Calcula a largura máxima necessária
+    love.graphics.setFont(tooltipFont)
+    for _, line in ipairs(lines) do
+        maxWidth = math.max(maxWidth, tooltipFont:getWidth(line.text))
+    end
+    local totalWidth = padding * 2 + maxWidth
+
+    -- Ajusta posição para não sair da tela (simples)
+    local screenW = love.graphics.getWidth()
+    local screenH = love.graphics.getHeight()
+    if x + totalWidth > screenW then
+        x = screenW - totalWidth
+    end
+    if y + totalHeight > screenH then
+        y = screenH - totalHeight
+    end
+    x = math.max(0, x) -- Garante que não saia pela esquerda
+    y = math.max(0, y) -- Garante que não saia por cima
+
+    -- Desenha fundo
+    local bgColor = colors.window_bg or { 0.1, 0.1, 0.15, 0.95 }
+    love.graphics.setColor(bgColor)
+    love.graphics.rectangle("fill", x, y, totalWidth, totalHeight, 3, 3)
+
+    -- Desenha borda
+    local borderColor = colors.window_border or { 0.4, 0.45, 0.5, 0.8 }
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(borderColor)
+    love.graphics.rectangle("line", x, y, totalWidth, totalHeight, 3, 3)
+
+    -- Desenha as linhas de texto
+    local currentY = y + padding
+    for _, line in ipairs(lines) do
+        local lineX = x + padding
+        local lineColor = line.color or colors.text_main or { 1, 1, 1, 1 }
+        love.graphics.setColor(lineColor)
+        love.graphics.print(line.text, lineX, math.floor(currentY))
+        currentY = currentY + lineHeight
+    end
+
+    love.graphics.setColor(1, 1, 1, 1) -- Reset
+end
+
 return elements
