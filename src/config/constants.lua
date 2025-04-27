@@ -18,8 +18,8 @@ Constants.SLOT_IDS = {
     CHEST = "chest",
     GLOVES = "gloves",
     BOOTS = "boots",
-    LEGS = "legs",
-    -- Adicionar outros se necessário
+    LEGS = "legs"
+    -- Adicionar outros slots conforme necessário (amuletos, anéis etc.)
 }
 
 return Constants

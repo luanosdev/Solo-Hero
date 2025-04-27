@@ -14,6 +14,8 @@ local CharacterData = require("src.data.character_data") -- Para obter stats bas
 local SAVE_FILE = "hunters.dat"
 local DEFAULT_HUNTER_ID = "hunter_default" -- ID do Caçador inicial
 
+local MAX_POSSIBLE_RUNE_SLOTS = 6          -- Limite técnico para a estrutura de dados
+
 -- Define os slots de equipamento válidos COMO PARTE DA CLASSE
 HunterManager.EQUIPMENT_SLOTS = {
     "weapon",
@@ -21,7 +23,9 @@ HunterManager.EQUIPMENT_SLOTS = {
     "chest",
     "gloves",
     "boots",
-    "legs" -- Adicionado para consistência com EquipmentSection
+    "legs",
+    -- Runas (IDs dinâmicos até o máximo possível)
+    "rune_1", "rune_2", "rune_3", "rune_4", "rune_5", "rune_6"
     -- Adicione outros slots aqui (amuleto, anéis, etc.)
 }
 
@@ -65,7 +69,7 @@ end
 function HunterManager:_initializeEquippedItems(hunterId)
     print(string.format("  [HunterManager] Inicializando slots de equipamento para %s", hunterId))
     self.equippedItems[hunterId] = {}
-    -- Acessa via self.EQUIPMENT_SLOTS ou HunterManager.EQUIPMENT_SLOTS
+    -- Usa a lista completa de slots definidos na classe (incluindo todas as runas possíveis)
     for _, slotId in ipairs(self.EQUIPMENT_SLOTS) do
         self.equippedItems[hunterId][slotId] = nil -- Nenhum item equipado inicialmente
     end
@@ -136,6 +140,13 @@ end
 --- @return table Stats base ou {} se não encontrado.
 function HunterManager:getActiveHunterBaseStats()
     return self.hunterBaseStats[self.activeHunterId] or {}
+end
+
+
+--- Retorna o número máximo possível de slots de runas.
+--- @return number
+function HunterManager:getActiveHunterMaxRuneSlots()
+    return self.hunterBaseStats[self.activeHunterId].maxRuneSlots or 0
 end
 
 --- Retorna a tabela de itens equipados para o caçador ativo.

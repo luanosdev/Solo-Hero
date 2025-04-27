@@ -100,6 +100,18 @@ function LobbyScene:load(args)
     ManagerRegistry:register("playerManager", mockPlayerManagerInstance)
     print("LobbyScene: MockPlayerManager registrado no ManagerRegistry.")
 
+    -- <<< INÍCIO: Adiciona runas ao storage para teste >>>
+    if self.lobbyStorageManager then
+        --local addedOrbital = self.lobbyStorageManager:addItem("rune_orbital_e", 1)
+        --local addedThunder = self.lobbyStorageManager:addItem("rune_thunder_e", 1)
+        --local addedAura = self.lobbyStorageManager:addItem("rune_aura_e", 1)
+        --print(string.format("LobbyScene: Tentativa de adicionar runas ao storage - Orbital:%s, Thunder:%s, Aura:%s",
+        --    tostring(addedOrbital > 0), tostring(addedThunder > 0), tostring(addedAura > 0)))
+    else
+        print("AVISO (LobbyScene): LobbyStorageManager não inicializado, não foi possível adicionar runas de teste.")
+    end
+    -- <<< FIM: Adiciona runas ao storage para teste >>>
+
     -- Reseta estado de zoom/seleção
     self.portalScreen.isZoomedIn = false
     self.portalScreen.selectedPortal = nil

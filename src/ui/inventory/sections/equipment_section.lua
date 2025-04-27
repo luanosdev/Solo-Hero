@@ -214,7 +214,7 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
 
     -- Desenha Slot da Arma (Lógica Separada Novamente)
     local weaponSlotH = 75
-    local weaponSlotW = w * 0.8
+    local weaponSlotW = w * 0.8 -- <<< LARGURA USADA ABAIXO
     local weaponSlotX = x + (w - weaponSlotW) / 2
     local weaponSlotY = currentY
     local weaponSlotId = SLOT_IDS.WEAPON
@@ -226,16 +226,13 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
     local rarityColor = nil
     if weaponInstance then
         rarityColor = colors.rarity[weaponInstance.rarity or 'E'] or colors.rarity['E']
-        -- Define cor de fundo como a da raridade com MUITA transparência
         slotBgColor = { rarityColor[1], rarityColor[2], rarityColor[3], 0.15 } -- Alpha baixo (15%)
-        -- Define cor da borda como a da raridade (alpha original da cor)
         slotBorderColor = rarityColor
     end
 
     -- Desenha o fundo do slot usando as cores definidas
     elements.drawWindowFrame(weaponSlotX - 2, weaponSlotY - 2, weaponSlotW + 4, weaponSlotH + 4, nil,
         slotBgColor, slotBorderColor)
-    -- Desenha preenchimento interno (com mesma cor de fundo)
     if slotBgColor then
         love.graphics.setColor(slotBgColor[1], slotBgColor[2], slotBgColor[3], slotBgColor[4] or 1)
     else
@@ -245,15 +242,16 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
     love.graphics.setColor(1, 1, 1, 1) -- Reset
 
     if weaponInstance then
-        local name = weaponInstance.name or "Arma"
-        -- Tenta obter dados base para stats mais detalhados (dano, etc.)
+        -- Tenta obter dados base para stats mais detalhados
         local baseData = hunterManager.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
+        local name = baseData and baseData.name or (weaponInstance.name or "Arma")
+        local rank = baseData and baseData.rarity or (weaponInstance.rarity or 'E')
+        local rankColor = colors.rarity[rank] or colors.white
+
         local damage = baseData and baseData.damage or (weaponInstance.damage or 0)
         local attackSpeed = baseData and baseData.attackSpeed or (weaponInstance.attackSpeed or 0)
-        -- damageType precisaria ser definido nos dados base se quisermos exibi-lo
-        local damageType = "Físico" -- Placeholder
 
-        -- Desenha Ícone (CONDICIONALMENTE ROTACIONADO E ESCALADO)
+        -- <<< INÍCIO: Desenha Ícone da Arma >>>
         if weaponInstance.icon and type(weaponInstance.icon) == "userdata" then
             local icon = weaponInstance.icon
             local iw, ih = icon:getDimensions()
@@ -261,37 +259,23 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
             local scale = 1
             local ox, oy = iw / 2, ih / 2
             local drawX, drawY
-
-            local baseGridW = baseData and baseData.gridWidth or 1 -- Usa baseData que já pegamos antes
+            local baseGridW = baseData and baseData.gridWidth or 1
             local baseGridH = baseData and baseData.gridHeight or 1
-
-            -- Verifica dimensões BASE para decidir se rotaciona
             if baseGridW > baseGridH then
-                -- Arma já é 'horizontal' (largura > altura), não rotacionar
                 rotation = 0
-                -- Escala para caber sem rotação (com 90% de padding)
                 scale = math.min(weaponSlotW * 0.9 / iw, weaponSlotH * 0.9 / ih)
-                -- Posiciona imagem NÃO rotacionada (ancorada à direita, centro vertical)
-                drawX = weaponSlotX + weaponSlotW - (iw * scale / 2) -- Alinha borda direita da imagem (largura iw*scale)
+                drawX = weaponSlotX + weaponSlotW - (iw * scale / 2)
                 drawY = weaponSlotY + weaponSlotH / 2
             else
-                -- Arma 'vertical' ou quadrada (altura >= largura), rotacionar 90 graus
                 rotation = math.pi / 2
-                -- Escala para caber com rotação (largura vira altura, altura vira largura) (com 90% de padding)
                 scale = math.min(weaponSlotW * 0.9 / ih, weaponSlotH * 0.9 / iw)
-                -- Posiciona imagem rotacionada (ancorada à direita, centro vertical)
-                drawX = weaponSlotX + weaponSlotW -
-                    (ih * scale / 2)                  -- Alinha borda direita da imagem rotacionada (largura ih*scale)
-                drawY = weaponSlotY + weaponSlotH / 2 -- Centro vertical
+                drawX = weaponSlotX + weaponSlotW - (ih * scale / 2)
+                drawY = weaponSlotY + weaponSlotH / 2
             end
-
-            love.graphics.setColor(1, 1, 1, 1) -- Garante branco
-            -- Desenha com a rotação e escala calculadas
+            love.graphics.setColor(1, 1, 1, 1)
             love.graphics.draw(icon, drawX, drawY, rotation, scale, scale, ox, oy)
         else
-            -- Placeholder de Ícone (Lógica existente)
-            local name = weaponInstance.name or "Arma"
-            local iconSize = math.min(weaponSlotW, weaponSlotH) * 0.8 -- Ajusta ao menor lado
+            local iconSize = math.min(weaponSlotW, weaponSlotH) * 0.8
             local iconX = weaponSlotX + (weaponSlotW - iconSize) / 2
             local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2
             elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
@@ -300,119 +284,174 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
             love.graphics.printf(string.sub(name, 1, 1), iconX, iconY + iconSize * 0.1, iconSize, "center")
             love.graphics.setFont(fonts.main)
         end
+        -- <<< FIM: Desenha Ícone da Arma >>>
 
-        -- Desenha Informações da Arma (Nome, Dano, etc.)
-        local infoX = weaponSlotX + 10          -- Começa à esquerda
+        -- <<< INÍCIO: Desenha Informações da Arma (Nome Estilizado e Stats) >>>
+        local infoX = weaponSlotX + 10 -- Começa à esquerda, antes do ícone
         local infoY = weaponSlotY + 5
-        love.graphics.setFont(fonts.main_large) -- Usa main_large para nome
-        love.graphics.setColor(colors.rarity[rarityColor] or colors.white)
-        love.graphics.print(name, infoX, infoY)
+
+        -- Nome + Rank [R]
+        love.graphics.setFont(fonts.main_large)
+        love.graphics.setColor(rankColor)
+        local nameWithRank = string.format("%s [%s]", name, rank)
+        love.graphics.print(nameWithRank, infoX, infoY)
         infoY = infoY + fonts.main_large:getHeight() + 5
 
+        -- Stats
         love.graphics.setFont(fonts.main)
         love.graphics.setColor(colors.text_main)
-        love.graphics.printf(string.format("Dano: %.1f", damage), infoX, infoY, weaponSlotW - (infoX - weaponSlotX) - 10,
-            "left")
+        love.graphics.printf(string.format("Dano: %.1f", damage), infoX, infoY, weaponSlotW * 0.6, "left") -- Limita largura para texto
         infoY = infoY + fonts.main:getHeight() + 2
-        love.graphics.printf(string.format("Vel. Atq: %.2f/s", attackSpeed), infoX, infoY,
-            weaponSlotW - (infoX - weaponSlotX) - 10, "left")
-        -- Adicionar Range se desejado
+        love.graphics.printf(string.format("Vel. Atq: %.2f/s", attackSpeed), infoX, infoY, weaponSlotW * 0.6, "left")
+        -- <<< FIM: Desenha Informações da Arma >>>
     else
-        -- Slot de arma vazio
+        -- Slot de arma vazio (sem alterações)
         love.graphics.setFont(fonts.main)
         love.graphics.setColor(colors.text_label)
         love.graphics.printf("Sem Arma Equipada", weaponSlotX, weaponSlotY + weaponSlotH / 2 - fonts.main:getHeight() / 2,
             weaponSlotW, "center")
     end
+    love.graphics.setColor(1, 1, 1, 1) -- Reset cor após arma
 
     -- <<< ADICIONADO: Registra a área do slot da arma >>>
     slotAreasTable[weaponSlotId] = { x = weaponSlotX, y = weaponSlotY, w = weaponSlotW, h = weaponSlotH }
 
-    -- TODO: Adicionar slots de Runa abaixo da arma
-    currentY = weaponSlotY + weaponSlotH + 15 -- Atualiza currentY para depois da arma
+    -- Atualiza currentY para depois da arma
+    currentY = weaponSlotY + weaponSlotH + 25 -- Aumenta espaço antes das runas
 
-    -- 5. Área das Runas (Layout 2x2 - Mesmo tamanho dos Equipamentos)
-    -- Adiciona Título "RUNAS" como texto simples
-    love.graphics.setFont(fonts.title)
-    love.graphics.setColor(colors.text_highlight)     -- Usa a mesma cor de "EQUIPAMENTO"
-    love.graphics.printf("RUNAS", x, currentY, w, "center")
-    local runesTitleH = fonts.title:getHeight() * 1.2 -- Calcula altura para espaçamento
-    currentY = currentY + runesTitleH + 10            -- Espaçamento após título
+    -- <<< INÍCIO: Desenho dos Slots de Runa (Dinâmico e Vertical) >>>
+    local maxRuneSlots = hunterManager:getActiveHunterMaxRuneSlots()
 
-    -- Configuração dos slots de runa (usando dimensões do equipamento)
-    -- local runeSlotSize = 75 -- Tamanho quadrado (REMOVIDO)
-    local runeSlotW = newSlotW -- USA LARGURA DO SLOT DE EQUIPAMENTO
-    local runeSlotH = newSlotH -- USA ALTURA DO SLOT DE EQUIPAMENTO
-    local runeSpacing = 10
-    local numRuneRows = 2
-    local numRuneCols = 2
-    local numRunes = numRuneRows * numRuneCols
+    if maxRuneSlots > 0 then
+        -- Desenha Título "RUNAS" (Estilo Equipamento)
+        love.graphics.setFont(fonts.title)
+        love.graphics.setColor(colors.text_highlight)
+        love.graphics.printf("RUNAS", x, currentY, w, "center")
+        currentY = currentY + fonts.title:getHeight() + 10
 
-    -- Calcula largura total da grade e X inicial para centralizar (usando runeSlotW)
-    local totalRuneGridWidth = numRuneCols * runeSlotW + (numRuneCols - 1) * runeSpacing
-    local runeGridStartX = x + (w - totalRuneGridWidth) / 2 -- Centraliza a grade
-    local runesY = currentY
+        local runeSlotW = weaponSlotW -- <<< USA A MESMA LARGURA DA ARMA
+        local runeSlotH = 60
+        local runeSpacing = 10
+        local runeStartX = x + (w - runeSlotW) / 2
 
-    -- Busca os ITENS runa equipados do PlayerManager
-    local equippedRunes = hunterManager.equippedRuneItems or {}
+        for i = 1, maxRuneSlots do
+            local slotId = "rune_" .. i
+            local itemInstance = equippedItems[slotId]
+            local slotX = runeStartX
+            local slotY = currentY
 
-    -- Desenha a grade 2x2
-    for r = 1, numRuneRows do
-        for c = 1, numRuneCols do
-            local slotIndex = (r - 1) * numRuneCols + c
-            if slotIndex <= numRunes then
-                local slotX = runeGridStartX + (c - 1) * (runeSlotW + runeSpacing)
-                local slotY = runesY + (r - 1) * (runeSlotH + runeSpacing) -- Usa runeSlotH
-                local equippedRune = equippedRunes[slotIndex]
+            -- --- Desenho do Slot de Runa (Estilo Arma) ---
+            local slotBgColor = colors.slot_empty_bg
+            local slotBorderColor = colors.slot_empty_border
+            local runeBaseData = nil
+            local rank = 'E'
+            local rankColor = colors.rarity[rank]
 
-                drawRuneSlotInfo(slotX, slotY, runeSlotW, runeSlotH, equippedRune) -- Passa W e H
+            if itemInstance then
+                runeBaseData = hunterManager.itemDataManager:getBaseItemData(itemInstance.itemBaseId)
+                rank = (runeBaseData and runeBaseData.rarity) or (itemInstance.rarity or 'E')
+                rankColor = colors.rarity[rank] or colors.rarity['E']
+                slotBgColor = { rankColor[1], rankColor[2], rankColor[3], 0.15 }
+                slotBorderColor = rankColor
             end
-        end
-    end
 
-    -- Atualiza currentY para depois da grade de runas (usando runeSlotH)
-    currentY = runesY + numRuneRows * runeSlotH + (numRuneRows - 1) * runeSpacing + 15
+            -- Desenha frame e fundo
+            elements.drawWindowFrame(slotX - 2, slotY - 2, runeSlotW + 4, runeSlotH + 4, nil, slotBgColor,
+                slotBorderColor)
+            if slotBgColor then
+                love.graphics.setColor(slotBgColor[1], slotBgColor[2], slotBgColor[3],
+                    slotBgColor[4] or 1)
+            else
+                love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
+            end
+            love.graphics.rectangle("fill", slotX, slotY, runeSlotW, runeSlotH, 3, 3)
+            love.graphics.setColor(1, 1, 1, 1)
+
+            -- <<< INÍCIO: Desenha Ícone e Informações da Runa >>>
+            local textStartX = slotX + 10 -- Posição inicial para textos
+            local textStartY = slotY + 5
+
+            if itemInstance and itemInstance.icon and type(itemInstance.icon) == "userdata" then
+                -- Desenha Ícone à direita
+                local icon = itemInstance.icon
+                local iw, ih = icon:getDimensions()
+                local iconMaxH = runeSlotH * 0.8
+                local iconScale = iconMaxH / ih
+                local iconDrawW, iconDrawH = iw * iconScale, ih * iconScale
+                local iconDrawX = slotX + runeSlotW - iconDrawW - 5 -- Alinha à direita
+                local iconDrawY = slotY + (runeSlotH - iconDrawH) / 2
+                love.graphics.draw(icon, iconDrawX, iconDrawY, 0, iconScale, iconScale)
+                textStartX = slotX + 10 -- Área de texto fica à esquerda do ícone
+            elseif itemInstance then
+                -- Placeholder de Ícone (se não houver imagem)
+                local iconSize = runeSlotH * 0.8
+                local iconX = slotX + runeSlotW - iconSize - 5
+                local iconY = slotY + (runeSlotH - iconSize) / 2
+                elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
+                love.graphics.setColor(colors.white)
+                love.graphics.setFont(fonts.title)
+                love.graphics.printf(string.sub(itemInstance.name or "R", 1, 1), iconX, iconY + iconSize * 0.1, iconSize,
+                    "center")
+            end
+
+            -- Desenha textos (Nome, Stats)
+            if itemInstance and runeBaseData then
+                -- Nome [Rank]
+                love.graphics.setFont(fonts.main_large)
+                love.graphics.setColor(rankColor)
+                local nameWithRank = string.format("%s [%s]", runeBaseData.name or "Runa", rank)
+                love.graphics.print(nameWithRank, textStartX, textStartY)
+                textStartY = textStartY + fonts.main_large:getHeight() + 5
+
+                -- Stats Específicos
+                love.graphics.setFont(fonts.main_small)
+                love.graphics.setColor(colors.text_main)
+                local statText = ""
+                if runeBaseData.effect == "orbital" then
+                    statText = string.format("Dano: %s | Esferas: %s", tostring(runeBaseData.damage or '?'),
+                        tostring(runeBaseData.num_projectiles or '?'))
+                elseif runeBaseData.effect == "thunder" then
+                    statText = string.format("Dano: %s | Intervalo: %.1fs", tostring(runeBaseData.damage or '?'),
+                        runeBaseData.interval or '?')
+                elseif runeBaseData.effect == "aura" then
+                    statText = string.format("Dano/Tick: %s | Intervalo: %.1fs",
+                        tostring(runeBaseData.damage_per_tick or '?'), runeBaseData.tick_interval or '?')
+                else
+                    statText = "Efeito desconhecido"
+                end
+                love.graphics.printf(statText, textStartX, textStartY, runeSlotW * 0.7, "left") -- Limita largura do texto
+            elseif itemInstance then                                                            -- Tem item mas não achou baseData
+                love.graphics.setFont(fonts.main_large)
+                love.graphics.setColor(rankColor)
+                love.graphics.print(itemInstance.name or "Runa ?", textStartX, textStartY)
+                -- Poderia mostrar um erro aqui
+            else
+                -- Slot Vazio
+                love.graphics.setFont(fonts.main)
+                love.graphics.setColor(colors.text_label)
+                love.graphics.printf("Slot de Runa", slotX, slotY + runeSlotH / 2 - fonts.main:getHeight() / 2, runeSlotW,
+                    "center")
+            end
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.setFont(fonts.main)
+            -- <<< FIM: Desenha Ícone e Informações da Runa >>>
+
+            -- Registra a área do slot de runa com o ID dinâmico
+            slotAreasTable[slotId] = { x = slotX, y = slotY, w = runeSlotW, h = runeSlotH }
+
+            -- Atualiza Y para o próximo slot
+            currentY = currentY + runeSlotH + runeSpacing
+        end
+        -- Ajusta currentY final
+        currentY = currentY - runeSpacing + 15
+    end
+    -- <<< FIM: Desenho dos Slots de Runa (Dinâmico e Vertical) >>>
 
     -- Desenha Elementos de Drag-and-Drop (se estiver arrastando)
-    if self.isDragging and self.draggedItem then
-        -- 1. Desenha a Sombra de Posicionamento
-        if self.currentTargetSlot.row > 0 and self.currentTargetSlot.col > 0 then
-            local shadowX = self.gridStartX + (self.currentTargetSlot.col - 1) * (self.slotSize + self.slotSpacing)
-            local shadowY = self.gridStartY + (self.currentTargetSlot.row - 1) * (self.slotSize + self.slotSpacing)
-
-            local effectiveW = self.draggedItem.gridWidth or 1
-            local effectiveH = self.draggedItem.gridHeight or 1
-            if self.draggedItemRotation == 1 then -- Se rotacionado
-                effectiveW = self.draggedItem.gridHeight or 1
-                effectiveH = self.draggedItem.gridWidth or 1
-            end
-            local shadowVisualW = effectiveW * self.slotSize + math.max(0, effectiveW - 1) * self.slotSpacing
-            local shadowVisualH = effectiveH * self.slotSize + math.max(0, effectiveH - 1) * self.slotSpacing
-
-            -- Usa as cores definidas em colors.lua
-            local shadowColor = self.isPlacementValid and colors.placement_valid or colors.placement_invalid
-
-            love.graphics.setColor(shadowColor[1], shadowColor[2], shadowColor[3], 0.5) -- Cor com transparência
-            love.graphics.rectangle("fill", shadowX, shadowY, shadowVisualW, shadowVisualH, 3, 3)
-        end
-
-        -- 2. Desenha o Item "Fantasma" seguindo o mouse
-        local ghostW = self.draggedItem.gridWidth or 1
-        local ghostH = self.draggedItem.gridHeight or 1
-        if self.draggedItemRotation == 1 then -- Se rotacionado
-            ghostW = self.draggedItem.gridHeight or 1
-            ghostH = self.draggedItem.gridWidth or 1
-        end
-        local ghostVisualW = ghostW * self.slotSize + math.max(0, ghostW - 1) * self.slotSpacing
-        local ghostVisualH = ghostH * self.slotSize + math.max(0, ghostH - 1) * self.slotSpacing
-        -- Centraliza o item fantasma no cursor do mouse
-        local ghostX = self.currentMousePos.x - ghostVisualW / 2
-        local ghostY = self.currentMousePos.y - ghostVisualH / 2
-        -- Desenha o item fantasma com rotação e transparência
-        drawPlacedItem(ghostX, ghostY, ghostVisualW, ghostVisualH, self.draggedItem, self.draggedItemRotation, 0.75)
-
-        love.graphics.setColor(1, 1, 1, 1) -- Reseta cor global após desenhar elementos de drag
-    end
+    -- Esta parte do código parece pertencer a outro contexto (InventoryScreen?) e foi removida
+    -- if self.isDragging and self.draggedItem then
+    -- ... (código de drag and drop removido daqui)
+    -- end
 
     love.graphics.setLineWidth(1)
     love.graphics.setFont(fonts.main)
