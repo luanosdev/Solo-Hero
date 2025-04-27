@@ -89,14 +89,30 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState)
     -- Limpa/Recria áreas dos slots de equipamento a cada frame
     self.equipmentSlotAreas = {}
 
-    -- 1. Desenha Seção de Atributos (Stats) - Seção 1
-    if self.hunterManager then                -- Verifica se hunterManager existe
-        local baseStats = self.hunterManager:getActiveHunterBaseStats()
-        if baseStats and next(baseStats) then -- Verifica se a tabela de stats não está vazia
-            StatsSection.drawBaseStats(statsX, contentStartY, statsW, sectionContentH, baseStats)
+    -- 1. Desenha Seção de Stats (Stats) - Seção 1
+    love.graphics.setFont(fonts.main_large)
+    love.graphics.setColor(colors.text_highlight)
+    love.graphics.printf("Stats", statsX, sectionTopY, statsW, "center")
+
+    if self.hunterManager then -- Verifica se hunterManager existe
+        local activeHunterId = self.hunterManager:getActiveHunterId()
+        local hunterData = activeHunterId and self.hunterManager.hunters[activeHunterId]
+        local finalStats = self.hunterManager:getActiveHunterFinalStats() -- Já calculamos antes
+        local archetypeIds = hunterData and hunterData.archetypeIds
+        local archetypeManager = self.hunterManager.archetypeManager      -- Acesso direto ao manager injetado
+
+        -- Verifica se temos todos os dados necessários
+        if finalStats and next(finalStats) and archetypeIds and archetypeManager then
+            -- <<< CHAMA drawBaseStats COM OS NOVOS ARGUMENTOS >>>
+            StatsSection.drawBaseStats(statsX, contentStartY, statsW, sectionContentH,
+                finalStats, archetypeIds, archetypeManager)
         else
             love.graphics.setColor(colors.red)
-            love.graphics.printf("Erro: Stats base do caçador ativo não encontrados!", statsX + statsW / 2,
+            local errorMsg = "Erro ao obter dados do caçador:"
+            if not finalStats or not next(finalStats) then errorMsg = errorMsg .. " Stats Finais" end
+            if not archetypeIds then errorMsg = errorMsg .. " IDs Arquetipo" end
+            if not archetypeManager then errorMsg = errorMsg .. " ArchetypeManager" end
+            love.graphics.printf(errorMsg, statsX + statsW / 2,
                 contentStartY + sectionContentH / 2, 0, "center")
             love.graphics.setColor(colors.white)
         end

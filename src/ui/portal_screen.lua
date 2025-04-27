@@ -319,11 +319,24 @@ function PortalScreen:handleMousePress(x, y, buttonIdx)
                 modalClicked = true
                 print(string.format("(PortalScreen) Botão 'Entrar' clicado para portal '%s'.", self.selectedPortal.name))
                 -- Obtém stats ANTES de trocar de cena
-                local activeHunterStats = self.hunterManager and self.hunterManager:getActiveHunterBaseStats() or {}
-                SceneManager.switchScene("game_loading_scene", {
-                    portalData = self.selectedPortal,
-                    characterBaseStats = activeHunterStats -- Passa os stats
-                })
+                local portalData = PortalDataManager.getPortalData(self.selectedPortal.id)
+                local worldLevel = selectedWorldData.worldLevel
+                local portalTier = self.selectedPortal.tier
+                local activeHunterId = self.hunterManager:getActiveHunterId()                 -- Obtém o ID do caçador ativo
+                local activeHunterFinalStats = self.hunterManager:getActiveHunterFinalStats() -- Obtém os stats finais do caçador ativo
+
+                if not activeHunterId then
+                    print("Erro: Nenhum caçador ativo selecionado.")
+                else
+                    -- Inicia a cena de combate
+                    SceneManager.changeScene('combat', {
+                        portalId = self.selectedPortal.id,
+                        worldLevel = worldLevel,
+                        portalTier = portalTier,
+                        hunterId = activeHunterId,                -- Passa o ID do caçador ativo
+                        hunterFinalStats = activeHunterFinalStats -- Passa os stats finais do caçador ativo
+                    })
+                end
             elseif self.modalButtonCancelHover then
                 modalClicked = true
                 print("(PortalScreen) Botão 'Cancelar' clicado.")

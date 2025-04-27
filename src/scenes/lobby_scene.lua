@@ -7,6 +7,7 @@ local ItemDataManager = require("src.managers.item_data_manager")
 local LobbyStorageManager = require("src.managers.lobby_storage_manager")
 local LoadoutManager = require("src.managers.loadout_manager")
 local MockPlayerManager = require("src.managers.mock_player_manager")
+local ArchetypeManager = require("src.managers.archetype_manager")
 local HunterManager = require("src.managers.hunter_manager")
 local ManagerRegistry = require("src.managers.manager_registry")
 local EquipmentScreen = require("src.ui.equipment_screen")
@@ -29,6 +30,7 @@ LobbyScene.portalManager = nil ---@type LobbyPortalManager|nil Instância do ger
 LobbyScene.itemDataManager = nil ---@type ItemDataManager|nil Instância do gerenciador de dados de itens
 LobbyScene.lobbyStorageManager = nil ---@type LobbyStorageManager|nil Instância do gerenciador de armazenamento do lobby
 LobbyScene.loadoutManager = nil ---@type LoadoutManager|nil Instância do gerenciador de loadout
+LobbyScene.archetypeManager = nil ---@type ArchetypeManager|nil Instância do gerenciador de archetype
 LobbyScene.hunterManager = nil ---@type HunterManager|nil Instância do gerenciador de caçadores
 LobbyScene.equipmentScreen = nil ---@type EquipmentScreen|nil Instância da tela de equipamento
 LobbyScene.portalScreen = nil ---@type PortalScreen|nil Instância da tela de portal
@@ -89,7 +91,8 @@ function LobbyScene:load(args)
     self.itemDataManager = ItemDataManager:new()
     self.lobbyStorageManager = LobbyStorageManager:new(self.itemDataManager)
     self.loadoutManager = LoadoutManager:new(self.itemDataManager)
-    self.hunterManager = HunterManager:new(self.loadoutManager, self.itemDataManager)
+    self.archetypeManager = ArchetypeManager:new()
+    self.hunterManager = HunterManager:new(self.loadoutManager, self.itemDataManager, self.archetypeManager)
 
     self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
         self.loadoutManager)
