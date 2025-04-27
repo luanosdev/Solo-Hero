@@ -381,9 +381,16 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                     self.draggedItemOffsetX = dragStartData.offsetX
                     self.draggedItemOffsetY = dragStartData.offsetY
                     self.draggedItemIsRotated = dragStartData.isRotated or false
-                    print(string.format("LobbyScene: Drag iniciado: Item %d (%s) from %s. Estava rotacionado: %s",
+                    if self.sourceGridId == "equipment" then
+                        self.sourceSlotId = dragStartData.sourceSlotId
+                    else
+                        self.sourceSlotId = nil
+                    end
+                    print(string.format("LobbyScene: Drag iniciado: Item %d (%s) from %s%s. Estava rotacionado: %s",
                         self.draggedItem.instanceId,
-                        self.draggedItem.itemBaseId, self.sourceGridId, tostring(self.draggedItemIsRotated)))
+                        self.draggedItem.itemBaseId, self.sourceGridId,
+                        self.sourceSlotId and ("[" .. self.sourceSlotId .. "]") or "",
+                        tostring(self.draggedItemIsRotated)))
                     return
                 elseif consumed then
                     return -- Consumiu sem iniciar drag (ex: tab storage)
@@ -419,6 +426,7 @@ function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
                     isDragging = self.isDragging,
                     draggedItem = self.draggedItem,
                     sourceGridId = self.sourceGridId,
+                    sourceSlotId = self.sourceSlotId,
                     draggedItemIsRotated = self.draggedItemIsRotated,
                     targetGridId = self.targetGridId,            -- Calculado no update
                     targetSlotCoords = self.targetSlotCoords,    -- Calculado no update
@@ -442,6 +450,7 @@ function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
             self.isDragging = false
             self.draggedItem = nil
             self.sourceGridId = nil
+            self.sourceSlotId = nil
             self.targetGridId = nil
             self.targetSlotCoords = nil
             self.isDropValid = false

@@ -288,8 +288,42 @@ function EquipmentScreen:handleMousePress(x, y, buttonIdx)
             return true, dragStartData -- Consumiu e iniciou drag
         end
 
-        -- 3. Verifica clique nos slots de equipamento (para possível desequipar no futuro?)
-        -- TODO: Implementar lógica de clique nos slots de equipamento se necessário
+        -- 3. Verifica clique nos slots de equipamento (para iniciar drag)
+        if not itemClicked then -- Só checa se não clicou em item de grade
+            local equippedItemClicked = nil
+            local clickedEquipSlotId = nil
+            for slotId, area in pairs(self.equipmentSlotAreas or {}) do
+                if x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
+                    -- Clique dentro da área de um slot de equipamento
+                    local equippedItems = self.hunterManager:getActiveEquippedItems()
+                    if equippedItems and equippedItems[slotId] then
+                        -- Slot tem um item, inicia o drag
+                        equippedItemClicked = equippedItems[slotId]
+                        clickedEquipSlotId = slotId
+                        print(string.format("EquipmentScreen: Clique para desequipar item %s do slot %s",
+                            equippedItemClicked.itemBaseId, clickedEquipSlotId))
+                        break -- Encontrou o slot clicado
+                    end
+                end
+            end
+
+            if equippedItemClicked and clickedEquipSlotId then
+                -- Calcula offset relativo ao slot de equipamento
+                local slotArea = self.equipmentSlotAreas[clickedEquipSlotId]
+                itemOffsetX = x - slotArea.x
+                itemOffsetY = y - slotArea.y
+
+                local dragStartData = {
+                    item = equippedItemClicked,
+                    sourceGridId = "equipment",        -- Marca a origem como equipamento
+                    sourceSlotId = clickedEquipSlotId, -- Guarda qual slot específico
+                    offsetX = itemOffsetX,
+                    offsetY = itemOffsetY,
+                    isRotated = false      -- Item em slot de equipamento é sempre considerado não rotacionado visualmente
+                }
+                return true, dragStartData -- Consumiu e iniciou drag do equipamento
+            end
+        end
     end
     return false, nil -- Não consumiu o clique
 end
@@ -400,52 +434,105 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                     dragState.targetSlotCoords.row,
                     dragState.targetSlotCoords.col))
 
-                local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
-                    self.loadoutManager
                 local targetManager = (dragState.targetGridId == "storage") and self.lobbyStorageManager or
                     self.loadoutManager
-                local itemToMove = dragState.draggedItem
 
-                -- 1. Remove da origem
-                local removed, removedFromSectionIndex
-                if dragState.sourceGridId == "storage" then
-                    removed, removedFromSectionIndex = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
-                else
-                    removed = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
-                end
+                -- <<< INÍCIO: Lógica para Mover ou Desequipar >>>
+                if dragState.sourceGridId == "equipment" then
+                    -- Desequipando item para a grade
+                    print(string.format("EquipmentScreen: Tentando desequipar item do slot %s", dragState.sourceSlotId))
+                    -- Chama a função para desequipar, esperando a instância do item de volta
+                    local unequippedItem = self.hunterManager:unequipItem(dragState.sourceSlotId)
 
-                if removed then
-                    -- 2. Adiciona ao destino
-                    local added = targetManager:addItemAt(itemToMove, dragState.targetSlotCoords.row,
-                        dragState.targetSlotCoords.col, dragState.draggedItemIsRotated)
-                    if not added then
-                        print("ERRO CRÍTICO (EquipmentScreen): Falha ao adicionar item ao destino (",
+                    if unequippedItem then
+                        print(string.format("EquipmentScreen: Item %d (%s) desequipado com sucesso.",
+                            unequippedItem.instanceId,
+                            unequippedItem.itemBaseId))
+
+                        -- DEBUG: Imprime informações antes de adicionar
+                        print(string.format(
+                            "  DEBUG (EquipmentScreen): Tentando adicionar a %s. Item ID: %d. Coords: [%d,%d]. Rotated: %s",
                             dragState.targetGridId,
-                            ") após remover da origem (", dragState.sourceGridId, ")! Tentando devolver...")
-                        -- <<< DESFAZ ROTAÇÃO SE A DEVOLUÇÃO FALHAR? >>>
-                        -- Se a rotação foi aplicada e a adição falhou, talvez seja necessário
-                        -- desfazer a rotação antes de tentar devolver à origem.
-                        -- if dragState.draggedItemIsRotated then
-                        --     local oldW = itemToMove.gridWidth or 1
-                        --     local oldH = itemToMove.gridHeight or 1
-                        --     itemToMove.gridWidth = oldH
-                        --     itemToMove.gridHeight = oldW
-                        --     print("(EquipmentScreen) Rotação DESFEITA no item", itemToMove.instanceId,
-                        --         " após falha no add")
-                        -- end
-                        -- ... (lógica de devolver para origem) ...
+                            unequippedItem.instanceId,
+                            dragState.targetSlotCoords.row,
+                            dragState.targetSlotCoords.col,
+                            tostring(dragState.draggedItemIsRotated)))
+                        print("  DEBUG (EquipmentScreen): targetManager é nil?", targetManager == nil)
+
+                        -- Tenta adicionar ao inventário alvo
+                        local added = targetManager:addItemAt(unequippedItem, dragState.targetSlotCoords.row,
+                            dragState.targetSlotCoords.col, dragState.draggedItemIsRotated)
+
+                        -- DEBUG: Imprime o resultado do addItemAt
+                        print(string.format("  DEBUG (EquipmentScreen): targetManager:addItemAt retornou: %s",
+                            tostring(added)))
+
+                        if not added then
+                            print(string.format(
+                                "ERRO CRÍTICO (EquipmentScreen): Falha ao adicionar item desequipado %d a %s! Tentando devolver ao equipamento...",
+                                unequippedItem.instanceId, dragState.targetGridId))
+                            -- Tenta re-equipar (pode falhar se outro item foi equipado enquanto arrastava?)
+                            local reequipped, _ = self.hunterManager:equipItem(unequippedItem, dragState.sourceSlotId)
+                            if not reequipped then
+                                print(string.format(
+                                    "ERRO GRAVÍSSIMO: Falha ao re-equipar item %d no slot %s! Item perdido?",
+                                    unequippedItem.instanceId, dragState.sourceSlotId))
+                                -- TODO: Implementar sistema de "item caído"?
+                            end
+                        else
+                            print(string.format(
+                                "EquipmentScreen: Item desequipado %d adicionado a %s [%d,%d]",
+                                unequippedItem.instanceId, dragState.targetGridId, dragState.targetSlotCoords.row,
+                                dragState.targetSlotCoords.col))
+                        end
                     else
-                        print(string.format("EquipmentScreen: Item %d movido de %s para %s [%d,%d]",
-                            itemToMove.instanceId, dragState.sourceGridId, dragState.targetGridId,
-                            dragState.targetSlotCoords.row, dragState.targetSlotCoords.col))
+                        print(string.format(
+                            "ERRO (EquipmentScreen): Falha ao desequipar item do slot %s (hunterManager:unequipItem falhou).",
+                            dragState.sourceSlotId))
+                        -- O item permanece equipado, o arraste falhou.
                     end
-                else
-                    print(string.format("ERRO (EquipmentScreen): Falha ao remover item %d da origem %s.",
-                        itemToMove.instanceId, dragState.sourceGridId))
+                    -- Mesmo que o desequipamento/adição falhe, consideramos o evento de drop tratado
+                    -- para evitar que a cena tente fazer algo mais.
+                    return true
+                else -- Se a origem NÃO era "equipment" (ou seja, era "storage" ou "loadout")
+                    -- Movendo item ENTRE grades (Storage/Loadout)
+                    local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
+                        self.loadoutManager
+                    local itemToMove = dragState.draggedItem
+
+                    -- 1. Remove da origem
+                    local removed = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
+
+                    if removed then
+                        -- 2. Adiciona ao destino
+                        local added = targetManager:addItemAt(itemToMove, dragState.targetSlotCoords.row,
+                            dragState.targetSlotCoords.col, dragState.draggedItemIsRotated)
+                        if not added then
+                            print(string.format(
+                                "ERRO CRÍTICO (EquipmentScreen): Falha ao adicionar item ao destino (%s) após remover da origem (%s)! Tentando devolver...",
+                                dragState.targetGridId, dragState.sourceGridId))
+                            -- Tenta devolver para a origem
+                            local addedBack = sourceManager:addItemInstance(itemToMove) -- Supõe que addItemInstance tenta achar espaço
+                            if not addedBack then
+                                print(string.format(
+                                    "ERRO GRAVÍSSIMO: Falha ao devolver item %d para a origem %s! Item perdido?",
+                                    itemToMove.instanceId, dragState.sourceGridId))
+                            end
+                        else
+                            print(string.format("EquipmentScreen: Item %d movido de %s para %s [%d,%d]",
+                                itemToMove.instanceId, dragState.sourceGridId, dragState.targetGridId,
+                                dragState.targetSlotCoords.row, dragState.targetSlotCoords.col))
+                        end
+                    else
+                        print(string.format("ERRO (EquipmentScreen): Falha ao remover item %d da origem %s.",
+                            itemToMove.instanceId, dragState.sourceGridId))
+                    end
+                    -- Mesmo que a movimentação falhe, consideramos o evento de drop tratado.
+                    return true
                 end
-                return true -- Drop em grade tratado (com sucesso ou erro)
-            end
-        end
+                -- <<< FIM: Lógica para Mover ou Desequipar >>>
+            end -- Fim do if targetGridId == storage or loadout
+        end     -- Fim do if isDropValid
 
         -- Se chegou aqui, o drop não foi em um slot de equipamento válido nem em uma grade válida gerenciada por esta tela
         print("EquipmentScreen: Drop inválido ou fora de área gerenciada.")
