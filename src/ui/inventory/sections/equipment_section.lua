@@ -253,27 +253,41 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
         -- damageType precisaria ser definido nos dados base se quisermos exibi-lo
         local damageType = "Físico" -- Placeholder
 
-        -- Desenha Ícone (ROTACIONADO E ESCALADO)
+        -- Desenha Ícone (CONDICIONALMENTE ROTACIONADO E ESCALADO)
         if weaponInstance.icon and type(weaponInstance.icon) == "userdata" then
             local icon = weaponInstance.icon
             local iw, ih = icon:getDimensions()
-
-            -- Calcula escala para encaixar o ícone ROTACIONADO dentro do slot
-            -- Dimensões rotacionadas: largura=ih, altura=iw
-            local scale = math.min(weaponSlotW / ih, weaponSlotH / iw)
-
-            -- Define o centro da imagem original como origem da rotação/escala
+            local rotation = 0
+            local scale = 1
             local ox, oy = iw / 2, ih / 2
+            local drawX, drawY
 
-            -- Define a posição para desenhar (centro do slot)
-            local drawX = weaponSlotX + weaponSlotW / 2
-            local drawY = weaponSlotY + weaponSlotH / 2
+            -- Verifica dimensões para decidir se rotaciona
+            if weaponInstance.gridWidth and weaponInstance.gridHeight and weaponInstance.gridWidth > weaponInstance.gridHeight then
+                -- Arma já é 'horizontal' (largura > altura), não rotacionar
+                rotation = 0
+                -- Escala para caber sem rotação (com 90% de padding)
+                scale = math.min(weaponSlotW * 0.9 / iw, weaponSlotH * 0.9 / ih)
+                -- Posiciona imagem NÃO rotacionada (ancorada à direita, centro vertical)
+                drawX = weaponSlotX + weaponSlotW - (iw * scale / 2) -- Alinha borda direita da imagem (largura iw*scale)
+                drawY = weaponSlotY + weaponSlotH / 2
+            else
+                -- Arma 'vertical' ou quadrada (altura >= largura), rotacionar 90 graus
+                rotation = math.pi / 2
+                -- Escala para caber com rotação (largura vira altura, altura vira largura) (com 90% de padding)
+                scale = math.min(weaponSlotW * 0.9 / ih, weaponSlotH * 0.9 / iw)
+                -- Posiciona imagem rotacionada (ancorada à direita, centro vertical)
+                drawX = weaponSlotX + weaponSlotW -
+                    (ih * scale / 2)                  -- Alinha borda direita da imagem rotacionada (largura ih*scale)
+                drawY = weaponSlotY + weaponSlotH / 2 -- Centro vertical
+            end
 
             love.graphics.setColor(1, 1, 1, 1) -- Garante branco
-            -- Desenha com rotação de 90 graus (math.pi/2)
-            love.graphics.draw(icon, drawX, drawY, math.pi / 2, scale, scale, ox, oy)
+            -- Desenha com a rotação e escala calculadas
+            love.graphics.draw(icon, drawX, drawY, rotation, scale, scale, ox, oy)
         else
-            -- Placeholder de Ícone (Não rotacionado)
+            -- Placeholder de Ícone (Lógica existente)
+            local name = weaponInstance.name or "Arma"
             local iconSize = math.min(weaponSlotW, weaponSlotH) * 0.8 -- Ajusta ao menor lado
             local iconX = weaponSlotX + (weaponSlotW - iconSize) / 2
             local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2

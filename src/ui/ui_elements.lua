@@ -336,39 +336,55 @@ end
 ---@param y number Posição Y do canto superior esquerdo do fantasma.
 ---@param itemInstance table Instância do item a desenhar.
 ---@param alpha number Nível de transparência (0 a 1).
-function elements.drawItemGhost(x, y, itemInstance, alpha)
+---@param isRotated boolean|nil Se o item deve ser desenhado rotacionado (90 graus).
+function elements.drawItemGhost(x, y, itemInstance, alpha, isRotated)
     if not itemInstance then return end
     alpha = alpha or 0.75 -- Padrão para 75% de opacidade
+    isRotated = isRotated or false
 
-    -- Calcula dimensões visuais baseado no grid
+    -- Calcula dimensões visuais BASE originais baseado no grid
     local gridConfig = require("src.ui.item_grid_ui").__gridConfig -- Pode precisar ajustar acesso
     local slotSize = (gridConfig and gridConfig.slotSize or 48)
     local padding = (gridConfig and gridConfig.padding or 5)
     local slotTotalWidth = slotSize + padding
     local slotTotalHeight = slotSize + padding
 
-    local width = itemInstance.gridWidth or 1
-    local height = itemInstance.gridHeight or 1
-    local visualW = width * slotTotalWidth - padding
-    local visualH = height * slotTotalHeight - padding
+    local originalGridW = itemInstance.gridWidth or 1
+    local originalGridH = itemInstance.gridHeight or 1
 
-    -- 1. Desenha um fundo semi-transparente (opcional, mas ajuda visibilidade)
+    local baseVisualW = originalGridW * slotTotalWidth - padding
+    local baseVisualH = originalGridH * slotTotalHeight - padding
+
+    -- Ajusta dimensões visuais se rotacionado
+    local visualW = isRotated and baseVisualH or baseVisualW
+    local visualH = isRotated and baseVisualW or baseVisualH
+
+    -- 1. Desenha um fundo semi-transparente
     love.graphics.setColor(0, 0, 0, alpha * 0.5) -- Preto com metade da opacidade do item
     love.graphics.rectangle("fill", x, y, visualW, visualH, 3, 3)
 
-    -- 2. Desenha o ícone com a transparência principal
+    -- 2. Desenha o ícone com a transparência principal e rotação
     love.graphics.setColor(1, 1, 1, alpha)
     local iconToDraw = itemInstance.icon
     if iconToDraw and type(iconToDraw) == "userdata" and iconToDraw:typeOf("Image") then
-        -- Calcula a escala necessária para preencher visualW e visualH
         local originalW = iconToDraw:getWidth()
         local originalH = iconToDraw:getHeight()
-        local scaleX = visualW / originalW
-        local scaleY = visualH / originalH
-        -- Desenha a imagem escalonada na posição x, y
-        love.graphics.draw(iconToDraw, x, y, 0, scaleX, scaleY)
+
+        -- Calcula a escala necessária para preencher baseVisualW e baseVisualH (dimensões originais do ícone)
+        local scaleX = baseVisualW / originalW
+        local scaleY = baseVisualH / originalH
+
+        -- Calcula o centro para rotação e o deslocamento para desenhar no lugar certo
+        local centerX = visualW / 2
+        local centerY = visualH / 2
+        local drawX = x + centerX
+        local drawY = y + centerY
+        local rotationAngle = isRotated and math.pi / 2 or 0
+
+        -- Desenha a imagem escalonada, rotacionada e centralizada na posição x, y
+        love.graphics.draw(iconToDraw, drawX, drawY, rotationAngle, scaleX, scaleY, originalW / 2, originalH / 2)
     else
-        -- Fallback: Desenha letra do nome
+        -- Fallback: Desenha letra do nome (a rotação aqui não é aplicada visualmente)
         local placeholderText = itemInstance.name and string.sub(itemInstance.name, 1, 1) or "?"
         local fnt = fonts.title or love.graphics.getFont()
         local oldFnt = love.graphics.getFont()
@@ -377,7 +393,7 @@ function elements.drawItemGhost(x, y, itemInstance, alpha)
         love.graphics.setFont(oldFnt)
     end
 
-    -- 3. Desenha a borda da raridade (também com alpha)
+    -- 3. Desenha a borda da raridade (com as dimensões corretas)
     local rarity = itemInstance.rarity or 'E'
     elements.drawRarityBorderAndGlow(rarity, x, y, visualW, visualH, alpha)
 

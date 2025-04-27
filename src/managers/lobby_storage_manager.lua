@@ -176,59 +176,92 @@ function LobbyStorageManager:removeItemByInstanceId(instanceId)
     return false, nil -- Item não encontrado em nenhuma seção
 end
 
---- Verifica se um item pode ser colocado na posição especificada na seção ativa.
--- Não modifica o estado, apenas verifica.
---- @param itemInstance table A instância do item a ser colocada.
---- @param targetRow number Linha alvo.
---- @param targetCol number Coluna alvo.
---- @return boolean True se o espaço estiver livre e dentro dos limites.
-function LobbyStorageManager:canPlaceItemAt(itemInstance, targetRow, targetCol)
-    local activeSection = self.sections[self.activeSectionIndex]
-    if not activeSection or not itemInstance then return false end
-
-    local width = itemInstance.gridWidth or 1
-    local height = itemInstance.gridHeight or 1
-
-    -- Verifica se a área está livre NA SEÇÃO ATIVA
-    return self:_isAreaFree(activeSection, targetRow, targetCol, width, height)
-end
-
---- Adiciona uma instância de item específica na posição dada na seção ativa.
--- Assume que a validade já foi checada com canPlaceItemAt.
---- @param itemInstance table A instância completa do item a ser adicionada.
---- @param targetRow number Linha alvo.
---- @param targetCol number Coluna alvo.
---- @return boolean True se adicionado com sucesso.
-function LobbyStorageManager:addItemAt(itemInstance, targetRow, targetCol)
-    local activeSection = self.sections[self.activeSectionIndex]
-    if not activeSection or not itemInstance or not targetRow or not targetCol then
-        print("ERRO [LobbyStorageManager:addItemAt]: Argumentos inválidos.")
+--- Verifica se um item pode ser colocado em uma posição específica na seção ativa.
+---@param item table Instância do item a ser colocado.
+---@param targetRow integer Linha alvo (1-indexed).
+---@param targetCol integer Coluna alvo (1-indexed).
+---@param checkWidth integer|nil Largura a ser usada para a checagem (usa item.gridWidth se nil).
+---@param checkHeight integer|nil Altura a ser usada para a checagem (usa item.gridHeight se nil).
+---@return boolean True se o item pode ser colocado, false caso contrário.
+function LobbyStorageManager:canPlaceItemAt(item, targetRow, targetCol, checkWidth, checkHeight)
+    if not item or not targetRow or not targetCol then
+        print("ERRO (canPlaceItemAt - Storage): Parâmetros inválidos.")
         return false
     end
 
-    local instanceId = itemInstance.instanceId
-    local width = itemInstance.gridWidth or 1
-    local height = itemInstance.gridHeight or 1
+    local section = self.sections[self.activeSectionIndex]
+    if not section then
+        print("ERRO (canPlaceItemAt - Storage): Seção ativa inválida:", self.activeSectionIndex)
+        return false
+    end
 
-    -- Atualiza posição na instância
-    itemInstance.row = targetRow
-    itemInstance.col = targetCol
+    -- Usa as dimensões fornecidas para a checagem, ou as do item como fallback
+    local itemW = checkWidth or item.gridWidth or 1
+    local itemH = checkHeight or item.gridHeight or 1
 
-    -- Adiciona à tabela de itens da seção
-    activeSection.items[instanceId] = itemInstance
+    -- 1. Verifica limites da grade
+    if targetRow < 1 or targetCol < 1 or targetRow + itemH - 1 > section.rows or targetCol + itemW - 1 > section.cols then
+        -- print(string.format("DEBUG (canPlaceItemAt - Storage): Fora dos limites [%d,%d] para item %dx%d em grid %dx%d", targetRow, targetCol, itemW, itemH, section.rows, section.cols))
+        return false -- Fora dos limites da grade
+    end
 
-    -- Marca a grade
-    for r = targetRow, targetRow + height - 1 do
-        for c = targetCol, targetCol + width - 1 do
-            if activeSection.grid[r] then
-                activeSection.grid[r][c] = instanceId
-            else
-                print(string.format("ERRO [LobbyStorageManager:addItemAt]: Linha %d inválida na grade ao marcar!", r))
+    -- 2. Verifica colisão com outros itens na grade
+    for r = targetRow, targetRow + itemH - 1 do
+        for c = targetCol, targetCol + itemW - 1 do
+            if section.grid[r] and section.grid[r][c] then
+                -- Verifica se a célula ocupada pertence ao item que estamos tentando mover (caso de swap futuro?)
+                if section.grid[r][c] ~= item.instanceId then
+                    -- print(string.format("DEBUG (canPlaceItemAt - Storage): Colisão em [%d,%d] com item ID %s", r, c, tostring(section.grid[r][c])))
+                    return false -- Já ocupado por outro item
+                end
             end
         end
     end
-    print(string.format("[LobbyStorageManager:addItemAt] Item %d (%s) adicionado em [%d,%d]", instanceId,
-        itemInstance.itemBaseId, targetRow, targetCol))
+
+    -- print(string.format("DEBUG (canPlaceItemAt - Storage): Posição [%d,%d] válida para item %dx%d", targetRow, targetCol, itemW, itemH))
+    return true -- Espaço livre
+end
+
+--- Adiciona um item em uma posição específica na seção ativa.
+--- Assume que canPlaceItemAt já foi chamado e retornou true.
+---@param item table A instância do item a ser adicionado.
+---@param targetRow integer Linha alvo (1-indexed).
+---@param targetCol integer Coluna alvo (1-indexed).
+---@param isRotated boolean|nil Se o item deve ser armazenado como rotacionado.
+---@return boolean True se o item foi adicionado, false caso contrário.
+function LobbyStorageManager:addItemAt(item, targetRow, targetCol, isRotated)
+    if not item or not targetRow or not targetCol then
+        print("ERRO (addItemAt - Storage): Parâmetros inválidos.")
+        return false
+    end
+    local section = self.sections[self.activeSectionIndex]
+    if not section then return false end
+
+    -- Usa as dimensões REAIS do item (rotação NÃO é aplicada aqui, apenas armazenada)
+    local itemW = item.gridWidth or 1
+    local itemH = item.gridHeight or 1
+
+    -- Atualiza a posição e o estado de rotação do item
+    item.row = targetRow
+    item.col = targetCol
+    item.isRotated = isRotated or false           -- Armazena o estado de rotação
+    item.storageSection = self.activeSectionIndex -- Marca em qual seção ele está
+
+    -- Adiciona o item à lista da seção
+    -- Se já existe (caso de mover item que foi pego da mesma seção), atualiza. Senão, adiciona.
+    section.items[item.instanceId] = item
+
+    -- Ocupa os slots na grade
+    for r = targetRow, targetRow + itemH - 1 do
+        for c = targetCol, targetCol + itemW - 1 do
+            if not section.grid[r] then section.grid[r] = {} end
+            section.grid[r][c] = item.instanceId -- Marca com ID da instância
+        end
+    end
+
+    print(string.format("(Storage) Item %d (%s) adicionado/atualizado na seção %d em [%d,%d], Rotacionado: %s",
+        item.instanceId, item.itemBaseId,
+        self.activeSectionIndex, targetRow, targetCol, tostring(item.isRotated)))
     return true
 end
 
@@ -461,7 +494,8 @@ function LobbyStorageManager:saveStorage()
                 itemBaseId = item.itemBaseId,
                 quantity = item.quantity,
                 row = item.row,
-                col = item.col
+                col = item.col,
+                isRotated = item.isRotated or false -- Salva o estado de rotação
                 -- Não precisa salvar gridWidth/Height etc., pois são pegos do ItemDataManager ao carregar
             }
         end
@@ -543,6 +577,7 @@ function LobbyStorageManager:loadStorage()
                                     quantity = itemSaveData.quantity,
                                     row = itemSaveData.row,
                                     col = itemSaveData.col,
+                                    isRotated = itemSaveData.isRotated or false, -- Carrega o estado de rotação
                                     -- Adiciona dados base novamente
                                     gridWidth = width,
                                     gridHeight = height,

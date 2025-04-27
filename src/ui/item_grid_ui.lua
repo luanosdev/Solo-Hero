@@ -117,8 +117,18 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
             -- Calcula a posição do slot onde o item começa
             local itemSlotX = startX + (itemInfo.col - 1) * slotTotalWidth
             local itemSlotY = startY + (itemInfo.row - 1) * slotTotalHeight
-            local itemDrawW = (itemInfo.gridWidth or 1) * slotTotalWidth - gridConfig.padding
-            local itemDrawH = (itemInfo.gridHeight or 1) * slotTotalHeight - gridConfig.padding
+
+            -- <<< INÍCIO: Modificação para rotação >>>
+            local isRotated = itemInfo.isRotated or false
+            local gridW = itemInfo.gridWidth or 1
+            local gridH = itemInfo.gridHeight or 1
+
+            -- Dimensões VISUAIS (para desenho e borda)
+            local visualW = isRotated and (gridH * slotTotalHeight - gridConfig.padding) or
+                (gridW * slotTotalWidth - gridConfig.padding)
+            local visualH = isRotated and (gridW * slotTotalWidth - gridConfig.padding) or
+                (gridH * slotTotalHeight - gridConfig.padding)
+            -- <<< FIM: Modificação para rotação >>>
 
             -- Tenta obter dados do item (com cache)
             local itemData = itemDataCache[itemInfo.itemBaseId]
@@ -132,20 +142,20 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
                 itemDataCache[itemInfo.itemBaseId] = itemData
             end
 
-            if itemData or itemInfo.name then      -- Usa itemInfo.name como fallback se data falhar
+            if itemData or itemInfo.name then                                                 -- Usa itemInfo.name como fallback se data falhar
                 -- 1. Fundo Preto
-                love.graphics.setColor(0, 0, 0, 1) -- Preto opaco
-                love.graphics.rectangle("fill", itemSlotX, itemSlotY, itemDrawW, itemDrawH, 3, 3)
+                love.graphics.setColor(0, 0, 0, 1)                                            -- Preto opaco
+                love.graphics.rectangle("fill", itemSlotX, itemSlotY, visualW, visualH, 3, 3) -- Usa visualW/H
 
                 -- 2. Overlay Transparente da Raridade
                 local rarity = itemInfo.rarity or 'E'
                 local rarityColor = colors.rarity[rarity] or colors.rarity['E']
 
                 if rarityColor then
-                    love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], 0.5) -- Mantém 50% alpha
-                    love.graphics.rectangle("fill", itemSlotX, itemSlotY, itemDrawW, itemDrawH, 3, 3)
+                    love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], 0.5)   -- Mantém 50% alpha
+                    love.graphics.rectangle("fill", itemSlotX, itemSlotY, visualW, visualH, 3, 3) -- Usa visualW/H
                 end
-                love.graphics.setColor(colors.white) -- Reset para branco antes de desenhar ícone/placeholder
+                love.graphics.setColor(colors.white)                                              -- Reset para branco antes de desenhar ícone/placeholder
 
                 -- 3. Desenha Ícone (se existir)
                 local iconToDraw = itemInfo.icon
@@ -153,32 +163,47 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
 
                 local iconExists = iconToDraw and type(iconToDraw) == "userdata" and iconToDraw:typeOf("Image")
                 if iconExists then
-                    -- Desenha o ícone escalonado
+                    -- Desenha o ícone escalonado e rotacionado se necessário
                     local originalW = iconToDraw:getWidth()
                     local originalH = iconToDraw:getHeight()
-                    local scaleX = itemDrawW / originalW
-                    local scaleY = itemDrawH / originalH
-                    love.graphics.draw(iconToDraw, itemSlotX, itemSlotY, 0, scaleX, scaleY)
+
+                    -- <<< INÍCIO: Cálculo de escala e rotação >>>
+                    -- A escala é baseada nas dimensões NÃO ROTACIONADAS do espaço que o item ocupa
+                    local baseVisualW = gridW * slotTotalWidth - gridConfig.padding
+                    local baseVisualH = gridH * slotTotalHeight - gridConfig.padding
+                    local scaleX = baseVisualW / originalW
+                    local scaleY = baseVisualH / originalH
+
+                    -- Centro da área VISUAL para rotação
+                    local centerX = visualW / 2
+                    local centerY = visualH / 2
+                    local drawX = itemSlotX + centerX
+                    local drawY = itemSlotY + centerY
+                    local rotationAngle = isRotated and math.pi / 2 or 0
+
+                    love.graphics.draw(iconToDraw, drawX, drawY, rotationAngle, scaleX, scaleY, originalW / 2,
+                        originalH / 2)
+                    -- <<< FIM: Cálculo de escala e rotação >>>
                 else
                     -- 4. Desenha placeholder APENAS se não houver ícone
                     love.graphics.setColor(colors.white)
                     local placeholderText = itemInfo.name and string.sub(itemInfo.name, 1, 1) or "?"
                     love.graphics.setFont(fonts.title)
-                    love.graphics.printf(placeholderText, itemSlotX, itemSlotY + itemDrawH * 0.1, itemDrawW, "center")
+                    love.graphics.printf(placeholderText, itemSlotX, itemSlotY + visualH * 0.1, visualW, "center") -- Usa visualW/H
                     love.graphics.setFont(slotFont)
                 end
 
                 -- 5. Desenha borda/brilho da raridade (Usa a mesma variável 'rarity')
-                elements.drawRarityBorderAndGlow(rarity, itemSlotX, itemSlotY, itemDrawW, itemDrawH)
+                elements.drawRarityBorderAndGlow(rarity, itemSlotX, itemSlotY, visualW, visualH) -- Usa visualW/H
 
                 -- Desenha a quantidade (se maior que 1)
                 if itemInfo.quantity and itemInfo.quantity > 1 then
                     love.graphics.setColor(colors.item_quantity_text)
                     local qtyText = tostring(itemInfo.quantity)
                     local textW = slotFont:getWidth(qtyText)
-                    -- Posiciona o canto inferior direito no ultimo slot do item
-                    local textX = itemSlotX + itemDrawW - textW - 3
-                    local textY = itemSlotY + itemDrawH - slotFont:getHeight() - 2
+                    -- Posiciona o canto inferior direito no ultimo slot VISUAL do item
+                    local textX = itemSlotX + visualW - textW - 3                -- Usa visualW
+                    local textY = itemSlotY + visualH - slotFont:getHeight() - 2 -- Usa visualH
 
                     love.graphics.setColor(colors.black_transparent_more)
                     love.graphics.print(qtyText, textX + 1, textY + 1)
@@ -188,7 +213,7 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
             else
                 -- Se item existe mas não há dados base (erro?)
                 love.graphics.setColor(colors.red)
-                love.graphics.printf("?", itemSlotX, itemSlotY + itemDrawH / 3, itemDrawW, "center")
+                love.graphics.printf("?", itemSlotX, itemSlotY + visualH / 3, visualW, "center")
             end
         end
     end
@@ -268,11 +293,21 @@ function ItemGridUI.getItemInstanceAtCoords(mx, my, items, gridRows, gridCols, a
         if itemInfo and itemInfo.row and itemInfo.col then
             local itemSlotX = startX + (itemInfo.col - 1) * slotTotalWidth
             local itemSlotY = startY + (itemInfo.row - 1) * slotTotalHeight
-            local itemDrawW = (itemInfo.gridWidth or 1) * slotTotalWidth - gridConfig.padding
-            local itemDrawH = (itemInfo.gridHeight or 1) * slotTotalHeight - gridConfig.padding
 
-            -- Verifica se o mouse está dentro do retângulo do item
-            if mx >= itemSlotX and mx < itemSlotX + itemDrawW and my >= itemSlotY and my < itemSlotY + itemDrawH then
+            -- <<< INÍCIO: Calcula dimensões para checagem de clique considerando rotação >>>
+            local isRotated = itemInfo.isRotated or false
+            local gridW = itemInfo.gridWidth or 1
+            local gridH = itemInfo.gridHeight or 1
+
+            local checkGridW = isRotated and gridH or gridW
+            local checkGridH = isRotated and gridW or gridH
+
+            local itemCheckW = checkGridW * slotTotalWidth - gridConfig.padding
+            local itemCheckH = checkGridH * slotTotalHeight - gridConfig.padding
+            -- <<< FIM: Calcula dimensões para checagem de clique >>>
+
+            -- Verifica se o mouse está dentro do retângulo de checagem do item
+            if mx >= itemSlotX and mx < itemSlotX + itemCheckW and my >= itemSlotY and my < itemSlotY + itemCheckH then
                 return itemInfo -- Retorna a instância completa do item
             end
         end

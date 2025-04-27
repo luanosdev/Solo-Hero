@@ -198,55 +198,81 @@ function LoadoutManager:removeItemByInstanceId(instanceId)
     return success
 end
 
---- Verifica se um item pode ser colocado na posição especificada.
--- Não modifica o estado, apenas verifica.
---- @param itemInstance table A instância do item a ser colocada.
---- @param targetRow number Linha alvo.
---- @param targetCol number Coluna alvo.
---- @return boolean True se o espaço estiver livre e dentro dos limites.
-function LoadoutManager:canPlaceItemAt(itemInstance, targetRow, targetCol)
-    if not itemInstance then return false end
-    local width = itemInstance.gridWidth or 1
-    local height = itemInstance.gridHeight or 1
-    -- Usa a função _isAreaFree do próprio loadout
-    return self:_isAreaFree(targetRow, targetCol, width, height)
-end
-
---- Adiciona uma instância de item específica na posição dada.
--- Assume que a validade já foi checada com canPlaceItemAt.
---- @param itemInstance table A instância completa do item a ser adicionada.
---- @param targetRow number Linha alvo.
---- @param targetCol number Coluna alvo.
---- @return boolean True se adicionado com sucesso.
-function LoadoutManager:addItemAt(itemInstance, targetRow, targetCol)
-    if not itemInstance or not targetRow or not targetCol then
-        print("ERRO [LoadoutManager:addItemAt]: Argumentos inválidos.")
+--- Verifica se um item pode ser colocado em uma posição específica.
+---@param item table Instância do item a ser colocado.
+---@param targetRow integer Linha alvo (1-indexed).
+---@param targetCol integer Coluna alvo (1-indexed).
+---@param checkWidth integer|nil Largura a ser usada para a checagem (usa item.gridWidth se nil).
+---@param checkHeight integer|nil Altura a ser usada para a checagem (usa item.gridHeight se nil).
+---@return boolean True se o item pode ser colocado, false caso contrário.
+function LoadoutManager:canPlaceItemAt(item, targetRow, targetCol, checkWidth, checkHeight)
+    if not item or not targetRow or not targetCol then
+        print("ERRO (canPlaceItemAt - Loadout): Parâmetros inválidos.")
         return false
     end
 
-    local instanceId = itemInstance.instanceId
-    local width = itemInstance.gridWidth or 1
-    local height = itemInstance.gridHeight or 1
+    -- Usa as dimensões fornecidas para a checagem, ou as do item como fallback
+    local itemW = checkWidth or item.gridWidth or 1
+    local itemH = checkHeight or item.gridHeight or 1
 
-    -- Atualiza posição na instância
-    itemInstance.row = targetRow
-    itemInstance.col = targetCol
+    -- 1. Verifica limites da grade
+    if targetRow < 1 or targetCol < 1 or targetRow + itemH - 1 > self.rows or targetCol + itemW - 1 > self.cols then
+        -- print(string.format("DEBUG (canPlaceItemAt - Loadout): Fora dos limites [%d,%d] para item %dx%d em grid %dx%d", targetRow, targetCol, itemW, itemH, self.rows, self.cols))
+        return false -- Fora dos limites da grade
+    end
 
-    -- Adiciona à tabela de itens
-    self.items[instanceId] = itemInstance
-
-    -- Marca a grade
-    for r = targetRow, targetRow + height - 1 do
-        for c = targetCol, targetCol + width - 1 do
-            if self.grid[r] then
-                self.grid[r][c] = instanceId
-            else
-                print(string.format("ERRO [LoadoutManager:addItemAt]: Linha %d inválida na grade ao marcar!", r))
+    -- 2. Verifica colisão com outros itens na grade
+    for r = targetRow, targetRow + itemH - 1 do
+        for c = targetCol, targetCol + itemW - 1 do
+            if self.grid[r] and self.grid[r][c] then
+                -- Verifica se a célula ocupada pertence ao item que estamos tentando mover
+                if self.grid[r][c] ~= item.instanceId then
+                    -- print(string.format("DEBUG (canPlaceItemAt - Loadout): Colisão em [%d,%d] com item ID %s", r, c, tostring(self.grid[r][c])))
+                    return false -- Já ocupado por outro item
+                end
             end
         end
     end
-    print(string.format("[LoadoutManager:addItemAt] Item %d (%s) adicionado em [%d,%d]", instanceId,
-        itemInstance.itemBaseId, targetRow, targetCol))
+
+    -- print(string.format("DEBUG (canPlaceItemAt - Loadout): Posição [%d,%d] válida para item %dx%d", targetRow, targetCol, itemW, itemH))
+    return true -- Espaço livre
+end
+
+--- Adiciona um item em uma posição específica na grade.
+--- Assume que canPlaceItemAt já foi chamado e retornou true.
+---@param item table A instância do item a ser adicionado.
+---@param targetRow integer Linha alvo (1-indexed).
+---@param targetCol integer Coluna alvo (1-indexed).
+---@param isRotated boolean|nil Se o item deve ser armazenado como rotacionado.
+---@return boolean True se o item foi adicionado, false caso contrário.
+function LoadoutManager:addItemAt(item, targetRow, targetCol, isRotated)
+    if not item or not targetRow or not targetCol then
+        print("ERRO (addItemAt - Loadout): Parâmetros inválidos.")
+        return false
+    end
+
+    -- Usa as dimensões REAIS do item (rotação NÃO é aplicada aqui, apenas armazenada)
+    local itemW = item.gridWidth or 1
+    local itemH = item.gridHeight or 1
+
+    -- Atualiza a posição e o estado de rotação do item
+    item.row = targetRow
+    item.col = targetCol
+    item.isRotated = isRotated or false -- Armazena o estado de rotação
+
+    -- Adiciona o item à lista
+    self.items[item.instanceId] = item
+
+    -- Ocupa os slots na grade
+    for r = targetRow, targetRow + itemH - 1 do
+        for c = targetCol, targetCol + itemW - 1 do
+            if not self.grid[r] then self.grid[r] = {} end
+            self.grid[r][c] = item.instanceId -- Marca com ID da instância
+        end
+    end
+    print(string.format("(Loadout) Item %d (%s) adicionado/atualizado em [%d,%d], Rotacionado: %s", item.instanceId,
+        item.itemBaseId, targetRow,
+        targetCol, tostring(item.isRotated)))
     return true
 end
 
@@ -343,7 +369,8 @@ function LoadoutManager:saveLoadout(hunterId)
             itemBaseId = item.itemBaseId,
             quantity = item.quantity,
             row = item.row,
-            col = item.col
+            col = item.col,
+            isRotated = item.isRotated or false -- Salva o estado de rotação
         }
     end
 
@@ -418,6 +445,7 @@ function LoadoutManager:loadLoadout(hunterId)
                         quantity = itemSaveData.quantity,
                         row = itemSaveData.row,
                         col = itemSaveData.col,
+                        isRotated = itemSaveData.isRotated or false, -- Carrega o estado de rotação
                         gridWidth = width,
                         gridHeight = height,
                         stackable = baseData.stackable or false,
