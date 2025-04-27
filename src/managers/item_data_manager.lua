@@ -91,6 +91,12 @@ function ItemDataManager:init()
     local count = 0
     for _ in pairs(self.itemDatabase) do count = count + 1 end
     print("ItemDataManager inicializado com", count, "itens base.")
+
+    -- Adiciona outros arquivos de dados aqui
+    self:_loadDataFile("src.data.items.ammo", "munições")
+    self:_loadDataFile("src.data.items.runes", "runas")
+
+    print(string.format("[ItemDataManager] Carregamento concluído."))
 end
 
 -- Construtor
