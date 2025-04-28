@@ -10,9 +10,9 @@ local MockPlayerManager = require("src.managers.mock_player_manager")
 local ArchetypeManager = require("src.managers.archetype_manager")
 local HunterManager = require("src.managers.hunter_manager")
 local ManagerRegistry = require("src.managers.manager_registry")
-local EquipmentScreen = require("src.ui.equipment_screen")
-local PortalScreen = require("src.ui.portal_screen")
-local GuildScreen = require("src.ui.guild_screen")
+local EquipmentScreen = require("src.ui.screens.equipment_screen")
+local PortalScreen = require("src.ui.screens.portal_screen")
+local GuildScreen = require("src.ui.screens.guild_screen")
 local Constants = require("src.config.constants")
 
 

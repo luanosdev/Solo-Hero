@@ -11,6 +11,7 @@ HunterManager.__index = HunterManager
 
 local PersistenceManager = require("src.core.persistence_manager")
 local Constants = require("src.config.constants")
+local ArchetypesData = require("src.data.archetypes_data")
 
 local SAVE_FILE = "hunters.dat"
 
@@ -122,54 +123,64 @@ function HunterManager:_calculateFinalStats(hunterId)
         finalStats[key] = value
     end
 
-    -- 2. Apply archetype modifiers
+    -- 2. Apply archetype modifiers (New Structure)
     local archetypeIds = hunterData.archetypeIds or {}
-    local appliedModifiers = { -- To calculate multipliers separately
-        mult = {},
-        add = {}
-    }
+    local accumulatedBase = {} -- Accumulate base additions
+    local accumulatedMult = {} -- Accumulate multiplicative changes (start at 1.0)
 
     for _, archetypeId in ipairs(archetypeIds) do
         local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
         if archetypeData and archetypeData.modifiers then
-            for modifierKey, modifierValue in pairs(archetypeData.modifiers) do
-                -- Split key (e.g., "health") from type (e.g., "_add" or "_mult")
-                local statName, modifierType = modifierKey:match("^(.+)_([^_]+)$")
-
-                if statName and modifierType then
-                    if modifierType == "add" then
-                        appliedModifiers.add[statName] = (appliedModifiers.add[statName] or 0) + modifierValue
-                    elseif modifierType == "mult" then
-                        appliedModifiers.mult[statName] = (appliedModifiers.mult[statName] or 1.0) * modifierValue
-                    else
-                        print(string.format(
-                            "WARNING [_calculateFinalStats]: Unknown modifier type '%s' for '%s' in archetype '%s'",
-                            modifierType, statName, archetypeId))
-                    end
-                else
-                    print(string.format("WARNING [_calculateFinalStats]: Malformed modifier key '%s' in archetype '%s'",
-                        modifierKey, archetypeId))
+            -- Iterate through the list of modifier tables
+            for _, mod in ipairs(archetypeData.modifiers) do
+                local statName = mod.stat
+                if not statName then
+                    print(string.format(
+                        "WARNING [_calculateFinalStats]: Missing 'stat' field in modifier for archetype '%s'",
+                        archetypeId))
+                    goto continue_modifier_loop -- Skip this modifier
                 end
+
+                -- Check for baseValue
+                if mod.baseValue ~= nil then
+                    if finalStats[statName] == nil then
+                        print(string.format(
+                            "WARNING [_calculateFinalStats]: Base stat '%s' not found for baseValue in '%s'", statName,
+                            archetypeId))
+                    else
+                        accumulatedBase[statName] = (accumulatedBase[statName] or 0) + mod.baseValue
+                    end
+                end
+
+                -- Check for multValue
+                if mod.multValue ~= nil then
+                    if finalStats[statName] == nil then
+                        print(string.format(
+                            "WARNING [_calculateFinalStats]: Base stat '%s' not found for multValue in '%s'", statName,
+                            archetypeId))
+                    else
+                        -- Accumulate the percentage change (0.08 means +8%)
+                        accumulatedMult[statName] = (accumulatedMult[statName] or 0) + mod.multValue
+                    end
+                end
+                ::continue_modifier_loop::
             end
         end
     end
 
-    -- 3. Apply accumulated modifiers (Add first, then Mult)
-    for statName, addValue in pairs(appliedModifiers.add) do
+    -- 3. Apply accumulated modifiers (Base first, then Mult)
+    -- Apply Base Additions
+    for statName, baseAdd in pairs(accumulatedBase) do
         if finalStats[statName] ~= nil then
-            finalStats[statName] = finalStats[statName] + addValue
-        else
-            print(string.format("WARNING [_calculateFinalStats]: Base stat '%s' not found to apply _add modifier.",
-                statName))
+            finalStats[statName] = finalStats[statName] + baseAdd
         end
     end
 
-    for statName, multValue in pairs(appliedModifiers.mult) do
+    -- Apply Multiplicative Changes
+    for statName, multChange in pairs(accumulatedMult) do
         if finalStats[statName] ~= nil then
-            finalStats[statName] = finalStats[statName] * multValue
-        else
-            print(string.format("WARNING [_calculateFinalStats]: Base stat '%s' not found to apply _mult modifier.",
-                statName))
+            -- Apply the total multiplier (1.0 + accumulated percentage change)
+            finalStats[statName] = finalStats[statName] * (1.0 + multChange)
         end
     end
 
@@ -551,75 +562,269 @@ function HunterManager:_calculateStatsForCandidate(archetypeIds)
         finalStats[key] = value
     end
 
-    -- 2. Apply archetype modifiers
+    -- 2. Apply archetype modifiers (New Structure)
     archetypeIds = archetypeIds or {}
-    local appliedModifiers = { mult = {}, add = {} }
+    local accumulatedBase = {} -- Accumulate base additions
+    local accumulatedMult = {} -- Accumulate multiplicative changes
 
     for _, archetypeId in ipairs(archetypeIds) do
         local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
         if archetypeData and archetypeData.modifiers then
-            for modifierKey, modifierValue in pairs(archetypeData.modifiers) do
-                local statName, modifierType = modifierKey:match("^(.+)_([^_]+)$")
-                if statName and modifierType then
-                    if modifierType == "add" then
-                        appliedModifiers.add[statName] = (appliedModifiers.add[statName] or 0) + modifierValue
-                    elseif modifierType == "mult" then
-                        appliedModifiers.mult[statName] = (appliedModifiers.mult[statName] or 1.0) * modifierValue
-                    else
-                        print(string.format(
-                            "WARNING [_calculateStatsForCandidate]: Unknown modifier type '%s' for '%s' in archetype '%s'",
-                            modifierType, statName, archetypeId))
-                    end
-                else
+            -- Iterate through the list of modifier tables
+            for _, mod in ipairs(archetypeData.modifiers) do
+                local statName = mod.stat
+                if not statName then
                     print(string.format(
-                        "WARNING [_calculateStatsForCandidate]: Malformed modifier key '%s' in archetype '%s'",
-                        modifierKey, archetypeId))
+                        "WARNING [_calculateStatsForCandidate]: Missing 'stat' field in modifier for archetype '%s'",
+                        archetypeId))
+                    goto continue_candidate_mod_loop -- Skip this modifier
                 end
+
+                -- Check for baseValue
+                if mod.baseValue ~= nil then
+                    if finalStats[statName] == nil then
+                        print(string.format(
+                            "WARNING [_calculateStatsForCandidate]: Base stat '%s' not found for baseValue in '%s'",
+                            statName,
+                            archetypeId))
+                    else
+                        accumulatedBase[statName] = (accumulatedBase[statName] or 0) + mod.baseValue
+                    end
+                end
+
+                -- Check for multValue
+                if mod.multValue ~= nil then
+                    if finalStats[statName] == nil then
+                        print(string.format(
+                            "WARNING [_calculateStatsForCandidate]: Base stat '%s' not found for multValue in '%s'",
+                            statName,
+                            archetypeId))
+                    else
+                        -- Accumulate the percentage change
+                        accumulatedMult[statName] = (accumulatedMult[statName] or 0) + mod.multValue
+                    end
+                end
+                ::continue_candidate_mod_loop::
             end
         end
     end
 
-    -- 3. Apply accumulated modifiers (Add first, then Mult)
-    for statName, addValue in pairs(appliedModifiers.add) do
+    -- 3. Apply accumulated modifiers (Base first, then Mult)
+    -- Apply Base Additions
+    for statName, baseAdd in pairs(accumulatedBase) do
         if finalStats[statName] ~= nil then
-            finalStats[statName] = finalStats[statName] + addValue
-        else
-            print(string.format("WARNING [_calculateStatsForCandidate]: Base stat '%s' not found for _add modifier.",
-                statName))
+            finalStats[statName] = finalStats[statName] + baseAdd
         end
     end
-    for statName, multValue in pairs(appliedModifiers.mult) do
+
+    -- Apply Multiplicative Changes
+    for statName, multChange in pairs(accumulatedMult) do
         if finalStats[statName] ~= nil then
-            finalStats[statName] = finalStats[statName] * multValue
-        else
-            print(string.format("WARNING [_calculateStatsForCandidate]: Base stat '%s' not found for _mult modifier.",
-                statName))
+            -- Apply the total multiplier (1.0 + accumulated percentage change)
+            finalStats[statName] = finalStats[statName] * (1.0 + multChange)
         end
     end
 
     return finalStats
 end
 
---- Generates a list of potential hunter candidates for recruitment.
+--- Helper function for weighted random selection from a table.
+--- Input table format: { { weight = w1, data = d1 }, { weight = w2, data = d2 }, ... }
+--- OR { key1 = { weight = w1, ... }, key2 = { weight = w2, ... } } (returns the key)
+---@param choices table Table of choices with weights.
+---@return any The chosen data element or key.
+local function weightedRandomChoice(choices)
+    local totalWeight = 0
+    local isArray = type(choices[1]) == "table" -- Detect if it's an array of choices or a map
+
+    if isArray then
+        for i, choice in ipairs(choices) do
+            totalWeight = totalWeight + (choice.weight or 0)
+        end
+    else
+        -- Processando mapa (como ArchetypesData.Ranks)
+        print("DEBUG weightedRandomChoice: Calculating total weight for map...")
+        for key, choiceData in pairs(choices) do
+            local w = choiceData.recruitment_weight or 0
+            print(string.format("  - Key: %s, recruitment_weight: %.1f", tostring(key), w))
+            totalWeight = totalWeight + w
+        end
+    end
+
+    print(string.format("DEBUG weightedRandomChoice: Total Weight calculated: %.2f", totalWeight))
+    if totalWeight <= 0 then
+        print("DEBUG weightedRandomChoice: Total weight is zero or negative. Returning nil.")
+        return nil
+    end
+
+    local randomNum = love.math.random() * totalWeight
+    local cumulativeWeight = 0
+    print(string.format("DEBUG weightedRandomChoice: randomNum (0..totalWeight): %.4f", randomNum))
+
+    if isArray then
+        -- ... (lógica do array, não deve ser usada para ranks)
+    else
+        -- Process map (like ArchetypesData.Ranks)
+        print("DEBUG weightedRandomChoice: Iterating map for selection...")
+        for key, choiceData in pairs(choices) do
+            local weight = choiceData.recruitment_weight or 0
+            print(string.format("  -> Check: Key '%s', Weight %.1f. Is %.4f < %.4f + %.1f ?",
+                tostring(key), weight, randomNum, cumulativeWeight, weight))
+            if randomNum < cumulativeWeight + weight then
+                print(string.format("  -->> CHOSEN: %s", tostring(key)))
+                return key -- Return the key of the chosen item
+            end
+            cumulativeWeight = cumulativeWeight + weight
+        end
+        print("DEBUG weightedRandomChoice: Loop finished without choice (map). Returning nil.")
+    end
+
+    return nil -- Fallback, should not be reached if totalWeight > 0
+end
+
+--- Generates a list of potential hunter candidates for recruitment, respecting rank rules.
 --- @param count number The number of candidates to generate.
---- @return table A list of candidate data tables, each containing { id, name, baseRankId, finalRankId, archetypeIds, finalStats }.
+--- @return table A list of candidate data tables, each containing { id, name, baseRankId, finalRankId, archetypeIds, archetypes, finalStats }.
 function HunterManager:generateHunterCandidates(count)
     print(string.format("[HunterManager] Generating %d hunter candidates...", count))
     local candidates = {}
     local names = { "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta" } -- Pool de nomes
 
+    -- Pre-filter available archetypes by rank for efficiency
+    local archetypesByRank = {}
+    for archId, archData in pairs(ArchetypesData.Archetypes) do
+        local rank = archData.rank
+        if rank then
+            archetypesByRank[rank] = archetypesByRank[rank] or {}
+            table.insert(archetypesByRank[rank], archId)
+        end
+    end
+
     for i = 1, count do
         local candidate = {}
-        candidate.id = "candidate_" .. i                 -- ID temporário
-        candidate.name = "Candidato " .. (names[i] or i) -- Nome simples
-        candidate.baseRankId = "E"                       -- Começa com Rank E por enquanto
-        candidate.finalRankId = "E"
+        candidate.id = "candidate_" .. i
+        candidate.name = "Candidato " .. (names[i] or i)
 
-        -- Define número de arquétipos (ex: 1 ou 2)
-        local numArchetypes = love.math.random(1, 2)
-        candidate.archetypeIds = self.archetypeManager:getRandomArchetypeIds(numArchetypes)
+        -- 1. Determine Rank based on weights
+        local chosenRankId = weightedRandomChoice(ArchetypesData.Ranks)
+        print(string.format("  >> Weighted random choice for rank: %s", tostring(chosenRankId)))
+        if not chosenRankId then
+            print("ERROR [generateHunterCandidates]: Could not determine candidate rank. Defaulting to E.")
+            chosenRankId = "E"
+        end
+        local rankData = ArchetypesData.Ranks[chosenRankId]
+        candidate.baseRankId = chosenRankId -- Start at the generated rank
+        candidate.finalRankId = chosenRankId
 
-        -- Calcula os stats finais baseados nos arquétipos
+        -- 2. Determine Number of Archetypes for the rank
+        local minArchetypes = rankData.archetype_count_min or 1
+        local maxArchetypes = rankData.archetype_count_max or minArchetypes
+        local numArchetypes = love.math.random(minArchetypes, maxArchetypes)
+
+        -- 3. Select Archetypes according to new rule (Mandatory Rank + Lower Ranks)
+        candidate.archetypeIds = {}
+        local numArchetypesToPick = numArchetypes
+        local pickedArchetypesSet = {} -- To easily check for duplicates if needed
+
+        -- Pool of archetypes specific to the chosen rank
+        local rankSpecificArchetypes = archetypesByRank[chosenRankId] or {}
+        local availableRankSpecific = {}
+        for _, id in ipairs(rankSpecificArchetypes) do table.insert(availableRankSpecific, id) end -- Copy
+
+        -- Pool of archetypes from ranks LOWER than the chosen rank
+        local lowerRankArchetypesPool = {}
+        local rankOrder = { "E", "D", "C", "B", "A", "S" }
+        for _, currentRankId in ipairs(rankOrder) do
+            if currentRankId == chosenRankId then break end -- Stop before the chosen rank
+            local archetypesInThisRank = archetypesByRank[currentRankId] or {}
+            for _, archId in ipairs(archetypesInThisRank) do
+                table.insert(lowerRankArchetypesPool, archId)
+            end
+        end
+
+        -- Step 1: Pick at least one archetype of the chosen rank (if possible and needed)
+        if numArchetypesToPick > 0 and #availableRankSpecific > 0 then
+            local randomIndex = love.math.random(#availableRankSpecific)
+            local chosenArchId = availableRankSpecific[randomIndex]
+            table.insert(candidate.archetypeIds, chosenArchId)
+            pickedArchetypesSet[chosenArchId] = true
+            table.remove(availableRankSpecific, randomIndex) -- Remove from specific pool for step 2
+            numArchetypesToPick = numArchetypesToPick - 1
+            print(string.format("    - Picked mandatory Rank %s archetype: %s", chosenRankId, chosenArchId))
+
+            -- Also remove from the lower rank pool if it somehow existed there (shouldn't happen)
+            for k = #lowerRankArchetypesPool, 1, -1 do
+                if lowerRankArchetypesPool[k] == chosenArchId then
+                    table.remove(lowerRankArchetypesPool, k)
+                    break
+                end
+            end
+        elseif numArchetypesToPick > 0 and #availableRankSpecific == 0 then
+            print(string.format(
+                "WARNING [generateHunterCandidates]: Candidate Rank is %s, but NO archetypes were found for this specific rank. Picking only from lower ranks.",
+                chosenRankId))
+        end
+
+        -- Step 2: Pick remaining archetypes from the combined pool of lower ranks + REMAINING rank-specific
+        local remainingAvailablePool = {}
+        -- Add remaining rank-specific archetypes (those not picked in step 1)
+        for _, id in ipairs(availableRankSpecific) do table.insert(remainingAvailablePool, id) end
+        -- Add lower rank archetypes
+        for _, id in ipairs(lowerRankArchetypesPool) do table.insert(remainingAvailablePool, id) end
+
+        if numArchetypesToPick > 0 and #remainingAvailablePool > 0 then
+            print(string.format("    - Picking %d remaining archetypes from pool of %d (Ranks <= %s)",
+                numArchetypesToPick, #remainingAvailablePool, chosenRankId))
+            -- Ensure we don't try to pick more than available
+            local actualRemainingPicks = math.min(numArchetypesToPick, #remainingAvailablePool)
+
+            -- Shuffle the remaining pool
+            for j = #remainingAvailablePool, 2, -1 do
+                local k = love.math.random(j)
+                remainingAvailablePool[j], remainingAvailablePool[k] = remainingAvailablePool[k],
+                    remainingAvailablePool[j]
+            end
+
+            -- Pick the required number
+            local pickedCount = 0
+            for j = 1, #remainingAvailablePool do
+                if pickedCount >= actualRemainingPicks then break end -- Stop if we picked enough
+
+                local pickedId = remainingAvailablePool[j]
+                -- Check if already picked in step 1 OR earlier in this step (due to potential duplicates in original pools)
+                if not pickedArchetypesSet[pickedId] then
+                    table.insert(candidate.archetypeIds, pickedId)
+                    pickedArchetypesSet[pickedId] = true
+                    pickedCount = pickedCount + 1
+                    -- else -- Optional: Log if duplicate was avoided
+                    --    print(string.format("DEBUG: Skipped duplicate %s in remaining picks", pickedId))
+                end
+            end
+            -- Check if we actually picked enough (could happen if pool had many duplicates of the mandatory pick)
+            if pickedCount < actualRemainingPicks then
+                print(string.format(
+                    "WARNING [generateHunterCandidates]: Could only pick %d out of %d remaining archetypes due to potential duplicates or empty pool after mandatory pick.",
+                    pickedCount, actualRemainingPicks))
+            end
+        elseif numArchetypesToPick > 0 then
+            print(string.format(
+                "WARNING [generateHunterCandidates]: Needed %d more archetypes, but the remaining pool (Ranks <= %s) is empty.",
+                numArchetypesToPick, chosenRankId))
+        end
+
+        -- 4. Get full archetype data for the UI
+        candidate.archetypes = {}
+        for _, arcId in ipairs(candidate.archetypeIds) do
+            local arcData = self.archetypeManager:getArchetypeData(arcId) -- Use manager to get data
+            if arcData then
+                table.insert(candidate.archetypes, arcData)
+            else
+                print(string.format(
+                    "WARNING [generateHunterCandidates]: Could not get data for selected archetype ID '%s'", arcId))
+            end
+        end
+
+        -- 5. Calculate final stats based on selected archetype IDs
         candidate.finalStats = self:_calculateStatsForCandidate(candidate.archetypeIds)
 
         table.insert(candidates, candidate)

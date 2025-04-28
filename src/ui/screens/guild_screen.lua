@@ -5,6 +5,8 @@ local Button = require("src.ui.components.Button")
 local YStack = require("src.ui.components.YStack")
 local Text = require("src.ui.components.Text")
 local Card = require("src.ui.components.Card")
+local Section = require("src.ui.components.Section")
+local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
 
 ---@class GuildScreen
 ---@field hunterManager HunterManager
@@ -13,6 +15,7 @@ local Card = require("src.ui.components.Card")
 ---@field hunterListScrollY number Posição Y atual do scroll da lista de caçadores.
 ---@field hunterSlotRects table<string, table> Retângulos calculados para cada slot de caçador { [hunterId] = {x, y, w, h} }.
 ---@field recruitButton Button|nil Instância do botão de recrutar.
+---@field recruitCancelButton Button|nil Instância do botão de cancelar no modal.
 ---@field isRecruiting boolean Flag que indica se o modal de recrutamento está ativo.
 ---@field hunterCandidates table|nil Lista de dados dos caçadores candidatos gerados.
 ---@field recruitModalColumns table<number, YStack>|nil Colunas (YStacks) para cada candidato no modal.
@@ -32,10 +35,11 @@ function GuildScreen:new(hunterManager, archetypeManager)
     instance.selectedHunterId = hunterManager:getActiveHunterId() -- Começa selecionando o ativo
     instance.hunterListScrollY = 0
     instance.hunterSlotRects = {}
-    instance.isRecruiting = false     -- Modal começa inativo
+    instance.isRecruiting = false      -- Modal começa inativo
     instance.hunterCandidates = nil
-    instance.recruitModalColumns = {} -- Inicializa como tabela vazia
-    instance.isActiveFrame = false    -- Initialize flag
+    instance.recruitModalColumns = {}  -- Inicializa como tabela vazia
+    instance.isActiveFrame = false     -- Initialize flag
+    instance.recruitCancelButton = nil -- Inicializa botão cancelar
 
     if not instance.hunterManager or not instance.archetypeManager then
         error("[GuildScreen] CRITICAL ERROR: hunterManager or archetypeManager not injected!")
@@ -52,6 +56,8 @@ function GuildScreen:new(hunterManager, archetypeManager)
             instance.recruitButton.isEnabled = false                                   -- Desabilita o botão principal
             instance.recruitModalColumns = {}                                          -- Limpa/reseta colunas do modal anterior
             print(string.format("  >> Generated %d candidates. Recruitment modal active.", #instance.hunterCandidates))
+            -- Cria o botão Cancelar AQUI, quando o modal é ativado
+            instance:_createRecruitCancelButton()
         else
             print("ERROR [GuildScreen]: Failed to generate hunter candidates.")
             -- Poderia mostrar uma mensagem de erro na UI
@@ -59,17 +65,14 @@ function GuildScreen:new(hunterManager, archetypeManager)
     end
 
     -- Cria a instância do botão de Recrutar
-    -- CALCULA O RECT ABSOLUTO AQUI - ASSUMINDO x=0, y=0 por enquanto
-    -- Isso pode precisar de ajuste se GuildScreen for desenhada em outra posição
-    local screenW, screenH = love.graphics.getDimensions() -- Pega dimensões para calcular
+    local screenW, screenH = love.graphics.getDimensions()
     local headerHeight = 60
-    local contentH = screenH - headerHeight - 50           -- Subtrai altura das tabs também
+    local contentH = screenH - headerHeight - 50
     local buttonW = 180
     local buttonH = 40
     local buttonPadding = 15
-    local buttonX = (screenW - buttonW) / 2 -- Centralizado na LARGURA TOTAL (screenW)
-    local buttonY = headerHeight + contentH - buttonH -
-        buttonPadding                       -- Posicionado na parte inferior da ÁREA DE CONTEÚDO
+    local buttonX = (screenW - buttonW) / 2
+    local buttonY = headerHeight + contentH - buttonH - buttonPadding
 
     instance.recruitButton = Button:new({
         rect = { x = buttonX, y = buttonY, w = buttonW, h = buttonH },
@@ -273,29 +276,41 @@ end
 
 --- Desenha os modais de seleção de caçador usando Card e YStack.
 function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
-    -- Fundo semi-transparente
+    -- Fundo semi-transparente (COBRINDO A TELA INTEIRA)
+    local screenW, screenH = love.graphics.getDimensions()
     love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", areaX, areaY, areaW, areaH)
+    love.graphics.rectangle("fill", 0, 0, screenW, screenH) -- <<< Usa 0, 0 e dimensões da tela
 
     if not self.hunterCandidates or #self.hunterCandidates == 0 then
         love.graphics.setColor(colors.red)
-        love.graphics.printf("Erro ao gerar candidatos!", areaX, areaY + areaH / 2, areaW, "center")
+        love.graphics.printf("Erro ao gerar candidatos!", 0, screenH / 2, screenW, "center") -- Centraliza na tela
+        -- Mesmo com erro, desenha o botão Cancelar se ele existir
+        if self.recruitCancelButton then
+            -- Ajusta a posição X do botão Cancelar se ele foi baseado em areaW
+            self.recruitCancelButton.rect.x = (screenW - self.recruitCancelButton.rect.w) / 2
+            self.recruitCancelButton:draw()
+        end
         return
     end
 
-    -- Calcula dimensões e posição base das colunas
+    -- Calcula dimensões e posição base das colunas (Usa areaW/areaH para CÁLCULO, não para fundo)
     local numCandidates = #self.hunterCandidates
-    local totalPadding = 40
+    local totalPadding = 40 -- Padding lateral geral do modal
     local modalColumnGap = 20
     local modalHeaderGap = 6
-    local availableWidth = areaW - totalPadding
-    local modalWidth = (availableWidth - (modalColumnGap * (numCandidates - 1))) / numCandidates
-    local modalBaseY = areaY + 50
+    -- Usa areaW para calcular a largura DISPONÍVEL DENTRO da área da GuildScreen para as colunas
+    local availableWidthForColumns = areaW - totalPadding
+    local modalWidth = (availableWidthForColumns - (modalColumnGap * (numCandidates - 1))) / numCandidates
+    -- Posiciona o início das colunas relativo à área da GuildScreen (areaX)
+    local modalBaseY = areaY + 50 -- Y inicial relativo à área da GuildScreen
     local startX = areaX + (totalPadding / 2)
 
     local modalContentPadding = 14
     local modalButtonW = 150
     local modalButtonH = 35
+
+    -- Encontra a maior altura entre as colunas para posicionar o botão Cancelar abaixo
+    local maxColumnHeight = 0
 
     for i, candidate in ipairs(self.hunterCandidates) do
         local modalX = startX + (i - 1) * (modalWidth + modalColumnGap)
@@ -312,7 +327,6 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
                 padding = modalContentPadding,
                 gap = modalColumnGap, -- <<< Restaura gap original da coluna
                 alignment = "center",
-                debug = true
             })
 
             -- 2. Cria e adiciona Header Stack
@@ -323,7 +337,6 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
                 padding = 0,
                 gap = modalHeaderGap, -- Gap entre Nome e Rank
                 alignment = "center",
-                debug = true
             })
             headerStack:addChild(Text:new({
                 text = candidate.name,
@@ -334,7 +347,7 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
                 -- Sem margin aqui
             }))
             headerStack:addChild(Text:new({
-                text = "Rank " .. candidate.finalRankId,
+                text = "Caçador Rank " .. candidate.finalRankId,
                 width = 0,
                 size = "h2",
                 variant = "rank_" .. candidate.finalRankId,
@@ -344,15 +357,50 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
             -- Adiciona headerStack como PRIMEIRO filho da coluna
             columnStack:addChild(headerStack)
 
-            -- 3. Adiciona textos (Arquétipos, Stats)
-            columnStack:addChild(Text:new({
-                text = "Arquétipos: [TODO]",
-                width = 0,
-                size = "label",
-                variant = "text_label",
-                align = "left"
-                -- Margin top será controlada pelo gap da columnStack
-            }))
+            local archetypesYStack = YStack:new({
+                x = 0,
+                y = 0,
+                width = modalWidth,
+                padding = { vertical = 10 },
+                gap = 10,
+                alignment = "center"
+            })
+
+            -- 3. Adiciona DETALHES DOS ARQUÉTIPOS usando o novo componente
+            local archetypes = candidate.archetypes -- Assumindo que os dados estão em candidate.archetypes
+            if archetypes and #archetypes > 0 then
+                for _, archetypeData in ipairs(archetypes) do
+                    -- Passa os dados do arquétipo para o componente
+                    local detailsComponent = ArchetypeDetails:new({
+                        archetypeData = archetypeData
+                        -- x, y, width serão definidos pelo columnStack (pai)
+                    })
+                    archetypesYStack:addChild(detailsComponent)
+                end
+            else
+                -- Opcional: Mostrar um texto se não houver arquétipos
+                archetypesYStack:addChild(Text:new({
+                    text = "Sem arquétipos.",
+                    width = 0,
+                    size = "small",
+                    variant = "text_muted",
+                    align = "left"
+                }))
+            end
+
+            local archetypeSection = Section:new({
+                titleConfig = {
+                    text = "Arquétipos",
+                    size = "h3",
+                    variant = "text_highlight"
+                },
+                contentComponent = archetypesYStack,
+                gap = 10
+            })
+
+            columnStack:addChild(archetypeSection)
+
+            -- 4. Adiciona Texto de Stats (Placeholder ainda)
             columnStack:addChild(Text:new({
                 text = "Stats: [TODO]",
                 width = 0,
@@ -361,7 +409,7 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
                 align = "left"
             }))
 
-            -- 4. Adiciona Botão
+            -- 5. Adiciona Botão
             local selfRef = self
             local index = i
             local function onChooseClick() selfRef:_recruitCandidate(index) end
@@ -393,19 +441,60 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
             backgroundColor = colors.window_bg,
             borderColor = colors.window_border,
             borderWidth = 1,
-            debug = false
         })
         backgroundCard:draw()
 
         -- Desenhar a YStack (conteúdo) por cima do Card
         columnStack:draw()
+
+        -- Atualiza altura máxima
+        maxColumnHeight = math.max(maxColumnHeight, columnStack.rect.h)
+    end
+
+    -- Desenha o botão Cancelar (se existir)
+    if self.recruitCancelButton then
+        -- Posiciona abaixo da coluna mais alta
+        local cancelY = modalBaseY + maxColumnHeight + 30 -- Espaçamento abaixo das colunas
+        -- Reposiciona X para centralizar na TELA
+        self.recruitCancelButton.rect.x = (screenW - self.recruitCancelButton.rect.w) / 2
+        self.recruitCancelButton.rect.y = math.floor(cancelY)
+        self.recruitCancelButton:draw()
     end
 
     love.graphics.setColor(1, 1, 1, 1)
 end
 
---- NOVO: Método chamado pelo onClick do botão "Escolher".
----@param candidateIndex number O índice do candidato selecionado.
+--- NOVO: Helper para fechar o modal e limpar estado.
+function GuildScreen:_closeRecruitmentModal()
+    print("[GuildScreen] Closing recruitment modal.")
+    self.isRecruiting = false
+    self.hunterCandidates = nil
+    self.recruitModalColumns = {}
+    self.recruitCancelButton = nil -- Destroi/limpa referência ao botão cancelar
+    if self.recruitButton then self.recruitButton.isEnabled = true end
+end
+
+--- NOVO: Helper para criar o botão Cancelar do modal.
+function GuildScreen:_createRecruitCancelButton()
+    local screenW, screenH = love.graphics.getDimensions()
+    local buttonW = 150
+    local buttonH = 35
+    local buttonX = (screenW - buttonW) / 2
+    -- A posição Y será ajustada dinamicamente no _drawRecruitmentModal
+    local buttonY = screenH - buttonH - 20 -- Posição inicial (será ajustada)
+
+    local selfRef = self
+    self.recruitCancelButton = Button:new({
+        rect = { x = buttonX, y = buttonY, w = buttonW, h = buttonH },
+        text = "Cancelar",
+        variant = "secondary", -- Usar variante secundária
+        onClick = function() selfRef:_closeRecruitmentModal() end,
+        font = fonts.main
+    })
+    print("[GuildScreen] Cancel button created for recruitment modal.")
+end
+
+--- Método chamado pelo onClick do botão "Escolher".
 function GuildScreen:_recruitCandidate(candidateIndex)
     if not self.hunterCandidates or not self.hunterCandidates[candidateIndex] then
         print(string.format("ERROR [_recruitCandidate]: Invalid candidate index %d", candidateIndex))
@@ -424,12 +513,8 @@ function GuildScreen:_recruitCandidate(candidateIndex)
         -- Manter modal aberto ou mostrar erro?
     end
 
-    -- Limpa o estado do modal, independentemente do sucesso
-    self.isRecruiting = false
-    self.hunterCandidates = nil
-    self.recruitModalColumns = {} -- Limpa a tabela de colunas
-    if self.recruitButton then self.recruitButton.isEnabled = true end
-    print("[GuildScreen] Recruitment modal closed.")
+    -- Fecha o modal usando a nova função helper
+    self:_closeRecruitmentModal()
 end
 
 --- Atualiza o estado da tela (ex: hover de botões).
@@ -438,25 +523,26 @@ end
 ---@param my number Posição Y do mouse.
 ---@param allowHover boolean Se o hover de elementos nesta tela é permitido.
 function GuildScreen:update(dt, mx, my, allowHover)
-    -- Reset the isActiveFrame flag after the first update cycle
     if self.isActiveFrame then
-        print("[GuildScreen] Resetting isActiveFrame flag in update.")
         self.isActiveFrame = false
     end
 
-    -- Atualiza o botão de Recrutar (hover, etc.)
-    -- Só permite hover no botão principal se o modal NÃO estiver ativo E allowHover for true
-    local allowRecruitButtonHover = allowHover and not self.isRecruiting
-    if self.recruitButton then
-        self.recruitButton:update(dt, mx, my, allowRecruitButtonHover)
-        -- Habilita/desabilita o botão baseado no estado de recrutamento
-        self.recruitButton.isEnabled = not self.isRecruiting
+    if self.isRecruiting then
+        -- Atualiza colunas do modal
+        for _, stack in pairs(self.recruitModalColumns) do
+            stack:update(dt, mx, my, allowHover)
+        end
+        -- Atualiza botão Cancelar do modal
+        if self.recruitCancelButton then
+            self.recruitCancelButton:update(dt, mx, my, allowHover)
+        end
+    else
+        -- Atualiza botão Recrutar principal
+        if self.recruitButton then
+            self.recruitButton:update(dt, mx, my, allowHover)
+            self.recruitButton.isEnabled = true -- Garante que está habilitado fora do modal
+        end
     end
-
-    -- Lógica de hover dos botões do modal foi movida para _drawRecruitmentModal
-    -- para simplificar, pois eles só existem quando o modal é desenhado.
-
-    -- REMOVED CLICK HANDLING LOGIC FROM HERE
 end
 
 --- Processa cliques do mouse dentro da área da tela da Guilda.
@@ -465,95 +551,83 @@ end
 ---@param button number Índice do botão do mouse.
 ---@return boolean consumed Se o clique foi consumido por esta tela.
 function GuildScreen:handleMousePress(clickX, clickY, button)
-    print(string.format("GuildScreen:handleMousePress ENTERED - Button: %d, isRecruiting: %s, isActiveFrame: %s", button,
-        tostring(self.isRecruiting), tostring(self.isActiveFrame)))
-
-    -- Ignore ALL clicks on the very first frame this screen becomes active
-    if self.isActiveFrame then
-        print("[GuildScreen] Ignoring click on first active frame.")
-        return true -- Consume the click
-    end
+    if self.isActiveFrame then return true end
 
     if button == 1 then
-        -- Se está recrutando, delega para as colunas (YStacks)
         if self.isRecruiting then
-            local consumed = false
+            -- 1. Verifica clique no botão Cancelar
+            if self.recruitCancelButton then
+                local consumed = self.recruitCancelButton:handleMousePress(clickX, clickY, button)
+                if consumed then
+                    print("[GuildScreen] Modal Cancel button consumed mouse press.")
+                    return true
+                end
+            end
+            -- 2. Verifica clique nas colunas/botões dos candidatos
             for i, stack in pairs(self.recruitModalColumns) do
-                consumed = stack:handleMousePress(clickX, clickY, button)
+                local consumed = stack:handleMousePress(clickX, clickY, button)
                 if consumed then
                     print(string.format("[GuildScreen] Modal column %d consumed mouse press.", i))
-                    -- A ação de recrutar será chamada no MouseRelease pelo onClick do botão
-                    return true -- Consome o clique
+                    return true
                 end
             end
-            -- Se clicou na área do modal mas nenhuma stack consumiu, consome para não interagir com fundo
-            print("[GuildScreen] Click inside recruitment modal area, but no stack consumed it.")
+            -- 3. Clicou na área do modal, mas fora de elementos interativos -> Consome
+            print("[GuildScreen] Click inside modal area (missed elements). Consuming.")
             return true
-        end
-
-        -- Se NÃO está recrutando, delega o clique para o botão Recrutar
-        if self.recruitButton then
-            local consumed = self.recruitButton:handleMousePress(clickX, clickY, button)
-            if consumed then
-                print("[GuildScreen] Recruit button consumed mouse press.")
-                return true -- Botão Recrutar tratou o clique (marcou como pressionado)
+        else
+            -- Lógica fora do modal (botão recrutar, lista de caçadores) - Código existente
+            if self.recruitButton then
+                local consumed = self.recruitButton:handleMousePress(clickX, clickY, button)
+                if consumed then return true end
             end
-        end
-
-        -- Se NÃO está recrutando e NÃO clicou no botão Recrutar, verifica clique nos slots de caçador
-        for hunterId, rect in pairs(self.hunterSlotRects) do
-            if clickX >= rect.x and clickX < rect.x + rect.w and
-                clickY >= rect.y and clickY < rect.y + rect.h then
-                if self.selectedHunterId ~= hunterId then
-                    print(string.format("[GuildScreen] Hunter selected: %s (Previously: %s)", hunterId,
-                        self.selectedHunterId or "None"))
+            for hunterId, rect in pairs(self.hunterSlotRects) do
+                if clickX >= rect.x and clickX < rect.x + rect.w and
+                    clickY >= rect.y and clickY < rect.y + rect.h then
                     self.selectedHunterId = hunterId
-                else
-                    print(string.format("[GuildScreen] Hunter re-selected: %s", hunterId))
+                    print(string.format("[GuildScreen] Hunter selected: %s", hunterId))
+                    return true
                 end
-                return true -- Consome o clique no slot
             end
         end
-
-        -- Se chegou aqui, o clique (botão 1) não foi em nenhum elemento interativo conhecido
-        print(string.format("[GuildScreen] Click (button %d) at (%d, %d) did not hit any known interactive element.",
-            button, clickX, clickY))
-    end          -- Fim do if button == 1
-
-    return false -- Não consome o clique
+    end
+    return false
 end
 
---- NOVO: Processa o soltar do mouse.
+--- Processa o soltar do mouse.
 ---@param clickX number Posição X do clique.
 ---@param clickY number Posição Y do clique.
 ---@param button number Índice do botão do mouse.
 ---@return boolean consumed Se o evento foi consumido.
 function GuildScreen:handleMouseRelease(clickX, clickY, button)
-    -- Se está recrutando, delega para as colunas (YStacks)
-    if self.isRecruiting then
-        local consumed = false
-        for i, stack in pairs(self.recruitModalColumns) do
-            consumed = stack:handleMouseRelease(clickX, clickY, button)
-            if consumed then
-                print(string.format("[GuildScreen] Modal column %d consumed mouse release (onClick likely triggered)."),
-                    i)
-                -- A ação de recrutar JÁ FOI chamada pelo onClick do botão
-                return true -- Consome o release
+    if button == 1 then
+        if self.isRecruiting then
+            -- 1. Verifica release no botão Cancelar
+            if self.recruitCancelButton then
+                local consumed = self.recruitCancelButton:handleMouseRelease(clickX, clickY, button)
+                if consumed then
+                    print("[GuildScreen] Modal Cancel button consumed mouse release.")
+                    return true
+                end
             end
-        end
-        -- Se soltou fora de um botão do modal, não faz nada e não consome
-    else
-        -- Se NÃO está recrutando, delega para o botão Recrutar principal
-        if self.recruitButton then
-            local consumed = self.recruitButton:handleMouseRelease(clickX, clickY, button)
-            if consumed then
-                print("[GuildScreen] Recruit button consumed mouse release (onClick likely triggered).")
-                return true
+            -- 2. Verifica release nas colunas/botões dos candidatos
+            for i, stack in pairs(self.recruitModalColumns) do
+                local consumed = stack:handleMouseRelease(clickX, clickY, button)
+                if consumed then
+                    print(string.format("[GuildScreen] Modal column %d consumed mouse release."), i)
+                    return true
+                end
+            end
+            -- 3. Soltou na área do modal, mas fora de elementos -> Não consome (permitir drag talvez?)
+            -- return true -- Descomentar se quiser consumir mesmo soltando fora
+        else
+            -- Lógica fora do modal (botão recrutar) - Código existente
+            if self.recruitButton then
+                local consumed = self.recruitButton:handleMouseRelease(clickX, clickY, button)
+                if consumed then return true end
             end
         end
     end
-
-    return false -- Não consumiu o release
+    return false
 end
 
 --- Processa o scroll do mouse.

@@ -91,4 +91,8 @@ Esta seção descreve alguns dos principais componentes e como eles interagem.
     *   **Base Visual:** Utilizar as funções de desenho existentes em `src/ui/ui_elements.lua` como base para a lógica visual dentro dos métodos `draw()` dos novos componentes.
     *   **Layout Automático (Visão Futura):** Evoluir para um sistema de layout mais automático (inspirado em conceitos como Flexbox/Grid) para reduzir cálculos manuais de posicionamento e padding, tornando a UI mais adaptável e fácil de manter.
 
+*   **Separação de Camadas na UI (View vs. Logic/State):** Separar a lógica de apresentação visual (View, responsável pelo desenho e layout usando `love.graphics` e componentes) da lógica de controle e estado da UI (Controller/ViewModel, responsável por gerenciar dados, interagir com managers e responder a eventos). 
+    *   **Benefícios:** Maior clareza, manutenibilidade, testabilidade e reutilização do código da UI.
+    *   **Exemplo:** Refatorar telas como `GuildScreen` para que a classe principal (`GuildScreen.lua`) foque na apresentação e delegue o estado e a lógica para uma classe complementar (`GuildScreenController.lua`).
+
 *   **(Adicione outras ideias futuras aqui)**

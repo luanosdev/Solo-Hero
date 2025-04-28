@@ -80,19 +80,26 @@ function Text:new(config)
         -- print(string.format("AVISO (Text:new): Font weight '%s' não encontrado para '%s'.", instance.fontWeight, instance.size))
     end
 
-    -- 2. Selecionar Cor
+    -- 2. Selecionar Cor (Ordem de Prioridade)
     local colorKey = instance.variant
+
+    -- Prioridade 1: Chave direta (ex: 'positive', 'red')
     if colors[colorKey] then
         instance.actualColor = colors[colorKey]
+        -- Prioridade 2: Rarity (ex: 'rarity_S')
     elseif string.match(colorKey, "^rarity_") then
         local rarity = string.sub(colorKey, 8)
         instance.actualColor = colors.rarity and colors.rarity[rarity]
+        -- Prioridade 3: Rank (ex: 'rank_A')
     elseif string.match(colorKey, "^rank_") then
         local rank = string.sub(colorKey, 6)
         instance.actualColor = colors.rank and colors.rank[rank]
+        -- Prioridade 4: Texto (ex: 'muted' -> 'text_muted')
     else
         instance.actualColor = colors["text_" .. colorKey]
     end
+
+    -- Fallback final para cor padrão se nenhuma cor for encontrada
     instance.actualColor = instance.actualColor or colors.text_default or { 1, 1, 1, 1 }
 
     -- 3. Transformar Texto

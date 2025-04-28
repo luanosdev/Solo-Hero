@@ -41,6 +41,7 @@ Constants.HUNTER_DEFAULT_STATS = {
     pickupRadius = 100,        -- Radius
     healingBonus = 1.0,        -- Multiplier (1.0 = 100% healing received)
     runeSlots = 3,             -- Number of rune slots
+    luck = 1.0,                -- Multiplier (1.0 = 100% luck)
 }
 
 return Constants

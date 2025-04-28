@@ -39,6 +39,7 @@ local colors = {
     black_transparent_more = { 0, 0, 0, 0.7 },       -- Preto mais transparente para sombra de texto
     red = { 1, 0, 0, 1 },                            -- Cor vermelha básica para erros
 
+    -- Cores de Raridade (mantidas como referência ou para itens)
     rarity = {
         SS = { 1.0, 0.84, 0.0, 1.0 }, -- Dourado Brilhante (para SS)
         S = { 0.3, 0.6, 1.0, 1.0 },   -- Azul Solo Leveling
@@ -49,15 +50,15 @@ local colors = {
         E = { 0.7, 0.7, 0.7, 1.0 },   -- Cinza claro
     },
 
-    -- Mapeamento de Rank para Cor (pode referenciar 'rarity' ou ter cores próprias)
+    -- Mapeamento de Rank para Cor (Cores Vibrantes Estilo Solo Leveling)
     rank = {
-        SS = { 1.0, 0.84, 0.0, 1.0 }, -- Dourado Brilhante
-        S  = { 0.3, 0.6, 1.0, 1.0 },  -- Azul Solo Leveling
-        A  = { 0.8, 0.3, 0.3, 1.0 },  -- Vermelho escuro
-        B  = { 0.4, 0.4, 0.8, 1.0 },  -- Azul médio
-        C  = { 0.4, 0.6, 0.4, 1.0 },  -- Verde escuro
-        D  = { 0.5, 0.5, 0.5, 1.0 },  -- Cinza médio
-        E  = { 0.7, 0.7, 0.7, 1.0 }   -- Cinza claro
+        SS = { 1.0, 0.9, 0.2, 1.0 }, -- Dourado Vibrante
+        S  = { 0.7, 0.2, 0.9, 1.0 }, -- Roxo Vibrante
+        A  = { 1.0, 0.1, 0.1, 1.0 }, -- Vermelho Vivo
+        B  = { 0.2, 0.5, 1.0, 1.0 }, -- Azul Brilhante
+        C  = { 0.1, 0.8, 0.1, 1.0 }, -- Verde Brilhante
+        D  = { 0.9, 0.5, 0.1, 1.0 }, -- Laranja
+        E  = { 0.6, 0.6, 0.6, 1.0 }  -- Cinza
     },
 
     -- Cores para feedback de drag-and-drop
@@ -72,6 +73,10 @@ local colors = {
     damage_enemy = { 0.85, 0.9, 0.95, 1.0 },
     damage_crit = { 0.3, 0.6, 1.0, 1.0 },
     heal = { 0.4, 0.8, 0.4, 1.0 },
+
+    -- <<< CORES NEUTRAS PARA MODIFICADORES >>>
+    positive = { 0.4, 0.7, 0.7, 0.9 }, -- Azul-esverdeado claro/Teal
+    negative = { 0.8, 0.5, 0.3, 0.9 }, -- Laranja/Marrom suave
 
     -- Cores dos Tabs do Lobby
     lobby_background = { 0.15, 0.15, 0.2, 1 },    -- Fundo da cena do Lobby

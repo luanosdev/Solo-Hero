@@ -6,7 +6,7 @@ local Camera = require("src.config.camera") -- Adicionado para conversão de coo
 local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
 print("[InputManager Top Level] type(RuneChoiceModal) after require:", type(RuneChoiceModal)) -- DEBUG
-local InventoryScreen = require("src.ui.inventory_screen")
+local InventoryScreen = require("src.ui.screens.inventory_screen")
 local ItemDetailsModal = require("src.ui.item_details_modal") -- Adicionado require direto
 
 -- Estado das teclas

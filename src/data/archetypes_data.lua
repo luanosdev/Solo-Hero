@@ -12,83 +12,106 @@ ArchetypesData.Ranks = {
 }
 
 -- Definição dos Arquétipos
--- Usaremos sufixos: _add para valores fixos, _mult para multiplicadores percentuais (1.1 = +10%, 0.9 = -10%)
+-- Modifiers: Lista de tabelas { stat="id", baseValue=num } ou { stat="id", multValue=decimal (0.05 = +5%) }
 ArchetypesData.Archetypes = {
     -- Rank E
     agile = {
         id = "agile",
-        name = "Agile",
+        name = "Ágil",
         rank = "E",
-        description = "+2 Move Speed",
-        modifiers = { moveSpeed_add = 2 }
+        description = "É mais rapido que outros, bom para fugir de inimigos.",
+        modifiers = {
+            { stat = "movement_speed", baseValue = 40 }
+        }
     },
     vigorous = {
         id = "vigorous",
-        name = "Vigorous",
+        name = "Vigoroso",
         rank = "E",
-        description = "+100 Max Health",
-        modifiers = { health_add = 100 }
+        description = "Um pouco mais resistente que outros, bom para resistir aos ataques.",
+        modifiers = {
+            { stat = "max_hp", baseValue = 100 }
+        }
     },
     -- Rank D
     frenetic = {
         id = "frenetic",
-        name = "Frenetic",
+        name = "Frenético",
         rank = "D",
-        description = "+0.2 Attack Speed",
-        modifiers = { attackSpeed_add = 0.2 }
+        description = "Ataca com mais frequência.",
+        modifiers = {
+            { stat = "attack_speed", baseValue = 0.06 }
+        }
     },
     cautious = {
         id = "cautious",
-        name = "Cautious",
+        name = "Cauteloso",
         rank = "D",
-        description = "+50 Pickup Radius",
-        modifiers = { pickupRadius_add = 50 }
+        description = "Percebe itens de mais longe.",
+        modifiers = {
+            { stat = "pickupRadius", baseValue = 50 }
+        }
     },
     -- Rank C
     determined = {
         id = "determined",
-        name = "Determined",
+        name = "Determinado",
         rank = "C",
-        description = "+8% Attack Speed",
-        modifiers = { attackSpeed_mult = 1.08 } -- Multiplicador
+        description = "Velocidade de ataque consistentemente maior.",
+        modifiers = {
+            { stat = "attack_speed", multValue = 0.12 } -- +12%
+        }
     },
     precise = {
         id = "precise",
-        name = "Precise",
+        name = "Preciso",
         rank = "C",
-        description = "+5% Crit Chance",
-        modifiers = { critChance_add = 0.05 } -- Chance é aditiva geralmente
+        description = "Aumenta a chance de acertos críticos.",
+        modifiers = {
+            { stat = "critical_chance", baseValue = 0.05 } -- +5% chance (chance geralmente é aditiva)
+        }
     },
     -- Rank B
     executioner = {
         id = "executioner",
-        name = "Executioner",
+        name = "Executor",
         rank = "B",
-        description = "+30% Crit Chance, -10% Defense",
-        modifiers = { critChance_add = 0.30, defense_mult = 0.90 }
+        description = "Chance crítica massiva ao custo de defesa.",
+        modifiers = {
+            { stat = "critical_chance", baseValue = 0.30 }, -- +30% chance
+            { stat = "defense",         multValue = -0.10 } -- -10% defesa
+        }
     },
     -- Rank A
     assassin = {
         id = "assassin",
-        name = "Assassin",
+        name = "Assassino",
         rank = "A",
-        description = "+20% Crit Damage, +20% Attack Speed",
-        modifiers = { critDamage_mult = 1.20, attackSpeed_mult = 1.20 }
+        description = "Dano crítico e velocidade de ataque aprimorados.",
+        modifiers = {
+            { stat = "critical_multiplier", multValue = 0.20 }, -- +20% dano crit
+            { stat = "attack_speed",        multValue = 0.20 }  -- +20% vel atq
+        }
     },
     -- Rank S
     immortal = {
         id = "immortal",
-        name = "Immortal",
+        name = "Imortal",
         rank = "S",
-        description = "+60% Max Health",
-        modifiers = { health_mult = 1.60 }
+        description = "Vida drasticamente aumentada.",
+        modifiers = {
+            { stat = "max_hp", multValue = 0.60 } -- +60% vida
+        }
     },
     insane = {
         id = "insane",
-        name = "Insane",
+        name = "Insano",
         rank = "S",
-        description = "+50% Multi Attack Chance, -50% Defense",
-        modifiers = { multiAttackChance_add = 0.50, defense_mult = 0.50 }
+        description = "Ataques múltiplos frequentes, mas muito vulnerável.",
+        modifiers = {
+            { stat = "multiAttackChance", baseValue = 0.50, multValue = 0.50 }, -- +50% chance multi-ataque
+            { stat = "defense",           multValue = -0.50 }                   -- -50% defesa
+        }
     },
     -- Adicionar MUITOS outros arquétipos aqui para cada rank...
 }
