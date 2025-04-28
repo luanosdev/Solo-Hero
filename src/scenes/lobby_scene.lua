@@ -12,6 +12,7 @@ local HunterManager = require("src.managers.hunter_manager")
 local ManagerRegistry = require("src.managers.manager_registry")
 local EquipmentScreen = require("src.ui.equipment_screen")
 local PortalScreen = require("src.ui.portal_screen")
+local GuildScreen = require("src.ui.guild_screen")
 local Constants = require("src.config.constants")
 
 
@@ -34,6 +35,7 @@ LobbyScene.archetypeManager = nil ---@type ArchetypeManager|nil Instância do ge
 LobbyScene.hunterManager = nil ---@type HunterManager|nil Instância do gerenciador de caçadores
 LobbyScene.equipmentScreen = nil ---@type EquipmentScreen|nil Instância da tela de equipamento
 LobbyScene.portalScreen = nil ---@type PortalScreen|nil Instância da tela de portal
+LobbyScene.guildScreen = nil ---@type GuildScreen|nil Instância da tela da Guilda
 
 -- Configs da névoa
 LobbyScene.fogNoiseScale = 4.0 ---@type number Escala do ruído (valores menores = "zoom maior")
@@ -47,7 +49,7 @@ local tabs = {
     { id = TabIds.CRAFTING,  text = "Criação" },
     { id = TabIds.EQUIPMENT, text = "Equipamento" },
     { id = TabIds.PORTALS,   text = "Portais" },
-    { id = TabIds.HEROES,    text = "Herois" },
+    { id = TabIds.GUILD,     text = "Guilda" },
     { id = TabIds.SETTINGS,  text = "Configurações" },
     { id = TabIds.QUIT,      text = "Sair" },
 }
@@ -97,6 +99,7 @@ function LobbyScene:load(args)
     self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
         self.loadoutManager)
     self.portalScreen = PortalScreen:new(self.portalManager, self.hunterManager)
+    self.guildScreen = GuildScreen:new(self.hunterManager, self.archetypeManager)
 
     -- <<< CRIA E REGISTRA O MOCK PLAYER MANAGER (Mantido por enquanto) >>>
     local mockPlayerManagerInstance = MockPlayerManager:new()
@@ -211,12 +214,8 @@ function LobbyScene:update(dt)
         -- Hover é permitido se o mouse não estiver sobre uma tab (e o zoom não estiver ativo, o que já filtramos)
         local allowPortalScreenHover = not tabHoverHandled
         self.portalScreen:update(dt, mx, my, allowPortalScreenHover)
-    end
-
-    -- 3. Atualiza a Tela de Equipamento (se ativa)
-    if activeTab and activeTab.id == TabIds.EQUIPMENT then
-        -- A tela de equipamento não tem lógica de update complexa por enquanto
-        -- Mas a lógica de cálculo de alvo do drag-and-drop permanece aqui na cena
+    elseif activeTab and activeTab.id == TabIds.EQUIPMENT then
+        -- A EquipmentScreen não tem :update por enquanto, mas a lógica de drag está aqui
         if self.isDragging then
             self.targetGridId = nil
             self.targetSlotCoords = nil
@@ -261,6 +260,12 @@ function LobbyScene:update(dt)
             end
             -- TODO: Adicionar verificação de hover sobre os slots de equipamento (usando self.equipmentSlotAreas)
         end
+    elseif activeTab and activeTab.id == TabIds.GUILD then
+        -- Chama update da GuildScreen se existir
+        if self.guildScreen and self.guildScreen.update then
+            local allowGuildScreenHover = not tabHoverHandled
+            self.guildScreen:update(dt, mx, my, allowGuildScreenHover)
+        end
     end
 end
 
@@ -269,6 +274,7 @@ end
 function LobbyScene:draw()
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
+    local mx, my = love.mouse.getPosition() -- <<< Pega mouse coords aqui para passar
     local activeTab = tabs[self.activeTabIndex]
     local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
 
@@ -305,16 +311,22 @@ function LobbyScene:draw()
                     equipmentSlotAreas = self.equipmentSlotAreas
                 }
                 self.storageGridArea, self.loadoutGridArea, self.equipmentSlotAreas = self.equipmentScreen:draw(screenW,
-                    screenH, tabSettings, dragState)
+                    screenH, tabSettings, dragState, mx, my)
+            elseif activeTab.id == TabIds.GUILD then
+                if self.guildScreen then
+                    -- Define área de desenho (toda a área acima das tabs)
+                    local areaX, areaY, areaW, areaH = 0, 0, screenW, screenH - tabSettings.height
+                    self.guildScreen:draw(areaX, areaY, areaW, areaH, mx, my)
+                else
+                    love.graphics.setColor(colors.red)
+                    love.graphics.printf("Erro: GuildScreen não inicializado!", screenW / 2, screenH / 2, 0, "center")
+                end
             elseif activeTab.id == TabIds.VENDOR then
                 -- Espaço para desenhar a UI do Vendedor
                 love.graphics.printf("VENDEDOR", screenW / 2, screenH / 2, 0, "center")
             elseif activeTab.id == TabIds.CRAFTING then
                 -- Espaço para desenhar a UI de Criação
                 love.graphics.printf("CRIAÇÃO", screenW / 2, screenH / 2, 0, "center")
-            elseif activeTab.id == TabIds.HEROES then
-                -- Espaço para desenhar a UI de Herois
-                love.graphics.printf("HEROIS", screenW / 2, screenH / 2, 0, "center")
             elseif activeTab.id == TabIds.SETTINGS then
                 -- Espaço para desenhar a UI de Configurações
                 love.graphics.printf("CONFIGURAÇÕES", screenW / 2, screenH / 2, 0, "center")
@@ -351,6 +363,7 @@ end
 ---@param istouch boolean
 ---@param presses number
 function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
+    print("LobbyScene:mousepressed ENTERED") -- LOG 1
     if buttonIdx == 1 then
         local activeTab = tabs[self.activeTabIndex]
         local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
@@ -367,11 +380,21 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
         for i, tab in ipairs(tabs) do
             if tab.isHovering then
                 tabClicked = true
+                print(string.format("LobbyScene:mousepressed - Tab %s HOVERED", tab.text)) -- LOG 2
                 print(string.format("LobbyScene: Tab '%s' clicado!", tab.text))
                 if tab.id == TabIds.QUIT then
                     SceneManager.requestQuit()
                 else
-                    self.activeTabIndex = i
+                    if i ~= self.activeTabIndex then -- Só ignora se realmente trocou de tab
+                        self.activeTabIndex = i
+                        print("LobbyScene: Tab changed")
+                        -- <<< SET GUILD SCREEN FLAG >>>
+                        if tab.id == TabIds.GUILD and self.guildScreen then
+                            -- if self.guildScreen.onActivate then self.guildScreen:onActivate() end -- REMOVED
+                            self.guildScreen.isActiveFrame = true
+                            print("LobbyScene: Set guildScreen.isActiveFrame = true")
+                        end
+                    end
                     -- Se estava com zoom no portal, mudar de tab cancela
                     if isPortalScreenZoomed and self.portalScreen then
                         print("LobbyScene: Mudança de tab cancelando zoom do portal.")
@@ -382,7 +405,8 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                 break
             end
         end
-        if tabClicked then return end -- Se clicou na tab, termina aqui
+        print(string.format("LobbyScene:mousepressed - tabClicked=%s. Returning?", tostring(tabClicked))) -- LOG 3
+        if tabClicked then return end                                                                     -- Se clicou na tab, termina aqui
 
         -- 3. Se não clicou em tab, delega para a TELA da aba ativa
         if activeTab and activeTab.id == TabIds.EQUIPMENT then
@@ -417,48 +441,67 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                 local consumed = self.portalScreen:handleMousePress(x, y, buttonIdx)
                 if consumed then return end
             end
-            -- elseif activeTab.id == TabIds.VENDOR then ...
-            -- elseif activeTab.id == TabIds.CRAFTING then ...
-            -- etc.
+        elseif activeTab and activeTab.id == TabIds.GUILD then
+            if self.guildScreen then
+                print("LobbyScene:mousepressed - DELEGATING click to GuildScreen") -- LOG 4
+                local consumed = self.guildScreen:handleMousePress(x, y, buttonIdx)
+                if consumed then return end                                        -- Se a guild screen consumiu, termina aqui
+            end
         end
     end
 end
 
 --- Processa o soltar do mouse, finalizando o drag-and-drop.
--- Agora delega para o EquipmentScreen se a aba estiver ativa.
+---@param x number
+---@param y number
+---@param buttonIdx number
+---@param istouch boolean
+---@param presses number
 function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
+    local activeTab = tabs[self.activeTabIndex]
+
     if buttonIdx == 1 then
+        -- Primeiro, verifica se a tela da aba ativa quer tratar o release
+        local screenConsumedRelease = false
+        if activeTab and activeTab.id == TabIds.GUILD then -- <<< VERIFICA ABA GUILDA
+            if self.guildScreen and self.guildScreen.handleMouseRelease then
+                screenConsumedRelease = self.guildScreen:handleMouseRelease(x, y, buttonIdx)
+            end
+            -- Adicionar outros `elseif` para outras telas que tratam release (ex: EquipmentScreen se não for drag/drop)
+        end
+
+        -- Se a tela ativa consumiu o release (ex: clicou num botão dela), termina aqui
+        if screenConsumedRelease then
+            print("LobbyScene: Mouse release consumed by active screen.")
+            return
+        end
+
+        -- Se não foi consumido pela tela e estávamos arrastando um item (lógica do EquipmentScreen)
         if self.isDragging then
             print("LobbyScene: Drag finalizado.")
-
-            local activeTab = tabs[self.activeTabIndex]
             local dragConsumed = false
-
-            -- Se a aba Equipamento está ativa, tenta delegar o drop
+            -- Só trata drop na aba de equipamento por enquanto
             if activeTab and activeTab.id == TabIds.EQUIPMENT then
-                -- Monta o estado de drag completo para passar
                 local dragState = {
                     isDragging = self.isDragging,
                     draggedItem = self.draggedItem,
                     sourceGridId = self.sourceGridId,
                     sourceSlotId = self.sourceSlotId,
                     draggedItemIsRotated = self.draggedItemIsRotated,
-                    targetGridId = self.targetGridId,            -- Calculado no update
-                    targetSlotCoords = self.targetSlotCoords,    -- Calculado no update
-                    isDropValid = self.isDropValid,              -- Calculado no update
-                    equipmentSlotAreas = self.equipmentSlotAreas -- Calculado/Retornado pelo draw do equipment screen
+                    targetGridId = self.targetGridId,
+                    targetSlotCoords = self.targetSlotCoords,
+                    isDropValid = self.isDropValid,
+                    equipmentSlotAreas = self.equipmentSlotAreas
                 }
-                -- <<< DELEGA O SOLTAR PARA O EQUIPMENT SCREEN >>>
                 dragConsumed = self.equipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
             end
 
-            -- Se o drop foi consumido (pelo EquipmentScreen ou outra futura tela)
-            -- ou mesmo se não foi consumido mas estávamos arrastando,
-            -- precisamos limpar o estado de drag da cena principal.
             if dragConsumed then
                 print("LobbyScene: Drop consumido pelo EquipmentScreen.")
             else
-                print("LobbyScene: Drop NÃO consumido (ou ocorreu fora de área válida).")
+                print("LobbyScene: Drop NÃO consumido (ou ocorreu fora de área válida). Retornando item...")
+                -- Idealmente, aqui você chamaria um método para retornar o item à origem
+                -- Ex: self.equipmentScreen:returnDraggedItem(...) ou similar
             end
 
             -- Limpa o estado de drag da cena principal SEMPRE que soltar o mouse após um drag
@@ -471,10 +514,9 @@ function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
             self.isDropValid = false
             self.draggedItemOffsetX = 0
             self.draggedItemOffsetY = 0
-            self.draggedItemIsRotated = false -- <<< Reseta rotação visual
-            -- Não precisa retornar aqui necessariamente, o evento termina.
-        end                                   -- Fim do if self.isDragging
-    end                                       -- Fim do if buttonIdx == 1
+            self.draggedItemIsRotated = false
+        end -- Fim do if self.isDragging
+    end     -- Fim do if buttonIdx == 1
 end
 
 --- NOVO: Processa pressionamento de teclas.
@@ -504,6 +546,24 @@ function LobbyScene:keypressed(key, scancode, isrepeat)
     -- TODO: Adicionar delegação para outras telas/abas se necessário
 end
 
+--- NOVO: Processa scroll do mouse.
+-- Delega para a tela ativa se ela tiver o handler `handleMouseScroll`.
+---@param x number Posição X do mouse (relativa à janela).
+---@param y number Posição Y do mouse (relativa à janela).
+function LobbyScene:wheelmoved(x, y)
+    local activeTab = tabs[self.activeTabIndex]
+    if activeTab and activeTab.id == TabIds.HEROES then -- <<< DELEGA SCROLL PARA GUILD SCREEN
+        if self.guildScreen and self.guildScreen.handleMouseScroll then
+            self.guildScreen:handleMouseScroll(x, y)    -- LÖVE passa dx, dy como x, y aqui
+        end
+        -- Adicionar delegação para outras telas que precisem de scroll
+        -- elseif activeTab.id == TabIds.EQUIPMENT then
+        --     if self.equipmentScreen and self.equipmentScreen.handleMouseScroll then
+        --         self.equipmentScreen:handleMouseScroll(x, y)
+        --     end
+    end
+end
+
 --- Chamado quando a cena é descarregada.
 -- Libera a imagem do mapa da memória e limpa referência do manager.
 function LobbyScene:unload()
@@ -513,14 +573,13 @@ function LobbyScene:unload()
         self.portalScreen:unload()
         self.portalScreen = nil
     end
-    -- A EquipmentScreen não tem :unload por enquanto
     self.equipmentScreen = nil
+    self.guildScreen = nil
 
     -- Salva estado dos managers
     if self.portalManager then self.portalManager:saveState() end
     if self.lobbyStorageManager then self.lobbyStorageManager:saveStorage() end
     if self.hunterManager then
-        self.hunterManager:saveActiveHunterData(self.hunterManager:getActiveHunterId())
         self.hunterManager:saveState()
     end
 

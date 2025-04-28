@@ -41,7 +41,7 @@ end
 ---@param tabSettings table Configurações das tabs (para calcular altura disponível).
 ---@param dragState table Estado atual do drag-and-drop da cena pai.
 ---@return table storageArea, table loadoutArea, table equipmentSlotsAreas Áreas calculadas para detecção de hover/drop.
-function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState)
+function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     local padding = 20
     local topPadding = 100
     local areaY = topPadding                   -- <<< USA PADDING SUPERIOR MAIOR
@@ -99,7 +99,6 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState)
 
         if finalStats and next(finalStats) and archetypeIds and archetypeManager then
             -- <<< PASSA mx, my PARA drawBaseStats >>>
-            local mx, my = love.mouse.getPosition()
             StatsSection.drawBaseStats(statsX, contentStartY, statsW, sectionContentH,
                 finalStats, archetypeIds, archetypeManager, mx, my)
         else

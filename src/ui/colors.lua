@@ -9,6 +9,9 @@ local colors = {
     window_title = { 0.7, 0.75, 0.8, 1.0 },  -- Branco azulado
 
     text_main = { 0.8, 0.85, 0.9, 1.0 },     -- Branco suave
+    text_default = { 0.8, 0.85, 0.9, 1.0 },  -- Cor padrão (igual a text_main por enquanto)
+    text_title = { 0.9, 0.92, 0.95, 1.0 },   -- Cor para títulos (ligeiramente mais claro)
+    text_muted = { 0.5, 0.55, 0.6, 1.0 },    -- Cor para texto menos importante (cinza azulado)
     text_label = { 0.6, 0.65, 0.7, 1.0 },    -- Cinza claro
     text_highlight = { 0.3, 0.6, 1.0, 1.0 }, -- Azul brilhante
     text_value = { 0.85, 0.9, 0.95, 1 },     -- Branco azulado
@@ -21,9 +24,14 @@ local colors = {
     mp_fill = { 0.2, 0.4, 0.8, 1.0 },        -- Azul médio
     xp_fill = { 0.3, 0.6, 1.0, 1.0 },        -- Azul brilhante
 
+    -- Cor para fundos de painéis/seções (como a lista/detalhes da guilda)
+    panel_bg = { 0.08, 0.09, 0.12, 0.9 }, -- Azul/Preto levemente mais claro que window_bg
+
     slot_empty_bg = { 0.07, 0.08, 0.1, 0.8 },
     slot_empty_border = { 0.3, 0.35, 0.4, 0.6 },
     slot_hover_bg = { 0.1, 0.15, 0.2, 0.7 },
+    slot_bg = { 0.1, 0.12, 0.15, 0.85 },             -- Cor de fundo para slots ocupados (pode ajustar)
+    border_active = { 0.3, 0.7, 1.0, 1.0 },          -- Azul vibrante para borda do item/slot ativo
     -- <<< NOVAS CORES PARA SLOTS DE INVENTÁRIO/STORAGE >>>
     inventory_slot_bg = { 0.1, 0.12, 0.15, 0.9 },    -- Similar ao modal_bg, mas talvez um pouco mais opaco
     inventory_slot_border = { 0.4, 0.45, 0.5, 0.7 }, -- Similar ao window_border
@@ -96,7 +104,71 @@ local colors = {
         [3] = { 0.8, 0.3, 0.3, 1.0 },  -- Vermelho escuro
         [4] = { 0.4, 0.0, 0.8, 1.0 },  -- Roxo escuro
         [5] = { 0.1, 0.2, 0.3, 1.0 },  -- Azul muito escuro
-    }
+    },
+
+    tooltip_bg = { 0.1, 0.1, 0.15, 0.95 },
+    tooltip_border = { 0.4, 0.45, 0.5, 0.8 },
+}
+
+-- Cores para Botões (NOVO SISTEMA DE VARIANTES)
+
+-- Cores base para facilitar a definição
+local btn_text_light = { 1, 1, 1, 1 }
+local btn_text_dark = { 0.1, 0.1, 0.1, 1 }
+local btn_border_default = { 0.4, 0.45, 0.5, 1 }
+local btn_bg_default = { 0.25, 0.28, 0.32, 1 }
+local btn_hover_default = { 0.35, 0.38, 0.42, 1 }
+local btn_pressed_default = { 0.2, 0.23, 0.27, 1 }
+local btn_disabled_bg = { 0.2, 0.2, 0.2, 0.7 }
+local btn_disabled_text = { 0.5, 0.5, 0.5, 0.8 }
+local btn_disabled_border = { 0.3, 0.3, 0.3, 0.7 }
+
+-- Variante Padrão (Default)
+colors.button_default = {
+    bgColor = btn_bg_default,
+    hoverColor = btn_hover_default,
+    pressedColor = btn_pressed_default,
+    textColor = btn_text_light,
+    borderColor = btn_border_default,
+    disabledBgColor = btn_disabled_bg,
+    disabledTextColor = btn_disabled_text,
+    disabledBorderColor = btn_disabled_border,
+}
+
+-- Variante Primária (ex: Ações principais, confirmação)
+colors.button_primary = {
+    bgColor = { 0.2, 0.5, 0.8, 1 }, -- Azul
+    hoverColor = { 0.3, 0.6, 0.9, 1 },
+    pressedColor = { 0.15, 0.4, 0.7, 1 },
+    textColor = btn_text_light,
+    borderColor = { 0.4, 0.7, 1.0, 1 }, -- Borda azul mais clara
+    disabledBgColor = btn_disabled_bg,
+    disabledTextColor = btn_disabled_text,
+    disabledBorderColor = btn_disabled_border,
+}
+
+-- Variante Secundária (ex: Ações alternativas, cancelar)
+colors.button_secondary = {
+    bgColor = { 0.6, 0.6, 0.6, 1 }, -- Cinza
+    hoverColor = { 0.7, 0.7, 0.7, 1 },
+    pressedColor = { 0.5, 0.5, 0.5, 1 },
+    textColor = btn_text_dark,
+    borderColor = { 0.8, 0.8, 0.8, 1 }, -- Borda cinza mais clara
+    disabledBgColor = btn_disabled_bg,
+    disabledTextColor = btn_disabled_text,
+    disabledBorderColor = btn_disabled_border,
+}
+
+-- Variante de Perigo (ex: Excluir, ações destrutivas)
+colors.button_danger = {
+    bgColor = { 0.8, 0.2, 0.2, 1 }, -- Vermelho
+    hoverColor = { 0.9, 0.3, 0.3, 1 },
+    pressedColor = { 0.7, 0.15, 0.15, 1 },
+    textColor = btn_text_light,
+    borderColor = { 1.0, 0.4, 0.4, 1 }, -- Borda vermelha mais clara
+    disabledBgColor = btn_disabled_bg,
+    disabledTextColor = btn_disabled_text,
+    disabledBorderColor = btn_disabled_border,
 }
 
 return colors

@@ -85,6 +85,10 @@ Esta seção descreve alguns dos principais componentes e como eles interagem.
 *   **Unificação do Sistema de Pausa:** Atualmente, a pausa do jogo é tratada de duas formas: a tela de inventário (`InventoryScreen`) define explicitamente a flag global `game.isPaused`, enquanto os modais (`LevelUpModal`, `RuneChoiceModal`) dependem da verificação de `modal.visible` em `main.lua` para interromper a atualização do jogo. Embora funcional, isso representa uma inconsistência. 
     *   **Melhoria Futura:** Unificar a abordagem fazendo com que os modais `:show()` também definam `game.isPaused = true` e os métodos `:hide()` definam `game.isPaused = false`. Isso exigiria passar o controle do estado de pausa para os modais ou usar um sistema de eventos, mas resultaria em uma gestão de pausa mais consistente e centralizada. Considerar essa refatoração quando a gestão de múltiplos estados de pausa/UI se tornar mais complexa.
 
-*   **(Adicione outras ideias futuras aqui)**
-
 *   **Refatoração de Dependências (Service Locator vs. Injeção de Dependência):** Atualmente, a maioria dos managers obtém suas dependências usando `ManagerRegistry:get("...")` dentro de suas funções `init` (padrão Service Locator). O `InventoryManager`, por exemplo, depende do `ItemDataManager` e o busca através do Registry. Embora funcional e consistente com outros managers, uma abordagem alternativa seria usar Injeção de Dependência (DI), onde as dependências são passadas explicitamente durante a criação da instância (ex: `InventoryManager:new({ itemDataManager = itemDataMgr })`). A DI pode levar a um código mais explícito sobre as dependências e facilitar testes unitários. Considerar uma refatoração para DI no futuro se o gerenciamento de dependências se tornar mais complexo ou se a testabilidade se tornar uma prioridade maior.
+
+*   **Abordagem de Componentes de UI:** Adotar uma abordagem de componentes de UI reutilizáveis (como a classe `Button` em `src/ui/components/button.lua`) para construir telas futuras e refatorar as existentes. 
+    *   **Base Visual:** Utilizar as funções de desenho existentes em `src/ui/ui_elements.lua` como base para a lógica visual dentro dos métodos `draw()` dos novos componentes.
+    *   **Layout Automático (Visão Futura):** Evoluir para um sistema de layout mais automático (inspirado em conceitos como Flexbox/Grid) para reduzir cálculos manuais de posicionamento e padding, tornando a UI mais adaptável e fácil de manter.
+
+*   **(Adicione outras ideias futuras aqui)**

@@ -49,6 +49,34 @@ function ArchetypeManager:getArchetypeData(archetypeId)
     return self.archetypes[archetypeId]
 end
 
+--- Returns a specified number of random, unique archetype IDs.
+---@param count number The number of unique random archetype IDs to return.
+---@return table<string> A list of unique archetype IDs.
+function ArchetypeManager:getRandomArchetypeIds(count)
+    local allIds = {}
+    for id, _ in pairs(self.archetypes) do
+        table.insert(allIds, id)
+    end
+
+    local numAvailable = #allIds
+    count = math.min(count, numAvailable) -- Cannot return more IDs than available
+    local selectedIds = {}
+
+    if count <= 0 then return selectedIds end
+
+    -- Simple shuffle and pick first 'count'
+    for i = numAvailable, 2, -1 do
+        local j = love.math.random(i)
+        allIds[i], allIds[j] = allIds[j], allIds[i]
+    end
+
+    for i = 1, count do
+        table.insert(selectedIds, allIds[i])
+    end
+
+    return selectedIds
+end
+
 -- TODO: Add functions for rolling ranks and archetypes based on weights/pools
 
 return ArchetypeManager

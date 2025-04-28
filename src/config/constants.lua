@@ -6,7 +6,7 @@ Constants.TabIds = {
     CRAFTING = 2,
     EQUIPMENT = 3,
     PORTALS = 4,
-    HEROES = 5,
+    GUILD = 5,
     SETTINGS = 6,
     QUIT = 7,
 }

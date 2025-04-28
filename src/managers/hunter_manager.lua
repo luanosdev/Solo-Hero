@@ -540,4 +540,134 @@ function HunterManager:loadState()
     return true
 end
 
+--- Internal helper to calculate final stats based ONLY on archetype IDs and base stats.
+--- Does NOT consider equipped items.
+--- @param archetypeIds table List of archetype IDs.
+--- @return table Table with calculated final stats.
+function HunterManager:_calculateStatsForCandidate(archetypeIds)
+    -- 1. Start with default stats
+    local finalStats = {}
+    for key, value in pairs(Constants.HUNTER_DEFAULT_STATS) do
+        finalStats[key] = value
+    end
+
+    -- 2. Apply archetype modifiers
+    archetypeIds = archetypeIds or {}
+    local appliedModifiers = { mult = {}, add = {} }
+
+    for _, archetypeId in ipairs(archetypeIds) do
+        local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
+        if archetypeData and archetypeData.modifiers then
+            for modifierKey, modifierValue in pairs(archetypeData.modifiers) do
+                local statName, modifierType = modifierKey:match("^(.+)_([^_]+)$")
+                if statName and modifierType then
+                    if modifierType == "add" then
+                        appliedModifiers.add[statName] = (appliedModifiers.add[statName] or 0) + modifierValue
+                    elseif modifierType == "mult" then
+                        appliedModifiers.mult[statName] = (appliedModifiers.mult[statName] or 1.0) * modifierValue
+                    else
+                        print(string.format(
+                            "WARNING [_calculateStatsForCandidate]: Unknown modifier type '%s' for '%s' in archetype '%s'",
+                            modifierType, statName, archetypeId))
+                    end
+                else
+                    print(string.format(
+                        "WARNING [_calculateStatsForCandidate]: Malformed modifier key '%s' in archetype '%s'",
+                        modifierKey, archetypeId))
+                end
+            end
+        end
+    end
+
+    -- 3. Apply accumulated modifiers (Add first, then Mult)
+    for statName, addValue in pairs(appliedModifiers.add) do
+        if finalStats[statName] ~= nil then
+            finalStats[statName] = finalStats[statName] + addValue
+        else
+            print(string.format("WARNING [_calculateStatsForCandidate]: Base stat '%s' not found for _add modifier.",
+                statName))
+        end
+    end
+    for statName, multValue in pairs(appliedModifiers.mult) do
+        if finalStats[statName] ~= nil then
+            finalStats[statName] = finalStats[statName] * multValue
+        else
+            print(string.format("WARNING [_calculateStatsForCandidate]: Base stat '%s' not found for _mult modifier.",
+                statName))
+        end
+    end
+
+    return finalStats
+end
+
+--- Generates a list of potential hunter candidates for recruitment.
+--- @param count number The number of candidates to generate.
+--- @return table A list of candidate data tables, each containing { id, name, baseRankId, finalRankId, archetypeIds, finalStats }.
+function HunterManager:generateHunterCandidates(count)
+    print(string.format("[HunterManager] Generating %d hunter candidates...", count))
+    local candidates = {}
+    local names = { "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta" } -- Pool de nomes
+
+    for i = 1, count do
+        local candidate = {}
+        candidate.id = "candidate_" .. i                 -- ID temporário
+        candidate.name = "Candidato " .. (names[i] or i) -- Nome simples
+        candidate.baseRankId = "E"                       -- Começa com Rank E por enquanto
+        candidate.finalRankId = "E"
+
+        -- Define número de arquétipos (ex: 1 ou 2)
+        local numArchetypes = love.math.random(1, 2)
+        candidate.archetypeIds = self.archetypeManager:getRandomArchetypeIds(numArchetypes)
+
+        -- Calcula os stats finais baseados nos arquétipos
+        candidate.finalStats = self:_calculateStatsForCandidate(candidate.archetypeIds)
+
+        table.insert(candidates, candidate)
+        print(string.format("  > Candidate %d: Name=%s, Rank=%s, Archetypes=[%s]", i, candidate.name,
+            candidate.finalRankId,
+            table.concat(candidate.archetypeIds, ", ")))
+    end
+
+    return candidates
+end
+
+--- Recruits a hunter based on chosen candidate data.
+--- @param candidateData table The data table of the chosen candidate.
+--- @return string|nil The permanent ID of the newly recruited hunter, or nil on failure.
+function HunterManager:recruitHunter(candidateData)
+    if not candidateData or not candidateData.name or not candidateData.archetypeIds then
+        print("ERROR [HunterManager:recruitHunter]: Invalid candidate data provided.")
+        return nil
+    end
+
+    local hunterId = "hunter_" .. self.nextHunterId
+    self.nextHunterId = self.nextHunterId + 1
+
+    print(string.format("[HunterManager] Recruiting hunter %s from candidate %s...", hunterId, candidateData.name))
+
+    local newHunterData = {
+        id = hunterId,
+        name = candidateData.name, -- Usa o nome do candidato
+        baseRankId = candidateData.baseRankId or "E",
+        finalRankId = candidateData.finalRankId or "E",
+        archetypeIds = candidateData.archetypeIds,
+        -- equippedItems será inicializado abaixo
+    }
+
+    -- Adiciona à tabela principal de caçadores
+    self.hunters[hunterId] = newHunterData
+
+    -- Inicializa a estrutura de equipamento para o novo caçador
+    self:_initializeEquippedItems(hunterId)
+
+    -- Cria um loadout vazio para o novo caçador
+    self.loadoutManager:createEmptyLoadout(hunterId)
+
+    -- Salva o estado geral (incluindo o novo caçador e nextHunterId)
+    self:saveState()
+
+    print(string.format("[HunterManager] Hunter %s recruited successfully.", hunterId))
+    return hunterId
+end
+
 return HunterManager

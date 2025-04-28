@@ -1,0 +1,530 @@
+-- src/ui/guild_screen.lua
+local colors = require("src.ui.colors")
+local fonts = require("src.ui.fonts")
+local elements = require("src.ui.ui_elements")
+local Button = require("src.ui.components.button")
+
+---@class GuildScreen
+---@field hunterManager HunterManager
+---@field archetypeManager ArchetypeManager
+---@field selectedHunterId string|nil ID do caçador atualmente selecionado na lista.
+---@field hunterListScrollY number Posição Y atual do scroll da lista de caçadores.
+---@field hunterSlotRects table<string, table> Retângulos calculados para cada slot de caçador { [hunterId] = {x, y, w, h} }.
+---@field recruitButton Button|nil Instância do botão de recrutar.
+---@field isRecruiting boolean Flag que indica se o modal de recrutamento está ativo.
+---@field hunterCandidates table|nil Lista de dados dos caçadores candidatos gerados.
+---@field recruitModalButtons table<number, Button>|nil Botões "Escolher" nos modais { [candidateIndex] = Button }.
+---@field isActiveFrame boolean Flag to ignore input on the first frame after activation.
+local GuildScreen = {}
+GuildScreen.__index = GuildScreen
+
+--- Cria uma nova instância da tela de Guilda.
+---@param hunterManager HunterManager
+---@param archetypeManager ArchetypeManager
+---@return GuildScreen
+function GuildScreen:new(hunterManager, archetypeManager)
+    print("[GuildScreen] Creating new instance...")
+    local instance = setmetatable({}, GuildScreen)
+    instance.hunterManager = hunterManager
+    instance.archetypeManager = archetypeManager
+    instance.selectedHunterId = hunterManager:getActiveHunterId() -- Começa selecionando o ativo
+    instance.hunterListScrollY = 0
+    instance.hunterSlotRects = {}
+    instance.isRecruiting = false     -- Modal começa inativo
+    instance.hunterCandidates = nil
+    instance.recruitModalButtons = {} -- Inicializa como tabela vazia
+    instance.isActiveFrame = false    -- Initialize flag
+
+    if not instance.hunterManager or not instance.archetypeManager then
+        error("[GuildScreen] CRITICAL ERROR: hunterManager or archetypeManager not injected!")
+    end
+
+    -- Define a função onClick para o botão de recrutar
+    -- Ela precisa acessar 'instance' (o self da GuildScreen)
+    local function onClickRecruit()
+        print("[GuildScreen] Recruit Hunter onClick triggered!")
+        -- Gera os candidatos
+        instance.hunterCandidates = instance.hunterManager:generateHunterCandidates(3) -- Gera 3 opções
+        if instance.hunterCandidates and #instance.hunterCandidates > 0 then
+            instance.isRecruiting = true                                               -- Ativa o modo modal
+            instance.recruitButton.isEnabled = false                                   -- Desabilita o botão principal
+            instance.recruitModalButtons = {}                                          -- Limpa/reseta botões do modal anterior
+            print(string.format("  >> Generated %d candidates. Recruitment modal active.", #instance.hunterCandidates))
+        else
+            print("ERROR [GuildScreen]: Failed to generate hunter candidates.")
+            -- Poderia mostrar uma mensagem de erro na UI
+        end
+    end
+
+    -- Cria a instância do botão de Recrutar
+    -- CALCULA O RECT ABSOLUTO AQUI - ASSUMINDO x=0, y=0 por enquanto
+    -- Isso pode precisar de ajuste se GuildScreen for desenhada em outra posição
+    local screenW, screenH = love.graphics.getDimensions() -- Pega dimensões para calcular
+    local headerHeight = 60
+    local contentH = screenH - headerHeight - 50           -- Subtrai altura das tabs também
+    local buttonW = 180
+    local buttonH = 40
+    local buttonPadding = 15
+    local buttonX = (screenW - buttonW) / 2 -- Centralizado na LARGURA TOTAL (screenW)
+    local buttonY = headerHeight + contentH - buttonH -
+        buttonPadding                       -- Posicionado na parte inferior da ÁREA DE CONTEÚDO
+
+    instance.recruitButton = Button:new({
+        rect = { x = buttonX, y = buttonY, w = buttonW, h = buttonH },
+        text = "Recrutar Caçador",
+        variant = "primary",
+        onClick = onClickRecruit,
+        font = fonts.main
+    })
+
+    print(string.format("[GuildScreen] Ready. Initial selected hunter: %s", instance.selectedHunterId or "None"))
+    return instance
+end
+
+--- Desenha a tela da Guilda.
+---@param x number Posição X inicial da área da tela.
+---@param y number Posição Y inicial da área da tela.
+---@param w number Largura disponível para a tela.
+---@param h number Altura disponível para a tela.
+---@param mx number Posição X do mouse.
+---@param my number Posição Y do mouse.
+function GuildScreen:draw(x, y, w, h, mx, my)
+    love.graphics.setFont(fonts.main) -- Usar fonte padrão
+    love.graphics.push()
+    love.graphics.translate(x, y)     -- Translada para o início da área da GuildScreen
+
+    -- 1. Desenhar Cabeçalho
+    local headerHeight = 60                                             -- Altura reservada para o cabeçalho
+    local guildName = "Guilda dos Heróis Solitários"                    -- Mock
+    local guildRank = "S"                                               -- Mock
+    local currentHunters = table.maxn(self.hunterManager.hunters or {}) -- Conta caçadores atuais (pode precisar de um método melhor)
+    local maxHunters = 20                                               -- Mock
+
+    -- Nome da Guilda
+    love.graphics.setFont(fonts.title)
+    love.graphics.setColor(colors.text_title)
+    love.graphics.printf(guildName, 0, 5, w, "center")
+
+    -- Rank e Contagem (na linha abaixo)
+    love.graphics.setFont(fonts.main_large or fonts.main) -- Usar fonte maior se disponível
+    local rankColor = colors.rank[guildRank] or colors.text_default
+    local rankText = string.format("Rank: %s", guildRank)
+    local countText = string.format("Caçadores: %d/%d", currentHunters, maxHunters)
+    local rankTextWidth = love.graphics.getFont():getWidth(rankText)
+    local countTextWidth = love.graphics.getFont():getWidth(countText)
+    local totalInfoWidth = rankTextWidth + countTextWidth + 40 -- Largura total com espaçamento
+    local infoStartX = (w - totalInfoWidth) / 2
+
+    love.graphics.setColor(colors.text_label) -- Cor para "Rank:"
+    love.graphics.print("Rank: ", infoStartX, 35)
+    love.graphics.setColor(rankColor)
+    love.graphics.print(guildRank, infoStartX + love.graphics.getFont():getWidth("Rank: "), 35)
+
+    love.graphics.setColor(colors.text_label) -- Cor para "Caçadores:"
+    love.graphics.print(countText, infoStartX + rankTextWidth + 40, 35)
+
+    -- Linha separadora (opcional)
+    love.graphics.setColor(colors.window_border)
+    love.graphics.line(10, headerHeight - 5, w - 10, headerHeight - 5)
+
+    -- 2. Área de Conteúdo Principal (Lista e Detalhes)
+    local contentY = headerHeight
+    local contentH = h - headerHeight
+
+    -- Layout Básico do Conteúdo
+    local listWidth = math.floor(w * 0.25) -- Largura da lista
+    local detailsX = listWidth + 10        -- Posição X da área de detalhes
+    local detailsWidth = w - detailsX      -- Largura da área de detalhes
+
+    -- Resetar retângulos da lista a cada frame
+    self.hunterSlotRects = {}
+
+    -- 2.1 Desenhar Lista de Caçadores (Esquerda)
+    local listStartY = 10 -- Posição Y inicial DENTRO da área de conteúdo
+    local currentListY = listStartY
+    local slotHeight = 60
+    local slotPadding = 5
+    local listContentWidth = listWidth - 20         -- Largura interna com padding
+    local listVisibleHeight = contentH - listStartY -- Altura visível para a lista
+
+    -- Desenha um fundo para a lista (agora dentro da área de conteúdo)
+    love.graphics.setColor(colors.panel_bg)
+    love.graphics.rectangle("fill", 0, contentY, listWidth, contentH)
+    love.graphics.setColor(colors.white) -- Reset cor
+
+    -- Itera sobre todos os caçadores gerenciados
+    love.graphics.push()
+    love.graphics.translate(0, contentY) -- Translada para o início da área de conteúdo da lista
+    -- TODO: Adicionar Scissor/Clipping para a lista aqui se o scroll for implementado
+    -- love.graphics.scissor(0, listStartY, listWidth, listVisibleHeight)
+    for hunterId, hunterData in pairs(self.hunterManager.hunters) do
+        local isSelected = (hunterId == self.selectedHunterId)
+        local isActive = (hunterId == self.hunterManager:getActiveHunterId())
+        local slotX = 10
+        local slotW = listContentWidth
+
+        -- Calcula o retângulo do slot e armazena (Coordenadas RELATIVAS à tela, não à área de conteúdo)
+        local slotScreenY = y + contentY + currentListY -- Ajusta para coordenadas da tela
+        local rect = { x = x + slotX, y = slotScreenY, w = slotW, h = slotHeight }
+        self.hunterSlotRects[hunterId] = rect
+
+        -- Verifica hover (usa coordenadas da tela)
+        local isHovering = mx >= rect.x and mx < rect.x + rect.w and my >= rect.y and my < rect.y + rect.h
+
+        -- Define cor de fundo do slot
+        if isSelected then
+            love.graphics.setColor(isHovering and colors.tab_highlighted_hover or colors.tab_highlighted_bg)
+        elseif isHovering then
+            love.graphics.setColor(colors.slot_hover_bg)
+        else
+            love.graphics.setColor(colors.slot_bg)
+        end
+        love.graphics.rectangle("fill", slotX, currentListY, slotW, slotHeight)
+
+        -- Desenha borda se for o caçador ativo
+        if isActive then
+            love.graphics.setLineWidth(2)
+            love.graphics.setColor(colors.border_active)
+            love.graphics.rectangle("line", slotX, currentListY, slotW, slotHeight)
+            love.graphics.setLineWidth(1) -- Reset largura da linha
+        end
+
+        -- Desenha informações do caçador no slot
+        love.graphics.setColor(colors.text_default)
+        love.graphics.printf(hunterData.name or ("Hunter " .. hunterId), slotX + 5, currentListY + 5, slotW - 10, "left")
+        love.graphics.printf(string.format("Rank: %s", hunterData.finalRankId or "?"), slotX + 5, currentListY + 25,
+            slotW - 10, "left")
+        if isActive then
+            love.graphics.setColor(colors.text_highlight)
+            love.graphics.printf("(Ativo)", slotX + 5, currentListY + 45, slotW - 10, "left")
+        end
+
+        currentListY = currentListY + slotHeight + slotPadding -- Move para o próximo slot
+    end
+    -- love.graphics.scissor() -- Desativa o Scissor
+    love.graphics.pop() -- Restaura translação da lista
+
+    -- 2.2 Desenhar Área de Detalhes (Direita, dentro da área de conteúdo)
+    love.graphics.setColor(colors.panel_bg) -- Fundo para área de detalhes
+    love.graphics.rectangle("fill", detailsX, contentY, detailsWidth, contentH)
+    love.graphics.setColor(colors.white)    -- Reset cor
+
+    if self.selectedHunterId then
+        local selectedData = self.hunterManager.hunters[self.selectedHunterId]
+        if selectedData then
+            love.graphics.setFont(fonts.title)
+            love.graphics.setColor(colors.text_title)
+            love.graphics.printf(selectedData.name or "Unknown Hunter", detailsX + 10, contentY + 10, detailsWidth - 20,
+                "center")
+            love.graphics.setFont(fonts.main)
+
+            -- Desenha Arquétipos (placeholder)
+            local archetypesY = contentY + 60
+            love.graphics.setColor(colors.text_default)
+            love.graphics.printf("Arquétipos:", detailsX + 10, archetypesY, detailsWidth - 20, "left")
+            archetypesY = archetypesY + 25
+
+            if selectedData.archetypeIds and #selectedData.archetypeIds > 0 then
+                for i, archetypeId in ipairs(selectedData.archetypeIds) do
+                    local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
+                    local text = archetypeData and archetypeData.name or archetypeId -- Usa nome se disponível
+                    love.graphics.setColor(colors.text_label)
+                    love.graphics.printf("- " .. text, detailsX + 20, archetypesY, detailsWidth - 30, "left")
+                    archetypesY = archetypesY + 20
+                end
+            else
+                love.graphics.setColor(colors.text_muted)
+                love.graphics.printf("Nenhum arquétipo.", detailsX + 20, archetypesY, detailsWidth - 30, "left")
+            end
+
+            -- TODO: Desenhar Stats Finais
+            -- TODO: Desenhar outras informações relevantes
+        else
+            -- Caçador selecionado não encontrado (erro?)
+            love.graphics.setColor(colors.red)
+            love.graphics.printf("Erro: Caçador selecionado não encontrado!", detailsX + 10, contentY + 10,
+                detailsWidth - 20,
+                "center")
+        end
+    else
+        -- Nenhum caçador selecionado
+        love.graphics.setColor(colors.text_muted)
+        love.graphics.printf("Selecione um caçador na lista.", detailsX + 10, contentY + 10, detailsWidth - 20, "center")
+    end
+
+    -- 3. Desenhar Botão de Recrutar (AGORA USANDO A CLASSE BUTTON)
+    -- O rect foi calculado e armazenado no self.recruitButton no :new
+    -- A posição é relativa à janela inteira
+    -- TODO: Ajustar cálculo do rect se GuildScreen for desenhada com offset (x, y != 0, 0)
+    if self.recruitButton then
+        self.recruitButton:draw()
+    end
+
+    love.graphics.pop() -- Restaura transformações e estado gráfico
+
+    -- 4. Desenhar Modal de Recrutamento (se ativo)
+    if self.isRecruiting then
+        -- Passa coordenadas globais para o modal
+        self:_drawRecruitmentModal(0, 0, w, h, mx, my) -- Usa 0,0 porque o pop anterior restaurou
+    end
+end
+
+--- NOVO: Desenha os modais de seleção de caçador.
+--- Recebe coordenadas globais do mouse (mx, my) e da área total (areaX, areaY, areaW, areaH)
+function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
+    -- Define lineHeight localmente
+    local lineHeight = fonts.main:getHeight() * 1.2
+
+    -- Fundo semi-transparente cobrindo a ÁREA designada
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", areaX, areaY, areaW, areaH)
+
+    if not self.hunterCandidates or #self.hunterCandidates == 0 then
+        love.graphics.setColor(colors.red)
+        love.graphics.printf("Erro ao gerar candidatos!", areaX, areaY + areaH / 2, areaW, "center")
+        return
+    end
+
+    local numCandidates = #self.hunterCandidates
+    local totalPadding = 40 -- Padding total entre modais e bordas da tela
+    local modalSpacing = 20 -- Espaçamento entre modais
+    local availableWidth = areaW - totalPadding
+    local modalWidth = (availableWidth - (modalSpacing * (numCandidates - 1))) / numCandidates
+    local modalHeight = areaH * 0.8                  -- Altura do modal (80% da altura da tela da guilda)
+    local modalY = areaY + (areaH - modalHeight) / 2 -- Centralizado verticalmente
+    local startX = areaX + (totalPadding / 2)
+
+    self.recruitModalButtons = {} -- Resetar retângulos dos botões
+    local modalButtonW = 150
+    local modalButtonH = 35
+
+    for i, candidate in ipairs(self.hunterCandidates) do
+        local modalX = startX + (i - 1) * (modalWidth + modalSpacing)
+
+        -- Desenha o frame do modal
+        elements.drawWindowFrame(modalX, modalY, modalWidth, modalHeight, "Recrutar Caçador")
+
+        -- Posição Y inicial dentro do modal
+        local currentModalY = modalY + 40 -- Abaixo do título implícito
+
+        -- Nome do Candidato
+        love.graphics.setFont(fonts.title)
+        love.graphics.setColor(colors.text_title)
+        love.graphics.printf(candidate.name, modalX + 10, currentModalY, modalWidth - 20, "center")
+        currentModalY = currentModalY + fonts.title:getHeight() * 1.2
+
+        -- Rank do Candidato
+        love.graphics.setFont(fonts.main_large or fonts.main)
+        local rankColor = colors.rank[candidate.finalRankId] or colors.text_default
+        love.graphics.setColor(rankColor)
+        love.graphics.printf("Rank " .. candidate.finalRankId, modalX + 10, currentModalY, modalWidth - 20, "center")
+        currentModalY = currentModalY + (fonts.main_large or fonts.main):getHeight() * 1.5
+
+        -- TODO: Desenhar Arquétipos
+        love.graphics.setFont(fonts.main)
+        love.graphics.setColor(colors.text_label)
+        love.graphics.printf("Arquétipos: [TODO]", modalX + 15, currentModalY, modalWidth - 30, "left")
+        currentModalY = currentModalY + lineHeight * 2 -- Espaço placeholder
+
+        -- TODO: Desenhar Stats
+        love.graphics.setColor(colors.text_label)
+        love.graphics.printf("Stats: [TODO]", modalX + 15, currentModalY, modalWidth - 30, "left")
+        currentModalY = currentModalY + lineHeight * 5 -- Espaço placeholder
+
+        -- Botão "Escolher" (Cria ou atualiza a instância Button)
+        local btnX = modalX + (modalWidth - modalButtonW) / 2
+        local btnY = modalY + modalHeight - modalButtonH - 15 -- Na parte inferior do modal
+        local btnRect = { x = btnX, y = btnY, w = modalButtonW, h = modalButtonH }
+
+        -- Cria o botão APENAS se ainda não existir para este índice
+        if not self.recruitModalButtons[i] then
+            local selfRef = self -- Captura self para usar no callback
+            local index = i      -- Captura o índice atual
+            local function onChooseClick()
+                print(string.format("Choose button clicked for index: %d", index))
+                selfRef:_recruitCandidate(index)
+            end
+
+            self.recruitModalButtons[i] = Button:new({
+                rect = btnRect,
+                text = "Escolher",
+                variant = "primary",
+                onClick = onChooseClick,
+                font = fonts.main
+            })
+            print(string.format("Created Escolher button for index %d", i))
+        else
+            -- Atualiza o rect caso a janela mude de tamanho (improvável, mas seguro)
+            self.recruitModalButtons[i].rect = btnRect
+        end
+
+        -- Desenha o botão
+        self.recruitModalButtons[i]:draw()
+    end
+
+    love.graphics.setColor(1, 1, 1, 1) -- Reset final
+end
+
+--- NOVO: Método chamado pelo onClick do botão "Escolher".
+---@param candidateIndex number O índice do candidato selecionado.
+function GuildScreen:_recruitCandidate(candidateIndex)
+    if not self.hunterCandidates or not self.hunterCandidates[candidateIndex] then
+        print(string.format("ERROR [_recruitCandidate]: Invalid candidate index %d", candidateIndex))
+        return
+    end
+
+    local chosenCandidate = self.hunterCandidates[candidateIndex]
+    print(string.format("[GuildScreen] Recruiting candidate %d (%s)...", candidateIndex, chosenCandidate.name))
+
+    local newHunterId = self.hunterManager:recruitHunter(chosenCandidate)
+    if newHunterId then
+        print(string.format("  >> Hunter %s recruited successfully! Closing modal.", newHunterId))
+        self.selectedHunterId = newHunterId -- Seleciona o novo caçador
+    else
+        print("ERROR [GuildScreen]: Failed to recruit hunter.")
+        -- Manter modal aberto ou mostrar erro?
+    end
+
+    -- Limpa o estado do modal, independentemente do sucesso
+    self.isRecruiting = false
+    self.hunterCandidates = nil
+    self.recruitModalButtons = {} -- Limpa a tabela de botões
+    if self.recruitButton then self.recruitButton.isEnabled = true end
+    print("[GuildScreen] Recruitment modal closed.")
+end
+
+--- Atualiza o estado da tela (ex: hover de botões).
+---@param dt number Delta time.
+---@param mx number Posição X do mouse.
+---@param my number Posição Y do mouse.
+---@param allowHover boolean Se o hover de elementos nesta tela é permitido.
+function GuildScreen:update(dt, mx, my, allowHover)
+    -- Reset the isActiveFrame flag after the first update cycle
+    if self.isActiveFrame then
+        print("[GuildScreen] Resetting isActiveFrame flag in update.")
+        self.isActiveFrame = false
+    end
+
+    -- Atualiza o botão de Recrutar (hover, etc.)
+    -- Só permite hover no botão principal se o modal NÃO estiver ativo E allowHover for true
+    local allowRecruitButtonHover = allowHover and not self.isRecruiting
+    if self.recruitButton then
+        self.recruitButton:update(dt, mx, my, allowRecruitButtonHover)
+        -- Habilita/desabilita o botão baseado no estado de recrutamento
+        self.recruitButton.isEnabled = not self.isRecruiting
+    end
+
+    -- Lógica de hover dos botões do modal foi movida para _drawRecruitmentModal
+    -- para simplificar, pois eles só existem quando o modal é desenhado.
+
+    -- REMOVED CLICK HANDLING LOGIC FROM HERE
+end
+
+--- Processa cliques do mouse dentro da área da tela da Guilda.
+---@param clickX number Posição X do clique.
+---@param clickY number Posição Y do clique.
+---@param button number Índice do botão do mouse.
+---@return boolean consumed Se o clique foi consumido por esta tela.
+function GuildScreen:handleMousePress(clickX, clickY, button)
+    print(string.format("GuildScreen:handleMousePress ENTERED - Button: %d, isRecruiting: %s, isActiveFrame: %s", button,
+        tostring(self.isRecruiting), tostring(self.isActiveFrame)))
+
+    -- Ignore ALL clicks on the very first frame this screen becomes active
+    if self.isActiveFrame then
+        print("[GuildScreen] Ignoring click on first active frame.")
+        return true -- Consume the click
+    end
+
+    if button == 1 then
+        -- Se está recrutando, delega para os botões do modal PRIMEIRO
+        if self.isRecruiting then
+            for i, btn in pairs(self.recruitModalButtons) do
+                local consumed = btn:handleMousePress(clickX, clickY, button)
+                if consumed then
+                    print(string.format("[GuildScreen] Modal button %d consumed mouse press.", i))
+                    -- A ação de recrutar será chamada no MouseRelease pelo onClick do botão
+                    return true -- Consome o clique
+                end
+            end
+            -- Se clicou na área do modal mas não em um botão, consome para não interagir com o fundo
+            print("[GuildScreen] Click inside recruitment modal area, but not on a button.")
+            return true
+        end
+
+        -- Se NÃO está recrutando, delega o clique para o botão Recrutar
+        if self.recruitButton then
+            local consumed = self.recruitButton:handleMousePress(clickX, clickY, button)
+            if consumed then
+                print("[GuildScreen] Recruit button consumed mouse press.")
+                return true -- Botão Recrutar tratou o clique (marcou como pressionado)
+            end
+        end
+
+        -- Se NÃO está recrutando e NÃO clicou no botão Recrutar, verifica clique nos slots de caçador
+        for hunterId, rect in pairs(self.hunterSlotRects) do
+            if clickX >= rect.x and clickX < rect.x + rect.w and
+                clickY >= rect.y and clickY < rect.y + rect.h then
+                if self.selectedHunterId ~= hunterId then
+                    print(string.format("[GuildScreen] Hunter selected: %s (Previously: %s)", hunterId,
+                        self.selectedHunterId or "None"))
+                    self.selectedHunterId = hunterId
+                else
+                    print(string.format("[GuildScreen] Hunter re-selected: %s", hunterId))
+                end
+                return true -- Consome o clique no slot
+            end
+        end
+
+        -- Se chegou aqui, o clique (botão 1) não foi em nenhum elemento interativo conhecido
+        print(string.format("[GuildScreen] Click (button %d) at (%d, %d) did not hit any known interactive element.",
+            button, clickX, clickY))
+    end          -- Fim do if button == 1
+
+    return false -- Não consome o clique
+end
+
+--- NOVO: Processa o soltar do mouse.
+---@param clickX number Posição X do clique.
+---@param clickY number Posição Y do clique.
+---@param button number Índice do botão do mouse.
+---@return boolean consumed Se o evento foi consumido.
+function GuildScreen:handleMouseRelease(clickX, clickY, button)
+    -- Se está recrutando, delega para os botões do modal
+    if self.isRecruiting then
+        for i, btn in pairs(self.recruitModalButtons) do
+            local consumed = btn:handleMouseRelease(clickX, clickY, button)
+            if consumed then
+                print(string.format("[GuildScreen] Modal button %d consumed mouse release (onClick likely triggered)."),
+                    i)
+                -- A ação de recrutar JÁ FOI chamada pelo onClick do botão
+                return true -- Consome o release
+            end
+        end
+        -- Se soltou fora de um botão do modal, não faz nada e não consome
+    else
+        -- Se NÃO está recrutando, delega para o botão Recrutar principal
+        if self.recruitButton then
+            local consumed = self.recruitButton:handleMouseRelease(clickX, clickY, button)
+            if consumed then
+                print("[GuildScreen] Recruit button consumed mouse release (onClick likely triggered).")
+                return true
+            end
+        end
+    end
+
+    return false -- Não consumiu o release
+end
+
+--- Processa o scroll do mouse.
+---@param dx number Scroll horizontal (não usado geralmente).
+---@param dy number Scroll vertical (+1 para cima, -1 para baixo).
+function GuildScreen:handleMouseScroll(dx, dy)
+    -- TODO: Implementar scroll da lista de caçadores
+    if dy ~= 0 then
+        print(string.format("[GuildScreen] Scroll dy: %d", dy))
+        -- self.hunterListScrollY = self.hunterListScrollY + dy * 20 -- Exemplo de ajuste
+        -- Limitar scrollY para não sair dos limites da lista
+    end
+end
+
+return GuildScreen

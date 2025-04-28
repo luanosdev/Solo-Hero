@@ -448,4 +448,34 @@ function LoadoutManager:loadLoadout(hunterId)
     return true
 end
 
+--- NOVO: Cria um arquivo de save de loadout vazio para um novo caçador.
+--- Garante que o arquivo exista para evitar erros no primeiro carregamento.
+--- @param hunterId string ID do caçador para quem criar o loadout.
+--- @return boolean True se criou/salvou com sucesso.
+function LoadoutManager:createEmptyLoadout(hunterId)
+    if not hunterId then
+        print("ERRO [LoadoutManager:createEmptyLoadout]: hunterId não fornecido!")
+        return false
+    end
+    local filename = string.format("loadout_%s.dat", hunterId)
+    print(string.format("[LoadoutManager] Criando loadout inicial vazio para '%s' em '%s'...", hunterId, filename))
+
+    -- Salva um estado completamente vazio
+    local dataToSave = {
+        version = 1,
+        rows = self.rows, -- Usa as dimensões atuais do manager
+        cols = self.cols,
+        items = {},
+        nextInstanceId = 1 -- Começa ID local em 1 para este novo loadout
+    }
+
+    local success = PersistenceManager.saveData(filename, dataToSave)
+    if success then
+        print(string.format("[LoadoutManager] Loadout vazio para '%s' criado com sucesso.", hunterId))
+    else
+        print(string.format("ERRO [LoadoutManager]: Falha ao criar loadout vazio para '%s'.", hunterId))
+    end
+    return success
+end
+
 return LoadoutManager
