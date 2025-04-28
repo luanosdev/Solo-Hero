@@ -21,7 +21,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "É mais rapido que outros, bom para fugir de inimigos.",
         modifiers = {
-            { stat = "movement_speed", baseValue = 40 }
+            { stat = "moveSpeed", baseValue = 40 }
         }
     },
     vigorous = {
@@ -30,7 +30,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Um pouco mais resistente que outros, bom para resistir aos ataques.",
         modifiers = {
-            { stat = "max_hp", baseValue = 100 }
+            { stat = "health", baseValue = 100 }
         }
     },
     -- Rank D
@@ -40,7 +40,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Ataca com mais frequência.",
         modifiers = {
-            { stat = "attack_speed", baseValue = 0.06 }
+            { stat = "attackSpeed", baseValue = 0.06 }
         }
     },
     cautious = {
@@ -59,7 +59,25 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Velocidade de ataque consistentemente maior.",
         modifiers = {
-            { stat = "attack_speed", multValue = 0.12 } -- +12%
+            { stat = "attackSpeed", multValue = 0.12 }
+        }
+    },
+    predestined = {
+        id = "predestined",
+        name = "Predestinado",
+        rank = "C",
+        description = "Aumenta a Sorte.",
+        modifiers = {
+            { stat = "luck", baseValue = 0.05 }
+        }
+    },
+    blessed = {
+        id = "blessed",
+        name = "Bem-Aventurado",
+        rank = "C",
+        description = "Aumenta a Quantidade de Slots Runa.",
+        modifiers = {
+            { stat = "runeSlots", baseValue = 1 }
         }
     },
     precise = {
@@ -68,7 +86,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a chance de acertos críticos.",
         modifiers = {
-            { stat = "critical_chance", baseValue = 0.05 } -- +5% chance (chance geralmente é aditiva)
+            { stat = "critChance", baseValue = 0.05 }
         }
     },
     -- Rank B
@@ -78,8 +96,8 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Chance crítica massiva ao custo de defesa.",
         modifiers = {
-            { stat = "critical_chance", baseValue = 0.30 }, -- +30% chance
-            { stat = "defense",         multValue = -0.10 } -- -10% defesa
+            { stat = "critChance", baseValue = 0.30 },
+            { stat = "defense",    multValue = -0.10 }
         }
     },
     -- Rank A
@@ -89,8 +107,9 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Dano crítico e velocidade de ataque aprimorados.",
         modifiers = {
-            { stat = "critical_multiplier", multValue = 0.20 }, -- +20% dano crit
-            { stat = "attack_speed",        multValue = 0.20 }  -- +20% vel atq
+            { stat = "critDamage",  multValue = 0.20 },
+            { stat = "critChance",  multValue = 0.40 },
+            { stat = "attackSpeed", multValue = 0.20 }
         }
     },
     -- Rank S
@@ -100,7 +119,18 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Vida drasticamente aumentada.",
         modifiers = {
-            { stat = "max_hp", multValue = 0.60 } -- +60% vida
+            { stat = "health", multValue = 0.60 }
+        }
+    },
+    demon = {
+        id = "demon",
+        name = "Demônio",
+        rank = "S",
+        description = "Aumenta a chance de acertos críticos.",
+        modifiers = {
+            { stat = "critChance", multValue = 0.66 },
+            { stat = "critDamage", multValue = 0.66 },
+            { stat = "health",     multValue = -0.33 }
         }
     },
     insane = {
@@ -109,10 +139,209 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Ataques múltiplos frequentes, mas muito vulnerável.",
         modifiers = {
-            { stat = "multiAttackChance", baseValue = 0.50, multValue = 0.50 }, -- +50% chance multi-ataque
-            { stat = "defense",           multValue = -0.50 }                   -- -50% defesa
+            { stat = "multiAttackChance", baseValue = 0.50, multValue = 0.50 },
+            { stat = "defense",           multValue = -0.50 }
         }
     },
+    -- Rank E
+    hardy = {
+        id = "hardy",
+        name = "Resistente",
+        rank = "E",
+        description = "Recupera vida ligeiramente mais rápido após sofrer dano.",
+        modifiers = {
+            { stat = "healthRegenDelay", baseValue = -1.0 }
+        }
+    },
+    collector = {
+        id = "collector",
+        name = "Coletor",
+        rank = "E",
+        description = "Aumenta levemente o alcance para coletar itens.",
+        modifiers = {
+            { stat = "pickupRadius", baseValue = 20 }
+        }
+    },
+    vigilant = {
+        id = "vigilant",
+        name = "Vigilante",
+        rank = "E",
+        description = "Detecta inimigos de mais longe.",
+        modifiers = {
+            { stat = "pickupRadius", baseValue = 30 }
+        }
+    },
+
+    -- Rank D
+    resilient = {
+        id = "resilient",
+        name = "Resiliente",
+        rank = "D",
+        description = "Recuperação de vida constante melhorada.",
+        modifiers = {
+            { stat = "healthPerTick", baseValue = 1 }
+        }
+    },
+    focused = {
+        id = "focused",
+        name = "Focado",
+        rank = "D",
+        description = "Reduz um pouco o tempo de recarga de habilidades.",
+        modifiers = {
+            { stat = "cooldownReduction", multValue = -0.05 }
+        }
+    },
+    shielded = {
+        id = "shielded",
+        name = "Blindado",
+        rank = "D",
+        description = "Ganha uma pequena quantidade de defesa adicional.",
+        modifiers = {
+            { stat = "defense", baseValue = 3 }
+        }
+    },
+
+    -- Rank C
+    fortified = {
+        id = "fortified",
+        name = "Fortificado",
+        rank = "C",
+        description = "Aumenta a defesa.",
+        modifiers = {
+            { stat = "defense", baseValue = 5 }
+        }
+    },
+    healer = {
+        id = "healer",
+        name = "Curandeiro",
+        rank = "C",
+        description = "Aumenta a quantidade de cura recebida.",
+        modifiers = {
+            { stat = "healingBonus", multValue = 0.20 }
+        }
+    },
+    swift = {
+        id = "swift",
+        name = "Veloz",
+        rank = "C",
+        description = "Movimenta-se mais rapidamente que o normal.",
+        modifiers = {
+            { stat = "moveSpeed", multValue = 0.15 }
+        }
+    },
+    tactical = {
+        id = "tactical",
+        name = "Tático",
+        rank = "C",
+        description = "Pequeno bônus de redução de recarga.",
+        modifiers = {
+            { stat = "cooldownReduction", multValue = 0.10 }
+        }
+    },
+
+    -- Rank B
+    ranger = {
+        id = "ranger",
+        name = "Atirador",
+        rank = "B",
+        description = "Aumenta o alcance dos ataques.",
+        modifiers = {
+            { stat = "range", multValue = 0.20 }
+        }
+    },
+    crusher = {
+        id = "crusher",
+        name = "Esmagador",
+        rank = "B",
+        description = "Amplia a área de ataque das habilidades e armas.",
+        modifiers = {
+            { stat = "attackArea", multValue = 0.30 }
+        }
+    },
+    opportunist = {
+        id = "opportunist",
+        name = "Oportunista",
+        rank = "B",
+        description = "Pequeno bônus de sorte para acertos críticos e itens.",
+        modifiers = {
+            { stat = "luck", multValue = 0.15 }
+        }
+    },
+
+    -- Rank A
+    berserker = {
+        id = "berserker",
+        name = "Berserker",
+        rank = "A",
+        description = "Velocidade de ataque e área de ataque aumentadas, mas menos defesa.",
+        modifiers = {
+            { stat = "attackSpeed", multValue = 0.25 },
+            { stat = "attackArea",  multValue = 0.20 },
+            { stat = "defense",     multValue = -0.10 }
+        }
+    },
+    guardian = {
+        id = "guardian",
+        name = "Guardião",
+        rank = "A",
+        description = "Defesa maciça, mas com velocidade reduzida.",
+        modifiers = {
+            { stat = "defense",   multValue = 0.40 },
+            { stat = "moveSpeed", multValue = -0.20 }
+        }
+    },
+    avenger = {
+        id = "avenger",
+        name = "Vingador",
+        rank = "A",
+        description = "Aumenta o dano crítico após sofrer dano.",
+        modifiers = {
+            { stat = "critDamage", multValue = 0.25 }
+        }
+    },
+
+    -- Rank S
+    reaper = {
+        id = "reaper",
+        name = "Ceifador",
+        rank = "S",
+        description = "Chance absurda de multi-ataques, mas extremamente frágil.",
+        modifiers = {
+            { stat = "multiAttackChance", multValue = 1.0 },
+            { stat = "defense",           multValue = -0.70 },
+            { stat = "health",            multValue = -0.50 }
+        }
+    },
+    godspeed = {
+        id = "godspeed",
+        name = "Velocidade Divina",
+        rank = "S",
+        description = "Movimentação e ataque extremamente rápidos.",
+        modifiers = {
+            { stat = "moveSpeed",   multValue = 0.50 },
+            { stat = "attackSpeed", multValue = 0.50 }
+        }
+    },
+    phoenix = {
+        id = "phoenix",
+        name = "Fênix",
+        rank = "S",
+        description = "Renasce automaticamente uma vez por partida com metade da vida.",
+        modifiers = {
+            { stat = "health", multValue = 0.50 }
+            -- Efeito especial: revive (pode ser implementado no sistema de habilidades especiais)
+        }
+    },
+    overcharged = {
+        id = "overcharged",
+        name = "Sobrecarregado",
+        rank = "S",
+        description = "Reduz drasticamente o tempo de recarga, mas aumenta o dano recebido.",
+        modifiers = {
+            { stat = "cooldownReduction", multValue = 0.50 },
+            { stat = "defense",           multValue = -0.30 }
+        }
+    }
     -- Adicionar MUITOS outros arquétipos aqui para cada rank...
 }
 

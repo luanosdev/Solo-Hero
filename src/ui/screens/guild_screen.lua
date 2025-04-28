@@ -7,6 +7,7 @@ local Text = require("src.ui.components.Text")
 local Card = require("src.ui.components.Card")
 local Section = require("src.ui.components.Section")
 local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
+local HunterAttributesList = require("src.ui.components.HunterAttributesList")
 
 ---@class GuildScreen
 ---@field hunterManager HunterManager
@@ -357,6 +358,26 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
             -- Adiciona headerStack como PRIMEIRO filho da coluna
             columnStack:addChild(headerStack)
 
+            -- ADICIONADO Componente de Atributos
+            -- Passa os dados necessários para o construtor
+            local attributesComponent = HunterAttributesList:new({
+                attributes = candidate.finalStats,
+                archetypes = candidate.archetypes,       -- Passa a lista de dados dos arquétipos
+                archetypeManager = self.archetypeManager -- Passa a instância do manager
+                -- x, y, width serão definidos pelo YStack pai ao ser adicionado à section
+            })
+
+            local attributesSection = Section:new({
+                titleConfig = {
+                    text = "Atributos",
+                    size = "h3",
+                    variant = "text_highlight"
+                },
+                contentComponent = attributesComponent,
+                gap = 10
+            })
+            columnStack:addChild(attributesSection)
+
             local archetypesYStack = YStack:new({
                 x = 0,
                 y = 0,
@@ -401,13 +422,15 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
             columnStack:addChild(archetypeSection)
 
             -- 4. Adiciona Texto de Stats (Placeholder ainda)
-            columnStack:addChild(Text:new({
-                text = "Stats: [TODO]",
-                width = 0,
-                size = "label",
-                variant = "text_label",
-                align = "left"
-            }))
+            -- REMOVIDO Placeholder:
+            -- columnStack:addChild(Text:new({
+            --     text = "Stats: [TODO]",
+            --     width = 0,
+            --     size = "label",
+            --     variant = "text_label",
+            --     align = "left"
+            -- }))
+
 
             -- 5. Adiciona Botão
             local selfRef = self

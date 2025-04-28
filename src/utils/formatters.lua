@@ -29,6 +29,40 @@ function Formatters.formatModifierValue(value, isMultiplier)
     end
 end
 
+--- Formata um modificador de arquétipo específico para exibição em tooltip.
+---@param key string Chave completa do modificador (ex: "health_add").
+---@param value number Valor do modificador.
+---@return string Modificador formatado sem o label inicial (ex: ": +10", ": +5%").
+function Formatters.formatArchetypeModifierForTooltip(key, value)
+    local statName, modifierType = key:match("^(.+)_([^_]+)$")
+    if not statName then return ": " .. tostring(value) end -- Fallback
+
+    local formattedValue = "?"
+
+    if modifierType == "add" then
+        -- MODIFICADO: Trata stats de "Chance" separadamente
+        if string.find(statName, "Chance") then
+            -- Formata como pontos percentuais adicionados, e.g., 0.30 -> +30.0%
+            formattedValue = string.format("%+.1f%%", value * 100)
+            formattedValue = formattedValue:gsub("%.0%%$", "%%") -- Remove .0% se for inteiro
+        else
+            -- Formatação padrão para outros stats 'add' (e.g., health, defense, luck)
+            formattedValue = string.format("%+.2f", value)
+            formattedValue = formattedValue:gsub("%.00$", "") -- Remove .00 se for inteiro
+        end
+    elseif modifierType == "mult" then
+        -- Mantém lógica para 'mult' (exibe mudança percentual)
+        local percentage = (value - 1) * 100
+        formattedValue = string.format("%+.1f%%", percentage)
+        formattedValue = formattedValue:gsub("%.0%%$", "%%")
+        if statName == "range" or statName == "attackArea" then formattedValue = string.format("x%.1f", value) end
+    else
+        formattedValue = tostring(value)
+    end
+    -- Retorna apenas o valor formatado, precedido por ": "
+    return ": " .. formattedValue
+end
+
 -- Adicionar outras funções de formatação aqui no futuro, se necessário.
 
 return Formatters

@@ -84,6 +84,7 @@ function ArchetypeDetails:_buildLayoutInternal()
         align = "left"
     }))
 
+    --[[
     -- 2. Descrição
     if data.description and data.description ~= "" then
         self.internalStack:addChild(Text:new({
@@ -94,6 +95,7 @@ function ArchetypeDetails:_buildLayoutInternal()
             align = "left"
         }))
     end
+    --]]
 
     -- 3. Modificadores
     if data.modifiers and #data.modifiers > 0 then
@@ -107,23 +109,29 @@ function ArchetypeDetails:_buildLayoutInternal()
             local valueText = ""
             local value = 0
             local isMultiplier = false
+            local formattedKey = ""
 
             if mod.baseValue ~= nil then
                 value = mod.baseValue
-                valueText = Formatters.formatModifierValue(value, false)
+                isMultiplier = false
+                formattedKey = mod.stat .. "_add"
             elseif mod.multValue ~= nil then
                 value = mod.multValue
                 isMultiplier = true
-                valueText = Formatters.formatModifierValue(value, true)
+                formattedKey = mod.stat .. "_mult"
             else
                 print(string.format("AVISO (ArchetypeDetails): Modificador inválido para stat '%s' em '%s'", mod.stat,
                     data.id or data.name))
                 goto continue_mod_loop
             end
 
+            local tooltipFormatted = Formatters.formatArchetypeModifierForTooltip(formattedKey,
+                isMultiplier and (value + 1) or value)
+            valueText = tooltipFormatted:gsub("^: %s*", "")
+
             local colorVariant = "text_muted"
             if value > 0 then colorVariant = "positive" end
-            if value < 0 then colorVariant = "negative" end -- Usar elseif aqui seria mais seguro?
+            if value < 0 then colorVariant = "negative" end
 
             self.internalStack:addChild(Text:new({
                 text = string.format("%s: %s", statName, valueText),
