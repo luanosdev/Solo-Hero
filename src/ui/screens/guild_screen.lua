@@ -20,8 +20,9 @@ local Grid = require("src.ui.components.Grid")
 ---@field recruitCancelButton Button|nil Instância do botão de cancelar no modal.
 ---@field isRecruiting boolean Flag que indica se o modal de recrutamento está ativo.
 ---@field hunterCandidates table|nil Lista de dados dos caçadores candidatos gerados.
----@field recruitModalColumns table<number, YStack>|nil Colunas (YStacks) para cada candidato no modal.
----@field isActiveFrame boolean Flag to ignore input on the first frame after activation.
+---@field recruitModalColumns table<number, YStack>|nil Colunas (YStacks) com o conteúdo scrollável.
+---@field recruitModalButtons table<number, Button>|nil Botões "Escolher" abaixo de cada coluna.
+---@field isActiveFrame boolean
 local GuildScreen = {}
 GuildScreen.__index = GuildScreen
 
@@ -37,10 +38,11 @@ function GuildScreen:new(hunterManager, archetypeManager)
     instance.selectedHunterId = hunterManager:getActiveHunterId() -- Começa selecionando o ativo
     instance.hunterListScrollY = 0
     instance.hunterSlotRects = {}
-    instance.isRecruiting = false      -- Modal começa inativo
+    instance.isRecruiting = false -- Modal começa inativo
     instance.hunterCandidates = nil
-    instance.recruitModalColumns = {}  -- Inicializa como tabela vazia
-    instance.isActiveFrame = false     -- Initialize flag
+    instance.recruitModalColumns = {}
+    instance.recruitModalButtons = {}
+    instance.isActiveFrame = false
     instance.recruitCancelButton = nil -- Inicializa botão cancelar
 
     if not instance.hunterManager or not instance.archetypeManager then
@@ -276,12 +278,12 @@ function GuildScreen:draw(x, y, w, h, mx, my)
     end
 end
 
---- Desenha os modais de seleção de caçador usando Card e YStack.
+--- Desenha os modais de seleção de caçador.
 function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
-    -- >>> Fundo semi-transparente COBRINDO A TELA INTEIRA
+    -- Fundo semi-transparente (TELA INTEIRA)
     local screenW, screenH = love.graphics.getDimensions()
     love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", 0, 0, screenW, screenH) -- <<< Usa 0,0 e screenW, screenH
+    love.graphics.rectangle("fill", 0, 0, screenW, screenH)
 
     if not self.hunterCandidates or #self.hunterCandidates == 0 then
         love.graphics.setColor(colors.red)
@@ -295,61 +297,58 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
         return
     end
 
-    -- Calcula dimensões e posição base das colunas
+    -- Cálculos de Dimensão e Posição
     local numCandidates = #self.hunterCandidates
     local totalPadding = 40
     local modalColumnGap = 20
     local modalHeaderGap = 6
-
-    local fixedModalContentHeight = screenH * 0.80 -- Ex: 80% da altura da tela
-    local modalBottomPadding = 80                  -- Espaço para o botão Cancelar e margem inferior
-
-    -- Usa areaW para calcular a largura DISPONÍVEL
+    local fixedModalContentHeight = screenH * 0.80 -- Altura da área visível/scrollável
+    local buttonAreaHeight = 50                    -- Espaço ABAIXO do card para o botão Escolher
+    local totalColumnHeight = fixedModalContentHeight + buttonAreaHeight
+    local modalBottomPadding = 80                  -- Espaço abaixo de tudo para o botão Cancelar
     local availableWidthForColumns = areaW - totalPadding
-    local calculatedModalWidth = (availableWidthForColumns - (modalColumnGap * (numCandidates - 1))) / numCandidates
-    local modalWidth = math.max(0, calculatedModalWidth)
-
-    -- Ajusta Y Base para centralizar a área de altura fixa
-    local modalBaseY = areaY + (screenH - fixedModalContentHeight - modalBottomPadding) / 2
+    local modalWidth = math.max(0, (availableWidthForColumns - (modalColumnGap * (numCandidates - 1))) / numCandidates)
+    local modalBaseY = areaY + (screenH - totalColumnHeight - modalBottomPadding) / 2 -- Centraliza altura total
     local startX = areaX + (totalPadding / 2)
-
     local modalContentPadding = 14
     local modalButtonW = 150
     local modalButtonH = 35
+    local buttonPaddingY = (buttonAreaHeight - modalButtonH) / 2 -- Padding vertical dentro da área do botão
 
     for i, candidate in ipairs(self.hunterCandidates) do
         local modalX = startX + (i - 1) * (modalWidth + modalColumnGap)
         local columnStack
+        local chooseButton
 
         if not self.recruitModalColumns[i] then
-            print(string.format("Creating YStack column for candidate %d", i))
-            -- >>> 3. Cria a YStack passando as dimensões finais e altura fixa
+            print(string.format("Creating YStack column AND Button for candidate %d", i))
+            -- 1. Cria a Stack de CONTEÚDO (Header, Attr, Arch)
             columnStack = YStack:new({
-                x = modalX,                       -- Posição X final
-                y = modalBaseY,                   -- Posição Y final
-                width = modalWidth,               -- Largura final
-                height = fixedModalContentHeight, -- <<< ALTURA FIXA
+                x = modalX, -- Passa posição/largura inicial (embora layout recalcule)
+                y = modalBaseY,
+                width = modalWidth,
+                height = fixedModalContentHeight, -- Altura fixa para clipping interno
                 padding = modalContentPadding,
                 gap = modalColumnGap,
                 alignment = "center",
             })
-
-            -- 2. Cria e adiciona Header Stack
+            -- ... (Adiciona header, attributes, archetypes à columnStack - SEM BOTÃO)
             local headerStack = YStack:new({
-                x = 0,                -- Placeholder, será definido pelo pai
-                y = 0,                -- Placeholder, será definido pelo pai
-                width = modalWidth,   -- <<< USA A LARGURA DISPONÍVEL CALCULADA
+                x = 0,
+                y = 0,
+                width = modalWidth,
                 padding = 0,
-                gap = modalHeaderGap, -- Gap entre Nome e Rank
-                alignment = "center",
-            })
+                gap = modalHeaderGap,
+                alignment =
+                "center"
+            });
+
             headerStack:addChild(Text:new({
                 text = candidate.name,
                 width = 0,
                 size = "h1",
                 variant = "text_title",
                 align = "center"
-                -- Sem margin aqui
             }))
             headerStack:addChild(Text:new({
                 text = "Caçador Rank " .. candidate.finalRankId,
@@ -357,111 +356,65 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
                 size = "h2",
                 variant = "rank_" .. candidate.finalRankId,
                 align = "center"
-                -- Sem margin aqui
             }))
+
             -- Adiciona headerStack como PRIMEIRO filho da coluna
             columnStack:addChild(headerStack)
-
-            -- ADICIONADO Componente de Atributos
-            -- Passa os dados necessários para o construtor
             local attributesComponent = HunterAttributesList:new({
                 attributes = candidate.finalStats,
-                archetypes = candidate.archetypes,       -- Passa a lista de dados dos arquétipos
-                archetypeManager = self.archetypeManager -- Passa a instância do manager
-                -- x, y, width serão definidos pelo YStack pai ao ser adicionado à section
-            })
-
-            local attributesSection = Section:new({
-                titleConfig = {
-                    text = "Atributos",
-                    size = "h3",
-                    variant = "text_highlight"
-                },
-                contentComponent = attributesComponent,
+                archetypes =
+                    candidate.archetypes,
+                archetypeManager = self.archetypeManager
+            }); local attributesSection = Section:new({
+                titleConfig = { text = "Atributos", font = fonts.main_large },
+                contentComponent =
+                    attributesComponent,
                 gap = 10
-            })
-            columnStack:addChild(attributesSection)
-
-            -- Cria a GRID para os arquétipos
-            local archetypeGrid = Grid:new({
-                x = 0,
-                y = 0,
-                width = modalWidth,
-                columns = 3,
-                gap = { vertical = 5, horizontal = 5 },
-            })
-
-            -- 3. Adiciona DETALHES DOS ARQUÉTIPOS usando o novo componente
-            local archetypes = candidate.archetypes -- Assumindo que os dados estão em candidate.archetypes
-            if archetypes and #archetypes > 0 then
-                for _, archetypeData in ipairs(archetypes) do
-                    -- Passa os dados do arquétipo para o componente
-                    local detailsComponent = ArchetypeDetails:new({
-                        archetypeData = archetypeData
-                        -- x, y, width serão definidos pela Grid (pai)
-                    })
-                    archetypeGrid:addChild(detailsComponent)
+            }); columnStack:addChild(attributesSection)
+            local archetypeGrid = Grid:new({ x = 0, y = 0, width = modalWidth, columns = 3, gap = { vertical = 5, horizontal = 5 } }); if candidate.archetypes and #candidate.archetypes > 0 then
+                for _, d in ipairs(candidate.archetypes) do
+                    archetypeGrid:addChild(ArchetypeDetails:new({ archetypeData = d }))
                 end
             else
-                -- Opcional: Mostrar um texto se não houver arquétipos
-                archetypeGrid:addChild(Text:new({
-                    text = "Sem arquétipos.",
-                    width = 0,
-                    size = "small",
-                    variant = "text_muted",
-                    align = "left"
-                }))
-            end
-
-            local archetypeSection = Section:new({
-                titleConfig = {
-                    text = "Arquétipos",
-                    size = "h3",
-                    variant = "text_highlight"
-                },
-                contentComponent = archetypeGrid,
+                archetypeGrid:addChild(
+                    Text:new({ text = "Nenhum", width = modalWidth, align = "center" }))
+            end; local archetypeSection = Section:new({
+                titleConfig = { text = "Arquétipos", font = fonts.main_large },
+                contentComponent =
+                    archetypeGrid,
                 gap = 10
-            })
+            }); columnStack:addChild(archetypeSection)
 
-            columnStack:addChild(archetypeSection)
+            self.recruitModalColumns[i] = columnStack
 
-            -- 4. Adiciona Botão
+            -- 2. Cria e guarda o Botão "Escolher"
             local selfRef = self
             local index = i
             local function onChooseClick() selfRef:_recruitCandidate(index) end
-            local chooseButton = Button:new({
-                isAbsolute = true,
-                rect = {
-                    w = modalButtonW,
-                    h = modalButtonH,
-                    y = columnStack.rect.h - modalButtonH,
-                    x = columnStack.rect.w / 2 - modalButtonW / 2
-                },
-                text = "Recrutar",
+            chooseButton = Button:new({
+                rect = { w = modalButtonW, h = modalButtonH }, -- x, y serão definidos depois
+                text = "Escolher",
                 variant = "primary",
                 onClick = onChooseClick,
                 font = fonts.main
-                -- Margin top será controlada pelo gap da columnStack
             })
-            columnStack:addChild(chooseButton)
-
-            self.recruitModalColumns[i] = columnStack
+            self.recruitModalButtons[i] = chooseButton
         else
             columnStack = self.recruitModalColumns[i]
-            -- Atualiza posição/dimensões se a janela mudar (ou para garantir)
+            chooseButton = self.recruitModalButtons[i] -- Pega botão existente
+            -- Atualiza dimensões/posição da stack (caso janela mude)
             columnStack.rect.x = modalX
             columnStack.rect.y = modalBaseY
             columnStack.rect.w = modalWidth
-            columnStack.fixedHeight = fixedModalContentHeight -- Garante altura fixa
+            columnStack.fixedHeight = fixedModalContentHeight
             columnStack.needsLayout = true
         end
 
-        -- Calcula layout interno da Stack (necessário para posicionar filhos corretamente)
-        -- A altura da stack (rect.h) já está definida como fixedModalContentHeight
+        -- Calcula layout interno da stack (necessário para scroll)
         columnStack:_updateLayout()
 
-        -- >>> 4. Criar e desenhar o Card de fundo com altura FIXA
-        local cardHeight = fixedModalContentHeight -- Usa a altura fixa calculada
+        -- 3. Desenha o Card de fundo (apenas área de conteúdo)
+        local cardHeight = fixedModalContentHeight
         local backgroundCard = Card:new({
             rect = { x = modalX, y = modalBaseY, w = modalWidth, h = cardHeight },
             backgroundColor = colors.window_bg,
@@ -470,14 +423,20 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
         })
         backgroundCard:draw()
 
-        -- Desenhar a YStack (Clipping/Scissor é INTERNO no YStack:draw agora)
+        -- 4. Desenha o CONTEÚDO da Stack (com clipping interno e scroll)
         columnStack:draw()
+
+        -- 5. Desenha o Botão "Escolher" ABAIXO do card
+        local buttonX = modalX + (modalWidth - modalButtonW) / 2
+        local buttonY = modalBaseY + cardHeight + buttonPaddingY -- Abaixo do card, com padding
+        chooseButton.rect.x = math.floor(buttonX)
+        chooseButton.rect.y = math.floor(buttonY)
+        chooseButton:draw()
     end
 
-    -- Desenha o botão Cancelar (se existir)
+    -- 6. Desenha o botão Cancelar global
     if self.recruitCancelButton then
-        -- >>> 5. Posiciona abaixo da área de conteúdo fixa
-        local cancelY = modalBaseY + fixedModalContentHeight + 20 -- Espaçamento abaixo
+        local cancelY = modalBaseY + totalColumnHeight + 20 -- Abaixo da coluna inteira (conteúdo + botão)
         self.recruitCancelButton.rect.x = (screenW - self.recruitCancelButton.rect.w) / 2
         self.recruitCancelButton.rect.y = math.floor(cancelY)
         self.recruitCancelButton:draw()
@@ -492,7 +451,8 @@ function GuildScreen:_closeRecruitmentModal()
     self.isRecruiting = false
     self.hunterCandidates = nil
     self.recruitModalColumns = {}
-    self.recruitCancelButton = nil -- Destroi/limpa referência ao botão cancelar
+    self.recruitModalButtons = {}
+    self.recruitCancelButton = nil
     if self.recruitButton then self.recruitButton.isEnabled = true end
 end
 
@@ -550,9 +510,13 @@ function GuildScreen:update(dt, mx, my, allowHover)
     end
 
     if self.isRecruiting then
-        -- Atualiza colunas do modal
-        for _, stack in pairs(self.recruitModalColumns) do
+        -- Atualiza colunas E botões "Escolher"
+        for i, stack in pairs(self.recruitModalColumns) do
             stack:update(dt, mx, my, allowHover)
+            local button = self.recruitModalButtons[i]
+            if button then
+                button:update(dt, mx, my, allowHover)
+            end
         end
         -- Atualiza botão Cancelar do modal
         if self.recruitCancelButton then
@@ -577,24 +541,22 @@ function GuildScreen:handleMousePress(clickX, clickY, button)
 
     if button == 1 then
         if self.isRecruiting then
-            -- 1. Verifica clique no botão Cancelar
-            if self.recruitCancelButton then
-                local consumed = self.recruitCancelButton:handleMousePress(clickX, clickY, button)
-                if consumed then
-                    print("[GuildScreen] Modal Cancel button consumed mouse press.")
-                    return true
-                end
+            -- 1. Botão Cancelar
+            if self.recruitCancelButton and self.recruitCancelButton:handleMousePress(clickX, clickY, button) then return true end
+            -- 2. Botões "Escolher"
+            for i, btn in pairs(self.recruitModalButtons) do
+                if btn:handleMousePress(clickX, clickY, button) then return true end
             end
-            -- 2. Verifica clique nas colunas/botões dos candidatos
+            -- 3. Conteúdo das Colunas (para scroll)
             for i, stack in pairs(self.recruitModalColumns) do
-                local consumed = stack:handleMousePress(clickX, clickY, button)
-                if consumed then
-                    print(string.format("[GuildScreen] Modal column %d consumed mouse press.", i))
-                    return true
+                local cardX, cardY = stack.rect.x, stack.rect.y
+                local cardW, cardH = stack.rect.w, stack.rect.h -- Usa a altura fixa da stack
+                if clickX >= cardX and clickX < cardX + cardW and clickY >= cardY and clickY < cardY + cardH then
+                    -- Delega para a stack, ajustando Y pelo scroll
+                    if stack:handleMousePress(clickX, clickY - (stack.scrollY or 0), button) then return true end
                 end
             end
-            -- 3. Clicou na área do modal, mas fora de elementos interativos -> Consome
-            print("[GuildScreen] Click inside modal area (missed elements). Consuming.")
+            -- 4. Clique fora de elementos
             return true
         else
             -- Lógica fora do modal (botão recrutar, lista de caçadores) - Código existente
@@ -623,24 +585,16 @@ end
 function GuildScreen:handleMouseRelease(clickX, clickY, button)
     if button == 1 then
         if self.isRecruiting then
-            -- 1. Verifica release no botão Cancelar
-            if self.recruitCancelButton then
-                local consumed = self.recruitCancelButton:handleMouseRelease(clickX, clickY, button)
-                if consumed then
-                    print("[GuildScreen] Modal Cancel button consumed mouse release.")
-                    return true
-                end
+            -- 1. Botão Cancelar
+            if self.recruitCancelButton and self.recruitCancelButton:handleMouseRelease(clickX, clickY, button) then return true end
+            -- 2. Botões "Escolher"
+            for i, btn in pairs(self.recruitModalButtons) do
+                if btn:handleMouseRelease(clickX, clickY, button) then return true end
             end
-            -- 2. Verifica release nas colunas/botões dos candidatos
+            -- 3. Conteúdo das Colunas (scroll release não precisa consumir geralmente)
             for i, stack in pairs(self.recruitModalColumns) do
-                local consumed = stack:handleMouseRelease(clickX, clickY, button)
-                if consumed then
-                    print(string.format("[GuildScreen] Modal column %d consumed mouse release."), i)
-                    return true
-                end
+                stack:handleMouseRelease(clickX, clickY - (stack.scrollY or 0), button)
             end
-            -- 3. Soltou na área do modal, mas fora de elementos -> Não consome (permitir drag talvez?)
-            -- return true -- Descomentar se quiser consumir mesmo soltando fora
         else
             -- Lógica fora do modal (botão recrutar) - Código existente
             if self.recruitButton then
@@ -656,12 +610,33 @@ end
 ---@param dx number Scroll horizontal (não usado geralmente).
 ---@param dy number Scroll vertical (+1 para cima, -1 para baixo).
 function GuildScreen:handleMouseScroll(dx, dy)
-    -- TODO: Implementar scroll da lista de caçadores
-    if dy ~= 0 then
-        print(string.format("[GuildScreen] Scroll dy: %d", dy))
-        -- self.hunterListScrollY = self.hunterListScrollY + dy * 20 -- Exemplo de ajuste
-        -- Limitar scrollY para não sair dos limites da lista
+    if not self.isRecruiting or dy == 0 then return false end
+
+    local mx, my = love.mouse.getPosition()
+
+    for i, stack in pairs(self.recruitModalColumns) do
+        local cardX, cardY = stack.rect.x, stack.rect.y
+        local cardW, cardH = stack.rect.w, stack.rect.h -- Usa a altura fixa da stack
+
+        -- Verifica se o mouse está sobre a área de conteúdo desta coluna
+        if mx >= cardX and mx < cardX + cardW and my >= cardY and my < cardY + cardH then
+            -- Calcula altura disponível interna e altura real do conteúdo
+            local availableHeight = cardH - stack.padding.top - stack.padding.bottom
+            local contentHeight = stack.actualHeight
+
+            if contentHeight > availableHeight then
+                local scrollSpeed = 30
+                local currentScrollY = stack.scrollY or 0
+                local newScrollY = currentScrollY - dy * scrollSpeed
+                local maxScrollY = math.min(0, availableHeight - contentHeight)
+                stack.scrollY = math.clamp(newScrollY, maxScrollY, 0)
+                return true -- Consome o evento
+            else
+                stack.scrollY = 0
+            end
+        end
     end
+    return false
 end
 
 return GuildScreen
