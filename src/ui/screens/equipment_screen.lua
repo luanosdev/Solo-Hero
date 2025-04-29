@@ -6,9 +6,30 @@ local StatsSection = require("src.ui.inventory.sections.stats_section")
 local EquipmentSection = require("src.ui.inventory.sections.equipment_section")
 local Constants = require("src.config.constants")
 local Grid = require("src.ui.components.Grid")
-local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
 local Text = require("src.ui.components.Text")
+local Formatters = require("src.utils.formatters")
 local SLOT_IDS = Constants.SLOT_IDS
+
+-- <<< COPIADO de archetypes_data.lua para acesso local >>>
+local statDisplayNames = {
+    ["health"] = "Vida",
+    ["defense"] = "Defesa",
+    ["moveSpeed"] = "Vel. Movimento",
+    ["critChance"] = "Chance Crítica",
+    ["critDamage"] = "Mult. Crítico",
+    ["healthPerTick"] = "Regen. Vida/s",
+    ["healthRegenDelay"] = "Delay Regen.",
+    ["multiAttackChance"] = "Atq. Múltiplo",
+    ["attackSpeed"] = "Vel. Ataque",
+    ["expBonus"] = "Bônus Exp",
+    ["cooldownReduction"] = "Red. Recarga",
+    ["range"] = "Alcance",
+    ["attackArea"] = "Área",
+    ["pickupRadius"] = "Raio Coleta",
+    ["healingBonus"] = "Bônus Cura",
+    ["runeSlots"] = "Slots Runa",
+    ["luck"] = "Sorte",
+}
 
 ---@class EquipmentScreen
 ---@field itemDataManager ItemDataManager
@@ -73,11 +94,12 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     local loadoutX = storageX + storageW + padding
 
     -- <<< Layout VERTICAL para a primeira coluna (Stats + Archetypes) >>>
-    local statsSectionH = math.floor(sectionContentH * 0.60) -- Stats ficam com 60%
-    local archetypesTitleH = fonts.hud:getHeight() * 1.5     -- Altura para o título "Arquétipos"
-    local archetypesGapY = 15                                -- Espaço entre stats e título arquétipos
-    local archetypesGridY = contentStartY + statsSectionH + archetypesGapY + archetypesTitleH
-    local archetypesGridH = sectionContentH - statsSectionH - archetypesGapY - archetypesTitleH
+    local statsSectionH = math.floor(sectionContentH * 0.50) -- Stats ficam com 60%
+    local archetypesTitleH = fonts.hud:getHeight() *
+        1.5                                                  -- Altura para o título "Arquétipos"
+    local archetypesGapY = 5                                 -- <<< REDUZIDO o espaço entre stats e título arquétipos >>>
+    local archetypesListStartY = contentStartY + statsSectionH + archetypesGapY +
+        archetypesTitleH                                     -- Y onde a lista de arquétipos começa
 
     self.storageGridArea = { x = storageX, y = contentStartY, w = storageW, h = sectionContentH }
     self.loadoutGridArea = { x = loadoutX, y = contentStartY, w = loadoutW, h = sectionContentH }
@@ -86,7 +108,7 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     -- <<< DESENHA TÍTULOS DAS SEÇÕES >>>
     love.graphics.setFont(titleFont)
     love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("ATRIBUTOS", statsX, sectionTopY, statsW, "center") -- Título Stats continua no topo
+    love.graphics.printf("ATRIBUTOS", statsX, sectionTopY, statsW, "left") -- <<< ALINHADO À ESQUERDA >>>
     love.graphics.printf("EQUIPAMENTO", equipmentX, sectionTopY, equipmentW, "center")
     love.graphics.printf("ARMAZENAMENTO", storageX, sectionTopY, storageW, "center")
     love.graphics.printf("MOCHILA", loadoutX, sectionTopY, loadoutW, "center")
@@ -111,34 +133,130 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
             -- 1.1 Desenha Seção de Arquétipos ABAIXO dos Stats
             love.graphics.setFont(fonts.hud)
             love.graphics.setColor(colors.text_highlight)
-            love.graphics.printf("ARQUÉTIPOS", statsX, contentStartY + statsSectionH + archetypesGapY, statsW,
+            -- Posição Y do TÍTULO "ARQUÉTIPOS"
+            local archetypesTitleY = contentStartY + statsSectionH + archetypesGapY
+            love.graphics.printf("ARQUÉTIPOS", statsX, archetypesTitleY, statsW,
                 "left")
 
             if archetypeIds and #archetypeIds > 0 then
-                local archetypeGrid = Grid:new({
-                    x = statsX,
-                    y = archetypesGridY,
-                    width = statsW,
-                    columns = 3, -- 3 Colunas como solicitado
-                    gap = 5,     -- Espaçamento entre detalhes dos arquétipos
-                    padding = 0,
-                    debug = false
-                })
-
-                for _, archIdTable in ipairs(archetypeIds) do -- Assumindo que archetypeIds é lista de {id=..., rank=...}
-                    local archetypeData = archetypeManager:getArchetypeData(archIdTable.id)
-                    if archetypeData then
-                        archetypeGrid:addChild(ArchetypeDetails:new({ archetypeData = archetypeData, width = 0 })) -- Width é definido pelo Grid
+                -- 1. Buscar e Ordenar Dados dos Arquétipos
+                local rankOrder = { S = 1, A = 2, B = 3, C = 4, D = 5, E = 6 }
+                local sortedArchetypes = {}
+                for _, archIdInfo in ipairs(archetypeIds) do
+                    local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
+                    if type(finalArchId) == 'string' then
+                        local data = archetypeManager:getArchetypeData(finalArchId)
+                        if data then
+                            table.insert(sortedArchetypes, data)
+                        end
                     end
                 end
+                table.sort(sortedArchetypes, function(a, b)
+                    local orderA = rankOrder[a.rank or 'E'] or 99
+                    local orderB = rankOrder[b.rank or 'E'] or 99
+                    if orderA == orderB then
+                        return a.name < b.name -- Ordena alfabeticamente se ranks iguais
+                    end
+                    return orderA < orderB
+                end)
 
-                archetypeGrid:_updateLayout() -- Calcula layout interno da grid
-                archetypeGrid:draw()          -- Desenha a grid
+                -- 2. Desenhar Arquétipos Ordenados com Modificadores
+                local itemsPerRow = 3
+                local hGap = 15                             -- Aumentado um pouco
+                local vGap = 10                             -- Aumentado um pouco
+                local availableWidth = statsW - padding * 2 -- Usa padding da coluna
+                local itemWidth = (availableWidth - (hGap * (itemsPerRow - 1))) / itemsPerRow
+                if itemWidth < 0 then itemWidth = 0 end
+
+                local currentX = statsX               -- Começa dentro do padding da coluna
+                local currentY = archetypesListStartY -- Posição Y inicial para os arquétipos
+                local maxHeightInRow = 0
+                local nameFont = fonts.main_small_bold or fonts.main
+                local modFont = fonts.main_small or fonts.main
+                local nameFontHeight = nameFont:getHeight()
+                local modFontHeight = modFont:getHeight()
+                local lineSpacing = 2 -- Pequeno espaço entre linhas de modificador
+
+                for i, archetypeData in ipairs(sortedArchetypes) do
+                    -- Monta o texto do cabeçalho (Nome (Rank))
+                    local nameText = archetypeData.name or "??"
+                    local rankText = archetypeData.rank or "?"
+                    local headerText = string.format("%s (%s)", nameText, rankText)
+                    local rankColor = colors.rank[rankText] or colors.text_default
+
+                    -- Guarda a posição Y inicial para este arquétipo
+                    local startItemY = currentY
+
+                    -- Desenha o cabeçalho
+                    love.graphics.setFont(nameFont)
+                    love.graphics.setColor(rankColor)
+                    -- Usa a largura da coluna como limite para printf
+                    love.graphics.printf(headerText, currentX, currentY, statsW - padding * 2, "left")
+                    currentY = currentY + nameFontHeight -- Move Y para baixo para a próxima linha
+
+                    -- Desenha os modificadores
+                    love.graphics.setFont(modFont)
+                    if archetypeData.modifiers and #archetypeData.modifiers > 0 then
+                        currentY = currentY + lineSpacing -- Espaço antes dos modificadores
+                        for _, mod in ipairs(archetypeData.modifiers) do
+                            local statId = mod.stat or "???"
+                            local value = mod.baseValue ~= nil and mod.baseValue or mod.multValue
+                            local isMultiplier = mod.multValue ~= nil
+                            local valueForFormatter = isMultiplier and (value + 1) or value
+                            local statName = statDisplayNames[statId] or statId
+                            local formattedValueText
+                            if Formatters and Formatters.formatValue then
+                                formattedValueText = Formatters.formatValue(valueForFormatter, isMultiplier, statId)
+                                if value > 0 and not (isMultiplier and value == 0) then
+                                    formattedValueText = "+" .. formattedValueText
+                                end
+                            else
+                                if isMultiplier then
+                                    formattedValueText = string.format("%+.1f%%", value * 100)
+                                else
+                                    formattedValueText = string.format("%+.0f", value)
+                                end
+                            end
+                            local modText = string.format("%s: %s", statName, formattedValueText)
+
+                            local modColor = colors.text_muted
+                            if value > 0 then modColor = colors.positive end
+                            if value < 0 then modColor = colors.negative end
+
+                            love.graphics.setColor(modColor)
+                            -- Usa a largura da coluna como limite para printf
+                            love.graphics.printf(modText, currentX, currentY, statsW - padding * 2, "left")
+                            currentY = currentY + modFontHeight + lineSpacing -- Move para a próxima linha de modificador
+                        end
+                    end
+
+                    -- Calcula a altura total deste item (Y final - Y inicial)
+                    local itemHeight = currentY - startItemY
+                    maxHeightInRow = math.max(maxHeightInRow, itemHeight)
+
+                    -- Avança a posição X para o próximo item na linha
+                    local nextItemX = currentX + itemWidth + hGap
+
+                    -- Verifica se é o último item na linha ou o último item da lista
+                    if i % itemsPerRow == 0 or i == #sortedArchetypes then
+                        -- Move para a próxima linha
+                        currentY = startItemY + maxHeightInRow +
+                            vGap                    -- Próxima linha começa abaixo do item mais alto da linha atual
+                        currentX = statsX           -- Reseta X para o início da coluna (com padding)
+                        maxHeightInRow = 0          -- Reseta altura máxima para a nova linha
+                    else
+                        -- Continua na mesma linha
+                        currentX = nextItemX
+                        -- Mantém o Y inicial da linha atual para o próximo item
+                        currentY = startItemY -- Reset Y to top of row for next item
+                    end
+                end
+                love.graphics.setColor(colors.white) -- Reseta a cor após o loop
             else
                 -- Mensagem se não houver arquétipos
                 love.graphics.setFont(fonts.main)
                 love.graphics.setColor(colors.text_muted)
-                love.graphics.printf("Nenhum arquétipo.", statsX + 5, archetypesGridY + 5, statsW - 10, "left")
+                love.graphics.printf("Nenhum arquétipo.", statsX + 5, archetypesListStartY + 5, statsW - 10, "left")
             end
         else
             -- Mensagem de erro se não foi possível obter os dados do caçador para stats

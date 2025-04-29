@@ -250,7 +250,7 @@ function GuildScreen:draw(x, y, w, h, mx, my)
         -- currentListY está relativo à área de conteúdo (0, contentY)
         -- O botão será desenhado relativo a (x, y) da GuildScreen
         local buttonDrawY = contentY + currentListY +
-        10                                                                -- Y relativo a (x, y), 10px abaixo do último slot
+            10                                                            -- Y relativo a (x, y), 10px abaixo do último slot
         local buttonDrawX = (listWidth - self.setActiveButton.rect.w) / 2 -- X relativo a (x, y)
         self.setActiveButton.rect.x = buttonDrawX
         self.setActiveButton.rect.y = buttonDrawY
@@ -277,18 +277,26 @@ function GuildScreen:draw(x, y, w, h, mx, my)
             love.graphics.setColor(colors.text_default)
             love.graphics.printf("Arquétipos:", detailsX + 10, archetypesY, detailsWidth - 20, "left")
             archetypesY = archetypesY + 25
-
             if selectedData.archetypeIds and #selectedData.archetypeIds > 0 then
+                print("[GuildScreen Draw] Found", #selectedData.archetypeIds, "archetype IDs for hunter",
+                    self.selectedHunterId)
                 for i, archetypeId in ipairs(selectedData.archetypeIds) do
-                    local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
-                    local text = archetypeData and archetypeData.name or archetypeId -- Usa nome se disponível
+                    print(string.format("  [%d] Iterating archetypeId: %s (Type: %s)", i, tostring(archetypeId),
+                        type(archetypeId)))
+                    -- TODO: Verificar como archetypeId está armazenado (string ou table?)
+                    -- Ajustado para pegar .id se for uma table
+                    local archId = type(archetypeId) == 'table' and archetypeId.id or archetypeId
+                    print(string.format("    Extracted archId: %s (Type: %s)", tostring(archId), type(archId)))
+                    local archetypeData = self.archetypeManager:getArchetypeData(archId)
+                    print("    Result from getArchetypeData:", archetypeData and "Data found" or "NIL")
+                    local text = archetypeData and archetypeData.name or archId
+                    print(string.format("    Final text to print: '%s'", tostring(text)))
                     love.graphics.setColor(colors.text_label)
-                    love.graphics.printf("- " .. text, detailsX + 20, archetypesY, detailsWidth - 30, "left")
+                    love.graphics.printf("- " .. tostring(text), detailsX + 20, archetypesY, detailsWidth - 30, "left")
                     archetypesY = archetypesY + 20
                 end
             else
-                love.graphics.setColor(colors.text_muted)
-                love.graphics.printf("Nenhum arquétipo.", detailsX + 20, archetypesY, detailsWidth - 30, "left")
+                print("[GuildScreen Draw] No archetype IDs found for hunter", self.selectedHunterId)
             end
 
             -- TODO: Desenhar Stats Finais
