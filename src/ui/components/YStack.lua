@@ -7,17 +7,21 @@ local Component = require("src.ui.components.Component") -- <<< IMPORTA BASE
 ---@field alignment string Alinhamento horizontal dos filhos ('left', 'center', 'right').
 ---@field children table Lista de componentes filhos.
 ---@field actualHeight number Altura calculada com base nos filhos.
+---@field fixedHeight number|nil Altura fixa definida na configuração.
 local YStack = setmetatable({}, { __index = Component }) -- <<< HERANÇA
 YStack.__index = YStack
 
 --- Cria uma nova instância de YStack.
 ---@param config table Tabela de configuração contendo:
+---  x, y, width (obrigatórios)
+---  height (number|nil) - Opcional. Altura fixa para a stack. Se omitido, calcula automaticamente.
+---  padding, gap, alignment - Opcionais
 ---@return YStack
 function YStack:new(config)
-    if not config or not config.x or not config.y or not config.width then
+    if not config or config.x == nil or config.y == nil or config.width == nil then -- Verificação ajustada
         error("YStack:new - Configuração inválida. 'x', 'y', e 'width' são obrigatórios.", 2)
     end
-    -- Chama construtor base (inicializa rect, padding, margin, needsLayout, debug)
+    -- Chama construtor base
     local instance = Component:new(config) ---@class YStack
     setmetatable(instance, YStack)
 
@@ -26,9 +30,11 @@ function YStack:new(config)
     instance.alignment = config.alignment or "left"
     instance.children = {}
     instance.actualHeight = 0
+    instance.fixedHeight = config.height -- <<< Armazena altura fixa
 
-    -- Ajusta rect.w herdado (Component pode ter inicializado com config.w)
+    -- Ajusta rect.w herdado e define rect.h inicial
     instance.rect.w = config.width
+    instance.rect.h = instance.fixedHeight or 0 -- Usa altura fixa ou 0 inicial
 
     return instance
 end
@@ -46,28 +52,24 @@ function YStack:addChild(child)
 end
 
 --- Calcula e atualiza a posição E LARGURA dos filhos, considerando padding da stack e margin dos filhos.
+--- Atualiza a altura REAL do conteúdo em self.actualHeight e define self.rect.h.
 function YStack:_updateLayout()
     if not self.needsLayout then return end
 
     local innerWidth = self.rect.w - self.padding.left - self.padding.right
-    local currentY = self.rect.y + self.padding.top -- Y inicial DENTRO do padding
+    local currentY = self.rect.y + self.padding.top
     local contentStartX = self.rect.x + self.padding.left
 
+    -- >>> Loop para posicionar filhos (lógica de posicionamento X/Y igual)
     for i, child in ipairs(self.children) do
-        local childMargin = child.margin
-
-        -- *** 1. Calcula a posição Y do filho ATUAL (baseado no currentY) ***
+        local childMargin = child.margin or { top = 0, right = 0, bottom = 0, left = 0 }
         currentY = currentY + childMargin.top
-        local childY = currentY -- Guarda a posição Y inicial deste filho
-
-        -- *** 2. Define a largura do filho (para cálculo de alinhamento X e altura interna) ***
+        local childY = currentY
         local availableWidthForChild = innerWidth - childMargin.left - childMargin.right
         child.rect.w = math.max(0, availableWidthForChild)
 
-        -- *** 3. Calcula a posição X do filho ATUAL (depende da largura do filho) ***
         local childX
         if self.alignment == "center" then
-            -- Nota: child.rect.w precisa estar definido antes disto
             local totalChildWidth = child.rect.w + childMargin.left + childMargin.right
             local centeringOffset = (innerWidth - totalChildWidth) / 2
             childX = contentStartX + centeringOffset + childMargin.left
@@ -77,35 +79,35 @@ function YStack:_updateLayout()
             childX = contentStartX + childMargin.left
         end
 
-        -- *** 4. Define a posição (absoluta na tela) do filho ANTES de chamar seu layout ***
         child.rect.x = math.floor(childX)
         child.rect.y = math.floor(childY)
 
-        -- *** 5. CHAMA o layout interno do filho (AGORA com a posição correta definida) ***
         if child.needsLayout and child._updateLayout then
-            -- O filho (ex: headerStack) usará seu self.rect.y (agora 64) como base
             child:_updateLayout()
         elseif child.needsLayout then
             child.needsLayout = false
         end
 
-        -- *** 6. Lê a altura final do filho (pode ter sido atualizada pelo passo 5) ***
-        local childHeight = child.rect.h
-
-        -- *** 7. Atualiza currentY para o PRÓXIMO filho ***
+        local childHeight = child.rect.h or 0 -- Garante que childHeight seja um número
         currentY = currentY + childHeight + childMargin.bottom + self.gap
     end
 
-    -- Calcula a altura total usada (lógica permanece a mesma)
-    local calculatedHeight = 0
+    -- >>> Calcula a altura REAL do conteúdo
+    local calculatedContentHeight = 0
     if #self.children > 0 then
-        local endY = currentY - self.gap
-        calculatedHeight = endY - (self.rect.y + self.padding.top) + self.padding.bottom
-    else
-        calculatedHeight = self.padding.top + self.padding.bottom
+        local endY = currentY - self.gap -- Y onde o próximo item começaria
+        calculatedContentHeight = endY - (self.rect.y + self.padding.top)
     end
-    self.actualHeight = math.max(0, calculatedHeight)
-    self.rect.h = self.actualHeight
+    self.actualHeight = math.max(0, calculatedContentHeight) -- Altura total se não houvesse clipping
+
+    -- >>> Define a altura final do componente YStack
+    if self.fixedHeight ~= nil then
+        -- Usa a altura fixa definida (mais padding)
+        self.rect.h = self.fixedHeight
+    else
+        -- Usa a altura calculada baseada nos filhos (mais padding)
+        self.rect.h = self.actualHeight + self.padding.top + self.padding.bottom
+    end
 
     Component._updateLayout(self)
 end
@@ -124,23 +126,33 @@ function YStack:update(dt, mx, my, allowHover)
 end
 
 --- Desenha a stack e seus filhos.
---- Sobrescreve o método da classe base.
+--- Aplica clipping interno se fixedHeight foi definido.
 function YStack:draw()
     self:_updateLayout()
 
-    -- Desenha debug da stack base (agora usa self.rect.w e self.rect.h)
+    -- Desenha debug da stack base
     Component.draw(self)
 
-    -- Desenha área de padding (mantido para visualização específica do YStack)
-    if self.debug then
-        love.graphics.push()
-        love.graphics.setColor(0, 1, 1, 0.3)
-        love.graphics.rectangle("line", self.rect.x + self.padding.left, self.rect.y + self.padding.top,
-            self.rect.w - self.padding.left - self.padding.right, self.rect.h - self.padding.top - self.padding.bottom)
-        love.graphics.pop()
+    -- >>> Aplica Scissor INTERNO se altura for fixa e área for válida
+    local needsScissor = self.fixedHeight ~= nil
+    local scissorX, scissorY, scissorW, scissorH
+    if needsScissor then
+        -- Calcula área de recorte DENTRO do padding
+        scissorX = math.floor(self.rect.x + self.padding.left)
+        scissorY = math.floor(self.rect.y + self.padding.top)
+        scissorW = math.floor(self.rect.w - self.padding.left - self.padding.right)
+        scissorH = math.floor(self.rect.h - self.padding.top - self.padding.bottom)
+
+        -- Só aplica se a área for positiva
+        if scissorW > 0 and scissorH > 0 then
+            love.graphics.push()
+            love.graphics.setScissor(scissorX, scissorY, scissorW, scissorH)
+        else
+            needsScissor = false -- Não aplicar se área for inválida
+        end
     end
 
-    -- Desenha os filhos
+    -- Desenha os filhos (dentro ou fora do scissor)
     for _, child in ipairs(self.children) do
         if child.draw then
             child:draw()
@@ -152,6 +164,12 @@ function YStack:draw()
                 love.graphics.pop()
             end
         end
+    end
+
+    -- >>> Remove Scissor se foi aplicado
+    if needsScissor then
+        love.graphics.setScissor()
+        love.graphics.pop()
     end
 end
 

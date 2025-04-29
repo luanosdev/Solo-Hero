@@ -8,6 +8,7 @@ local Card = require("src.ui.components.Card")
 local Section = require("src.ui.components.Section")
 local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
 local HunterAttributesList = require("src.ui.components.HunterAttributesList")
+local Grid = require("src.ui.components.Grid")
 
 ---@class GuildScreen
 ---@field hunterManager HunterManager
@@ -378,13 +379,13 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
             })
             columnStack:addChild(attributesSection)
 
-            local archetypesYStack = YStack:new({
+            -- Cria a GRID para os arquétipos
+            local archetypeGrid = Grid:new({
                 x = 0,
                 y = 0,
                 width = modalWidth,
-                padding = { vertical = 10 },
-                gap = 10,
-                alignment = "center"
+                columns = 3,
+                gap = { vertical = 5, horizontal = 5 },
             })
 
             -- 3. Adiciona DETALHES DOS ARQUÉTIPOS usando o novo componente
@@ -394,13 +395,13 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
                     -- Passa os dados do arquétipo para o componente
                     local detailsComponent = ArchetypeDetails:new({
                         archetypeData = archetypeData
-                        -- x, y, width serão definidos pelo columnStack (pai)
+                        -- x, y, width serão definidos pela Grid (pai)
                     })
-                    archetypesYStack:addChild(detailsComponent)
+                    archetypeGrid:addChild(detailsComponent)
                 end
             else
                 -- Opcional: Mostrar um texto se não houver arquétipos
-                archetypesYStack:addChild(Text:new({
+                archetypeGrid:addChild(Text:new({
                     text = "Sem arquétipos.",
                     width = 0,
                     size = "small",
@@ -415,7 +416,7 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
                     size = "h3",
                     variant = "text_highlight"
                 },
-                contentComponent = archetypesYStack,
+                contentComponent = archetypeGrid,
                 gap = 10
             })
 
