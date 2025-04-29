@@ -23,6 +23,7 @@ local Grid = require("src.ui.components.Grid")
 ---@field recruitModalColumns table<number, YStack>|nil Colunas (YStacks) com o conteúdo scrollável.
 ---@field recruitModalButtons table<number, Button>|nil Botões "Escolher" abaixo de cada coluna.
 ---@field isActiveFrame boolean
+---@field setActiveButton Button|nil Instância do botão 'Definir Ativo'.
 local GuildScreen = {}
 GuildScreen.__index = GuildScreen
 
@@ -44,6 +45,7 @@ function GuildScreen:new(hunterManager, archetypeManager)
     instance.recruitModalButtons = {}
     instance.isActiveFrame = false
     instance.recruitCancelButton = nil -- Inicializa botão cancelar
+    instance.setActiveButton = nil     -- <<< ADICIONADO
 
     if not instance.hunterManager or not instance.archetypeManager then
         error("[GuildScreen] CRITICAL ERROR: hunterManager or archetypeManager not injected!")
@@ -85,6 +87,35 @@ function GuildScreen:new(hunterManager, archetypeManager)
         onClick = onClickRecruit,
         font = fonts.main
     })
+
+    -- <<< CRIAÇÃO DO BOTÃO 'DEFINIR ATIVO' >>>
+    local function onClickSetActive()
+        if instance.selectedHunterId and instance.selectedHunterId ~= instance.hunterManager:getActiveHunterId() then
+            print(string.format("[GuildScreen] Setting active hunter to: %s", instance.selectedHunterId))
+            local success = instance.hunterManager:setActiveHunter(instance.selectedHunterId)
+            if success then
+                print("  >> Active hunter set successfully.")
+                -- O estado do botão será atualizado no :update, e o estado da lista também no próximo :draw
+            else
+                print("  >> Failed to set active hunter.")
+            end
+            -- Força atualização do estado do botão imediatamente após tentativa
+            instance.setActiveButton.isEnabled = (instance.selectedHunterId ~= instance.hunterManager:getActiveHunterId())
+        end
+    end
+
+    -- Cria a instância do botão 'Definir Ativo'
+    local setActiveButtonW = 180
+    local setActiveButtonH = 40
+    instance.setActiveButton = Button:new({
+        rect = { w = setActiveButtonW, h = setActiveButtonH }, -- x, y definidos dinamicamente no draw
+        text = "Definir Ativo",
+        variant = "secondary",
+        onClick = onClickSetActive,
+        font = fonts.main,
+        isEnabled = false -- Começa desabilitado, será atualizado no :update
+    })
+    -- <<< FIM CRIAÇÃO BOTÃO >>>
 
     print(string.format("[GuildScreen] Ready. Initial selected hunter: %s", instance.selectedHunterId or "None"))
     return instance
@@ -212,6 +243,20 @@ function GuildScreen:draw(x, y, w, h, mx, my)
     end
     -- love.graphics.scissor() -- Desativa o Scissor
     love.graphics.pop() -- Restaura translação da lista
+
+    -- <<< DESENHO DO BOTÃO 'Definir Ativo' >>>
+    if self.setActiveButton then
+        -- Posiciona ABAIXO do último slot desenhado, centralizado na coluna da lista
+        -- currentListY está relativo à área de conteúdo (0, contentY)
+        -- O botão será desenhado relativo a (x, y) da GuildScreen
+        local buttonDrawY = contentY + currentListY +
+        10                                                                -- Y relativo a (x, y), 10px abaixo do último slot
+        local buttonDrawX = (listWidth - self.setActiveButton.rect.w) / 2 -- X relativo a (x, y)
+        self.setActiveButton.rect.x = buttonDrawX
+        self.setActiveButton.rect.y = buttonDrawY
+        self.setActiveButton:draw() -- Desenha relativo a (x, y)
+    end
+    -- <<< FIM DESENHO BOTÃO >>>
 
     -- 2.2 Desenhar Área de Detalhes (Direita, dentro da área de conteúdo)
     love.graphics.setColor(colors.panel_bg) -- Fundo para área de detalhes
@@ -509,98 +554,138 @@ function GuildScreen:update(dt, mx, my, allowHover)
         self.isActiveFrame = false
     end
 
+    -- <<< ATUALIZA ESTADO E HOVER DO BOTÃO 'Definir Ativo' >>>
+    if self.setActiveButton then
+        local canSetActive = self.selectedHunterId ~= nil and
+            self.selectedHunterId ~= self.hunterManager:getActiveHunterId()
+        self.setActiveButton.isEnabled = canSetActive
+        -- Passa coordenadas do mouse RELATIVAS à GuildScreen (mx-x, my-y) se GuildScreen tiver offset
+        -- Assumindo que mx, my já são relativos à GuildScreen (passados pela UI principal)
+        self.setActiveButton:update(dt, mx, my, allowHover and not self.isRecruiting)
+    end
+    -- <<< FIM ATUALIZAÇÃO BOTÃO >>>
+
     if self.isRecruiting then
         -- Atualiza colunas E botões "Escolher"
         for i, stack in pairs(self.recruitModalColumns) do
+            -- A stack precisa das coords relativas a ela, mas update já lida com isso internamente
             stack:update(dt, mx, my, allowHover)
             local button = self.recruitModalButtons[i]
             if button then
+                -- O botão precisa das coords relativas à GuildScreen
                 button:update(dt, mx, my, allowHover)
             end
         end
         -- Atualiza botão Cancelar do modal
         if self.recruitCancelButton then
+            -- O botão precisa das coords relativas à GuildScreen
             self.recruitCancelButton:update(dt, mx, my, allowHover)
         end
     else
         -- Atualiza botão Recrutar principal
         if self.recruitButton then
+            -- O botão precisa das coords relativas à GuildScreen
             self.recruitButton:update(dt, mx, my, allowHover)
-            self.recruitButton.isEnabled = true -- Garante que está habilitado fora do modal
+            self.recruitButton.isEnabled = true -- Habilita fora do modal
         end
     end
 end
 
 --- Processa cliques do mouse dentro da área da tela da Guilda.
----@param clickX number Posição X do clique.
----@param clickY number Posição Y do clique.
+---@param clickX number Posição X do clique (relativo à GuildScreen).
+---@param clickY number Posição Y do clique (relativo à GuildScreen).
 ---@param button number Índice do botão do mouse.
 ---@return boolean consumed Se o clique foi consumido por esta tela.
 function GuildScreen:handleMousePress(clickX, clickY, button)
-    if self.isActiveFrame then return true end
+    if self.isActiveFrame then return true end -- Evita processar se não for frame ativo
 
     if button == 1 then
         if self.isRecruiting then
-            -- 1. Botão Cancelar
+            -- ... (lógica clique modal inalterada, usa clickX, clickY relativos)
             if self.recruitCancelButton and self.recruitCancelButton:handleMousePress(clickX, clickY, button) then return true end
-            -- 2. Botões "Escolher"
             for i, btn in pairs(self.recruitModalButtons) do
                 if btn:handleMousePress(clickX, clickY, button) then return true end
             end
-            -- 3. Conteúdo das Colunas (para scroll)
             for i, stack in pairs(self.recruitModalColumns) do
-                local cardX, cardY = stack.rect.x, stack.rect.y
-                local cardW, cardH = stack.rect.w, stack.rect.h -- Usa a altura fixa da stack
-                if clickX >= cardX and clickX < cardX + cardW and clickY >= cardY and clickY < cardY + cardH then
-                    -- Delega para a stack, ajustando Y pelo scroll
-                    if stack:handleMousePress(clickX, clickY - (stack.scrollY or 0), button) then return true end
+                -- Verifica se clique está na STACK, passa coords relativas à STACK
+                if clickX >= stack.rect.x and clickX < stack.rect.x + stack.rect.w and
+                    clickY >= stack.rect.y and clickY < stack.rect.y + stack.rect.h then
+                    if stack:handleMousePress(clickX - stack.rect.x, clickY - stack.rect.y - (stack.scrollY or 0), button) then return true end
                 end
             end
-            -- 4. Clique fora de elementos
+            -- Se clicou dentro do modal mas não em um botão/stack, consome mesmo assim
             return true
         else
-            -- Lógica fora do modal (botão recrutar, lista de caçadores) - Código existente
+            -- Lógica fora do modal (usa clickX, clickY relativos à GuildScreen)
+
+            -- <<< VERIFICA CLIQUE NO BOTÃO 'Definir Ativo' PRIMEIRO >>>
+            if self.setActiveButton and self.setActiveButton:handleMousePress(clickX, clickY, button) then
+                return true -- Consome se clicou no botão
+            end
+            -- <<< FIM VERIFICAÇÃO BOTÃO >>>
+
+            -- Botão Recrutar
             if self.recruitButton then
                 local consumed = self.recruitButton:handleMousePress(clickX, clickY, button)
                 if consumed then return true end
             end
+
+            -- Lista de Caçadores
+            -- Usa coordenadas GLOBAIS (armazenadas em self.hunterSlotRects)
+            -- Precisa converter clickX/clickY para globais OU comparar com coords relativas
+            -- Mais fácil usar as coords GLOBAIS que já estão nos rects
+            local globalClickX, globalClickY = love.mouse.getPosition() -- Pega coords GLOBAIS
             for hunterId, rect in pairs(self.hunterSlotRects) do
-                if clickX >= rect.x and clickX < rect.x + rect.w and
-                    clickY >= rect.y and clickY < rect.y + rect.h then
+                if globalClickX >= rect.x and globalClickX < rect.x + rect.w and
+                    globalClickY >= rect.y and globalClickY < rect.y + rect.h then
                     self.selectedHunterId = hunterId
                     print(string.format("[GuildScreen] Hunter selected: %s", hunterId))
-                    return true
+                    -- <<< ATUALIZA ESTADO DO BOTÃO AO SELECIONAR >>>
+                    if self.setActiveButton then
+                        self.setActiveButton.isEnabled = (self.selectedHunterId ~= nil and self.selectedHunterId ~= self.hunterManager:getActiveHunterId())
+                    end
+                    -- <<< FIM ATUALIZAÇÃO BOTÃO >>>
+                    return true -- Consome clique na lista
                 end
             end
         end
     end
-    return false
+    return false -- Não consumiu clique
 end
 
 --- Processa o soltar do mouse.
----@param clickX number Posição X do clique.
----@param clickY number Posição Y do clique.
+---@param clickX number Posição X do clique (relativo à GuildScreen).
+---@param clickY number Posição Y do clique (relativo à GuildScreen).
 ---@param button number Índice do botão do mouse.
 ---@return boolean consumed Se o evento foi consumido.
 function GuildScreen:handleMouseRelease(clickX, clickY, button)
     if button == 1 then
         if self.isRecruiting then
-            -- 1. Botão Cancelar
+            -- ... (lógica release modal inalterada, usa clickX, clickY relativos)
             if self.recruitCancelButton and self.recruitCancelButton:handleMouseRelease(clickX, clickY, button) then return true end
-            -- 2. Botões "Escolher"
             for i, btn in pairs(self.recruitModalButtons) do
                 if btn:handleMouseRelease(clickX, clickY, button) then return true end
             end
-            -- 3. Conteúdo das Colunas (scroll release não precisa consumir geralmente)
             for i, stack in pairs(self.recruitModalColumns) do
-                stack:handleMouseRelease(clickX, clickY - (stack.scrollY or 0), button)
+                -- Passa coords relativas à STACK
+                stack:handleMouseRelease(clickX - stack.rect.x, clickY - stack.rect.y - (stack.scrollY or 0), button)
             end
+            -- Release no modal não precisa consumir necessariamente
         else
-            -- Lógica fora do modal (botão recrutar) - Código existente
+            -- Lógica fora do modal (usa clickX, clickY relativos à GuildScreen)
+
+            -- <<< VERIFICA RELEASE NO BOTÃO 'Definir Ativo' >>>
+            if self.setActiveButton and self.setActiveButton:handleMouseRelease(clickX, clickY, button) then
+                return true
+            end
+            -- <<< FIM VERIFICAÇÃO BOTÃO >>>
+
+            -- Botão Recrutar
             if self.recruitButton then
                 local consumed = self.recruitButton:handleMouseRelease(clickX, clickY, button)
                 if consumed then return true end
             end
+            -- Release na lista não precisa ser tratado/consumido
         end
     end
     return false
@@ -609,34 +694,39 @@ end
 --- Processa o scroll do mouse.
 ---@param dx number Scroll horizontal (não usado geralmente).
 ---@param dy number Scroll vertical (+1 para cima, -1 para baixo).
-function GuildScreen:handleMouseScroll(dx, dy)
+---@param mx number Posição X global do mouse.
+---@param my number Posição Y global do mouse.
+function GuildScreen:handleMouseScroll(dx, dy, mx, my)
     if not self.isRecruiting or dy == 0 then return false end
 
-    local mx, my = love.mouse.getPosition()
-
+    -- Scroll só afeta o modal de recrutamento
     for i, stack in pairs(self.recruitModalColumns) do
-        local cardX, cardY = stack.rect.x, stack.rect.y
-        local cardW, cardH = stack.rect.w, stack.rect.h -- Usa a altura fixa da stack
+        local stackX, stackY = stack.rect.x, stack.rect.y -- Coords relativas à GuildScreen
+        local stackW, stackH = stack.rect.w, stack.rect.h -- Dimensões da Stack
 
-        -- Verifica se o mouse está sobre a área de conteúdo desta coluna
-        if mx >= cardX and mx < cardX + cardW and my >= cardY and my < cardY + cardH then
-            -- Calcula altura disponível interna e altura real do conteúdo
-            local availableHeight = cardH - stack.padding.top - stack.padding.bottom
+        -- Verifica se o mouse está sobre a área de conteúdo desta COLUNA
+        -- Usa as coordenadas GLOBAIS do mouse (mx, my)
+        -- Precisa converter stackX/Y para globais se GuildScreen não estiver em 0,0
+        -- Assumindo GuildScreen em 0,0 por enquanto, então mx, my são relativos.
+        if mx >= stackX and mx < stackX + stackW and my >= stackY and my < stackY + stackH then
+            local availableHeight = stackH - stack.padding.top - stack.padding.bottom
             local contentHeight = stack.actualHeight
 
             if contentHeight > availableHeight then
                 local scrollSpeed = 30
                 local currentScrollY = stack.scrollY or 0
                 local newScrollY = currentScrollY - dy * scrollSpeed
+                -- Limita scroll entre 0 e o máximo negativo possível
                 local maxScrollY = math.min(0, availableHeight - contentHeight)
                 stack.scrollY = math.clamp(newScrollY, maxScrollY, 0)
-                return true -- Consome o evento
+                print(string.format("Scrolled column %d. New scrollY: %.2f", i, stack.scrollY))
+                return true       -- Consome o evento
             else
-                stack.scrollY = 0
+                stack.scrollY = 0 -- Reseta scroll se conteúdo for menor
             end
         end
     end
-    return false
+    return false -- Scroll não foi consumido
 end
 
 return GuildScreen

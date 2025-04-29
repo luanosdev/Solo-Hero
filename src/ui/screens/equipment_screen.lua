@@ -5,6 +5,9 @@ local ItemGridUI = require("src.ui.item_grid_ui")
 local StatsSection = require("src.ui.inventory.sections.stats_section")
 local EquipmentSection = require("src.ui.inventory.sections.equipment_section")
 local Constants = require("src.config.constants")
+local Grid = require("src.ui.components.Grid")
+local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
+local Text = require("src.ui.components.Text")
 local SLOT_IDS = Constants.SLOT_IDS
 
 ---@class EquipmentScreen
@@ -44,8 +47,8 @@ end
 function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     local padding = 20
     local topPadding = 100
-    local areaY = topPadding                   -- <<< USA PADDING SUPERIOR MAIOR
-    local areaW = screenW                      -- Largura total da tela
+    local areaY = topPadding
+    local areaW = screenW
     local areaH = screenH - tabSettings.height -- Altura acima das tabs
 
     local sectionTopY = areaY
@@ -57,40 +60,43 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     local totalPaddingWidth = padding * 5
     local sectionAreaW = areaW - totalPaddingWidth
 
-    -- Divide a área útil
+    -- Divide a área útil HORIZONTAL
     local statsW = math.floor(sectionAreaW * 0.25)
     local equipmentW = math.floor(sectionAreaW * 0.25)
     local storageW = math.floor(sectionAreaW * 0.35)
     local loadoutW = sectionAreaW - statsW - equipmentW - storageW
 
-    -- Calcula posições
+    -- Calcula posições HORIZONTAIS
     local statsX = padding
     local equipmentX = statsX + statsW + padding
     local storageX = equipmentX + equipmentW + padding
     local loadoutX = storageX + storageW + padding
 
-    -- <<< ARMAZENA AS ÁREAS DAS GRIDES NA INSTÂNCIA >>>
+    -- <<< Layout VERTICAL para a primeira coluna (Stats + Archetypes) >>>
+    local statsSectionH = math.floor(sectionContentH * 0.60) -- Stats ficam com 60%
+    local archetypesTitleH = fonts.hud:getHeight() * 1.5     -- Altura para o título "Arquétipos"
+    local archetypesGapY = 15                                -- Espaço entre stats e título arquétipos
+    local archetypesGridY = contentStartY + statsSectionH + archetypesGapY + archetypesTitleH
+    local archetypesGridH = sectionContentH - statsSectionH - archetypesGapY - archetypesTitleH
+
     self.storageGridArea = { x = storageX, y = contentStartY, w = storageW, h = sectionContentH }
     self.loadoutGridArea = { x = loadoutX, y = contentStartY, w = loadoutW, h = sectionContentH }
-    -- <<< FIM ARMAZENAMENTO >>>
+    self.equipmentSlotAreas = {} -- Limpa/Recria a cada frame
 
-    -- <<< DESENHA TÍTULOS DAS SEÇÕES (NOVA ORDEM) >>>
+    -- <<< DESENHA TÍTULOS DAS SEÇÕES >>>
     love.graphics.setFont(titleFont)
     love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("ATRIBUTOS", statsX, sectionTopY, statsW, "center")
+    love.graphics.printf("ATRIBUTOS", statsX, sectionTopY, statsW, "center") -- Título Stats continua no topo
     love.graphics.printf("EQUIPAMENTO", equipmentX, sectionTopY, equipmentW, "center")
     love.graphics.printf("ARMAZENAMENTO", storageX, sectionTopY, storageW, "center")
     love.graphics.printf("MOCHILA", loadoutX, sectionTopY, loadoutW, "center")
     love.graphics.setColor(colors.white)
     love.graphics.setFont(fonts.main or titleFont)
 
-    -- <<< DESENHA CONTEÚDO DAS SEÇÕES (NOVA ORDEM) >>>
+    -- <<< DESENHA CONTEÚDO DAS SEÇÕES >>>
 
-    -- Limpa/Recria áreas dos slots de equipamento a cada frame
-    self.equipmentSlotAreas = {}
-
-    -- 1. Desenha Seção de Stats (Stats) - Seção 1
-    if self.hunterManager then -- Verifica se hunterManager existe
+    -- 1. Desenha Seção de Stats (Stats)
+    if self.hunterManager then
         local activeHunterId = self.hunterManager:getActiveHunterId()
         local hunterData = activeHunterId and self.hunterManager.hunters[activeHunterId]
         local finalStats = self.hunterManager:getActiveHunterFinalStats()
@@ -98,31 +104,61 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
         local archetypeManager = self.hunterManager.archetypeManager
 
         if finalStats and next(finalStats) and archetypeIds and archetypeManager then
-            -- <<< PASSA mx, my PARA drawBaseStats >>>
-            StatsSection.drawBaseStats(statsX, contentStartY, statsW, sectionContentH,
+            -- Desenha stats na área definida (statsSectionH)
+            StatsSection.drawBaseStats(statsX, contentStartY, statsW, statsSectionH,
                 finalStats, archetypeIds, archetypeManager, mx, my)
+
+            -- 1.1 Desenha Seção de Arquétipos ABAIXO dos Stats
+            love.graphics.setFont(fonts.hud)
+            love.graphics.setColor(colors.text_highlight)
+            love.graphics.printf("ARQUÉTIPOS", statsX, contentStartY + statsSectionH + archetypesGapY, statsW,
+                "left")
+
+            if archetypeIds and #archetypeIds > 0 then
+                local archetypeGrid = Grid:new({
+                    x = statsX,
+                    y = archetypesGridY,
+                    width = statsW,
+                    columns = 3, -- 3 Colunas como solicitado
+                    gap = 5,     -- Espaçamento entre detalhes dos arquétipos
+                    padding = 0,
+                    debug = false
+                })
+
+                for _, archIdTable in ipairs(archetypeIds) do -- Assumindo que archetypeIds é lista de {id=..., rank=...}
+                    local archetypeData = archetypeManager:getArchetypeData(archIdTable.id)
+                    if archetypeData then
+                        archetypeGrid:addChild(ArchetypeDetails:new({ archetypeData = archetypeData, width = 0 })) -- Width é definido pelo Grid
+                    end
+                end
+
+                archetypeGrid:_updateLayout() -- Calcula layout interno da grid
+                archetypeGrid:draw()          -- Desenha a grid
+            else
+                -- Mensagem se não houver arquétipos
+                love.graphics.setFont(fonts.main)
+                love.graphics.setColor(colors.text_muted)
+                love.graphics.printf("Nenhum arquétipo.", statsX + 5, archetypesGridY + 5, statsW - 10, "left")
+            end
         else
+            -- Mensagem de erro se não foi possível obter os dados do caçador para stats
             love.graphics.setColor(colors.red)
-            local errorMsg = "Erro ao obter dados do caçador:"
-            if not finalStats or not next(finalStats) then errorMsg = errorMsg .. " Stats Finais" end
-            if not archetypeIds then errorMsg = errorMsg .. " IDs Arquetipo" end
-            if not archetypeManager then errorMsg = errorMsg .. " ArchetypeManager" end
-            love.graphics.printf(errorMsg, statsX + statsW / 2,
-                contentStartY + sectionContentH / 2, 0, "center")
-            love.graphics.setColor(colors.white)
+            local errorMsg = "Erro ao obter dados do caçador para Stats Section."
+            love.graphics.printf(errorMsg, statsX, contentStartY + statsSectionH / 2, statsW, "center")
         end
     else
+        -- Mensagem de erro se HunterManager não existe
         love.graphics.setColor(colors.red)
-        love.graphics.printf("Erro: Hunter Manager não inicializado!", statsX + statsW / 2,
-            contentStartY + sectionContentH / 2, 0, "center")
-        love.graphics.setColor(colors.white)
+        love.graphics.printf("Erro: Hunter Manager não inicializado!", statsX, contentStartY + statsSectionH / 2, statsW,
+            "center")
     end
+    love.graphics.setColor(colors.white) -- Reset cor após seção de stats/arquétipos
 
-    -- 2. Desenha Seção de Equipamento/Runas (Equipment) - Seção 2
+    -- 2. Desenha Seção de Equipamento/Runas (Equipment)
     EquipmentSection:draw(equipmentX, contentStartY, equipmentW, sectionContentH, self.hunterManager,
-        self.equipmentSlotAreas) -- Passa a tabela para ser preenchida
+        self.equipmentSlotAreas)
 
-    -- 3. Desenha Grade do Armazenamento (Storage) - Seção 3
+    -- 3. Desenha Grade do Armazenamento (Storage)
     if self.lobbyStorageManager and self.itemDataManager then
         local storageItems = self.lobbyStorageManager:getItems(self.lobbyStorageManager
             :getActiveSectionIndex()) -- Itens da seção ativa
