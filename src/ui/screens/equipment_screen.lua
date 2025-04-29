@@ -126,9 +126,38 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
         local archetypeManager = self.hunterManager.archetypeManager
 
         if finalStats and next(finalStats) and archetypeIds and archetypeManager then
+            -- <<< PREPARA OS DADOS ORDENADOS DOS ARQUÉTIPOS >>>
+            local rankOrder = { S = 1, A = 2, B = 3, C = 4, D = 5, E = 6 }
+            local sortedArchetypes = {}
+            for _, archIdInfo in ipairs(archetypeIds) do
+                local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
+                if type(finalArchId) == 'string' then
+                    local data = archetypeManager:getArchetypeData(finalArchId)
+                    if data then
+                        table.insert(sortedArchetypes, data)
+                    end
+                end
+            end
+            table.sort(sortedArchetypes, function(a, b)
+                local orderA = rankOrder[a.rank or 'E'] or 99
+                local orderB = rankOrder[b.rank or 'E'] or 99
+                if orderA == orderB then
+                    return a.name < b.name
+                end
+                return orderA < orderB
+            end)
+
+            -- <<< REMOVIDO: Criação de sortedArchetypesIds não é mais necessária aqui >>>
+            -- local sortedArchetypesIds = {}
+            -- for _, archIdInfo in ipairs(archetypeIds) do
+            --     local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
+            --     table.insert(sortedArchetypesIds, finalArchId)
+            -- end
+            -- <<< FIM PREPARAÇÃO >>>
+
             -- Desenha stats na área definida (statsSectionH)
             StatsSection.drawBaseStats(statsX, contentStartY, statsW, statsSectionH,
-                finalStats, archetypeIds, archetypeManager, mx, my)
+                finalStats, sortedArchetypes, archetypeManager, mx, my)
 
             -- 1.1 Desenha Seção de Arquétipos ABAIXO dos Stats
             love.graphics.setFont(fonts.hud)
@@ -139,27 +168,6 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
                 "left")
 
             if archetypeIds and #archetypeIds > 0 then
-                -- 1. Buscar e Ordenar Dados dos Arquétipos
-                local rankOrder = { S = 1, A = 2, B = 3, C = 4, D = 5, E = 6 }
-                local sortedArchetypes = {}
-                for _, archIdInfo in ipairs(archetypeIds) do
-                    local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
-                    if type(finalArchId) == 'string' then
-                        local data = archetypeManager:getArchetypeData(finalArchId)
-                        if data then
-                            table.insert(sortedArchetypes, data)
-                        end
-                    end
-                end
-                table.sort(sortedArchetypes, function(a, b)
-                    local orderA = rankOrder[a.rank or 'E'] or 99
-                    local orderB = rankOrder[b.rank or 'E'] or 99
-                    if orderA == orderB then
-                        return a.name < b.name -- Ordena alfabeticamente se ranks iguais
-                    end
-                    return orderA < orderB
-                end)
-
                 -- 2. Desenhar Arquétipos Ordenados com Modificadores
                 local itemsPerRow = 3
                 local hGap = 15                             -- Aumentado um pouco
@@ -241,9 +249,9 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
                     if i % itemsPerRow == 0 or i == #sortedArchetypes then
                         -- Move para a próxima linha
                         currentY = startItemY + maxHeightInRow +
-                            vGap                    -- Próxima linha começa abaixo do item mais alto da linha atual
-                        currentX = statsX           -- Reseta X para o início da coluna (com padding)
-                        maxHeightInRow = 0          -- Reseta altura máxima para a nova linha
+                            vGap           -- Próxima linha começa abaixo do item mais alto da linha atual
+                        currentX = statsX  -- Reseta X para o início da coluna (com padding)
+                        maxHeightInRow = 0 -- Reseta altura máxima para a nova linha
                     else
                         -- Continua na mesma linha
                         currentX = nextItemX
