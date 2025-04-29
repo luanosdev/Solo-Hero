@@ -611,26 +611,39 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                 local hasArchetypeBonus = false
                 if archetypeIds and archetypeManager then
                     table.insert(tooltipLines, { text = "Arquétipos:", color = colors.text_highlight }) -- Subtítulo
-                    for _, archId in ipairs(archetypeIds) do
-                        local archData = archetypeManager:getArchetypeData(archId)
+                    for _, mod in ipairs(archetypeIds) do                                               -- Itera sobre IDs primeiro?
+                        local archData = archetypeManager:getArchetypeData(mod.id)                      -- <<< Ajuste: Usa mod.id se archIds for lista de {id, rank, ...}
                         if archData and archData.modifiers then
-                            local foundModifier = false
-                            for modKey, modValue in pairs(archData.modifiers) do
-                                local statName = modKey:match("^(.+)_([^_]+)$")
-                                if statName == attr.key then
-                                    local modifierStr = formatArchetypeModifier(modKey, modValue)
+                            local foundModifierForThisArchetype = false
+                            -- Itera sobre a lista de modificadores DENTRO do arquétipo
+                            for _, modifierData in ipairs(archData.modifiers) do
+                                if modifierData.stat == attr.key then
+                                    local modKeyString = ""
+                                    local modValue = 0
+                                    if modifierData.baseValue ~= nil then
+                                        modKeyString = modifierData.stat .. "_add"
+                                        modValue = modifierData.baseValue
+                                    elseif modifierData.multValue ~= nil then
+                                        modKeyString = modifierData.stat .. "_mult"
+                                        -- Passa o valor como multiplicador (ex: 1.1) para a formatação
+                                        modValue = 1 + modifierData.multValue
+                                    else
+                                        goto continue_inner_loop -- Pula modificador inválido
+                                    end
+
+                                    local modifierStr = formatArchetypeModifier(modKeyString, modValue)
                                     -- Remove o nome do stat do início (já estamos no tooltip do stat)
                                     modifierStr = modifierStr:gsub("^[^:]+:%s*", "")
                                     table.insert(tooltipLines,
                                         {
-                                            text = " - " .. archData.name .. ": " .. modifierStr,
-                                            color = colors.rank
-                                                [archData.rank or 'E']
+                                            text = " - " .. (archData.name or archData.id) .. ": " .. modifierStr,
+                                            color = colors.rank[archData.rank or 'E']
                                         })
                                     hasArchetypeBonus = true
-                                    foundModifier = true
-                                    -- Não precisa de break, pode haver _add e _mult
+                                    foundModifierForThisArchetype = true
+                                    -- Não precisa de break, pode haver _add e _mult para o mesmo stat no mesmo arquétipo?
                                 end
+                                ::continue_inner_loop::
                             end
                         end
                     end
