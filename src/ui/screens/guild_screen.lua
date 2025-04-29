@@ -430,8 +430,14 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
             local index = i
             local function onChooseClick() selfRef:_recruitCandidate(index) end
             local chooseButton = Button:new({
-                rect = { w = modalButtonW, h = modalButtonH },
-                text = "Escolher",
+                isAbsolute = true,
+                rect = {
+                    w = modalButtonW,
+                    h = modalButtonH,
+                    y = columnStack.rect.h - modalButtonH,
+                    x = columnStack.rect.w / 2 - modalButtonW / 2
+                },
+                text = "Recrutar",
                 variant = "primary",
                 onClick = onChooseClick,
                 font = fonts.main

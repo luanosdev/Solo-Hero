@@ -4,6 +4,7 @@
 ---@field margin table {top, right, bottom, left} Espaçamento externo.
 ---@field needsLayout boolean Flag que indica se o layout precisa ser recalculado.
 ---@field debug boolean Flag para desenhar informações de debug.
+---@field isAbsolute boolean Se true, o componente ignora o layout do pai para posicionamento.
 local Component = {}
 Component.__index = Component
 
@@ -49,6 +50,7 @@ function Component:new(config)
 
     instance.needsLayout = true
     instance.debug = config.debug or false
+    instance.isAbsolute = config.isAbsolute or false
 
     return instance
 end

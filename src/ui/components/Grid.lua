@@ -56,6 +56,7 @@ end
 ---@param child Component O componente a ser adicionado.
 function Grid:addChild(child)
     if child then
+        -- Não precisa garantir margin aqui, pois layout só considera relativos
         table.insert(self.children, child)
         self.needsLayout = true
     end
@@ -79,11 +80,28 @@ function Grid:clearChildren()
     self.needsLayout = true
 end
 
---- Calcula o layout da grid e posiciona os filhos.
+--- Calcula o layout da grid e posiciona os filhos RELATIVOS.
 function Grid:_updateLayout()
     if not self.needsLayout then return end
-    if #self.children == 0 then
-        self.rect.h = self.padding.top + self.padding.bottom -- Altura mínima com padding
+
+    -- >>> Filtra filhos relativos para layout
+    local relativeChildren = {}
+    for _, child in ipairs(self.children) do
+        if not child.isAbsolute then
+            table.insert(relativeChildren, child)
+        else
+            -- Layout interno de filhos absolutos
+            if child.needsLayout and child._updateLayout then
+                child:_updateLayout()
+            elseif child.needsLayout then
+                child.needsLayout = false
+            end
+        end
+    end
+
+    -- Se não há filhos relativos, altura é só padding
+    if #relativeChildren == 0 then
+        self.rect.h = self.padding.top + self.padding.bottom
         Component._updateLayout(self)
         return
     end
@@ -91,52 +109,47 @@ function Grid:_updateLayout()
     local startX = self.rect.x + self.padding.left
     local startY = self.rect.y + self.padding.top
     local innerWidth = self.rect.w - self.padding.left - self.padding.right
-
-    -- Calcula largura da célula
     local totalHorizontalGap = self.gap.horizontal * (self.columns - 1)
     local cellWidth = (innerWidth - totalHorizontalGap) / self.columns
-    if cellWidth < 0 then cellWidth = 0 end -- Evita largura negativa
+    if cellWidth < 0 then cellWidth = 0 end
 
     local currentX = startX
     local currentY = startY
     local maxHeightInRow = 0
+    local currentColumn = 0
 
-    for i, child in ipairs(self.children) do
-        -- Define posição e largura do filho
+    -- >>> Itera sobre filhos RELATIVOS
+    for i, child in ipairs(relativeChildren) do
+        currentColumn = currentColumn + 1
+
+        -- Define posição e largura do filho relativo
         child.rect.x = currentX
         child.rect.y = currentY
         child.rect.w = cellWidth
 
-        -- Calcula layout do filho para obter sua altura
+        -- Calcula layout do filho relativo
         if child._updateLayout then
             child:_updateLayout()
         end
 
-        -- Atualiza altura máxima da linha atual
         maxHeightInRow = math.max(maxHeightInRow, child.rect.h or 0)
 
         -- Avança para a próxima posição
-        local isLastColumn = (i % self.columns == 0)
-        local isLastChild = (i == #self.children)
+        local isLastColumn = (currentColumn == self.columns)
+        local isLastChild = (i == #relativeChildren)
 
         if isLastColumn or isLastChild then
-            -- Move para a próxima linha
             currentY = currentY + maxHeightInRow + self.gap.vertical
-            currentX = startX  -- Volta para a primeira coluna
-            maxHeightInRow = 0 -- Reseta altura da linha
+            currentX = startX
+            maxHeightInRow = 0
+            currentColumn = 0
         else
-            -- Move para a próxima coluna
             currentX = currentX + cellWidth + self.gap.horizontal
         end
     end
 
-    -- Calcula altura total da Grid
-    -- currentY agora está no início da *próxima* linha teórica
-    -- A altura do conteúdo é currentY (início da próxima linha) - startY (início da primeira)
-    -- Precisamos subtrair o último gap vertical que foi adicionado desnecessariamente
+    -- Calcula altura total da Grid baseada nos filhos RELATIVOS
     local contentHeight = currentY - startY - self.gap.vertical
-    if #self.children == 0 then contentHeight = 0 end -- Caso sem filhos
-
     self.rect.h = contentHeight + self.padding.top + self.padding.bottom
 
     Component._updateLayout(self)

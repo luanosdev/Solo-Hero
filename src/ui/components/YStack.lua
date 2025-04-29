@@ -41,73 +41,85 @@ end
 
 --- Adiciona um componente filho à stack.
 function YStack:addChild(child)
-    if not child or not child.rect or not child.rect.w or not child.rect.h then
-        print("AVISO (YStack:addChild): Filho inválido ou sem rect/w/h. Ignorando.")
+    if not child or not child.rect then -- Simplifica verificação, rect é essencial
+        print("AVISO (YStack:addChild): Filho inválido ou sem rect. Ignorando.")
         return
     end
-    -- Garante que o filho tenha margin (se não foi passado na config dele, herda da base)
-    child.margin = child.margin or { top = 0, right = 0, bottom = 0, left = 0 }
+    -- Garante que o filho tenha margin (se não for absoluto, layout usará)
+    if not child.isAbsolute then
+        child.margin = child.margin or { top = 0, right = 0, bottom = 0, left = 0 }
+    end
     table.insert(self.children, child)
     self.needsLayout = true
 end
 
---- Calcula e atualiza a posição E LARGURA dos filhos, considerando padding da stack e margin dos filhos.
---- Atualiza a altura REAL do conteúdo em self.actualHeight e define self.rect.h.
+--- Calcula e atualiza a posição E LARGURA dos filhos RELATIVOS.
 function YStack:_updateLayout()
     if not self.needsLayout then return end
 
     local innerWidth = self.rect.w - self.padding.left - self.padding.right
     local currentY = self.rect.y + self.padding.top
     local contentStartX = self.rect.x + self.padding.left
+    local actualContentHeight = 0 -- Rastreia altura apenas dos filhos relativos
 
-    -- >>> Loop para posicionar filhos (lógica de posicionamento X/Y igual)
     for i, child in ipairs(self.children) do
-        local childMargin = child.margin or { top = 0, right = 0, bottom = 0, left = 0 }
-        currentY = currentY + childMargin.top
-        local childY = currentY
-        local availableWidthForChild = innerWidth - childMargin.left - childMargin.right
-        child.rect.w = math.max(0, availableWidthForChild)
+        -- >>> SÓ POSICIONA SE NÃO FOR ABSOLUTO
+        if not child.isAbsolute then
+            local childMargin = child.margin or { top = 0, right = 0, bottom = 0, left = 0 }
+            currentY = currentY + childMargin.top
+            local childY = currentY
 
-        local childX
-        if self.alignment == "center" then
-            local totalChildWidth = child.rect.w + childMargin.left + childMargin.right
-            local centeringOffset = (innerWidth - totalChildWidth) / 2
-            childX = contentStartX + centeringOffset + childMargin.left
-        elseif self.alignment == "right" then
-            childX = contentStartX + innerWidth - child.rect.w - childMargin.right
-        else -- Padrão 'left'
-            childX = contentStartX + childMargin.left
+            local availableWidthForChild = innerWidth - childMargin.left - childMargin.right
+            child.rect.w = math.max(0, availableWidthForChild)
+
+            local childX
+            if self.alignment == "center" then
+                local totalChildWidth = child.rect.w + childMargin.left + childMargin.right
+                local centeringOffset = (innerWidth - totalChildWidth) / 2
+                childX = contentStartX + centeringOffset + childMargin.left
+            elseif self.alignment == "right" then
+                childX = contentStartX + innerWidth - child.rect.w - childMargin.right
+            else -- Padrão 'left'
+                childX = contentStartX + childMargin.left
+            end
+            child.rect.x = math.floor(childX)
+            child.rect.y = math.floor(childY)
+
+            if child.needsLayout and child._updateLayout then
+                child:_updateLayout()
+            elseif child.needsLayout then
+                child.needsLayout = false
+            end
+
+            local childHeight = child.rect.h or 0
+            currentY = currentY + childHeight + childMargin.bottom + self.gap
+        else
+            -- Se for absoluto, ainda chama seu layout interno
+            if child.needsLayout and child._updateLayout then
+                child:_updateLayout()
+            elseif child.needsLayout then
+                child.needsLayout = false
+            end
+            -- NÃO avança currentY
         end
+    end
 
-        child.rect.x = math.floor(childX)
-        child.rect.y = math.floor(childY)
-
-        if child.needsLayout and child._updateLayout then
-            child:_updateLayout()
-        elseif child.needsLayout then
-            child.needsLayout = false
+    -- Calcula altura baseada no último filho RELATIVO
+    local lastRelativeEndY = self.rect.y + self.padding.top
+    for i = #self.children, 1, -1 do
+        if not self.children[i].isAbsolute then
+            local child = self.children[i]
+            local margin = child.margin or { top = 0, bottom = 0 }
+            lastRelativeEndY = child.rect.y + (child.rect.h or 0) + margin.bottom
+            break
         end
-
-        local childHeight = child.rect.h or 0 -- Garante que childHeight seja um número
-        currentY = currentY + childHeight + childMargin.bottom + self.gap
     end
+    actualContentHeight = lastRelativeEndY - (self.rect.y + self.padding.top)
+    if #self.children == 0 then actualContentHeight = 0 end -- Caso sem filhos
+    self.actualHeight = math.max(0, actualContentHeight)
 
-    -- >>> Calcula a altura REAL do conteúdo
-    local calculatedContentHeight = 0
-    if #self.children > 0 then
-        local endY = currentY - self.gap -- Y onde o próximo item começaria
-        calculatedContentHeight = endY - (self.rect.y + self.padding.top)
-    end
-    self.actualHeight = math.max(0, calculatedContentHeight) -- Altura total se não houvesse clipping
-
-    -- >>> Define a altura final do componente YStack
-    if self.fixedHeight ~= nil then
-        -- Usa a altura fixa definida (mais padding)
-        self.rect.h = self.fixedHeight
-    else
-        -- Usa a altura calculada baseada nos filhos (mais padding)
-        self.rect.h = self.actualHeight + self.padding.top + self.padding.bottom
-    end
+    -- Define altura final do YStack baseada no conteúdo RELATIVO
+    self.rect.h = self.actualHeight + self.padding.top + self.padding.bottom
 
     Component._updateLayout(self)
 end
