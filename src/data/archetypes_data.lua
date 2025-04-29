@@ -2,12 +2,12 @@ local ArchetypesData = {}
 
 -- Definição das propriedades de cada Rank
 ArchetypesData.Ranks = {
-    E = { id = "E", name = "Rank E", archetype_count_min = 1, archetype_count_max = 2, recruitment_weight = 40 },
-    D = { id = "D", name = "Rank D", archetype_count_min = 2, archetype_count_max = 2, recruitment_weight = 30 },
-    C = { id = "C", name = "Rank C", archetype_count_min = 3, archetype_count_max = 4, recruitment_weight = 15 },
-    B = { id = "B", name = "Rank B", archetype_count_min = 3, archetype_count_max = 5, recruitment_weight = 10 },
-    A = { id = "A", name = "Rank A", archetype_count_min = 5, archetype_count_max = 7, recruitment_weight = 4 },
-    S = { id = "S", name = "Rank S", archetype_count_min = 7, archetype_count_max = 12, recruitment_weight = 1 },
+    E = { id = "E", name = "Rank E", archetype_count_min = 1, archetype_count_max = 3, recruitment_weight = 40 },
+    D = { id = "D", name = "Rank D", archetype_count_min = 3, archetype_count_max = 5, recruitment_weight = 30 },
+    C = { id = "C", name = "Rank C", archetype_count_min = 5, archetype_count_max = 7, recruitment_weight = 15 },
+    B = { id = "B", name = "Rank B", archetype_count_min = 7, archetype_count_max = 9, recruitment_weight = 10 },
+    A = { id = "A", name = "Rank A", archetype_count_min = 9, archetype_count_max = 12, recruitment_weight = 4 },
+    S = { id = "S", name = "Rank S", archetype_count_min = 12, archetype_count_max = 15, recruitment_weight = 1 },
     -- SS poderia ser um rank alcançado por sorte/combinação, não sorteado diretamente?
 }
 

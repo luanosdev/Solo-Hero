@@ -278,10 +278,10 @@ end
 
 --- Desenha os modais de seleção de caçador usando Card e YStack.
 function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
-    -- Fundo semi-transparente (COBRINDO A TELA INTEIRA)
+    -- >>> Fundo semi-transparente COBRINDO A TELA INTEIRA
     local screenW, screenH = love.graphics.getDimensions()
     love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", 0, 0, screenW, screenH) -- <<< Usa 0, 0 e dimensões da tela
+    love.graphics.rectangle("fill", 0, 0, screenW, screenH) -- <<< Usa 0,0 e screenW, screenH
 
     if not self.hunterCandidates or #self.hunterCandidates == 0 then
         love.graphics.setColor(colors.red)
@@ -295,24 +295,27 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
         return
     end
 
-    -- Calcula dimensões e posição base das colunas (Usa areaW/areaH para CÁLCULO, não para fundo)
+    -- Calcula dimensões e posição base das colunas
     local numCandidates = #self.hunterCandidates
-    local totalPadding = 40 -- Padding lateral geral do modal
+    local totalPadding = 40
     local modalColumnGap = 20
     local modalHeaderGap = 6
-    -- Usa areaW para calcular a largura DISPONÍVEL DENTRO da área da GuildScreen para as colunas
+
+    local fixedModalContentHeight = screenH * 0.80 -- Ex: 80% da altura da tela
+    local modalBottomPadding = 80                  -- Espaço para o botão Cancelar e margem inferior
+
+    -- Usa areaW para calcular a largura DISPONÍVEL
     local availableWidthForColumns = areaW - totalPadding
-    local modalWidth = (availableWidthForColumns - (modalColumnGap * (numCandidates - 1))) / numCandidates
-    -- Posiciona o início das colunas relativo à área da GuildScreen (areaX)
-    local modalBaseY = areaY + 50 -- Y inicial relativo à área da GuildScreen
+    local calculatedModalWidth = (availableWidthForColumns - (modalColumnGap * (numCandidates - 1))) / numCandidates
+    local modalWidth = math.max(0, calculatedModalWidth)
+
+    -- Ajusta Y Base para centralizar a área de altura fixa
+    local modalBaseY = areaY + (screenH - fixedModalContentHeight - modalBottomPadding) / 2
     local startX = areaX + (totalPadding / 2)
 
     local modalContentPadding = 14
     local modalButtonW = 150
     local modalButtonH = 35
-
-    -- Encontra a maior altura entre as colunas para posicionar o botão Cancelar abaixo
-    local maxColumnHeight = 0
 
     for i, candidate in ipairs(self.hunterCandidates) do
         local modalX = startX + (i - 1) * (modalWidth + modalColumnGap)
@@ -320,14 +323,14 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
 
         if not self.recruitModalColumns[i] then
             print(string.format("Creating YStack column for candidate %d", i))
-
-            -- 1. Cria a Stack Principal (Layout)
+            -- >>> 3. Cria a YStack passando as dimensões finais e altura fixa
             columnStack = YStack:new({
-                x = modalX,
-                y = modalBaseY,
-                width = modalWidth,
+                x = modalX,                       -- Posição X final
+                y = modalBaseY,                   -- Posição Y final
+                width = modalWidth,               -- Largura final
+                height = fixedModalContentHeight, -- <<< ALTURA FIXA
                 padding = modalContentPadding,
-                gap = modalColumnGap, -- <<< Restaura gap original da coluna
+                gap = modalColumnGap,
                 alignment = "center",
             })
 
@@ -422,18 +425,7 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
 
             columnStack:addChild(archetypeSection)
 
-            -- 4. Adiciona Texto de Stats (Placeholder ainda)
-            -- REMOVIDO Placeholder:
-            -- columnStack:addChild(Text:new({
-            --     text = "Stats: [TODO]",
-            --     width = 0,
-            --     size = "label",
-            --     variant = "text_label",
-            --     align = "left"
-            -- }))
-
-
-            -- 5. Adiciona Botão
+            -- 4. Adiciona Botão
             local selfRef = self
             local index = i
             local function onChooseClick() selfRef:_recruitCandidate(index) end
@@ -450,36 +442,36 @@ function GuildScreen:_drawRecruitmentModal(areaX, areaY, areaW, areaH, mx, my)
             self.recruitModalColumns[i] = columnStack
         else
             columnStack = self.recruitModalColumns[i]
-            columnStack.x = modalX
-            columnStack.y = modalBaseY
-            columnStack.width = modalWidth
+            -- Atualiza posição/dimensões se a janela mudar (ou para garantir)
+            columnStack.rect.x = modalX
+            columnStack.rect.y = modalBaseY
+            columnStack.rect.w = modalWidth
+            columnStack.fixedHeight = fixedModalContentHeight -- Garante altura fixa
             columnStack.needsLayout = true
         end
 
-        -- Calcular layout da YStack ANTES de desenhar o Card
+        -- Calcula layout interno da Stack (necessário para posicionar filhos corretamente)
+        -- A altura da stack (rect.h) já está definida como fixedModalContentHeight
         columnStack:_updateLayout()
 
-        -- Criar e desenhar o Card de fundo
+        -- >>> 4. Criar e desenhar o Card de fundo com altura FIXA
+        local cardHeight = fixedModalContentHeight -- Usa a altura fixa calculada
         local backgroundCard = Card:new({
-            rect = { x = columnStack.rect.x, y = columnStack.rect.y, w = columnStack.rect.w, h = columnStack.rect.h },
+            rect = { x = modalX, y = modalBaseY, w = modalWidth, h = cardHeight },
             backgroundColor = colors.window_bg,
             borderColor = colors.window_border,
             borderWidth = 1,
         })
         backgroundCard:draw()
 
-        -- Desenhar a YStack (conteúdo) por cima do Card
+        -- Desenhar a YStack (Clipping/Scissor é INTERNO no YStack:draw agora)
         columnStack:draw()
-
-        -- Atualiza altura máxima
-        maxColumnHeight = math.max(maxColumnHeight, columnStack.rect.h)
     end
 
     -- Desenha o botão Cancelar (se existir)
     if self.recruitCancelButton then
-        -- Posiciona abaixo da coluna mais alta
-        local cancelY = modalBaseY + maxColumnHeight + 30 -- Espaçamento abaixo das colunas
-        -- Reposiciona X para centralizar na TELA
+        -- >>> 5. Posiciona abaixo da área de conteúdo fixa
+        local cancelY = modalBaseY + fixedModalContentHeight + 20 -- Espaçamento abaixo
         self.recruitCancelButton.rect.x = (screenW - self.recruitCancelButton.rect.w) / 2
         self.recruitCancelButton.rect.y = math.floor(cancelY)
         self.recruitCancelButton:draw()

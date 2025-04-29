@@ -80,8 +80,13 @@ function HunterAttributesList:_buildLayout()
     if not baseStats then return end       -- Não constrói sem base
     if not self.attributes then return end -- Não constrói sem atributos
 
-    local finalStats = self.attributes     -- Usa os atributos guardados
+    local finalStats = self.attributes
     local lineHeight = fonts.main:getHeight() * 1.2
+
+    -- >>> Calcula a largura interna disponível DENTRO do HunterAttributesList
+    local innerWidth = self.rect.w -
+        (self.mainYStack.padding.left + self.mainYStack.padding.right) -- Usa o padding da mainYStack
+    if innerWidth < 0 then innerWidth = 0 end                      -- Evita largura negativa
 
     for _, attrDef in ipairs(attributesToShow) do
         local finalValue = finalStats[attrDef.key]
@@ -103,12 +108,16 @@ function HunterAttributesList:_buildLayout()
             -- Cria o XStack para esta linha
             local lineXStack = XStack:new({ x = 0, y = 0, height = lineHeight })
 
+            -- >>> Usa innerWidth para calcular largura das colunas de texto
+            local labelWidth = innerWidth * 0.6
+            local valueWidth = innerWidth * 0.4
+
             -- Cria o Label (Text)
             local labelText = Text:new({
                 text = attrDef.label,
-                width = self.rect.w * 0.6, -- Estima largura para o label
+                width = labelWidth, -- <<< Usa largura calculada
                 align = "left",
-                variant = "default"        -- Cor será atualizada no update/draw
+                variant = "default" -- Cor será atualizada no update/draw
                 -- x, y são definidos pelo XStack pai
             })
             labelText.attributeKey = attrDef.key -- Guarda a chave para hover
@@ -116,9 +125,9 @@ function HunterAttributesList:_buildLayout()
             -- Cria o Valor (Text)
             local valueText = Text:new({
                 text = finalStr,
-                width = self.rect.w * 0.4, -- Estima largura para o valor
+                width = valueWidth, -- <<< Usa largura calculada
                 align = "right",
-                variant = "default"        -- Cor será atualizada no update/draw
+                variant = "default" -- Cor será atualizada no update/draw
                 -- x, y são definidos pelo XStack pai
             })
             valueText.attributeKey = attrDef.key -- Guarda a chave para hover
