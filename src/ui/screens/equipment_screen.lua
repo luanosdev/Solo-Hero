@@ -3,12 +3,12 @@ local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local ItemGridUI = require("src.ui.item_grid_ui")
 local Constants = require("src.config.constants")
-local Formatters = require("src.utils.formatters")
 local SLOT_IDS = Constants.SLOT_IDS
 
 -- <<< ADICIONADO: Requires para os novos componentes >>>
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
 local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn")
+local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn")
 
 ---@class EquipmentScreen
 ---@field itemDataManager ItemDataManager
@@ -60,7 +60,7 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     local totalPaddingWidth = padding * 5
     local sectionAreaW = areaW - totalPaddingWidth
 
-    -- Divide a área útil HORIZONTAL
+    -- Divide a área útil HORIZONTAIS
     local statsW = math.floor(sectionAreaW * 0.25)
     local equipmentW = math.floor(sectionAreaW * 0.25)
     local storageW = math.floor(sectionAreaW * 0.35)
@@ -73,8 +73,8 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     local loadoutX = storageX + storageW + padding
 
     self.storageGridArea = { x = storageX, y = contentStartY, w = storageW, h = sectionContentH }
-    self.loadoutGridArea = { x = loadoutX, y = contentStartY, w = loadoutW, h = sectionContentH }
-    self.equipmentSlotAreas = {} -- Limpa/Recria a cada frame
+    self.loadoutGridArea = {}    -- Inicializa vazio
+    self.equipmentSlotAreas = {} -- Inicializa vazio
 
     -- <<< DESENHA TÍTULOS DAS SEÇÕES >>>
     love.graphics.setFont(titleFont)
@@ -147,18 +147,15 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
         love.graphics.setColor(colors.white)
     end
 
-    -- 4. Desenha Grade do Loadout - Seção 4
+    -- 4. Desenha Coluna da Mochila (Loadout) usando o novo componente
     if self.loadoutManager and self.itemDataManager then
-        local loadoutItems = self.loadoutManager:getItems()
-        local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
-        ItemGridUI.drawItemGrid(loadoutItems, loadoutRows, loadoutCols,
-            self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h,
-            self.itemDataManager, nil) -- nil para sectionInfo
+        self.loadoutGridArea = HunterLoadoutColumn.draw(loadoutX, contentStartY, loadoutW, sectionContentH,
+            self.loadoutManager, self.itemDataManager)
     else
+        -- Mensagem de erro se os managers não estiverem disponíveis
         love.graphics.setColor(colors.red)
-        love.graphics.printf("Erro: Loadout Manager não inicializado!",
-            self.loadoutGridArea.x + self.loadoutGridArea.w / 2,
-            self.loadoutGridArea.y + self.loadoutGridArea.h / 2, 0, "center") -- << USA COORDS LOADOUT
+        love.graphics.printf("Erro: Loadout/Item Manager não inicializado!",
+            loadoutX + loadoutW / 2, contentStartY + sectionContentH / 2, 0, "center")
         love.graphics.setColor(colors.white)
     end
 
