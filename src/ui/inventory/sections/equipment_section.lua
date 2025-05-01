@@ -292,11 +292,11 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
         else
             local iconSize = math.min(weaponSlotW, weaponSlotH) * 0.8
             local iconX = weaponSlotX + (weaponSlotW - iconSize) / 2
-            local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2
-            elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
-            love.graphics.setColor(colors.white)
-            love.graphics.setFont(fonts.title)
-            love.graphics.printf(string.sub(name, 1, 1), iconX, iconY + iconSize * 0.1, iconSize, "center")
+        local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2
+        elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
+        love.graphics.setColor(colors.white)
+        love.graphics.setFont(fonts.title)
+        love.graphics.printf(string.sub(name, 1, 1), iconX, iconY + iconSize * 0.1, iconSize, "center")
             love.graphics.setFont(fonts.main)
         end
         -- <<< FIM: Desenha Ícone da Arma >>>
@@ -339,14 +339,14 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
 
     if maxRuneSlots > 0 then
         -- Desenha Título "RUNAS" (Estilo Equipamento)
-        love.graphics.setFont(fonts.title)
+    love.graphics.setFont(fonts.title)
         love.graphics.setColor(colors.text_highlight)
-        love.graphics.printf("RUNAS", x, currentY, w, "center")
+    love.graphics.printf("RUNAS", x, currentY, w, "center")
         currentY = currentY + fonts.title:getHeight() + 10
 
         local runeSlotW = weaponSlotW -- <<< USA A MESMA LARGURA DA ARMA
         local runeSlotH = 60
-        local runeSpacing = 10
+    local runeSpacing = 10
         local runeStartX = x + (w - runeSlotW) / 2
 
         for i = 1, maxRuneSlots do

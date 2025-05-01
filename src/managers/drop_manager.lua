@@ -9,27 +9,21 @@ local Jewel = require("src.items.jewel")
 
 local DropManager = {
     activeDrops = {}, -- Lista de drops ativos no mundo
-    mapRank = "E", -- Rank base do mapa atual (pode ser carregado de outro lugar no futuro)
-    enemyDropChance = 0.10, -- 10% de chance de um inimigo normal dropar joia
-    mvpDropChance = 0.50, -- 50% de chance de um MVP dropar joia de rank superior
-    bossHigherRankDropChance = 0.75, -- 75% de chance do boss dropar joias de rank +1
-    bossHigherRankDropAmount = {min = 1, max = 3}, -- Quantidade de joias rank +1 que o boss pode dropar
 }
 
 --[[
     Inicializa o gerenciador de drops
-    @param config (table): Tabela contendo as dependências { playerManager, enemyManager, runeManager, floatingTextManager, itemDataManager, mapRank }
+    @param config (table): Tabela contendo as dependências { playerManager, enemyManager, runeManager, floatingTextManager, itemDataManager }
 ]]
 function DropManager:init(config)
     config = config or {}
     self.activeDrops = {}
     -- Obtém managers da config
-    self.playerManager = config.playerManager 
-    self.enemyManager = config.enemyManager 
-    self.runeManager = config.runeManager 
-    self.floatingTextManager = config.floatingTextManager 
-    self.itemDataManager = config.itemDataManager 
-    self.mapRank = config.mapRank or "E" 
+    self.playerManager = config.playerManager
+    self.enemyManager = config.enemyManager
+    self.runeManager = config.runeManager
+    self.floatingTextManager = config.floatingTextManager
+    self.itemDataManager = config.itemDataManager
 
     -- Validação
     if not self.playerManager or not self.enemyManager or not self.runeManager or not self.floatingTextManager or not self.itemDataManager then
@@ -40,111 +34,112 @@ function DropManager:init(config)
 end
 
 --[[
-    Processa os drops de um inimigo derrotado (Normal ou MVP)
-    @param enemy O inimigo que foi derrotado
+    Processa os drops de uma entidade derrotada (Inimigo, MVP, Boss)
+    Lê a dropTable da classe da entidade.
+    @param entity A entidade que foi derrotada
 ]]
-function DropManager:processEnemyDrop(enemy)
-    local dropConfig = nil
+function DropManager:processEntityDrop(entity)
+    -- Usa a posição da entidade como base para os drops
+    local entityPosition = { x = entity.position.x, y = entity.position.y }
 
-    if enemy.isMVP then
-        -- MVP: Chance de dropar joia de rank +1
-        if math.random() <= self.mvpDropChance then
-            local jewelRank = Jewel.getNextRank(self.mapRank, 1)
-            local jewelDetails = Jewel.getRankDetails(jewelRank)
-            print(string.format("MVP dropou Joia: [%s] %s %s", jewelRank, jewelDetails.prefix, jewelDetails.name))
-            dropConfig = { type = "jewel", rank = jewelRank }
-        end
+    -- Tenta processar a tabela de drops específica da entidade
+    local entityClass = getmetatable(entity).__index
+    local dropTable = entityClass and entityClass.dropTable
+
+    if not dropTable then
+        print(string.format("Aviso: Nenhuma dropTable encontrada para a classe %s",
+            entityClass and entityClass.name or 'desconhecida'))
+        return -- Sai se não houver tabela de drops
+    end
+
+    -- Determina qual sub-tabela usar (boss, mvp, ou normal)
+    local dropsToProcess = nil
+    if entity.isBoss then
+        dropsToProcess = dropTable.boss
+    elseif entity.isMVP then
+        dropsToProcess = dropTable.mvp or dropTable.normal -- Fallback para normal se mvp não estiver definida
     else
-        -- Inimigo Normal: Chance de dropar joia do rank do mapa
-        if math.random() <= self.enemyDropChance then
-             local jewelDetails = Jewel.getRankDetails(self.mapRank)
-             print(string.format("Inimigo dropou Joia: [%s] %s %s", self.mapRank, jewelDetails.prefix, jewelDetails.name))
-            dropConfig = { type = "jewel", rank = self.mapRank }
-        end
+        dropsToProcess = dropTable.normal
     end
 
-    -- Se um drop foi determinado, cria a entidade
-    if dropConfig then
-        -- Cria o drop na posição do inimigo
-        self:createDrop(dropConfig, {x = enemy.position.x, y = enemy.position.y})
-    end
-end
-
---[[
-    Processa os drops de um boss derrotado
-    @param boss O boss que foi derrotado
-]]
-function DropManager:processBossDrops(boss)
-    -- Obtém a configuração de drops do mundo atual
-    local worldConfig = self.enemyManager.worldConfig
-    if not worldConfig or not worldConfig.bossConfig or not worldConfig.bossConfig.drops then
-        print("Aviso: Configuração de drops não encontrada para o mundo atual")
-        return
+    if not dropsToProcess then
+        print(string.format("Aviso: Nenhuma sub-tabela de drop ('boss', 'mvp', ou 'normal') encontrada para %s (%s)",
+            entity.name, entity.isBoss and 'Boss' or (entity.isMVP and 'MVP' or 'Normal')))
+        return -- Sai se a sub-tabela apropriada não for encontrada
     end
 
-    local bossDropTable = worldConfig.bossConfig.drops[boss.class]
-    if not bossDropTable then
-        print("Aviso: Configuração de drops não encontrada para o boss:", boss.class.name)
-        return
-    end
+    local dropsCreated = {}
 
-    print("Processando drops do boss:", boss.class.name)
-
-    -- Lista para armazenar todos os drops que serão criados
-    local dropsToCreate = {}
-
-    -- 1. Adiciona drops garantidos da tabela de configuração (ex: runas, ouro)
-    if bossDropTable.guaranteed then
-        for _, drop in ipairs(bossDropTable.guaranteed) do
-            print("Criando drop garantido (config):", drop.type)
-            table.insert(dropsToCreate, drop)
-        end
-    end
-
-    -- 2. Adiciona drop GARANTIDO de Joia Rank+2
-    local guaranteedJewelRank = Jewel.getNextRank(self.mapRank, 2)
-    local guaranteedJewelDetails = Jewel.getRankDetails(guaranteedJewelRank)
-    print(string.format("Criando drop garantido: Joia [%s] %s %s", guaranteedJewelRank, guaranteedJewelDetails.prefix, guaranteedJewelDetails.name))
-    table.insert(dropsToCreate, { type = "jewel", rank = guaranteedJewelRank })
-
-    -- 3. Processa drops com chance da tabela de configuração
-    if bossDropTable.chance then
-        for _, drop in ipairs(bossDropTable.chance) do
-             local chance = drop.chance or drop.weight -- Compatibilidade
-             if chance and math.random() <= (chance / 100) then
-                print("Criando drop com chance (config):", drop.type)
-                table.insert(dropsToCreate, drop)
+    -- Processa drops garantidos
+    if dropsToProcess.guaranteed then
+        for _, dropConfig in ipairs(dropsToProcess.guaranteed) do
+            if dropConfig.type == "item_pool" then
+                if dropConfig.itemIds and #dropConfig.itemIds > 0 then
+                    local randomIndex = love.math.random(#dropConfig.itemIds)
+                    local selectedItemId = dropConfig.itemIds[randomIndex]
+                    -- Cria um drop config temporário do tipo item com o ID selecionado
+                    local finalDrop = { type = "item", itemId = selectedItemId, quantity = 1 }
+                    print(string.format("Drop garantido (Pool -> %s): %s", selectedItemId, entity.name))
+                    table.insert(dropsCreated, finalDrop)
+                else
+                    print("Aviso: Drop garantido do tipo 'item_pool' sem itemIds válidos.")
+                end
+            elseif dropConfig.type == "item" then -- Lida com itens/joias normais
+                local amount = dropConfig.amount
+                local count = 1
+                if type(amount) == "table" then
+                    count = math.random(amount.min, amount.max)
+                elseif type(amount) == "number" then
+                    count = amount
+                end
+                for _ = 1, count do
+                    print(string.format("Drop garantido (%s): %s", entity.name, dropConfig.type))
+                    table.insert(dropsCreated, dropConfig)
+                end
+            else
+                print("Aviso: Tipo de drop garantido desconhecido:", dropConfig.type)
             end
         end
     end
 
-    -- 4. Processa drop com CHANCE de Joias Rank+1
-    if math.random() <= self.bossHigherRankDropChance then
-        local amount = math.random(self.bossHigherRankDropAmount.min, self.bossHigherRankDropAmount.max)
-        local higherJewelRank = Jewel.getNextRank(self.mapRank, 1)
-        local higherJewelDetails = Jewel.getRankDetails(higherJewelRank)
-        print(string.format("Criando %d drop(s) com chance: Joia [%s] %s %s", amount, higherJewelRank, higherJewelDetails.prefix, higherJewelDetails.name))
-        for _ = 1, amount do
-            table.insert(dropsToCreate, { type = "jewel", rank = higherJewelRank })
+    -- Processa drops com chance
+    if dropsToProcess.chance then
+        for _, dropConfig in ipairs(dropsToProcess.chance) do
+            local chance = dropConfig.chance or 0
+            if math.random() <= (chance / 100) then
+                if dropConfig.type == "item_pool" then
+                    if dropConfig.itemIds and #dropConfig.itemIds > 0 then
+                        local randomIndex = love.math.random(#dropConfig.itemIds)
+                        local selectedItemId = dropConfig.itemIds[randomIndex]
+                        local finalDrop = { type = "item", itemId = selectedItemId, quantity = 1 }
+                        print(string.format("Drop com chance (Pool -> %s): %s (%.1f%%)", selectedItemId, entity.name,
+                            chance))
+                        table.insert(dropsCreated, finalDrop)
+                    else
+                        print("Aviso: Drop com chance do tipo 'item_pool' sem itemIds válidos.")
+                    end
+                elseif dropConfig.type == "item" or dropConfig.type == "jewel" then
+                    local amount = dropConfig.amount
+                    local count = 1
+                    if type(amount) == "table" then
+                        count = math.random(amount.min, amount.max)
+                    elseif type(amount) == "number" then
+                        count = amount
+                    end
+                    for _ = 1, count do
+                        print(string.format("Drop com chance (%s): %s (%.1f%%)", entity.name, dropConfig.type, chance))
+                        table.insert(dropsCreated, dropConfig)
+                    end
+                else
+                    print("Aviso: Tipo de drop com chance desconhecido:", dropConfig.type)
+                end
+            end
         end
     end
 
-    -- Espalha os drops em um círculo ao redor do boss
-    local dropCount = #dropsToCreate
-    if dropCount == 0 then return end -- Sai se não houver drops
-
-    local spreadRadius = 30 -- Raio do círculo onde os drops serão espalhados
-    local angleStep = (2 * math.pi) / dropCount -- Ângulo entre cada drop
-
-    for i, drop in ipairs(dropsToCreate) do
-        -- Calcula o ângulo para este drop
-        local angle = angleStep * (i - 1) + (math.random() * 0.2 - 0.1) -- Adiciona aleatoriedade
-
-        -- Calcula a posição do drop no círculo
-        local dropX = boss.position.x + math.cos(angle) * spreadRadius
-        local dropY = boss.position.y + math.sin(angle) * spreadRadius
-
-        self:createDrop(drop, {x = dropX, y = dropY})
+    -- Espalha os drops criados (se houver)
+    if #dropsCreated > 0 then
+        self:spreadDrops(dropsCreated, entityPosition)
     end
 end
 
@@ -180,50 +175,33 @@ end
     @param dropConfig A configuração do drop coletado (contém 'type' e outros dados)
 ]]
 function DropManager:applyDrop(dropConfig)
-    if dropConfig.type == "rune" then
-        print("Coletado: Runa de raridade:", dropConfig.rarity)
-        local rune = self.runeManager:generateRune(dropConfig.rarity)
-        self.runeManager:applyRune(rune)
+    if dropConfig.type == "item" then
+        print(string.format("Tentando coletar item: %s", dropConfig.itemId or 'ID Inválido'))
+        if dropConfig.itemId then
+            local itemBaseId = dropConfig.itemId
+            local quantity = dropConfig.quantity or 1 -- Padrão para 1 se não especificado
+            local addedQuantity = self.playerManager:addInventoryItem(itemBaseId, quantity)
 
-    elseif dropConfig.type == "jewel" then
-        print(string.format("[DEBUG] Depois de require ItemDetailsModal - Tipo: %s", type(ItemDetailsModal))) -- DEBUG (Corrigido)
-        -- Construir o ID base da joia
-        local itemBaseId = dropConfig.type .. "_" .. dropConfig.rank 
-        
-        -- Tenta adicionar ao inventário usando o ID base
-        -- PlayerManager.addInventoryItem agora retorna a quantidade realmente adicionada (0 ou 1 neste caso)
-        local addedQuantity = self.playerManager:addInventoryItem(itemBaseId, 1)
-
-        -- Só mostra texto flutuante se foi adicionado com sucesso
-        if addedQuantity > 0 then
-            -- Obter dados base para nome e cor (do ItemDataManager)
-            local baseData = nil
-            local itemName = itemBaseId -- Fallback
-            local itemColor = {1, 1, 1} -- Cor branca como fallback
-            if self.itemDataManager then
-                baseData = self.itemDataManager:getBaseItemData(itemBaseId)
-                if baseData then
-                    itemName = baseData.name or itemName
-                    itemColor = baseData.color or itemColor
-                end
+            if addedQuantity > 0 then
+                local baseData = self.itemDataManager:getBaseItemData(itemBaseId)
+                local itemName = baseData and baseData.name or itemBaseId
+                local itemColor = baseData and baseData.color or { 1, 1, 1 }
+                self.floatingTextManager:addText(
+                    self.playerManager.player.position.x,
+                    self.playerManager.player.position.y - self.playerManager.radius - 30,
+                    string.format("+%d %s", addedQuantity, itemName),
+                    true,
+                    self.playerManager.player.position,
+                    itemColor
+                )
+            else
+                print(string.format("Falha ao coletar %s (Inventário cheio?).", itemBaseId))
             end
-
-            -- Mostra texto flutuante
-            self.floatingTextManager:addText(
-                self.playerManager.player.position.x,
-                self.playerManager.player.position.y - self.playerManager.radius - 30,
-                "+ " .. itemName, 
-                true,
-                self.playerManager.player.position,
-                itemColor 
-            )
         else
-            -- Opcional: Mostrar uma mensagem de "Inventário Cheio" aqui também?
-            print(string.format("Falha ao coletar %s (Inventário provavelmente cheio).", itemBaseId))
+            print("Aviso: Drop do tipo 'item' sem 'itemId' definido.")
         end
-        
     else
-        print("Aviso: Tipo de drop desconhecido:", dropConfig.type)
+        print("Aviso: Tipo de drop desconhecido ou não implementado em applyDrop:", dropConfig.type)
     end
 end
 
@@ -236,4 +214,26 @@ function DropManager:draw()
     end
 end
 
-return DropManager 
+--[[
+    Função auxiliar para espalhar os drops em um círculo
+    @param dropsToCreate (table) Lista de configurações de drop a serem criadas
+    @param centerPosition (table) Posição {x, y} central para espalhar os drops
+]]
+function DropManager:spreadDrops(dropsToCreate, centerPosition)
+    local dropCount = #dropsToCreate
+    if dropCount == 0 then return end
+
+    local spreadRadius = 30                     -- Raio do círculo onde os drops serão espalhados
+    local angleStep = (2 * math.pi) / dropCount -- Ângulo entre cada drop
+    if dropCount == 1 then spreadRadius = 0 end -- Se for só um drop, não espalha
+
+    for i, dropConfig in ipairs(dropsToCreate) do
+        local angle = angleStep * (i - 1) + (math.random() * 0.2 - 0.1) -- Adiciona aleatoriedade
+        local dropX = centerPosition.x + (dropCount > 1 and math.cos(angle) * spreadRadius or 0)
+        local dropY = centerPosition.y + (dropCount > 1 and math.sin(angle) * spreadRadius or 0)
+
+        self:createDrop(dropConfig, { x = dropX, y = dropY })
+    end
+end
+
+return DropManager

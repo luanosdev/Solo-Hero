@@ -75,6 +75,26 @@ local weapons = {
         attackSpeed = 3.33, -- 1 / 0.3
         range = 150,
     },
+    dual_noctilara_daggers = {
+        id = "dual_noctilara_daggers",
+        name = "Adagas Noctilara Gêmeas",
+        type = "weapon",
+        rarity = "B",            -- Raro/Épico? Coloquei B (Epic)
+        description = "Adagas curvas que parecem absorver a luz, tiradas da temível Noctilara.",
+        icon = nil,              -- TODO: Definir ícone
+        grid = { w = 3, h = 2 }, -- Ocupa 3x2 no inventário
+        stackable = false,
+        maxStack = 1,
+        sellValue = 500,
+        -- Stats de combate (exemplo)
+        damage = 45,
+        attackSpeed = 0.4,                                    -- Tempo entre ataques (mais rápido)
+        range = 50,                                           -- Curto alcance
+        criticalChance = 10,                                  -- Chance de crítico base da arma
+        criticalMultiplier = 1.8,                             -- Multiplicador base da arma
+        -- Referência à classe de ataque (precisa existir)
+        attackClass = "src.items.weapons.dual_daggers_attack" -- Assumindo uma classe específica ou a dual_daggers_attack
+    },
     flamethrower = {
         id = "flamethrower",
         name = "Lança-Chamas",

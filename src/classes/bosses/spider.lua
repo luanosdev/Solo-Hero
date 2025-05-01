@@ -4,20 +4,43 @@ local AnimatedCharacter = require("src.animations.animated_character")
 local Spider = setmetatable({}, { __index = BaseBoss })
 
 -- Configurações específicas do boss Spider
-Spider.name = "Spider"
+Spider.name = "Noctilara"
 Spider.radius = 40
 Spider.speed = 40
 Spider.maxHealth = 2000
 Spider.damage = 60
-Spider.color = {0.3, 0.3, 0.3} -- Cinza escuro
+Spider.color = { 0.3, 0.3, 0.3 } -- Cinza escuro
 Spider.abilityCooldown = 4
 Spider.class = Spider
+
+-- Tabela de Drops da Aranha
+-- Define os drops para o boss normal. A lógica de Rank+1/Rank+2 está incluída aqui.
+Spider.dropTable = {
+    boss = {                                                                            -- Chave específica para boss
+        guaranteed = {
+            { type = "item", itemId = "spider_silk", quantity = { min = 2, max = 5 } }, -- Garante 2-5 Seda de Aranha (1x2)
+            {
+                type = "item_pool",                                                     -- Garante UMA runa aleatória do pool
+                itemIds = { "rune_orbital_e", "rune_thunder_e", "rune_aura_e" }         -- Exemplo com 3 runas
+            }
+        },
+        chance = {
+            { type = "item", itemId = "spider_venom_sac",       chance = 30 }, -- 30% chance Bolsa de Veneno (1x1)
+            { type = "item", itemId = "dual_noctilara_daggers", chance = 2 }, -- 2% chance Adagas Noctilara Gêmeas (3x2)
+            {
+                type = "item_pool",
+                chance = 15, -- 15% de chance de dropar UMA runa adicional
+                itemIds = { "rune_orbital_e", "rune_thunder_e", "rune_aura_e" }
+            }
+        }
+    }
+}
 
 -- CONFIGURAÇÃO DE ANIMAÇÃO PARA AnimatedCharacter
 -- Esta tabela será usada na chamada AnimatedCharacter.load("Spider", Spider.animationConfig)
 -- Essa chamada deve ocorrer uma vez no início do jogo (ex: main.lua)
 Spider.animationConfig = {
-    angles = {0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330},
+    angles = { 0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330 },
     assetPaths = {
         walk = {
             body = "assets/bosses/spider/walk/Walk_Body_%s.png",
@@ -35,22 +58,22 @@ Spider.animationConfig = {
         }
     },
     grid = {
-        walk = { cols = 4, rows = 4 }, -- 16 frames
+        walk = { cols = 4, rows = 4 },     -- 16 frames
         death = {
             die1 = { cols = 8, rows = 3 }, -- 24 frames
             die2 = { cols = 5, rows = 4 }  -- 20 frames
         }
     },
-    origin = { x = 128, y = 128 }, -- Ponto de origem (centro para 256x256)
-    angleOffset = 90,          -- Ajuste para alinhar 0 graus do sprite com a matemática
+    origin = { x = 128, y = 128 },  -- Ponto de origem (centro para 256x256)
+    angleOffset = 90,               -- Ajuste para alinhar 0 graus do sprite com a matemática
     drawShadow = true,
-    shadowColor = {1, 1, 1, 0.5}, -- Sombra mais clara para a aranha
+    shadowColor = { 1, 1, 1, 0.5 }, -- Sombra mais clara para a aranha
     resetFrameOnStop = false,
-    instanceDefaults = { -- Valores padrão para cada instância Spider
+    instanceDefaults = {            -- Valores padrão para cada instância Spider
         scale = 1,
         speed = Spider.speed,
         animation = {
-            frameTime = 0.12, -- Tempo entre frames de walk
+            frameTime = 0.12,     -- Tempo entre frames de walk
             deathFrameTime = 0.05 -- Tempo entre frames de death (mais rápido)
         }
     }
@@ -74,7 +97,7 @@ function Spider:new(position, id)
 end
 
 function Spider:update(dt, playerManager, enemies)
-    if not self.isAlive then 
+    if not self.isAlive then
         -- Atualiza a animação de morte usando a última direção
         if self.lastDirection then
             -- Usa a última direção para a animação de morte
@@ -88,9 +111,9 @@ function Spider:update(dt, playerManager, enemies)
         if self.deathTimer >= self.deathDuration then
             self.shouldRemove = true
         end
-        return 
+        return
     end
-    
+
     -- Atualiza animação e posição
     AnimatedCharacter.update("Spider", self.sprite, dt, playerManager.player.position)
     self.position = self.sprite.position
@@ -112,4 +135,4 @@ function Spider:startDeathAnimation()
     AnimatedCharacter.startDeath("Spider", self.sprite)
 end
 
-return Spider 
+return Spider

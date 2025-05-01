@@ -3,63 +3,79 @@ local BossHealthBar = require("src.ui.boss_health_bar")
 local ManagerRegistry = require("src.managers.manager_registry")
 
 local EnemyManager = {
-    enemies = {},              -- Tabela contendo todas as instâncias de inimigos ativos
-    maxEnemies = 400,           -- Número máximo de inimigos permitidos na tela simultaneamente
-    nextEnemyId = 1,           -- Próximo ID a ser atribuído a um inimigo
-    
+    enemies = {},     -- Tabela contendo todas as instâncias de inimigos ativos
+    maxEnemies = 400, -- Número máximo de inimigos permitidos na tela simultaneamente
+    nextEnemyId = 1,  -- Próximo ID a ser atribuído a um inimigo
+
     -- Estado de Ciclo e Tempo
-    worldConfig = nil,          -- Configuração carregada para o mundo (contém a lista de 'cycles')
-    currentCycleIndex = 1,    -- Índice (base 1) do ciclo atual sendo executado (da lista worldConfig.cycles)
-    gameTimer = 0,              -- Tempo total de jogo decorrido desde o início (em segundos)
-    timeInCurrentCycle = 0,     -- Tempo decorrido dentro do ciclo atual (em segundos)
+    worldConfig = nil,      -- Configuração carregada para o mundo (contém a lista de 'cycles')
+    currentCycleIndex = 1,  -- Índice (base 1) do ciclo atual sendo executado (da lista worldConfig.cycles)
+    gameTimer = 0,          -- Tempo total de jogo decorrido desde o início (em segundos)
+    timeInCurrentCycle = 0, -- Tempo decorrido dentro do ciclo atual (em segundos)
 
     -- Timers de Spawn (baseados no gameTimer)
-    nextMajorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn grande (Major Spawn)
-    nextMinorSpawnTime = 0,     -- Tempo de jogo global agendado para o próximo spawn pequeno (Minor Spawn)
-    nextMVPSpawnTime = 0,       -- Tempo de jogo global agendado para o próximo spawn de MVP
-    nextBossIndex = 1,          -- Índice do próximo boss a ser spawnado
+    nextMajorSpawnTime = 0, -- Tempo de jogo global agendado para o próximo spawn grande (Major Spawn)
+    nextMinorSpawnTime = 0, -- Tempo de jogo global agendado para o próximo spawn pequeno (Minor Spawn)
+    nextMVPSpawnTime = 0,   -- Tempo de jogo global agendado para o próximo spawn de MVP
+    nextBossIndex = 1,      -- Índice do próximo boss a ser spawnado
 
     spawnTimer = 0,
     spawnInterval = 2, -- Tempo entre spawns em segundos
-    
+
     -- Timer para controlar quando esconder a barra de vida do boss após sua morte
     bossDeathTimer = 0,
     bossDeathDuration = 3, -- Tempo em segundos para manter a barra visível após a morte
     lastBossDeathTime = 0, -- Momento em que o último boss morreu
 }
 
--- Inicializa o gerenciador de inimigos para um mundo específico
-function EnemyManager:init(worldId)
-    self.playerManager = ManagerRegistry:get("playerManager")
-    self.dropManager = ManagerRegistry:get("dropManager")
-    self.nextEnemyId = 1 -- Reseta o contador de IDs
+-- Inicializa o gerenciador de inimigos com uma configuração de horda específica
+---@param config table Tabela de configuração contendo { hordeConfig, playerManager, dropManager }
+function EnemyManager:init(config)
+    if not config or not config.hordeConfig or not config.playerManager or not config.dropManager then
+        error("ERRO CRÍTICO [EnemyManager:init]: Configuração inválida ou incompleta fornecida.")
+    end
 
-    worldId = worldId or "default" -- Usa 'default' se nenhum ID de mundo for fornecido
-    self.enemies = {}             -- Limpa a lista de inimigos
-    self.gameTimer = 0            -- Reinicia o timer global
-    self.timeInCurrentCycle = 0   -- Reinicia o timer do ciclo
-    self.currentCycleIndex = 1  -- Começa no primeiro ciclo
-    
+    self.playerManager = config.playerManager -- ManagerRegistry:get("playerManager")
+    self.dropManager = config.dropManager     -- ManagerRegistry:get("dropManager")
+    self.worldConfig = config.hordeConfig     -- USA A CONFIGURAÇÃO PASSADA DIRETAMENTE
+
+    self.nextEnemyId = 1                      -- Reseta o contador de IDs
+    self.enemies = {}                         -- Limpa a lista de inimigos
+    self.gameTimer = 0                        -- Reinicia o timer global
+    self.timeInCurrentCycle = 0               -- Reinicia o timer do ciclo
+    self.currentCycleIndex = 1                -- Começa no primeiro ciclo
+    self.nextBossIndex = 1                    -- Reseta índice do boss
+
     -- Inicializa a barra de vida do boss
     BossHealthBar:init()
-    
-    -- Carrega a configuração de ciclos para o mundo especificado
-    self.worldConfig = HordeConfigManager.loadHordes(worldId)
+
+    -- REMOVIDO: Carregamento via HordeConfigManager
+    -- worldId = worldId or "default"
+    -- self.worldConfig = HordeConfigManager.loadHordes(worldId)
+
+    -- Valida a configuração carregada
     if not self.worldConfig or not self.worldConfig.cycles or #self.worldConfig.cycles == 0 then
-        error("Erro: Configuração de ciclos inválida ou vazia para o mundo: " .. worldId)
+        error("Erro [EnemyManager:init]: Configuração de horda inválida ou vazia fornecida.")
     end
-    
+    if not self.worldConfig.mvpConfig then
+        error("Erro [EnemyManager:init]: Configuração de horda não possui 'mvpConfig'.")
+    end
+    -- bossConfig é opcional, não precisa de erro
+
     -- Determina o rank do mapa a partir da configuração do mundo
-    local mapRank = self.worldConfig.mapRank or "E" -- Assume 'E' se não definido na config
+    local mapRank = self.worldConfig.mapRank or "E" -- Assume 'E' se não definido
 
     -- Agenda os tempos iniciais de spawn com base nas regras do primeiro ciclo
     local firstCycle = self.worldConfig.cycles[1]
-    if not firstCycle then error("Erro: Primeiro ciclo não encontrado na configuração.") end
-    self.nextMajorSpawnTime = firstCycle.majorSpawn.interval -- O primeiro Major Spawn ocorre após o intervalo inicial
-    self.nextMinorSpawnTime = self:calculateMinorSpawnInterval(firstCycle) -- O primeiro Minor Spawn ocorre após o intervalo inicial calculado
-    self.nextMVPSpawnTime = self.worldConfig.mvpConfig.spawnInterval -- O primeiro MVP spawna após o intervalo inicial
+    if not firstCycle or not firstCycle.majorSpawn or not firstCycle.minorSpawn then
+        error("Erro [EnemyManager:init]: Primeiro ciclo inválido ou sem configuração de spawn.")
+    end
+    self.nextMajorSpawnTime = firstCycle.majorSpawn.interval
+    self.nextMinorSpawnTime = self:calculateMinorSpawnInterval(firstCycle)
+    self.nextMVPSpawnTime = self.worldConfig.mvpConfig.spawnInterval
 
-    print(string.format("EnemyManager inicializado para '%s'. Rank do Mapa: %s. %d ciclo(s) carregados.", worldId, mapRank, #self.worldConfig.cycles))
+    print(string.format("EnemyManager inicializado com Horda Config. Rank Mapa: %s. %d ciclo(s).",
+        mapRank, #self.worldConfig.cycles))
 end
 
 -- Atualiza o estado do gerenciador de inimigos e todos os inimigos ativos
@@ -91,36 +107,39 @@ function EnemyManager:update(dt)
     local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
     if not currentCycle then
         -- Se não houver mais ciclos definidos, os spawns param.
-        print("Fim dos ciclos definidos.") 
+        print("Fim dos ciclos definidos.")
         goto update_enemies_only -- Pula a lógica de spawn
     end
 
     -- Verifica se a duração do ciclo atual foi excedida para avançar para o próximo
     if self.timeInCurrentCycle >= currentCycle.duration and self.currentCycleIndex < #self.worldConfig.cycles then
-        self.currentCycleIndex = self.currentCycleIndex + 1         -- Avança o índice do ciclo
+        self.currentCycleIndex = self.currentCycleIndex + 1                       -- Avança o índice do ciclo
         self.timeInCurrentCycle = self.timeInCurrentCycle - currentCycle.duration -- Ajusta o tempo para o novo ciclo
-        currentCycle = self.worldConfig.cycles[self.currentCycleIndex] -- Atualiza a referência para o ciclo atual
+        currentCycle = self.worldConfig.cycles
+            [self.currentCycleIndex]                                              -- Atualiza a referência para o ciclo atual
         print(string.format("Entrando no Ciclo %d no tempo %.2f", self.currentCycleIndex, self.gameTimer))
-        
+
         -- Recalcula e reagenda os próximos tempos de spawn com base nas regras do NOVO ciclo
-        self.nextMajorSpawnTime = self.gameTimer + currentCycle.majorSpawn.interval 
+        self.nextMajorSpawnTime = self.gameTimer + currentCycle.majorSpawn.interval
         self.nextMinorSpawnTime = self.gameTimer + self:calculateMinorSpawnInterval(currentCycle)
     end
 
     -- 2. Verifica Major Spawns (Grandes ondas cronometradas)
     if self.gameTimer >= self.nextMajorSpawnTime then
-        local spawnConfig = currentCycle.majorSpawn 
-        local minutesPassed = self.gameTimer / 60   
-        
+        local spawnConfig = currentCycle.majorSpawn
+        local minutesPassed = self.gameTimer / 60
+
         -- Calcula a quantidade de inimigos a spawnar:
         -- Base + (Base * PorcentagemDeEscala * MinutosPassados)
-        local countToSpawn = math.floor(spawnConfig.baseCount + (spawnConfig.baseCount * spawnConfig.countScalePerMin * minutesPassed))
-        
-        print(string.format("Major Spawn (Ciclo %d) no tempo %.2f: Tentando spawnar %d inimigos.", self.currentCycleIndex, self.gameTimer, countToSpawn))
+        local countToSpawn = math.floor(spawnConfig.baseCount +
+            (spawnConfig.baseCount * spawnConfig.countScalePerMin * minutesPassed))
+
+        print(string.format("Major Spawn (Ciclo %d) no tempo %.2f: Tentando spawnar %d inimigos.", self
+            .currentCycleIndex, self.gameTimer, countToSpawn))
         local spawnedCount = 0
         -- Tenta spawnar a quantidade calculada
         for i = 1, countToSpawn do
-            if #self.enemies < self.maxEnemies then -- Verifica o limite global de inimigos
+            if #self.enemies < self.maxEnemies then                                      -- Verifica o limite global de inimigos
                 local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies) -- Seleciona um inimigo permitido neste ciclo
                 if enemyClass then
                     self:spawnSpecificEnemy(enemyClass)
@@ -132,27 +151,29 @@ function EnemyManager:update(dt)
             end
         end
         print(string.format("Major Spawn concluído. %d inimigos spawnados.", spawnedCount))
-        
+
         -- Agenda o próximo Major Spawn para daqui a 'spawnConfig.interval' segundos
         self.nextMajorSpawnTime = self.gameTimer + spawnConfig.interval
     end
 
     -- 3. Verifica Minor Spawns (Pequenos spawns aleatórios contínuos)
     if self.gameTimer >= self.nextMinorSpawnTime then
-        local spawnConfig = currentCycle.minorSpawn -- Pega a configuração do Minor Spawn para o ciclo atual
-        local countToSpawn = spawnConfig.count      -- Quantidade de inimigos por Minor Spawn (geralmente 1)
-        
+        local spawnConfig = currentCycle
+            .minorSpawn                                                                                      -- Pega a configuração do Minor Spawn para o ciclo atual
+        local countToSpawn = spawnConfig
+            .count                                                                                           -- Quantidade de inimigos por Minor Spawn (geralmente 1)
+
         print(string.format("Minor Spawn (Ciclo %d) no tempo %.2f", self.currentCycleIndex, self.gameTimer)) -- Debug
         -- Tenta spawnar a quantidade definida
         for i = 1, countToSpawn do
-            if #self.enemies < self.maxEnemies then -- Verifica o limite global de inimigos
-                 local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies) -- Seleciona um inimigo permitido neste ciclo
-                 if enemyClass then
+            if #self.enemies < self.maxEnemies then                                      -- Verifica o limite global de inimigos
+                local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies) -- Seleciona um inimigo permitido neste ciclo
+                if enemyClass then
                     self:spawnSpecificEnemy(enemyClass)
-                 end
+                end
             else
-                 print("Limite máximo de inimigos atingido durante Minor Spawn.")
-                 break -- Interrompe se o limite for atingido
+                print("Limite máximo de inimigos atingido durante Minor Spawn.")
+                break -- Interrompe se o limite for atingido
             end
         end
 
@@ -168,30 +189,29 @@ function EnemyManager:update(dt)
     -- Itera de trás para frente para permitir remoção segura
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
-        
+
         -- Atualiza a lógica do inimigo
         enemy:update(dt, self.playerManager, self.enemies)
-    
+
         -- Se o inimigo estiver morto e não estiver em animação de morte
         if not enemy.isAlive and not enemy.isDying then
             -- Marca como em processo de morte
             enemy.isDying = true
-            
+
             -- Inicia a animação de morte
             if enemy.startDeathAnimation then
                 enemy:startDeathAnimation()
             end
-            
-            -- Se for um boss, processa os drops e registra o momento da morte
+
+            -- Processa os drops usando a função unificada
+            self.dropManager:processEntityDrop(enemy)
+
+            -- Registra o momento da morte se for um boss (para a barra de vida)
             if enemy.isBoss then
-                self.dropManager:processBossDrops(enemy)
                 self.lastBossDeathTime = self.gameTimer
-            else
-                -- Chama processEnemyDrop para inimigos normais e MVPs
-                self.dropManager:processEnemyDrop(enemy)
             end
         end
-        
+
         -- Remove o inimigo se estiver marcado para remoção
         if enemy.shouldRemove then
             table.remove(self.enemies, i)
@@ -241,7 +261,7 @@ function EnemyManager:calculateMinorSpawnInterval(cycleConfig)
     local minutesPassed = self.gameTimer / 60
     local interval = spawnConfig.baseInterval - (spawnConfig.intervalReductionPerMin * minutesPassed)
     -- Garante que o intervalo não seja menor que o mínimo definido no ciclo
-    return math.max(interval, spawnConfig.minInterval) 
+    return math.max(interval, spawnConfig.minInterval)
 end
 
 -- Função auxiliar: Seleciona aleatoriamente uma classe de inimigo de uma lista fornecida, respeitando os pesos definidos.
@@ -256,16 +276,16 @@ function EnemyManager:selectEnemyFromList(enemyList)
     for _, enemyType in ipairs(enemyList) do
         totalWeight = totalWeight + (enemyType.weight or 1) -- Assume peso 1 se não estiver definido
     end
-    
+
     -- Lida com caso de peso total inválido (ou lista com apenas pesos zero)
-    if totalWeight <= 0 then 
+    if totalWeight <= 0 then
         print("Aviso: Peso total zero ou negativo na lista de inimigos.")
         return #enemyList > 0 and enemyList[1].class or nil -- Retorna o primeiro como fallback
     end
 
     -- Sorteia um valor aleatório dentro do peso total
     local randomValue = math.random() * totalWeight
-    
+
     -- Itera pela lista subtraindo os pesos até encontrar o inimigo correspondente ao valor sorteado
     for _, enemyType in ipairs(enemyList) do
         randomValue = randomValue - (enemyType.weight or 1)
@@ -276,7 +296,7 @@ function EnemyManager:selectEnemyFromList(enemyList)
 
     -- Fallback (não deve acontecer com pesos positivos, mas por segurança)
     print("Aviso: Falha ao selecionar inimigo por peso, retornando o primeiro da lista.")
-    return #enemyList > 0 and enemyList[1].class or nil 
+    return #enemyList > 0 and enemyList[1].class or nil
 end
 
 -- Desenha todos os inimigos ativos na tela
@@ -293,9 +313,9 @@ function EnemyManager:draw()
 
     -- Se não houver boss vivo, mas ainda estiver dentro do tempo de exibição após a morte
     if not shouldShowBossBar and self.bossDeathTimer > 0 and self.bossDeathTimer <= self.bossDeathDuration then
-        BossHealthBar:show(nil) -- Mostra a barra vazia
+        BossHealthBar:show(nil)    -- Mostra a barra vazia
     elseif self.bossDeathTimer > self.bossDeathDuration then
-        BossHealthBar:hide() -- Esconde a barra após o tempo limite
+        BossHealthBar:hide()       -- Esconde a barra após o tempo limite
         self.lastBossDeathTime = 0 -- Reseta o timer
         self.bossDeathTimer = 0
     end
@@ -314,14 +334,14 @@ end
 -- Cria e adiciona um inimigo de uma classe específica em uma posição aleatória fora da tela
 function EnemyManager:spawnSpecificEnemy(enemyClass)
     if not enemyClass then
-       print("Erro: Tentativa de spawnar inimigo com classe nula.")
-       return
+        print("Erro: Tentativa de spawnar inimigo com classe nula.")
+        return
     end
 
     -- Obtém o próximo ID disponível antes de criar o inimigo
     local enemyId = self.nextEnemyId
     print(string.format("Próximo ID disponível: %d", enemyId))
-    
+
     -- Calcula um raio de spawn fora da área visível da tela
     local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
     -- Gera um ângulo aleatório
@@ -329,26 +349,26 @@ function EnemyManager:spawnSpecificEnemy(enemyClass)
     -- Calcula as coordenadas X e Y com base no ângulo e raio a partir da posição do jogador
     local spawnX = self.playerManager.player.position.x + math.cos(angle) * minSpawnRadius
     local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
-    
+
     -- Cria a nova instância do inimigo com o ID
-    local enemy = enemyClass:new({x = spawnX, y = spawnY}, enemyId)
-    
+    local enemy = enemyClass:new({ x = spawnX, y = spawnY }, enemyId)
+
     -- Incrementa o contador de IDs
     self.nextEnemyId = self.nextEnemyId + 1
     print(string.format("ID incrementado para: %d", self.nextEnemyId))
-    
+
     -- Adiciona o inimigo à lista de inimigos ativos
     table.insert(self.enemies, enemy)
-    
+
     print(string.format("Inimigo ID: %d spawnado em (%.1f, %.1f)", enemy.id, spawnX, spawnY))
 end
 
 -- Função para transformar um inimigo em MVP
 function EnemyManager:transformToMVP(enemy)
     if not enemy or not enemy.isAlive then return end
-    
+
     local mvpConfig = self.worldConfig.mvpConfig
-    
+
     -- Aumenta os status do inimigo usando as configurações do mundo
     enemy.maxHealth = enemy.maxHealth * mvpConfig.statusMultiplier
     enemy.currentHealth = enemy.maxHealth
@@ -356,7 +376,7 @@ function EnemyManager:transformToMVP(enemy)
     enemy.speed = enemy.speed * mvpConfig.speedMultiplier
     enemy.radius = enemy.radius * mvpConfig.sizeMultiplier
     enemy.experienceValue = enemy.experienceValue * mvpConfig.experienceMultiplier
-    
+
     -- Marca como MVP
     enemy.isMVP = true
 end
@@ -367,21 +387,21 @@ function EnemyManager:spawnMVP()
         print("Limite máximo de inimigos atingido, não é possível spawnar MVP.")
         return
     end
-    
+
     -- Seleciona um tipo de inimigo aleatório do ciclo atual
     local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
     if not currentCycle then return end
-    
+
     local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
     if not enemyClass then return end
-    
+
     -- Obtém o próximo ID disponível
     local enemyId = self.nextEnemyId
     print(string.format("Próximo ID disponível para MVP: %d", enemyId))
-    
+
     -- Spawna o inimigo normalmente
     self:spawnSpecificEnemy(enemyClass)
-    
+
     -- Transforma o último inimigo spawnado em MVP
     if #self.enemies > 0 then
         local mvp = self.enemies[#self.enemies]
@@ -407,7 +427,7 @@ function EnemyManager:spawnBoss(bossClass, powerLevel)
     self.nextEnemyId = self.nextEnemyId + 1
 
     -- Cria o boss com o nível de poder especificado
-    local boss = bossClass:new({x = spawnX, y = spawnY}, enemyId)
+    local boss = bossClass:new({ x = spawnX, y = spawnY }, enemyId)
     boss.powerLevel = powerLevel or 3 -- Usa 3 como padrão se não for especificado
     table.insert(self.enemies, boss)
 

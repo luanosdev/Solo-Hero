@@ -2,11 +2,11 @@ local SceneManager = require("src.core.scene_manager")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
-local Formatters = require("src.utils.formatters")
+local portalDefinitions = require("src.data.portals.portal_definitions")
 
 --- Módulo para gerenciar a tela de Portais no Lobby.
 ---@class PortalScreen
----@field portalManager LobbyPortalManager
+---@field lobbyPortalManager LobbyPortalManager
 ---@field hunterManager HunterManager
 ---@field mapImage love.Image|nil
 ---@field mapImagePath string
@@ -29,12 +29,12 @@ local PortalScreen = {}
 PortalScreen.__index = PortalScreen
 
 --- Cria uma nova instância da tela de Portais.
----@param portalManager LobbyPortalManager
+---@param lobbyPortalManager LobbyPortalManager
 ---@param hunterManager HunterManager -- Necessário para obter stats ao entrar no portal
 ---@return PortalScreen
-function PortalScreen:new(portalManager, hunterManager)
+function PortalScreen:new(lobbyPortalManager, hunterManager)
     local instance = setmetatable({}, PortalScreen)
-    instance.portalManager = portalManager
+    instance.lobbyPortalManager = lobbyPortalManager
     instance.hunterManager = hunterManager
 
     -- Estado de Mapa/Zoom/Pan
@@ -96,17 +96,7 @@ function PortalScreen:_loadAssets()
     else
         self.mapOriginalWidth = self.mapImage:getWidth()
         self.mapOriginalHeight = self.mapImage:getHeight()
-        self.mapTargetPanX = self.mapOriginalWidth / 2
-        self.mapTargetPanY = self.mapOriginalHeight / 2
-        self.mapCurrentPanX = self.mapTargetPanX
-        self.mapCurrentPanY = self.mapTargetPanY
-        -- A inicialização do portalManager é feita na LobbyScene, pois depende das dimensões carregadas aqui.
-        if self.portalManager then
-            -- Chamamos initialize aqui também para garantir que o manager tenha as dimensões?
-            -- Ou garantimos que load da cena chame initialize DEPOIS de criar PortalScreen?
-            -- Por ora, a cena chama initialize após criar a tela.
-            print("(PortalScreen) Dimensões do mapa carregadas: ", self.mapOriginalWidth, self.mapOriginalHeight)
-        end
+        print("(PortalScreen) Dimensões do mapa carregadas: ", self.mapOriginalWidth, self.mapOriginalHeight)
     end
 
     -- Carrega o shader de névoa
@@ -146,8 +136,16 @@ end
 function PortalScreen:update(dt, mx, my, allowHover)
     -- 1. Animação de Zoom e Pan
     local targetZoom = self.isZoomedIn and self.mapTargetZoom or 1.0
-    local targetPanX = self.isZoomedIn and self.mapTargetPanX or (self.mapOriginalWidth / 2)
-    local targetPanY = self.isZoomedIn and self.mapTargetPanY or (self.mapOriginalHeight / 2)
+    local targetPanX, targetPanY
+    if self.isZoomedIn then
+        targetPanX = self.mapTargetPanX -- Alvo é o portal selecionado (definido no handleMousePress)
+        targetPanY = self.mapTargetPanY
+    else
+        -- Alvo é o centro do mapa (ou posição de descanso padrão)
+        targetPanX = self.mapOriginalWidth / 2
+        targetPanY = self.mapOriginalHeight / 2
+    end
+
     local factor = math.min(1, dt * self.zoomSmoothFactor)
 
     self.mapCurrentZoom = lerp(self.mapCurrentZoom, targetZoom, factor)
@@ -156,6 +154,13 @@ function PortalScreen:update(dt, mx, my, allowHover)
 
     -- 2. Atualiza tempo da névoa
     self.noiseTime = self.noiseTime + dt
+
+    -- Recalcula as coordenadas de desenho do mapa APÓS a interpolação do frame
+    local screenW = love.graphics.getWidth()
+    local screenH = love.graphics.getHeight()
+    local currentMapScale = self.mapCurrentZoom
+    local currentMapDrawX = screenW / 2 - self.mapCurrentPanX * currentMapScale
+    local currentMapDrawY = screenH / 2 - self.mapCurrentPanY * currentMapScale
 
     -- 3. Lógica do Modal (se visível)
     self.modalButtonEnterHover = false
@@ -187,17 +192,12 @@ function PortalScreen:update(dt, mx, my, allowHover)
         end
     end
 
-    -- 4. Atualiza o Portal Manager
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
-    local currentMapScale = self.mapCurrentZoom
-    local currentMapDrawX = screenW / 2 - self.mapCurrentPanX * currentMapScale
-    local currentMapDrawY = screenH / 2 - self.mapCurrentPanY * currentMapScale
-
+    -- 4. Atualiza o Portal Manager (usando os mapDrawX/Y finais calculados para este frame)
     -- Hover nos portais só é permitido se hover geral permitido E não houver modal ativo/hover
     local allowPortalHoverInternal = allowHover and not modalHoverHandled
-    if self.portalManager then
-        self.portalManager:update(dt, mx, my, allowPortalHoverInternal, currentMapScale, currentMapDrawX, currentMapDrawY)
+    if self.lobbyPortalManager then
+        self.lobbyPortalManager:update(dt, mx, my, allowPortalHoverInternal, currentMapScale, currentMapDrawX,
+            currentMapDrawY)
     end
 end
 
@@ -229,8 +229,8 @@ function PortalScreen:draw(screenW, screenH)
         love.graphics.setColor(colors.white)
 
         -- 3. Desenha Portais (via manager)
-        if self.portalManager then
-            self.portalManager:draw(currentMapScale, currentMapDrawX, currentMapDrawY, self.selectedPortal)
+        if self.lobbyPortalManager then
+            self.lobbyPortalManager:draw(currentMapScale, currentMapDrawX, currentMapDrawY, self.selectedPortal)
         end
         love.graphics.setColor(colors.white)
     else
@@ -243,7 +243,7 @@ function PortalScreen:draw(screenW, screenH)
     -- 4. Desenha Modal (se portal selecionado)
     if self.selectedPortal then
         local modal = self.modalRect
-        local portal = self.selectedPortal
+        local portal = self.selectedPortal -- Contém apenas dados do lobby agora
         local modalFont = fonts.main_small or fonts.main
         local modalFontLarge = fonts.main or fonts.main
 
@@ -266,8 +266,7 @@ function PortalScreen:draw(screenW, screenH)
         local currentY = modal.y + 55
         love.graphics.printf("Rank: " .. portal.rank, modal.x + 15, currentY, modal.w - 30, "left")
         currentY = currentY + lineH
-        love.graphics.printf("Tempo Restante: " .. Formatters.formatTime(portal.timer), modal.x + 15, currentY,
-            modal.w - 30, "left")
+        love.graphics.printf("Tema: " .. (portal.theme or "Desconhecido"), modal.x + 15, currentY, modal.w - 30, "left")
         currentY = currentY + lineH * 1.5
 
         love.graphics.printf("Bioma: Floresta Sombria", modal.x + 15, currentY, modal.w - 30, "left")
@@ -309,7 +308,7 @@ end
 ---@param x number Posição X do mouse.
 ---@param y number Posição Y do mouse.
 ---@param buttonIdx number Índice do botão.
----@return boolean consumed Se o clique foi consumido.
+---@return boolean consumed Se o clique foi consumido.-
 function PortalScreen:handleMousePress(x, y, buttonIdx)
     if buttonIdx == 1 then
         -- 1. Verifica clique no Modal (se ativo)
@@ -317,24 +316,34 @@ function PortalScreen:handleMousePress(x, y, buttonIdx)
             local modalClicked = false
             if self.modalButtonEnterHover then
                 modalClicked = true
-                print(string.format("(PortalScreen) Botão 'Entrar' clicado para portal '%s'.", self.selectedPortal.name))
-                -- Obtém stats ANTES de trocar de cena
-                local portalData = PortalDataManager.getPortalData(self.selectedPortal.id)
-                local worldLevel = selectedWorldData.worldLevel
-                local portalTier = self.selectedPortal.tier
-                local activeHunterId = self.hunterManager:getActiveHunterId()                 -- Obtém o ID do caçador ativo
-                local activeHunterFinalStats = self.hunterManager:getActiveHunterFinalStats() -- Obtém os stats finais do caçador ativo
+                local portalId = self.selectedPortal.id
+                print(string.format("(PortalScreen) Botão 'Entrar' clicado para portal ID '%s'.", portalId))
+
+                -- >>> BUSCA A DEFINIÇÃO COMPLETA USANDO O ID <<<
+                local fullDefinition = portalDefinitions[portalId]
+
+                if not fullDefinition then
+                    print(string.format("ERRO: Definição completa não encontrada para portalId '%s'!", portalId))
+                    self.selectedPortal = nil -- Cancela seleção
+                    self.isZoomedIn = false
+                    return true               -- Consome clique, mas não avança
+                end
+
+                local hordeConfig = fullDefinition.hordeConfig
+                local activeHunterId = self.hunterManager:getActiveHunterId()
+                local activeHunterFinalStats = self.hunterManager:getActiveHunterFinalStats()
 
                 if not activeHunterId then
                     print("Erro: Nenhum caçador ativo selecionado.")
+                elseif not hordeConfig then
+                    print(string.format("Erro: Portal '%s' (Definição) não possui hordeConfig definida!", portalId))
                 else
-                    -- Inicia a cena de combate
+                    -- Inicia a cena de combate passando a hordeConfig correta
                     SceneManager.changeScene('combat', {
-                        portalId = self.selectedPortal.id,
-                        worldLevel = worldLevel,
-                        portalTier = portalTier,
-                        hunterId = activeHunterId,                -- Passa o ID do caçador ativo
-                        hunterFinalStats = activeHunterFinalStats -- Passa os stats finais do caçador ativo
+                        portalId = portalId,
+                        hordeConfig = hordeConfig,
+                        hunterId = activeHunterId,
+                        hunterFinalStats = activeHunterFinalStats
                     })
                 end
             elseif self.modalButtonCancelHover then

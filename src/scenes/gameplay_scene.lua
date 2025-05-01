@@ -14,13 +14,21 @@ local ManagerRegistry = require("src.managers.manager_registry")
 local Bootstrap = require("src.core.bootstrap")
 
 local GameplayScene = {}
+GameplayScene.__index = GameplayScene -- <<< ADICIONADO __index >>>
 
 function GameplayScene:load(args)
     print("GameplayScene:load - Inicializando sistemas de gameplay...")
-    self.portalData = args and args.portalData or nil -- Guarda dados do portal, se houver
-    if self.portalData then
-        print(string.format("- Entrando via portal: %s [%s]", self.portalData.name, self.portalData.rank))
+    self.portalId = args and args.portalId or "unknown_portal" -- Guarda ID para referência
+    self.hordeConfig = args and args.hordeConfig or nil        -- <<< ADICIONADO: Guarda a hordeConfig
+    self.hunterId = args and args.hunterId or nil
+
+    if not self.hordeConfig then
+        error("ERRO CRÍTICO [GameplayScene:load]: Nenhuma hordeConfig fornecida para iniciar a cena!")
     end
+    if not self.hunterId then
+        error("ERRO CRÍTICO [GameplayScene:load]: Nenhum hunterId fornecido para iniciar a cena!")
+    end
+    print(string.format("  - Carregando portal ID: %s, Hunter ID: %s", self.portalId, self.hunterId))
 
     -- Estado da cena
     self.isPaused = false
@@ -81,6 +89,8 @@ function GameplayScene:load(args)
 
     -- Obtém referência ao player para posicionar câmera ou outras lógicas
     local playerMgr = ManagerRegistry:get("playerManager")
+    local enemyMgr = ManagerRegistry:get("enemyManager")
+    local dropMgr = ManagerRegistry:get("dropManager")
     if playerMgr and playerMgr.player then
         print(string.format("GameplayScene: Jogador encontrado. Posição inicial: %.1f, %.1f",
             playerMgr.player.position.x, playerMgr.player.position.y))
@@ -88,6 +98,28 @@ function GameplayScene:load(args)
         -- self.camera:setPosition(playerMgr.player.position.x, playerMgr.player.position.y)
     else
         print("GameplayScene: AVISO - PlayerManager ou player não encontrado após bootstrap!")
+    end
+
+    if not playerMgr or not enemyMgr or not dropMgr then
+        error("ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers essenciais do Registry!")
+    end
+
+    -- Configura o PlayerManager com o hunterId
+    playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
+
+    -- <<< INÍCIO: Inicialização do EnemyManager com hordeConfig >>>
+    local enemyManagerConfig = {
+        hordeConfig = self.hordeConfig, -- Passa a configuração recebida
+        playerManager = playerMgr,      -- Passa a dependência
+        dropManager = dropMgr           -- Passa a dependência
+        -- Adicionar outras dependências se EnemyManager:init precisar
+    }
+    enemyMgr:init(enemyManagerConfig)
+    -- <<< FIM: Inicialização do EnemyManager >>>
+
+    -- Posiciona câmera (opcional, pode ser feito no update)
+    if playerMgr.player then
+        -- self.camera:setPosition(playerMgr.player.position.x, playerMgr.player.position.y)
     end
 
     print("GameplayScene:load concluído.")
@@ -158,11 +190,13 @@ function GameplayScene:drawIsometricGrid()
     -- Obtém o PlayerManager do Registry
     local playerMgr = ManagerRegistry:get("playerManager")
     local playerX, playerY = 0, 0
-    if playerMgr and playerMgr.player then
+    if playerMgr and playerMgr.player and playerMgr.player.position then -- <<< ADICIONADO: Checa player.position
         playerX = playerMgr.player.position.x
         playerY = playerMgr.player.position.y
     else
-        print("GameplayScene:drawIsometricGrid - AVISO: Player não encontrado, usando centro da câmera.")
+        -- Se player não existe ou não tem posição ainda, usa centro da câmera
+        playerX, playerY = camera:getPosition()
+        -- print("GameplayScene:drawIsometricGrid - AVISO: Player/Posição não encontrado, usando centro da câmera.")
     end
 
     -- Converte a posição central (jogador/câmera) para coordenadas do grid
@@ -226,8 +260,8 @@ function GameplayScene:draw()
     end
 
     -- Clear screen (opcional, pode sobrepor com fundo do grid)
-    love.graphics.setBackgroundColor(0.95, 0.95, 0.95)
-    love.graphics.clear()
+    love.graphics.setBackgroundColor(0.1, 0.1, 0.1) -- <<< MUDADO: Cor de fundo mais escura >>>
+    love.graphics.clear(0.1, 0.1, 0.1, 1)           -- <<< MUDADO: Limpa com a mesma cor >>>
 
     -- Aplica transformação da câmera para o mundo
     self.camera:attach()
@@ -255,7 +289,7 @@ function GameplayScene:draw()
     local enemyMgr = ManagerRegistry:get("enemyManager")
     if enemyMgr then
         local enemies = enemyMgr:getEnemies()
-        if #enemies > 0 then
+        if enemies and #enemies > 0 then -- <<< ADICIONADO: Verifica se enemies existe
             -- Código de debug dos inimigos (transferido e adaptado)
             love.graphics.setColor(0, 0, 0, 0.7)
             love.graphics.rectangle('fill', love.graphics.getWidth() - 210, 5, 205, 150)
@@ -264,8 +298,8 @@ function GameplayScene:draw()
             local debugText = string.format(
                 "Enemy Info:\nTotal: %d | Ciclo: %d | Timer: %.1f",
                 #enemies,
-                enemyMgr.currentCycleIndex,
-                enemyMgr.gameTimer
+                enemyMgr.currentCycleIndex or 0, -- <<< ADICIONADO: Default 0 se nil
+                enemyMgr.gameTimer or 0          -- <<< ADICIONADO: Default 0 se nil
             )
             local bossCount = 0
             local bossLines = {}
@@ -349,6 +383,18 @@ end
 function GameplayScene:unload()
     print("GameplayScene:unload - Descarregando recursos do gameplay...")
     -- TODO: Limpar recursos específicos da cena de gameplay (inimigos, etc.)
+    -- <<< ADICIONADO: Resetar estados estáticos de UI/Modals >>>
+    LevelUpModal.visible = false
+    RuneChoiceModal.visible = false
+    InventoryScreen.isVisible = false
+    ItemDetailsModal.isVisible = false
+    if HUD.reset then HUD:reset() end -- Chama reset se existir
+
+    -- <<< ADICIONADO: Parar/Limpar managers se necessário >>>
+    -- Exemplo: Parar timers ou limpar listas
+    local enemyMgr = ManagerRegistry:get("enemyManager")
+    if enemyMgr and enemyMgr.reset then enemyMgr:reset() end
+    -- Limpar outros managers se relevante
 end
 
 return GameplayScene
