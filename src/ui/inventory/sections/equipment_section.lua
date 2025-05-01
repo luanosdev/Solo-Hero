@@ -159,7 +159,8 @@ end
 -- Desenha a seção de equipamento (centro)
 --- @param hunterManager HunterManager Instância do gerenciador de caçadores.
 --- @param slotAreasTable table Tabela vazia a ser preenchida com as áreas dos slots { [slotId] = {x,y,w,h} }.
-function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
+--- @param hunterId string ID do caçador.
+function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunterId)
     if not hunterManager then
         love.graphics.setColor(colors.red or { 1, 0, 0 })
         love.graphics.printf("Erro: HunterManager não fornecido para EquipmentSection!", x, y, w, "center")
@@ -171,12 +172,26 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable)
         return
     end
 
-    local equippedItems = hunterManager:getActiveEquippedItems()
+    local targetHunterId = hunterId or hunterManager:getActiveHunterId()
+    if not targetHunterId then
+        love.graphics.setColor(colors.red or { 1, 0, 0 })
+        love.graphics.printf("Nenhum Caçador Ativo/Selecionado!", x, y + h / 2, w, "center")
+        return -- Não pode desenhar sem um caçador
+    end
+
+    local equippedItems = hunterManager:getEquippedItems(targetHunterId)
     if not equippedItems then
         -- Isso pode acontecer se o activeHunterId for inválido por algum motivo
         love.graphics.setColor(colors.red or { 1, 0, 0 })
         love.graphics.printf("Erro: Não foi possível obter itens equipados do HunterManager!", x, y, w, "center")
         return
+    end
+
+    local hunterData = hunterManager.hunters and hunterManager.hunters[targetHunterId]
+    if not hunterData then
+        love.graphics.setColor(colors.red or { 1, 0, 0 })
+        love.graphics.printf("Dados do Caçador %s não encontrados!", targetHunterId, x, y + h / 2, w, "center")
+        return -- Não pode desenhar sem dados
     end
 
     local currentY = y

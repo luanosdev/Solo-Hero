@@ -10,13 +10,14 @@ local HunterEquipmentColumn = {}
 ---@param w number Largura da coluna.
 ---@param h number Altura total disponível para o conteúdo da coluna.
 ---@param hunterManager HunterManager Instância do HunterManager.
+---@param hunterId string ID do caçador.
 ---@return table equipmentSlotAreas Tabela com as áreas calculadas dos slots de equipamento.
-function HunterEquipmentColumn.draw(x, y, w, h, hunterManager)
+function HunterEquipmentColumn.draw(x, y, w, h, hunterManager, hunterId)
     local equipmentSlotAreas = {} -- Cria tabela local para as áreas
 
     -- Desenha Seção de Equipamento/Runas
     -- Passa a tabela local 'equipmentSlotAreas' para ser preenchida por EquipmentSection:draw
-    EquipmentSection:draw(x, y, w, h, hunterManager, equipmentSlotAreas)
+    EquipmentSection:draw(x, y, w, h, hunterManager, equipmentSlotAreas, hunterId)
 
     -- Retorna a tabela preenchida com as áreas dos slots
     return equipmentSlotAreas

@@ -9,10 +9,17 @@ local Section = require("src.ui.components.Section")
 local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
 local HunterAttributesList = require("src.ui.components.HunterAttributesList")
 local Grid = require("src.ui.components.Grid")
+local ItemDataManager = require("src.managers.item_data_manager") -- << NOVO
+local LoadoutManager = require("src.managers.loadout_manager") -- << NOVO
+local HunterStatsColumn = require("src.ui.components.HunterStatsColumn") -- << NOVO
+local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn") -- << NOVO
+local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn") -- << NOVO
 
 ---@class GuildScreen
 ---@field hunterManager HunterManager
 ---@field archetypeManager ArchetypeManager
+---@field itemDataManager ItemDataManager
+---@field loadoutManager LoadoutManager
 ---@field selectedHunterId string|nil ID do caçador atualmente selecionado na lista.
 ---@field hunterListScrollY number Posição Y atual do scroll da lista de caçadores.
 ---@field hunterSlotRects table<string, table> Retângulos calculados para cada slot de caçador { [hunterId] = {x, y, w, h} }.
@@ -30,12 +37,16 @@ GuildScreen.__index = GuildScreen
 --- Cria uma nova instância da tela de Guilda.
 ---@param hunterManager HunterManager
 ---@param archetypeManager ArchetypeManager
+---@param itemDataManager ItemDataManager
+---@param loadoutManager LoadoutManager 
 ---@return GuildScreen
-function GuildScreen:new(hunterManager, archetypeManager)
+function GuildScreen:new(hunterManager, archetypeManager, itemDataManager, loadoutManager)
     print("[GuildScreen] Creating new instance...")
     local instance = setmetatable({}, GuildScreen)
     instance.hunterManager = hunterManager
     instance.archetypeManager = archetypeManager
+    instance.itemDataManager = itemDataManager
+    instance.loadoutManager = loadoutManager
     instance.selectedHunterId = hunterManager:getActiveHunterId() -- Começa selecionando o ativo
     instance.hunterListScrollY = 0
     instance.hunterSlotRects = {}
@@ -47,8 +58,8 @@ function GuildScreen:new(hunterManager, archetypeManager)
     instance.recruitCancelButton = nil -- Inicializa botão cancelar
     instance.setActiveButton = nil     -- <<< ADICIONADO
 
-    if not instance.hunterManager or not instance.archetypeManager then
-        error("[GuildScreen] CRITICAL ERROR: hunterManager or archetypeManager not injected!")
+    if not instance.hunterManager or not instance.archetypeManager or not instance.itemDataManager or not instance.loadoutManager then
+        error("[GuildScreen] CRITICAL ERROR: hunterManager or archetypeManager or itemDataManager or loadoutManager not injected!")
     end
 
     -- Define a função onClick para o botão de recrutar
@@ -266,37 +277,64 @@ function GuildScreen:draw(x, y, w, h, mx, my)
     if self.selectedHunterId then
         local selectedData = self.hunterManager.hunters[self.selectedHunterId]
         if selectedData then
-            love.graphics.setFont(fonts.title)
-            love.graphics.setColor(colors.text_title)
-            love.graphics.printf(selectedData.name or "Unknown Hunter", detailsX + 10, contentY + 10, detailsWidth - 20,
-                "center")
-            love.graphics.setFont(fonts.main)
 
-            -- Desenha Arquétipos (placeholder)
-            local archetypesY = contentY + 60
-            love.graphics.setColor(colors.text_default)
-            love.graphics.printf("Arquétipos:", detailsX + 10, archetypesY, detailsWidth - 20, "left")
-            archetypesY = archetypesY + 25
-            if selectedData.archetypeIds and #selectedData.archetypeIds > 0 then
-                print("[GuildScreen Draw] Found", #selectedData.archetypeIds, "archetype IDs for hunter",
-                    self.selectedHunterId)
-                for i, archetypeId in ipairs(selectedData.archetypeIds) do
-                    print(string.format("  [%d] Iterating archetypeId: %s (Type: %s)", i, tostring(archetypeId),
-                        type(archetypeId)))
-                    -- TODO: Verificar como archetypeId está armazenado (string ou table?)
-                    -- Ajustado para pegar .id se for uma table
-                    local archId = type(archetypeId) == 'table' and archetypeId.id or archetypeId
-                    print(string.format("    Extracted archId: %s (Type: %s)", tostring(archId), type(archId)))
-                    local archetypeData = self.archetypeManager:getArchetypeData(archId)
-                    print("    Result from getArchetypeData:", archetypeData and "Data found" or "NIL")
-                    local text = archetypeData and archetypeData.name or archId
-                    print(string.format("    Final text to print: '%s'", tostring(text)))
-                    love.graphics.setColor(colors.text_label)
-                    love.graphics.printf("- " .. tostring(text), detailsX + 20, archetypesY, detailsWidth - 30, "left")
-                    archetypesY = archetypesY + 20
+            local detailsPadding = 10
+            local detailsContentX = detailsX + detailsPadding
+            local detailsContentY = contentY + detailsPadding
+            local detailsContentWidth = detailsWidth - (detailsPadding * 2)
+            local detailsContentHeight = contentH - (detailsPadding * 2)
+            local columnPadding = 10
+
+            -- Divide a largura disponível para as 3 colunas
+            local availableWidth = detailsContentWidth - (columnPadding * 2) -- Espaço entre 3 colunas
+
+            if availableWidth > 0 then
+                local statsColW = math.floor(availableWidth * 0.34) -- Atributos/Arquétipos (um pouco maior)
+                local equipColW = math.floor(availableWidth * 0.33) -- Equipamento
+                local loadoutColW = availableWidth - statsColW - equipColW -- Loadout/Mochila (restante)
+
+                local statsColX = detailsContentX
+                local equipColX = statsColX + statsColW + columnPadding
+                local loadoutColX = equipColX + equipColW + columnPadding
+
+                -- 1. Desenha Coluna de Stats e Arquétipos
+                local finalStats = self.hunterManager:getHunterFinalStats(self.selectedHunterId) -- Pega stats do selecionado
+                if finalStats and selectedData.archetypeIds and self.archetypeManager then
+                    HunterStatsColumn.draw(statsColX, detailsContentY, statsColW, detailsContentHeight,
+                        finalStats, selectedData.archetypeIds, self.archetypeManager,
+                        mx, my) -- Passa mx, my globais
+                else
+                    love.graphics.setColor(colors.red)
+                    love.graphics.printf("Dados Stats/Arch Indisp.", statsColX, detailsContentY + detailsContentHeight / 2,
+                        statsColW, "center")
+                end
+
+                -- 2. Desenha Coluna de Equipamento
+                if self.hunterManager then
+                    -- Passa o ID do caçador selecionado para a coluna
+                    HunterEquipmentColumn.draw(equipColX, detailsContentY, equipColW, detailsContentHeight,
+                        self.hunterManager, self.selectedHunterId)
+                else
+                    love.graphics.setColor(colors.red)
+                    love.graphics.printf("HunterMan. Indisp.", equipColX, detailsContentY + detailsContentHeight / 2,
+                        equipColW, "center")
+                end
+
+                -- 3. Desenha Coluna de Loadout (Mochila)
+                if self.loadoutManager and self.itemDataManager then
+                    -- Passa os managers, a coluna internamente pegará os dados do caçador ativo (definido via setActiveHunter)
+                    HunterLoadoutColumn.draw(loadoutColX, detailsContentY, loadoutColW, detailsContentHeight,
+                        self.loadoutManager, self.itemDataManager)
+                else
+                    love.graphics.setColor(colors.red)
+                    love.graphics.printf("Loadout/ItemMan. Indisp.", loadoutColX,
+                        detailsContentY + detailsContentHeight / 2, loadoutColW, "center")
                 end
             else
-                print("[GuildScreen Draw] No archetype IDs found for hunter", self.selectedHunterId)
+                -- Não há espaço suficiente para as colunas
+                love.graphics.setColor(colors.text_muted)
+                love.graphics.printf("Área de detalhes muito estreita.", detailsContentX, detailsContentY + 20,
+                    detailsContentWidth, "center")
             end
 
             -- TODO: Desenhar Stats Finais
@@ -609,7 +647,6 @@ function GuildScreen:handleMousePress(clickX, clickY, button)
 
     if button == 1 then
         if self.isRecruiting then
-            -- ... (lógica clique modal inalterada, usa clickX, clickY relativos)
             if self.recruitCancelButton and self.recruitCancelButton:handleMousePress(clickX, clickY, button) then return true end
             for i, btn in pairs(self.recruitModalButtons) do
                 if btn:handleMousePress(clickX, clickY, button) then return true end
@@ -646,13 +683,22 @@ function GuildScreen:handleMousePress(clickX, clickY, button)
             for hunterId, rect in pairs(self.hunterSlotRects) do
                 if globalClickX >= rect.x and globalClickX < rect.x + rect.w and
                     globalClickY >= rect.y and globalClickY < rect.y + rect.h then
-                    self.selectedHunterId = hunterId
-                    print(string.format("[GuildScreen] Hunter selected: %s", hunterId))
-                    -- <<< ATUALIZA ESTADO DO BOTÃO AO SELECIONAR >>>
-                    if self.setActiveButton then
-                        self.setActiveButton.isEnabled = (self.selectedHunterId ~= nil and self.selectedHunterId ~= self.hunterManager:getActiveHunterId())
+                    
+                    if self.selectedHunterId ~= hunterId then
+                        self.selectedHunterId = hunterId
+                        print(string.format("[GuildScreen] Hunter selected: %s", hunterId))
+                        -- <<< ATUALIZA ESTADO DO BOTÃO AO SELECIONAR >>>
+                        if self.setActiveButton then
+                            self.setActiveButton.isEnabled = (self.selectedHunterId ~= nil and self.selectedHunterId ~= self.hunterManager:getActiveHunterId())
+                        end
+                        if self.loadoutManager and self.loadoutManager.setActiveHunter then
+                            print(string.format("  >> Notifying LoadoutManager to set active hunter to %s", hunterId))
+                            self.loadoutManager:setActiveHunter(hunterId)
+                        else
+                            print("  >> WARNING: LoadoutManager or setActiveHunter method not found for selection change.")
+                        end
+                        -- <<< FIM ATUALIZAÇÃO BOTÃO >>>
                     end
-                    -- <<< FIM ATUALIZAÇÃO BOTÃO >>>
                     return true -- Consome clique na lista
                 end
             end

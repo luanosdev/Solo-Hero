@@ -199,6 +199,13 @@ function HunterManager:getActiveHunterFinalStats()
     return self:_calculateFinalStats(self.activeHunterId)
 end
 
+--- Returns the CALCULATED FINAL stats of a specific hunter.
+--- @param hunterId string The ID of the hunter.
+--- @return table Final stats or {} if not found.
+function HunterManager:getHunterFinalStats(hunterId)
+    return self:_calculateFinalStats(hunterId)
+end
+
 --- NOVO: Returns the MAXIMUM number of rune slots for the active hunter.
 -- Reads from the final calculated stats.
 --- @return number Number of rune slots (defaults to 0).
@@ -206,6 +213,20 @@ function HunterManager:getActiveHunterMaxRuneSlots()
     if not self.activeHunterId then return 0 end
     local finalStats = self:getActiveHunterFinalStats() -- Usa a função existente que calcula
     return finalStats and finalStats.runeSlots or 0
+end
+
+--- Returns the table of equipped items for a specific hunter.
+--- @param hunterId string The ID of the hunter.
+--- @return table | nil The equipped items table ({ [slotId] = itemInstance | nil }) or nil if hunter not found.
+function HunterManager:getEquippedItems(hunterId)
+    local hunterData = self.hunters[hunterId]
+    if not hunterData then
+        print(string.format("WARNING [getEquippedItems]: Hunter %s not found.", hunterId))
+        return nil
+    end
+    -- Retorna a tabela completa, pode conter nils para slots vazios.
+    -- Garante que a tabela exista, mesmo que vazia (caso raro de inicialização falha).
+    return hunterData.equippedItems or {}
 end
 
 --- Internal helper to initialize the equipment table for a hunter.

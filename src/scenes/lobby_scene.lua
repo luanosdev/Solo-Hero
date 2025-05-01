@@ -99,7 +99,7 @@ function LobbyScene:load(args)
     self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
         self.loadoutManager)
     self.portalScreen = PortalScreen:new(self.portalManager, self.hunterManager)
-    self.guildScreen = GuildScreen:new(self.hunterManager, self.archetypeManager)
+    self.guildScreen = GuildScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager, self.loadoutManager)
 
     -- <<< CRIA E REGISTRA O MOCK PLAYER MANAGER (Mantido por enquanto) >>>
     local mockPlayerManagerInstance = MockPlayerManager:new()
