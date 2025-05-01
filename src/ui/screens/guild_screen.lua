@@ -9,11 +9,11 @@ local Section = require("src.ui.components.Section")
 local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
 local HunterAttributesList = require("src.ui.components.HunterAttributesList")
 local Grid = require("src.ui.components.Grid")
-local ItemDataManager = require("src.managers.item_data_manager") -- << NOVO
-local LoadoutManager = require("src.managers.loadout_manager") -- << NOVO
-local HunterStatsColumn = require("src.ui.components.HunterStatsColumn") -- << NOVO
+local ItemDataManager = require("src.managers.item_data_manager")                -- << NOVO
+local LoadoutManager = require("src.managers.loadout_manager")                   -- << NOVO
+local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")         -- << NOVO
 local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn") -- << NOVO
-local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn") -- << NOVO
+local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn")     -- << NOVO
 
 ---@class GuildScreen
 ---@field hunterManager HunterManager
@@ -38,7 +38,7 @@ GuildScreen.__index = GuildScreen
 ---@param hunterManager HunterManager
 ---@param archetypeManager ArchetypeManager
 ---@param itemDataManager ItemDataManager
----@param loadoutManager LoadoutManager 
+---@param loadoutManager LoadoutManager
 ---@return GuildScreen
 function GuildScreen:new(hunterManager, archetypeManager, itemDataManager, loadoutManager)
     print("[GuildScreen] Creating new instance...")
@@ -59,7 +59,8 @@ function GuildScreen:new(hunterManager, archetypeManager, itemDataManager, loado
     instance.setActiveButton = nil     -- <<< ADICIONADO
 
     if not instance.hunterManager or not instance.archetypeManager or not instance.itemDataManager or not instance.loadoutManager then
-        error("[GuildScreen] CRITICAL ERROR: hunterManager or archetypeManager or itemDataManager or loadoutManager not injected!")
+        error(
+            "[GuildScreen] CRITICAL ERROR: hunterManager or archetypeManager or itemDataManager or loadoutManager not injected!")
     end
 
     -- Define a função onClick para o botão de recrutar
@@ -277,26 +278,47 @@ function GuildScreen:draw(x, y, w, h, mx, my)
     if self.selectedHunterId then
         local selectedData = self.hunterManager.hunters[self.selectedHunterId]
         if selectedData then
-
             local detailsPadding = 10
-            local detailsContentX = detailsX + detailsPadding
-            local detailsContentY = contentY + detailsPadding
+            local titleFont = fonts.title or love.graphics.getFont()
+            local titleHeight = titleFont:getHeight()
+            local titleMarginBottom = 15 -- Espaço abaixo do título
+
+            -- Posição Y inicial para os TÍTULOS
+            local titlesY = contentY + detailsPadding
+            -- Posição Y inicial para o CONTEÚDO (abaixo dos títulos)
+            local detailsContentY = titlesY + titleHeight + titleMarginBottom
+            -- Largura do conteúdo
             local detailsContentWidth = detailsWidth - (detailsPadding * 2)
-            local detailsContentHeight = contentH - (detailsPadding * 2)
+            -- Altura restante para o conteúdo
+            local detailsContentHeight = contentH - (titlesY - contentY) - titleHeight - titleMarginBottom -
+                detailsPadding
+
             local columnPadding = 10
 
             -- Divide a largura disponível para as 3 colunas
             local availableWidth = detailsContentWidth - (columnPadding * 2) -- Espaço entre 3 colunas
 
             if availableWidth > 0 then
-                local statsColW = math.floor(availableWidth * 0.34) -- Atributos/Arquétipos (um pouco maior)
-                local equipColW = math.floor(availableWidth * 0.33) -- Equipamento
+                local statsColW = math.floor(availableWidth * 0.34)        -- Atributos/Arquétipos (um pouco maior)
+                local equipColW = math.floor(availableWidth * 0.33)        -- Equipamento
                 local loadoutColW = availableWidth - statsColW - equipColW -- Loadout/Mochila (restante)
 
-                local statsColX = detailsContentX
+                local statsColX = detailsX +
+                detailsPadding                                             -- Posição X da coluna de stats (relativa à tela)
                 local equipColX = statsColX + statsColW + columnPadding
                 local loadoutColX = equipColX + equipColW + columnPadding
 
+                -- <<< DESENHA TÍTULOS >>>
+                love.graphics.setFont(titleFont)
+                love.graphics.setColor(colors.text_highlight)
+                love.graphics.printf("Atributos", statsColX, titlesY, statsColW, "center") -- Centraliza no espaço da coluna
+                love.graphics.printf("Equipamento", equipColX, titlesY, equipColW, "center")
+                love.graphics.printf("Mochila", loadoutColX, titlesY, loadoutColW, "center")
+                love.graphics.setFont(fonts.main) -- Restaura fonte padrão
+                love.graphics.setColor(colors.white)
+                -- <<< FIM DESENHO TÍTULOS >>>
+
+                -- <<< DESENHA CONTEÚDO DAS COLUNAS (usando novas Y e Height) >>>
                 -- 1. Desenha Coluna de Stats e Arquétipos
                 local finalStats = self.hunterManager:getHunterFinalStats(self.selectedHunterId) -- Pega stats do selecionado
                 if finalStats and selectedData.archetypeIds and self.archetypeManager then
@@ -305,7 +327,8 @@ function GuildScreen:draw(x, y, w, h, mx, my)
                         mx, my) -- Passa mx, my globais
                 else
                     love.graphics.setColor(colors.red)
-                    love.graphics.printf("Dados Stats/Arch Indisp.", statsColX, detailsContentY + detailsContentHeight / 2,
+                    love.graphics.printf("Dados Stats/Arch Indisp.", statsColX,
+                        detailsContentY + detailsContentHeight / 2,
                         statsColW, "center")
                 end
 
@@ -330,6 +353,7 @@ function GuildScreen:draw(x, y, w, h, mx, my)
                     love.graphics.printf("Loadout/ItemMan. Indisp.", loadoutColX,
                         detailsContentY + detailsContentHeight / 2, loadoutColW, "center")
                 end
+                -- <<< FIM DESENHO CONTEÚDO >>>
             else
                 -- Não há espaço suficiente para as colunas
                 love.graphics.setColor(colors.text_muted)
@@ -683,7 +707,6 @@ function GuildScreen:handleMousePress(clickX, clickY, button)
             for hunterId, rect in pairs(self.hunterSlotRects) do
                 if globalClickX >= rect.x and globalClickX < rect.x + rect.w and
                     globalClickY >= rect.y and globalClickY < rect.y + rect.h then
-                    
                     if self.selectedHunterId ~= hunterId then
                         self.selectedHunterId = hunterId
                         print(string.format("[GuildScreen] Hunter selected: %s", hunterId))
@@ -695,7 +718,8 @@ function GuildScreen:handleMousePress(clickX, clickY, button)
                             print(string.format("  >> Notifying LoadoutManager to set active hunter to %s", hunterId))
                             self.loadoutManager:setActiveHunter(hunterId)
                         else
-                            print("  >> WARNING: LoadoutManager or setActiveHunter method not found for selection change.")
+                            print(
+                                "  >> WARNING: LoadoutManager or setActiveHunter method not found for selection change.")
                         end
                         -- <<< FIM ATUALIZAÇÃO BOTÃO >>>
                     end
