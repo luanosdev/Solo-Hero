@@ -65,10 +65,6 @@ function HunterManager:new(loadoutManager, itemDataManager, archetypeManager)
         end
     end
 
-    -- Load the loadout for the active hunter (internal structure of loadLoadout doesn't change)
-    print(string.format("  [HunterManager] Requesting loadout load for %s...", instance.activeHunterId))
-    instance.loadoutManager:loadLoadout(instance.activeHunterId)
-
     print(string.format("[HunterManager] Ready. Active hunter: %s", instance.activeHunterId))
     return instance
 end
@@ -278,19 +274,10 @@ function HunterManager:setActiveHunter(hunterId)
         local previousHunterId = self.activeHunterId
         print(string.format("[HunterManager] Switching active hunter from %s to %s", previousHunterId or "none", hunterId))
 
-        -- Save PREVIOUS hunter's data (loadout - equipment is saved with main state)
-        if previousHunterId then
-            self:saveActiveHunterLoadout(previousHunterId)
-        end
-
         -- Switch the active ID
         self.activeHunterId = hunterId
 
-        -- Load the NEW active hunter's loadout
-        print(string.format("  [HunterManager] Requesting loadout load for %s...", self.activeHunterId))
-        self.loadoutManager:loadLoadout(self.activeHunterId)
-
-        -- Save the HunterManager state (which ID is active)
+        -- Salva APENAS o estado do HunterManager (qual ID está ativo)
         self:saveState()
         print(string.format("[HunterManager] Active hunter changed to %s.", hunterId))
         return true

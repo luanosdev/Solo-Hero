@@ -579,6 +579,7 @@ function LobbyScene:unload()
     -- Salva estado dos managers
     if self.portalManager then self.portalManager:saveState() end
     if self.lobbyStorageManager then self.lobbyStorageManager:saveStorage() end
+    if self.loadoutManager then self.loadoutManager:saveState() end
     if self.hunterManager then
         self.hunterManager:saveState()
     end
