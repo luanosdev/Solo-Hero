@@ -30,9 +30,9 @@ local EnemyManager = {
 
 -- Inicializa o gerenciador de inimigos com uma configuração de horda específica
 ---@param config table Tabela de configuração contendo { hordeConfig, playerManager, dropManager }
-function EnemyManager:init(config)
+function EnemyManager:setupGameplay(config)
     if not config or not config.hordeConfig or not config.playerManager or not config.dropManager then
-        error("ERRO CRÍTICO [EnemyManager:init]: Configuração inválida ou incompleta fornecida.")
+        error("ERRO CRÍTICO [EnemyManager:setupGameplay]: Configuração inválida ou incompleta fornecida.")
     end
 
     self.playerManager = config.playerManager -- ManagerRegistry:get("playerManager")

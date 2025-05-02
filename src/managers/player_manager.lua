@@ -2,24 +2,21 @@
     Módulo de gerenciamento do player
 ]]
 
--- <<< INÍCIO: NOVOS REQUIRES PARA HABILIDADES DAS RUNAS >>>
-local OrbitalAbility = require("src.abilities.player.orbital_ability")
-local ThunderAbility = require("src.abilities.player.thunder_ability")
-local AuraAbility = require("src.abilities.player.aura_ability")
--- Adicione outros requires de habilidades aqui se necessário
--- <<< FIM: NOVOS REQUIRES >>>
-
 local SpritePlayer = require('src.animations.sprite_player')
--- local Warrior = require('src.classes.player.warrior') -- REMOVIDO: Não mais necessário aqui
 local PlayerState = require("src.entities.player_state")
 local LevelUpModal = require("src.ui.level_up_modal")
 local Camera = require("src.config.camera")
--- REMOVIDOS: Requires de armas específicas não são mais necessários aqui
--- local WoodenSword = require("src.items.weapons.wooden_sword")
--- ...
 local LevelUpAnimation = require("src.animations.level_up_animation")
-local ManagerRegistry = require("src.managers.manager_registry")
 local Constants = require("src.config.constants") -- <<< ADICIONADO para SLOT_IDS
+
+-- Função auxiliar para contar elementos em qualquer tabela (inclusive dicionários)
+local function getTableSize(tbl)
+    local count = 0
+    for _ in pairs(tbl) do
+        count = count + 1
+    end
+    return count
+end
 
 local PlayerManager = {
     -- Referência ao player sprite
@@ -240,7 +237,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
             end
         end
     end
-    print(string.format("  - Rune activation complete. %d active rune abilities.", table_size(self.activeRuneAbilities)))
+    print(string.format("  - Rune activation complete. %d active rune abilities.", getTableSize(self.activeRuneAbilities)))
 
     -- 7. Inicializa outros componentes que dependem do PlayerManager
     -- Camera:init() -- Câmera é inicializada pela GameplayScene agora
@@ -473,7 +470,7 @@ function PlayerManager:draw()
         PlayerManager.autoAimEnabled and "Ativado" or "Desativado",
         PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and
         PlayerManager.equippedWeapon.attackInstance:getPreview() and "Ativado" or "Desativado",
-        table_size(self.activeRuneAbilities),
+        getTableSize(self.activeRuneAbilities),
 
         -- Valores de regeneração
         PlayerManager.lastDamageTime,

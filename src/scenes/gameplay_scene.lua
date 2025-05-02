@@ -114,7 +114,7 @@ function GameplayScene:load(args)
         dropManager = dropMgr           -- Passa a dependência
         -- Adicionar outras dependências se EnemyManager:init precisar
     }
-    enemyMgr:init(enemyManagerConfig)
+    enemyMgr:setupGameplay(enemyManagerConfig)
     -- <<< FIM: Inicialização do EnemyManager >>>
 
     -- Posiciona câmera (opcional, pode ser feito no update)

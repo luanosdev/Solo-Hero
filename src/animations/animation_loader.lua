@@ -4,10 +4,12 @@ local AnimatedSkeleton = require("src.animations.animated_skeleton")
 local AnimatedCharacter = require("src.animations.animated_character")
 local Zombie = require("src.classes.enemies.zombie")
 local Spider = require("src.classes.bosses.spider")
+local SpritePlayer = require("src.animations.sprite_player")
 
 local AnimationLoader = {}
 
 function AnimationLoader.loadAll()
+    SpritePlayer.load()
     AnimatedSkeleton.load()
     -- Carrega animações genéricas usando as configs das classes
     if Zombie and Zombie.animationConfig then
@@ -17,12 +19,12 @@ function AnimationLoader.loadAll()
     end
 
     if Spider and Spider.animationConfig then
-         AnimatedCharacter.load("Spider", Spider.animationConfig)
+        AnimatedCharacter.load("Spider", Spider.animationConfig)
     else
-         print("ERRO [AnimationLoader]: Falha ao carregar config de animação da Aranha.")
+        print("ERRO [AnimationLoader]: Falha ao carregar config de animação da Aranha.")
     end
 
     -- Adicione outras animações aqui se necessário
 end
 
-return AnimationLoader 
+return AnimationLoader

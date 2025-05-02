@@ -6,19 +6,22 @@ local fonts = require("src.ui.fonts") -- Requer o módulo de fontes
 -- Atualmente, simula o carregamento com um temporizador.
 local GameLoadingScene = {}
 
-GameLoadingScene.portalData = nil          -- <<< NOVO: Para armazenar dados do portal
+GameLoadingScene.sceneArgs = nil            -- <<< RENOMEADO: Para armazenar todos os args
 local timer = 0
-local timeToSwitch = 3.0                   -- Aumentei um pouco o tempo de carregamento simulado
+local timeToSwitch = 3.0                    -- Aumentei um pouco o tempo de carregamento simulado
 local loadingText = "Entrando no Portal..." -- <<< Texto ajustado
 
 --- Chamado quando a cena é carregada.
 -- Reinicia o temporizador e armazena dados do portal.
--- @param args table|nil Argumentos da cena anterior (espera-se { portalData = ... }).
+-- @param args table|nil Argumentos da cena anterior (espera-se { portalId, hordeConfig, ... }).
 function GameLoadingScene:load(args)
-    self.portalData = args and args.portalData or nil -- Armazena os dados recebidos
-    if self.portalData then
-        print(string.format("GameLoadingScene:load - Carregando portal '%s' (Rank %s)...", self.portalData.name,
-            self.portalData.rank))
+    self.sceneArgs = args -- Armazena a tabela de argumentos completa
+    if self.sceneArgs and self.sceneArgs.portalId then
+        -- Extrai nome/rank para display, se existirem na hordeConfig ou portalId?
+        -- Assumindo que args contenham nome/rank diretamente ou dentro de hordeConfig?
+        -- Se não, precisaria buscar em portalDefinitions usando portalId.
+        -- Por ora, vamos mostrar apenas ID se disponível.
+        print(string.format("GameLoadingScene:load - Carregando para portal ID: %s...", self.sceneArgs.portalId))
     else
         print("GameLoadingScene:load - Aviso: Nenhum dado de portal recebido. Carregando jogo padrão...")
     end
@@ -33,8 +36,8 @@ function GameLoadingScene:update(dt)
     timer = timer + dt
     if timer >= timeToSwitch then
         print("GameLoadingScene:update - Carregamento simulado concluído. Trocando para GameplayScene...")
-        -- Ex: SceneManager.switchScene("gameplay_scene", { level = "level1", difficulty = "normal" })
-        SceneManager.switchScene("gameplay_scene")
+        -- Passa os argumentos armazenados para a próxima cena
+        SceneManager.switchScene("gameplay_scene", self.sceneArgs)
     end
     -- TODO: Atualizar barra de progresso com base no carregamento real
 end
@@ -69,9 +72,9 @@ function GameLoadingScene:draw()
     love.graphics.printf(loadingText, 0, loadingY, w, "center")
 
     -- <<< NOVO: Desenha nome e rank do portal abaixo >>>
-    if self.portalData then
+    if self.sceneArgs and self.sceneArgs.portalId then
         love.graphics.setFont(detailFont)
-        local portalText = string.format("%s [%s]", self.portalData.name, self.portalData.rank)
+        local portalText = string.format("ID: %s", self.sceneArgs.portalId)
         local detailY = loadingY + loadingH + 10 -- Posição abaixo do texto principal
         love.graphics.printf(portalText, 0, detailY, w, "center")
     end

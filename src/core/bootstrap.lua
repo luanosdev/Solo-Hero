@@ -11,6 +11,10 @@ local FloatingTextManager = require("src.managers.floating_text_manager")
 local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local DropManager = require("src.managers.drop_manager")
 local RuneManager = require("src.managers.rune_manager")
+local HunterManager = require("src.managers.hunter_manager")
+local LoadoutManager = require("src.managers.loadout_manager")
+local ArchetypeManager = require("src.managers.archetype_manager")
+local ItemDataManager = require("src.managers.item_data_manager")
 
 local Bootstrap = {}
 
@@ -22,25 +26,30 @@ function Bootstrap.initialize()
     local itemDataMgr = ItemDataManager:new()
     local floatingTextMgr = FloatingTextManager
     local expOrbMgr = ExperienceOrbManager
-
-    local inventoryMgr = InventoryManager:new({
-        itemDataManager = itemDataMgr 
-    })
     local playerMgr = PlayerManager -- Singleton, referência direta
     local enemyMgr = EnemyManager
     local runeMgr = RuneManager
     local dropMgr = DropManager -- Singleton, referência direta
+    local archMgr = ArchetypeManager:new()
+    local loadoutMgr = LoadoutManager:new(itemDataMgr)
+    local inventoryMgr = InventoryManager:new({
+        itemDataManager = itemDataMgr
+    })
+    local hunterMgr = HunterManager:new(loadoutMgr, itemDataMgr, archMgr)
 
     print("--- [Bootstrap] Registrando Managers (Instâncias) ---")
     ManagerRegistry:register("inputManager", inputMgr, false)
-    ManagerRegistry:register("itemDataManager", itemDataMgr, false) 
-    ManagerRegistry:register("inventoryManager", inventoryMgr, false) 
-    ManagerRegistry:register("playerManager", playerMgr, false) 
+    ManagerRegistry:register("itemDataManager", itemDataMgr, false)
+    ManagerRegistry:register("inventoryManager", inventoryMgr, false)
+    ManagerRegistry:register("playerManager", playerMgr, false)
     ManagerRegistry:register("enemyManager", enemyMgr, true)
-    ManagerRegistry:register("floatingTextManager", floatingTextMgr, true) 
+    ManagerRegistry:register("floatingTextManager", floatingTextMgr, true)
     ManagerRegistry:register("experienceOrbManager", expOrbMgr, true)
-    ManagerRegistry:register("dropManager", dropMgr, true) 
-    ManagerRegistry:register("runeManager", runeMgr, true) 
+    ManagerRegistry:register("dropManager", dropMgr, true)
+    ManagerRegistry:register("runeManager", runeMgr, true)
+    ManagerRegistry:register("archetypeManager", archMgr, false)
+    ManagerRegistry:register("loadoutManager", loadoutMgr, false)
+    ManagerRegistry:register("hunterManager", hunterMgr, false)
 
     -- Configuração para métodos :init que precisam de injeção pós-registro
     local initConfigs = {
@@ -66,7 +75,7 @@ function Bootstrap.initialize()
     print("--- [Bootstrap] Inicialização Concluída ---")
 
     -- Retorna o registry configurado, se necessário (opcional)
-    -- return ManagerRegistry 
+    -- return ManagerRegistry
 end
 
-return Bootstrap 
+return Bootstrap

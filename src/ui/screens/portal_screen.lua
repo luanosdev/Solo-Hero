@@ -330,6 +330,29 @@ function PortalScreen:handleMousePress(x, y, buttonIdx)
                     return true               -- Consome clique, mas não avança
                 end
 
+                -- >>> DEBUG: Verificar a definição e a hordeConfig <<< --
+                print("--- PortalScreen: Debugging before scene switch ---")
+                print("Portal ID:", portalId)
+                print("Full Definition found:", fullDefinition ~= nil)
+                if fullDefinition then
+                    print("Horde Config found in definition:", fullDefinition.hordeConfig ~= nil)
+                    if fullDefinition.hordeConfig then
+                        -- Tenta imprimir alguns campos chave para verificar estrutura
+                        print("  - mvpConfig exists:", fullDefinition.hordeConfig.mvpConfig ~= nil)
+                        print("  - cycles exists:", fullDefinition.hordeConfig.cycles ~= nil)
+                        if fullDefinition.hordeConfig.cycles then
+                            print("  - cycles count:", #fullDefinition.hordeConfig.cycles)
+                            if #fullDefinition.hordeConfig.cycles > 0 then
+                                print("    - cycle[1].majorSpawn exists:",
+                                    fullDefinition.hordeConfig.cycles[1].majorSpawn ~= nil)
+                                print("    - cycle[1].minorSpawn exists:",
+                                    fullDefinition.hordeConfig.cycles[1].minorSpawn ~= nil)
+                            end
+                        end
+                    end
+                end
+                print("-------------------------------------------------")
+
                 local hordeConfig = fullDefinition.hordeConfig
                 local activeHunterId = self.hunterManager:getActiveHunterId()
                 local activeHunterFinalStats = self.hunterManager:getActiveHunterFinalStats()
@@ -340,7 +363,7 @@ function PortalScreen:handleMousePress(x, y, buttonIdx)
                     print(string.format("Erro: Portal '%s' (Definição) não possui hordeConfig definida!", portalId))
                 else
                     -- Inicia a cena de combate passando a hordeConfig correta
-                    SceneManager.switchScene("gameplay_scene", {
+                    SceneManager.switchScene("game_loading_scene", {
                         portalId = portalId,
                         hordeConfig = hordeConfig,
                         hunterId = activeHunterId,
