@@ -340,7 +340,7 @@ function PortalScreen:handleMousePress(x, y, buttonIdx)
                     print(string.format("Erro: Portal '%s' (Definição) não possui hordeConfig definida!", portalId))
                 else
                     -- Inicia a cena de combate passando a hordeConfig correta
-                    SceneManager.changeScene('combat', {
+                    SceneManager.switchScene("gameplay_scene", {
                         portalId = portalId,
                         hordeConfig = hordeConfig,
                         hunterId = activeHunterId,
