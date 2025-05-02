@@ -160,9 +160,15 @@ function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDr
             portal.screenX = mapDrawX + portal.mapX * mapScale
             portal.screenY = mapDrawY + portal.mapY * mapScale
 
-            -- Verifica hover
+            -- Verifica hover usando raio escalado
+            local scaledRadius = portal.radius * mapScale -- Raio em pixels da tela
             local distSq = (mx - portal.screenX) ^ 2 + (my - portal.screenY) ^ 2
-            portal.isHovering = distSq <= (portal.radius * portal.radius)
+            portal.isHovering = distSq <= (scaledRadius * scaledRadius)
+
+            -- DEBUG:
+            -- if portal.isHovering then
+            --     print(string.format("Hover DETECTED on '%s': distSq=%.1f, scaledRadiusSq=%.1f", portal.name, distSq, scaledRadius * scaledRadius))
+            -- end
         end
     else
         for _, portal in ipairs(self.activePortals) do
@@ -261,12 +267,32 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
 end
 
 -- Retorna dados do portal clicado, se houver
-function LobbyPortalManager:handleMouseClick(x, y)
+---@param x number Posição X do mouse na tela.
+---@param y number Posição Y do mouse na tela.
+---@param mapScale number Escala atual de desenho do mapa.
+---@param mapDrawX number Coordenada X do canto superior esquerdo do mapa desenhado.
+---@param mapDrawY number Coordenada Y do canto superior esquerdo do mapa desenhado.
+---@return PortalInstanceData|nil Retorna a instância do portal clicado ou nil.
+function LobbyPortalManager:handleMouseClick(x, y, mapScale, mapDrawX, mapDrawY)
+    -- print(">>> LPM:handleMouseClick - ENTERED") -- DEBUG (Simplificado)
+    -- print(string.format(">>> LPM:handleMouseClick - Checking click at (%.0f, %.0f) with scale %.2f, draw (%.0f, %.0f)", x, y, mapScale, mapDrawX, mapDrawY)) -- DEBUG (Original)
     for _, portal in ipairs(self.activePortals) do
-        if portal.isHovering then
-            return portal -- Retorna a instância completa do portal, incluindo hordeConfig
+        -- Calcula a posição do portal na tela AGORA
+        local currentScreenX = mapDrawX + portal.mapX * mapScale
+
+        -- Realiza a verificação de hover AQUI, no momento do clique
+        local scaledRadius = portal.radius * mapScale
+        local distSq = (x - currentScreenX) ^ 2 + (y - currentScreenY) ^ 2
+        local isClickedOn = distSq <= (scaledRadius * scaledRadius)
+
+        -- print(string.format("    Portal '%s': screen(%.0f, %.0f), distSq=%.1f, scaledRadiusSq=%.1f, isClicked=%s", portal.name, currentScreenX, currentScreenY, distSq, scaledRadius * scaledRadius, tostring(isClickedOn))) -- DEBUG
+
+        if isClickedOn then
+            -- print(string.format(">>> LPM:handleMouseClick - Portal '%s' DETECTED as clicked!", portal.name)) -- DEBUG
+            return portal -- Retorna a instância completa do portal
         end
     end
+    -- print(">>> LPM:handleMouseClick - No portal detected at click location.") -- DEBUG
     return nil
 end
 
@@ -291,6 +317,11 @@ function LobbyPortalManager:saveState()
         print("LobbyPortalManager: Falha ao solicitar salvamento de estado ao PersistenceManager.")
         -- Pode adicionar tratamento de erro adicional aqui se necessário
     end
+end
+
+--- MÉTODO DE TESTE SIMPLES ---
+function LobbyPortalManager:testCall()
+    -- print(">>> LPM:testCall - EXECUTADO COM SUCESSO!") -- DEBUG
 end
 
 return LobbyPortalManager

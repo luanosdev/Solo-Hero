@@ -144,16 +144,11 @@ function LobbyScene:load(args)
         -- >>> Define o Pan inicial da Câmera PARA O CENTRO DO MAPA <<< --
         self.portalScreen.mapTargetPanX = self.portalScreen.mapOriginalWidth / 2
         self.portalScreen.mapTargetPanY = self.portalScreen.mapOriginalHeight / 2
-        print(string.format("LobbyScene: Câmera inicial focada no CENTRO do mapa (%.0f, %.0f)",
-            self.portalScreen.mapTargetPanX, self.portalScreen.mapTargetPanY))
+        -- print(string.format("LobbyScene: Câmera inicial focada no CENTRO do mapa (%.0f, %.0f)", self.portalScreen.mapTargetPanX, self.portalScreen.mapTargetPanY))
 
         -- Define a posição atual para ser igual ao alvo inicial (sem animação)
         self.portalScreen.mapCurrentPanX = self.portalScreen.mapTargetPanX
         self.portalScreen.mapCurrentPanY = self.portalScreen.mapTargetPanY
-        -- >>> RE-ADD DEBUG PRINT <<<
-        print(string.format(">>> LobbyScene:load - Setting initial pan: target(%.1f, %.1f), current(%.1f, %.1f)",
-            self.portalScreen.mapTargetPanX, self.portalScreen.mapTargetPanY,
-            self.portalScreen.mapCurrentPanX, self.portalScreen.mapCurrentPanY)) -- DEBUG
     end
 
     -- Carrega o shader de névoa
@@ -376,7 +371,7 @@ end
 ---@param istouch boolean
 ---@param presses number
 function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
-    print("LobbyScene:mousepressed ENTERED") -- LOG 1
+    -- print("LobbyScene:mousepressed ENTERED") -- LOG 1
     if buttonIdx == 1 then
         local activeTab = tabs[self.activeTabIndex]
         local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
@@ -393,24 +388,24 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
         for i, tab in ipairs(tabs) do
             if tab.isHovering then
                 tabClicked = true
-                print(string.format("LobbyScene:mousepressed - Tab %s HOVERED", tab.text)) -- LOG 2
-                print(string.format("LobbyScene: Tab '%s' clicado!", tab.text))
+                -- print(string.format("LobbyScene:mousepressed - Tab %s HOVERED", tab.text)) -- LOG 2
+                -- print(string.format("LobbyScene: Tab '%s' clicado!", tab.text))
                 if tab.id == TabIds.QUIT then
                     SceneManager.requestQuit()
                 else
                     if i ~= self.activeTabIndex then -- Só ignora se realmente trocou de tab
                         self.activeTabIndex = i
-                        print("LobbyScene: Tab changed")
+                        -- print("LobbyScene: Tab changed")
                         -- <<< SET GUILD SCREEN FLAG >>>
                         if tab.id == TabIds.GUILD and self.guildScreen then
                             -- if self.guildScreen.onActivate then self.guildScreen:onActivate() end -- REMOVED
                             self.guildScreen.isActiveFrame = true
-                            print("LobbyScene: Set guildScreen.isActiveFrame = true")
+                            -- print("LobbyScene: Set guildScreen.isActiveFrame = true")
                         end
                     end
                     -- Se estava com zoom no portal, mudar de tab cancela
                     if isPortalScreenZoomed and self.portalScreen then
-                        print("LobbyScene: Mudança de tab cancelando zoom do portal.")
+                        -- print("LobbyScene: Mudança de tab cancelando zoom do portal.")
                         self.portalScreen.isZoomedIn = false
                         self.portalScreen.selectedPortal = nil
                     end
@@ -418,8 +413,8 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                 break
             end
         end
-        print(string.format("LobbyScene:mousepressed - tabClicked=%s. Returning?", tostring(tabClicked))) -- LOG 3
-        if tabClicked then return end                                                                     -- Se clicou na tab, termina aqui
+        -- print(string.format("LobbyScene:mousepressed - tabClicked=%s. Returning?", tostring(tabClicked))) -- LOG 3
+        if tabClicked then return end -- Se clicou na tab, termina aqui
 
         -- 3. Se não clicou em tab, delega para a TELA da aba ativa
         if activeTab and activeTab.id == TabIds.EQUIPMENT then
@@ -438,11 +433,7 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                     else
                         self.sourceSlotId = nil
                     end
-                    print(string.format("LobbyScene: Drag iniciado: Item %d (%s) from %s%s. Estava rotacionado: %s",
-                        self.draggedItem.instanceId,
-                        self.draggedItem.itemBaseId, self.sourceGridId,
-                        self.sourceSlotId and ("[" .. self.sourceSlotId .. "]") or "",
-                        tostring(self.draggedItemIsRotated)))
+                    -- print(string.format("LobbyScene: Drag iniciado: Item %d (%s) from %s%s. Estava rotacionado: %s", self.draggedItem.instanceId, self.draggedItem.itemBaseId, self.sourceGridId, self.sourceSlotId and ("[" .. self.sourceSlotId .. "]") or "", tostring(self.draggedItemIsRotated)))
                     return
                 elseif consumed then
                     return -- Consumiu sem iniciar drag (ex: tab storage)
@@ -451,16 +442,24 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
         elseif activeTab and activeTab.id == TabIds.PORTALS then
             -- Delega para PortalScreen (somente se não estava com zoom, pois isso foi tratado no passo 1)
             if self.portalScreen and not isPortalScreenZoomed then
+                -- DEBUG:
+                -- print(">>> LobbyScene:mousepressed - Delegating click to PortalScreen (not zoomed)")
                 local consumed = self.portalScreen:handleMousePress(x, y, buttonIdx)
-                if consumed then return end
+                if consumed then
+                    -- print(">>> LobbyScene:mousepressed - PortalScreen consumed the click.")
+                    return
+                end
             end
         elseif activeTab and activeTab.id == TabIds.GUILD then
             if self.guildScreen then
-                print("LobbyScene:mousepressed - DELEGATING click to GuildScreen") -- LOG 4
+                -- print("LobbyScene:mousepressed - DELEGATING click to GuildScreen") -- LOG 4
                 local consumed = self.guildScreen:handleMousePress(x, y, buttonIdx)
-                if consumed then return end                                        -- Se a guild screen consumiu, termina aqui
+                if consumed then return end -- Se a guild screen consumiu, termina aqui
             end
         end
+
+        -- DEBUG: Se chegou aqui, o clique não foi consumido por nenhuma tela delegada
+        -- print(">>> LobbyScene:mousepressed - Click was not consumed by any delegated screen.")
     end
 end
 

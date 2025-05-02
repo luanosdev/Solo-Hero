@@ -142,8 +142,10 @@ function PortalScreen:update(dt, mx, my, allowHover)
         targetPanY = self.mapTargetPanY
     else
         -- Alvo é o centro do mapa (ou posição de descanso padrão)
-        targetPanX = self.mapOriginalWidth / 2
-        targetPanY = self.mapOriginalHeight / 2
+        -- >>> CORREÇÃO: Usar mapTargetPanX/Y mesmo quando não está com zoom,
+        --     pois eles podem ter sido definidos externamente (ex: pela LobbyScene no início) <<<
+        targetPanX = self.mapTargetPanX -- Usa o alvo definido, que pode ser o centro ou outro ponto
+        targetPanY = self.mapTargetPanY
     end
 
     local factor = math.min(1, dt * self.zoomSmoothFactor)
@@ -167,6 +169,7 @@ function PortalScreen:update(dt, mx, my, allowHover)
     self.modalButtonCancelHover = false
     local modalHoverHandled = false
     if self.selectedPortal then
+        --[[ REMOVED Portal Timer Logic
         self.selectedPortal.timer = self.selectedPortal.timer - dt
 
         if self.selectedPortal.timer <= 0 then
@@ -176,6 +179,7 @@ function PortalScreen:update(dt, mx, my, allowHover)
             self.isZoomedIn = false
             return -- Sai do update
         end
+        --]]
 
         -- Verifica hover nos botões do modal (só se hover geral for permitido)
         if allowHover then
@@ -243,7 +247,8 @@ function PortalScreen:draw(screenW, screenH)
     -- 4. Desenha Modal (se portal selecionado)
     if self.selectedPortal then
         local modal = self.modalRect
-        local portal = self.selectedPortal -- Contém apenas dados do lobby agora
+        local portal = self
+            .selectedPortal -- Contém apenas dados do lobby agora
         local modalFont = fonts.main_small or fonts.main
         local modalFontLarge = fonts.main or fonts.main
 
@@ -317,13 +322,9 @@ function PortalScreen:handleMousePress(x, y, buttonIdx)
             if self.modalButtonEnterHover then
                 modalClicked = true
                 local portalId = self.selectedPortal.id
-                print(string.format("(PortalScreen) Botão 'Entrar' clicado para portal ID '%s'.", portalId))
-
-                -- >>> BUSCA A DEFINIÇÃO COMPLETA USANDO O ID <<<
                 local fullDefinition = portalDefinitions[portalId]
 
                 if not fullDefinition then
-                    print(string.format("ERRO: Definição completa não encontrada para portalId '%s'!", portalId))
                     self.selectedPortal = nil -- Cancela seleção
                     self.isZoomedIn = false
                     return true               -- Consome clique, mas não avança
@@ -348,30 +349,52 @@ function PortalScreen:handleMousePress(x, y, buttonIdx)
                 end
             elseif self.modalButtonCancelHover then
                 modalClicked = true
-                print("(PortalScreen) Botão 'Cancelar' clicado.")
                 self.selectedPortal = nil
                 self.isZoomedIn = false
+                -- Lógica comum para cancelar/fechar modal
+                local function closeModalAndResetView()
+                    self.selectedPortal = nil
+                    self.isZoomedIn = false
+                    -- >>> RESETAR O PAN TARGET PARA O CENTRO <<<
+                    self.mapTargetPanX = self.mapOriginalWidth / 2
+                    self.mapTargetPanY = self.mapOriginalHeight / 2
+                end
+                closeModalAndResetView()
             else
                 local m = self.modalRect
                 if not (x >= m.x and x <= m.x + m.w and y >= m.y and y <= m.y + m.h) then
                     modalClicked = true
-                    print("(PortalScreen) Clique fora do modal detectado.")
                     self.selectedPortal = nil
                     self.isZoomedIn = false
+                    -- Lógica comum para cancelar/fechar modal
+                    local function closeModalAndResetView()
+                        self.selectedPortal = nil
+                        self.isZoomedIn = false
+                        -- >>> RESETAR O PAN TARGET PARA O CENTRO <<<
+                        self.mapTargetPanX = self.mapOriginalWidth / 2
+                        self.mapTargetPanY = self.mapOriginalHeight / 2
+                    end
+                    closeModalAndResetView()
                 end
             end
             if modalClicked then return true end -- Consome o clique
         end
 
         -- 2. Verifica clique nos Portais (se não estava com zoom/modal)
-        if not self.isZoomedIn and self.portalManager then
-            local clickedPortalData = self.portalManager:handleMouseClick(x, y)
-            if clickedPortalData then
-                print(string.format("(PortalScreen) Portal '%s' selecionado!", clickedPortalData.name))
-                self.selectedPortal = clickedPortalData
+        if not self.isZoomedIn and self.lobbyPortalManager then
+            local clickedPortal = nil
+            for _, portalData in ipairs(self.lobbyPortalManager.activePortals or {}) do
+                if portalData.isHovering then -- Usa a flag definida no último update
+                    clickedPortal = portalData
+                    break                     -- Encontrou o portal clicado
+                end
+            end
+
+            if clickedPortal then
+                self.selectedPortal = clickedPortal
                 self.isZoomedIn = true
-                self.mapTargetPanX = clickedPortalData.mapX
-                self.mapTargetPanY = clickedPortalData.mapY
+                self.mapTargetPanX = clickedPortal.mapX
+                self.mapTargetPanY = clickedPortal.mapY
                 return true -- Consome o clique
             end
         end

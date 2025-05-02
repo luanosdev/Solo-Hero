@@ -75,7 +75,6 @@ function ItemDataManager:init()
     self.itemDatabase = {} -- Reseta o banco de dados
 
     -- Chama _loadDataFile para cada categoria
-    self:_loadDataFile("src.data.items.jewels", "joias")
     self:_loadDataFile("src.data.items.weapons", "armas")
     self:_loadDataFile("src.data.items.consumables", "consumíveis")
     self:_loadDataFile("src.data.items.materials", "materiais")
