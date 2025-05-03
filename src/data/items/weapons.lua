@@ -11,8 +11,9 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 180,
-        attackSpeed = 0.83, -- 1 / 1.2
-        range = 80,
+        cooldown = 1.2,                                              -- Cooldown base em segundos (era attackSpeed = 0.83)
+        range = 30,                                                  -- Raio da área de impacto
+        attackClass = "src.abilities.player.attacks.circular_smash", -- Classe de ataque
     },
     wooden_sword = {
         id = "wooden_sword",
@@ -28,7 +29,7 @@ local weapons = {
         damage = 100,
         cooldown = 1.2,                                          -- Cooldown base em segundos (AJUSTE SE NECESSÁRIO)
         range = 60,                                              -- Alcance do cone (AJUSTE SE NECESSÁRIO)
-        angle = math.pi / 10,                                     -- Ângulo do cone (60 graus) (AJUSTE SE NECESSÁRIO)
+        angle = math.pi / 10,                                    -- Ângulo do cone (60 graus) (AJUSTE SE NECESSÁRIO)
         attackClass = "src.abilities.player.attacks.cone_slash", -- Classe de ataque associada
     },
     dual_daggers = {
