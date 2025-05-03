@@ -186,30 +186,49 @@ function PlayerManager:setupGameplay(registry, hunterId)
     -- 5. Equipa a Arma
     local weaponItem = equippedItems[Constants.SLOT_IDS.WEAPON]
     if weaponItem then
-        local weaponBaseData = self.itemDataManager:getBaseItemData(weaponItem.itemBaseId)
-        if weaponBaseData and weaponBaseData.attackClass then
-            print(string.format("  - Equipping weapon: %s (Class: %s)", weaponItem.itemBaseId, weaponBaseData
-                .attackClass))
-            -- Assume que attackClass é o caminho para o require da CLASSE da ARMA (ex: "src.items.weapons.bow")
-            local WeaponClass = require(weaponBaseData.attackClass)
-            if WeaponClass then
-                -- Cria uma instância da classe da arma
-                self.equippedWeapon = setmetatable({}, { __index = WeaponClass })
-                -- Chama o método :equip DA INSTÂNCIA da arma, passando o PlayerManager
-                print(string.format("    -> [DEBUG] Calling :equip on weapon instance (Type: %s)",
-                    type(self.equippedWeapon)))                   -- DEBUG
-                self.equippedWeapon:equip(self, weaponItem)       -- Passa a instância do item equipado
-                print(string.format("    -> [DEBUG] After :equip, type of attackInstance: %s",
-                    type(self.equippedWeapon.attackInstance)))    -- DEBUG
-                self.state:updateWeaponStats(self.equippedWeapon) -- Atualiza stats baseados na arma equipada
-                print(string.format("    - Weapon '%s' equipped successfully.", self.equippedWeapon.name))
+        -- Constrói o caminho para a CLASSE da arma (ex: src.items.weapons.dual_daggers)
+        local weaponClassPath = string.format("src.items.weapons.%s", weaponItem.itemBaseId)
+        print(string.format("  - Attempting to load weapon class: %s", weaponClassPath))
+
+        -- Tenta carregar a classe da arma
+        local success, WeaponClass = pcall(require, weaponClassPath)
+
+        if success and WeaponClass then
+            print(string.format("  - Weapon class '%s' loaded successfully.", weaponClassPath))
+            -- Cria uma instância da classe da arma, passando o itemBaseId
+            -- OBS: Assumindo que a classe da arma tem um método :new(config) que aceita itemBaseId
+            local weaponInstance = WeaponClass:new({ itemBaseId = weaponItem.itemBaseId })
+
+            if weaponInstance then
+                print(string.format("    - Weapon instance created for '%s'.", weaponItem.itemBaseId))
+                -- Armazena a instância da arma
+                self.equippedWeapon = weaponInstance
+
+                -- Chama o método :equip DA INSTÂNCIA da arma
+                -- Passa o PlayerManager (self) e os dados do item específico (weaponItem)
+                print(string.format("    -> Calling :equip on weapon instance (Type: %s)", type(self.equippedWeapon)))
+                if self.equippedWeapon.equip then -- Verifica se o método existe
+                    self.equippedWeapon:equip(self, weaponItem)
+                    print(string.format("    -> :equip called. Type of attackInstance inside weapon: %s",
+                        type(self.equippedWeapon.attackInstance))) -- Verifica se attackInstance foi criado
+                    print(string.format("    - Weapon '%s' equipped and configured via its class.", weaponItem
+                    .itemBaseId))
+
+                    -- REMOVIDO: A atualização dos stats agora é responsabilidade do método :equip da arma.
+                    -- self.state:updateWeaponStats(self.equippedWeapon)
+                else
+                    print(string.format("    - ERRO CRÍTICO: O método :equip não foi encontrado na classe da arma '%s'!",
+                        weaponClassPath))
+                    self.equippedWeapon = nil  -- Desequipa se :equip falhar ou não existir
+                end
             else
-                print(string.format("    - ERRO: Não foi possível carregar a classe da arma: %s",
-                    weaponBaseData.attackClass))
+                print(string.format("    - ERRO: Falha ao criar a instância da arma '%s' usando :new().", weaponClassPath))
+                self.equippedWeapon = nil
             end
         else
-            print(string.format("    - AVISO: Dados base ou 'attackClass' não encontrados para a arma equipada: %s",
-                weaponItem.itemBaseId))
+            print(string.format("    - ERRO CRÍTICO: Não foi possível carregar a classe da arma: %s. Detalhe: %s",
+                weaponClassPath, tostring(WeaponClass))) -- WeaponClass aqui conterá a mensagem de erro do pcall
+            self.equippedWeapon = nil
         end
     else
         print("  - AVISO: Nenhuma arma equipada encontrada para o caçador.")
@@ -350,10 +369,6 @@ end
 
 -- Desenha o player e elementos relacionados
 function PlayerManager:draw()
-    print(string.format("--- PlayerManager:draw called. Type of self.player: %s", type(self.player))) -- DEBUG (Mantido por segurança)
-    -- REMOVIDO: Aplica transformação da câmera (já feita pela GameplayScene)
-    -- Camera:attach()
-
     -- Desenha o círculo de colisão primeiro (embaixo de tudo)
     local circleY = self.player.position.y + 25 -- Ajusta para ficar nos pés do sprite
 

@@ -72,8 +72,9 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 20,
-        attackSpeed = 3.33, -- 1 / 0.3
-        range = 150,
+        cooldown = 1,
+        range = 40,
+        angle = math.pi / 3,
         attackClass = "src.abilities.player.attacks.alternating_cone_strike",
     },
     dual_noctilara_daggers = {

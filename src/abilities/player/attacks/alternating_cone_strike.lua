@@ -1,21 +1,25 @@
 --[[----------------------------------------------------------------------------
     Alternating Cone Strike Ability
     Um ataque em cone rápido que atinge alternadamente a metade esquerda ou direita.
-----------------------------------------------------------------------------]]--
+    Refatorado para receber weaponInstance e buscar stats dinamicamente.
+----------------------------------------------------------------------------]] --
 
 local AlternatingConeStrike = {}
+AlternatingConeStrike.__index = AlternatingConeStrike -- Para permitir :new
 
--- Configurações visuais e de jogabilidade
+-- Configurações visuais PADRÃO (serão sobrescritas pela weaponInstance se disponíveis)
 AlternatingConeStrike.name = "Golpe Cônico Alternado"
 AlternatingConeStrike.description = "Golpeia rapidamente em metades alternadas de um cone."
 AlternatingConeStrike.damageType = "melee"
 AlternatingConeStrike.visual = {
     preview = {
         active = false,
-        lineLength = 50 -- Comprimento da linha de preview
+        lineLength = 50,
+        color = { 0.7, 0.7, 0.7, 0.2 } -- Cor padrão preview
     },
     attack = {
-        animationDuration = 0.1 -- Duração MUITO curta da animação de cada golpe
+        animationDuration = 0.1,
+        color = { 0.8, 0.1, 0.8, 0.6 } -- Cor padrão ataque
     }
 }
 
@@ -24,35 +28,62 @@ local function normalizeAngle(angle)
     return (angle + math.pi) % (2 * math.pi) - math.pi
 end
 
-function AlternatingConeStrike:init(playerManager)
-    self.playerManager = playerManager
-    self.cooldownRemaining = 0
-    self.isAttacking = false
-    self.attackProgress = 0
-    self.hitLeftNext = true -- Começa atacando pela esquerda
-    self.lastAttackWasLeft = false -- Para saber qual metade desenhar
+--- Cria uma nova instância da habilidade AlternatingConeStrike.
+---@param playerManager PlayerManager Instância do PlayerManager.
+---@param weaponInstance BaseWeapon Instância da arma que está usando esta habilidade.
+function AlternatingConeStrike:new(playerManager, weaponInstance)
+    local o = setmetatable({}, self)
+    print("[AlternatingConeStrike:new] Creating instance...")
 
-    -- Usa as cores da arma se disponíveis
-    self.visual.preview.color = self.previewColor or {0.7, 0.7, 0.7, 0.2}
-    self.visual.attack.color = self.attackColor or {0.8, 0.1, 0.8, 0.6}
+    if not playerManager or not weaponInstance then
+        error("AlternatingConeStrike:new - playerManager e weaponInstance são obrigatórios.")
+        return nil
+    end
 
-    -- Usa os atributos da arma
-    local weapon = self.playerManager.equippedWeapon
-    self.area = {
-        position = {x = 0, y = 0}, -- Será atualizado
-        angle = 0,                -- Ângulo central, será atualizado
-        range = weapon.range + self.playerManager.state:getTotalRange(),
-        angleWidth = weapon.angle + self.playerManager.state:getTotalArea(), -- Largura total do cone
-        halfWidth = (weapon.angle + self.playerManager.state:getTotalArea()) / 2 -- Metade da largura
+    o.playerManager = playerManager
+    o.weaponInstance = weaponInstance -- Armazena a instância da arma
+
+    o.cooldownRemaining = 0
+    o.isAttacking = false
+    o.attackProgress = 0
+    o.hitLeftNext = true        -- Começa atacando pela esquerda
+    o.lastAttackWasLeft = false -- Para saber qual metade desenhar
+
+    -- Busca cores da weaponInstance (sobrescreve os padrões)
+    o.visual.preview.color = weaponInstance.previewColor or o.visual.preview.color
+    o.visual.attack.color = weaponInstance.attackColor or o.visual.attack.color
+    print("  - Preview/Attack colors set (using weaponInstance if available).")
+
+    -- Área de efeito será calculada dinamicamente no update/cast
+    o.area = {
+        position = { x = 0, y = 0 },
+        angle = 0,
+        range = 0,      -- Será atualizado
+        angleWidth = 0, -- Será atualizado
+        halfWidth = 0   -- Será atualizado
     }
-    self.baseDamage = weapon.damage
-    self.baseCooldown = weapon.cooldown
-
     -- Atualiza posição inicial
-    self.area.position.x = self.playerManager.player.position.x
-    self.area.position.y = self.playerManager.player.position.y
+    if o.playerManager.player then
+        o.area.position.x = o.playerManager.player.position.x
+        o.area.position.y = o.playerManager.player.position.y
+    else
+        print("  - WARN: Player sprite not yet available for initial position.")
+    end
+
+    -- REMOVIDO: Stats não são mais armazenados aqui
+    -- o.baseDamage = weapon.damage
+    -- o.baseCooldown = weapon.cooldown
+
+    print("[AlternatingConeStrike:new] Instance created successfully.")
+    return o
 end
 
+-- REMOVIDO: :init não é mais necessário, lógica movida para :new
+-- function AlternatingConeStrike:init(playerManager) ... end
+
+--- Atualiza o estado da habilidade.
+---@param dt number Delta time.
+---@param angle number Ângulo atual da mira do jogador.
 function AlternatingConeStrike:update(dt, angle)
     -- Atualiza cooldown
     if self.cooldownRemaining > 0 then
@@ -60,14 +91,29 @@ function AlternatingConeStrike:update(dt, angle)
     end
 
     -- Atualiza posição e ângulo do cone para seguir o jogador e o mouse
-    if self.area then
+    if self.area and self.playerManager.player then
         self.area.position = self.playerManager.player.position
         self.area.angle = angle -- Ângulo central da mira
-        -- Recalcula larguras caso os bônus de área mudem
-        self.area.angleWidth = self.playerManager.equippedWeapon.angle + self.playerManager.state:getTotalArea()
-        self.area.halfWidth = self.area.angleWidth / 2
+
+        -- !!! CALCULA PARÂMETROS DA ÁREA AQUI, UMA VEZ POR FRAME !!!
+        local baseData = self.weaponInstance:getBaseData()
+        local weaponBaseRange = (baseData and baseData.range) or 50
+        local weaponBaseAngle = (baseData and baseData.angle) or (math.pi / 3)
+        local rangeBonusPercent = self.playerManager.state:getTotalRange()
+        local areaBonusPercent = self.playerManager.state:getTotalArea()
+        local newRange = weaponBaseRange * (1 + rangeBonusPercent)
+        local newAngleWidth = weaponBaseAngle * (1 + areaBonusPercent)
+
+        -- Atualiza apenas se mudou (otimização)
+        if newRange ~= self.area.range or newAngleWidth ~= self.area.angleWidth then
+            self.area.range = newRange
+            self.area.angleWidth = newAngleWidth
+            self.area.halfWidth = self.area.angleWidth / 2
+            print(string.format("  [UPDATE] Area Recalculated. Range: %.1f | AngleWidth: %.2f", self.area.range,
+                self.area.angleWidth)) -- Log na atualização
+        end
     end
-    
+
     -- Atualiza animação do ataque
     if self.isAttacking then
         self.attackProgress = self.attackProgress + (dt / self.visual.attack.animationDuration)
@@ -78,148 +124,195 @@ function AlternatingConeStrike:update(dt, angle)
     end
 end
 
+--- Tenta executar o ataque.
+---@param args table Argumentos opcionais (não usado atualmente).
+---@return boolean True se o ataque foi iniciado (mesmo que não acerte), False se estava em cooldown.
 function AlternatingConeStrike:cast(args)
     args = args or {}
 
     if self.cooldownRemaining > 0 then
-        return false
+        return false -- Em cooldown
     end
-    
+    print("[AlternatingConeStrike:cast] Casting attack.")
+
     -- Determina qual lado atacar NESTE cast
     local attackLeftThisCast = self.hitLeftNext
-    
+
     -- Inicia a animação (sempre mostra a animação do PRIMEIRO golpe do cast)
     self.isAttacking = true
     self.attackProgress = 0
     self.lastAttackWasLeft = attackLeftThisCast -- Para o draw
-    
-    -- Aplica o cooldown
-    local attackSpeed = self.playerManager.state:getTotalAttackSpeed()
-    self.cooldownRemaining = self.baseCooldown / attackSpeed
-    
+    print(string.format("  - Attacking %s side first.", attackLeftThisCast and "LEFT" or "RIGHT"))
+
+    -- Aplica o cooldown baseado no attackSpeed TOTAL do jogador
+    local totalAttackSpeed = self.playerManager.state:getTotalAttackSpeed()
+    local baseData = self.weaponInstance:getBaseData()
+    local baseCooldown = (baseData and baseData.cooldown) or 1.0 -- Padrão 1s
+    if totalAttackSpeed <= 0 then totalAttackSpeed = 1 end       -- Evita divisão por zero
+    self.cooldownRemaining = baseCooldown / totalAttackSpeed
+    print(string.format("  - Cooldown set to %.2fs (Base: %.2f / TotalAS: %.2f)", self.cooldownRemaining, baseCooldown,
+        totalAttackSpeed))
+
     -- Calcula ataques extras
     local multiAttackChance = self.playerManager.state:getTotalMultiAttackChance()
     local extraAttacks = math.floor(multiAttackChance)
     local decimalChance = multiAttackChance - extraAttacks
-    
+    print(string.format("  - Multi-Attack Chance: %.2f (Extra: %d + %.2f%%)", multiAttackChance, extraAttacks,
+        decimalChance * 100))
+
     -- Executa o PRIMEIRO ataque
     local success = self:executeAttack(attackLeftThisCast)
     local currentHitIsLeft = attackLeftThisCast -- Variável para alternar nos extras
-    
-    -- Executa ataques extras, alternando a CADA extra
+
+    -- Executa ataques extras inteiros, alternando a CADA extra
     for i = 1, extraAttacks do
-        if success then
+        if success then                             -- Só continua se o anterior (hipoteticamente) teve sucesso
             currentHitIsLeft = not currentHitIsLeft -- Alterna para o próximo extra
+            print(string.format("    - Executing extra attack #%d (%s side)", i, currentHitIsLeft and "LEFT" or "RIGHT"))
             success = self:executeAttack(currentHitIsLeft)
         else
-            break -- Se um ataque falhar (hipoteticamente), para
+            print("    - Stopping extra attacks due to previous failure.")
+            break
         end
     end
-    
+
     -- Chance de ataque extra decimal, também alterna
     if success and decimalChance > 0 and math.random() < decimalChance then
         currentHitIsLeft = not currentHitIsLeft -- Alterna para este extra
+        print(string.format("    - Executing decimal chance extra attack (%s side)",
+            currentHitIsLeft and "LEFT" or "RIGHT"))
         self:executeAttack(currentHitIsLeft)
     end
 
     -- IMPORTANTE: Alterna o estado APENAS UMA VEZ no final, preparando o PRÓXIMO cast
     self.hitLeftNext = not self.hitLeftNext
-    
-    return success -- Retorna sucesso do primeiro golpe
+    print(string.format("  - Next cast will start on %s side.", self.hitLeftNext and "LEFT" or "RIGHT"))
+
+    return true -- Retorna true porque o cast foi iniciado
 end
 
--- Função auxiliar para executar um único ataque em uma metade específica
+--- Executa a lógica de um único golpe em uma metade específica.
+---@param hitLeft boolean True para atacar a metade esquerda, False para a direita.
+---@return boolean Sempre retorna true (indica que a tentativa de ataque foi feita).
 function AlternatingConeStrike:executeAttack(hitLeft)
     local enemies = self.playerManager.enemyManager:getEnemies()
-    local enemiesHit = 0
-    
-    for _, enemy in ipairs(enemies) do
+    local enemiesHitCount = 0
+    local side = hitLeft and "LEFT" or "RIGHT"
+    -- print(string.format("    [executeAttack - %s] Checking %d enemies.", side, #enemies))
+
+    for i, enemy in ipairs(enemies) do
         if enemy.isAlive then
             -- Verifica se o inimigo está na metade correta do cone
             if self:isPointInCorrectHalf(enemy.position, hitLeft) then
-                enemiesHit = enemiesHit + 1
+                enemiesHitCount = enemiesHitCount + 1
+                -- print(string.format("      - Hitting enemy #%d at (%.1f, %.1f) on %s side.", i, enemy.position.x, enemy.position.y, side))
                 self:applyDamage(enemy) -- Aplica o dano (a checagem de área já foi feita)
+                -- else
+                -- local dx = enemy.position.x - self.area.position.x
+                -- local dy = enemy.position.y - self.area.position.y
+                -- local dist = math.sqrt(dx*dx+dy*dy)
+                -- local pAng = math.atan2(dy, dx)
+                -- local relAng = normalizeAngle(pAng - self.area.angle)
+                -- print(string.format("      - Enemy #%d MISSED %s side. Dist: %.1f, RelAngle: %.2f (Limit: %.2f)", i, side, dist, relAng, self.area.halfWidth))
             end
         end
     end
-    
+    if enemiesHitCount > 0 then
+        print(string.format("    [executeAttack - %s] Hit %d enemies.", side, enemiesHitCount))
+    end
+
     return true -- Retorna true mesmo se não atingiu ninguém
 end
 
--- Verifica se um ponto está DENTRO do cone TOTAL
+--- Verifica se um ponto está DENTRO do cone TOTAL.
+---@param position table Posição {x, y} a verificar.
+---@return boolean True se o ponto está na área total.
 function AlternatingConeStrike:isPointInArea(position)
     if not self.area then return false end
+    -- REMOVIDO: self:updateAreaIfNeeded() -- Usa valores já calculados em update
 
     local dx = position.x - self.area.position.x
     local dy = position.y - self.area.position.y
-    local distance = math.sqrt(dx * dx + dy * dy)
-    
-    -- Verifica distância
-    if distance == 0 or distance > self.area.range then return false end
+    local distanceSq = dx * dx + dy * dy -- Usa quadrado para evitar sqrt
+
+    -- Verifica distância (mais rápido)
+    if distanceSq == 0 or distanceSq > (self.area.range * self.area.range) then return false end
 
     -- Verifica ângulo
     local pointAngle = math.atan2(dy, dx)
     local relativeAngle = normalizeAngle(pointAngle - self.area.angle)
-    
+
     return math.abs(relativeAngle) <= self.area.halfWidth
 end
 
--- Verifica se um ponto está na METADE ESPECÍFICA do cone
+--- Verifica se um ponto está na METADE ESPECÍFICA do cone.
+---@param position table Posição {x, y} a verificar.
+---@param checkLeft boolean True para verificar a metade esquerda, False para a direita.
+---@return boolean True se o ponto está na metade correta.
 function AlternatingConeStrike:isPointInCorrectHalf(position, checkLeft)
     if not self.area then return false end
+    -- REMOVIDO: self:updateAreaIfNeeded() -- Usa valores já calculados em update
 
     local dx = position.x - self.area.position.x
     local dy = position.y - self.area.position.y
-    local distance = math.sqrt(dx * dx + dy * dy)
-    
-    -- Verifica distância primeiro (mais rápido)
-    if distance == 0 or distance > self.area.range then return false end
+    local distanceSq = dx * dx + dy * dy -- Usa quadrado
+
+    -- Verifica distância (mais rápido)
+    if distanceSq == 0 or distanceSq > (self.area.range * self.area.range) then return false end
 
     -- Verifica ângulo
     local pointAngle = math.atan2(dy, dx)
     local relativeAngle = normalizeAngle(pointAngle - self.area.angle)
-    
-    if checkLeft then -- Checa metade esquerda
+
+    if checkLeft then -- Checa metade esquerda (ângulo relativo entre -halfWidth e 0)
         return relativeAngle >= -self.area.halfWidth and relativeAngle <= 0
-    else -- Checa metade direita
+    else              -- Checa metade direita (ângulo relativo entre 0 e +halfWidth)
         return relativeAngle > 0 and relativeAngle <= self.area.halfWidth
     end
 end
 
-function AlternatingConeStrike:applyDamage(target)    
-    -- Calcula o dano total com os bônus do player
-    local totalDamage = self.playerManager.state:getTotalDamage(self.baseDamage)
-    
+--- Aplica dano a um alvo.
+---@param target BaseEnemy Instância do inimigo a ser atingido.
+---@return boolean Resultado de target:takeDamage.
+function AlternatingConeStrike:applyDamage(target)
+    -- Busca o dano base da arma ATUALMENTE
+    local baseData = self.weaponInstance:getBaseData()
+    local weaponBaseDamage = (baseData and baseData.damage) or 0
+
+    -- Calcula o dano total usando o estado ATUAL do jogador
+    local totalDamage = self.playerManager.state:getTotalDamage(weaponBaseDamage) -- Passa o base da arma
+
     -- Calcula se o dano é crítico
-    local isCritical = math.random() <= self.playerManager.state:getTotalCriticalChance() / 100
+    local isCritical = math.random() <= self.playerManager.state:getTotalCritChance() / 100
     if isCritical then
-        totalDamage = math.floor(totalDamage * self.playerManager.state:getTotalCriticalMultiplier())
+        totalDamage = math.floor(totalDamage * self.playerManager.state:getTotalCritDamage())
     end
-    
+
     -- Aplica o dano
+    -- print(string.format("      Applying %d damage (%s) to target.", totalDamage, isCritical and "CRIT" or "normal"))
     return target:takeDamage(totalDamage, isCritical)
 end
 
+--- Desenha os elementos visuais da habilidade.
 function AlternatingConeStrike:draw()
-    if not self.area then 
-        -- error("[Erro] [AlternatingConeStrike.draw] Área não definida!")
-        return
-    end
-    
+    if not self.area then return end
+
     -- Desenha a prévia da linha se ativa (mostra o cone inteiro)
     if self.visual.preview.active then
         self:drawPreviewLine()
-        self:drawConeOutline(self.visual.preview.color) -- Desenha contorno do cone inteiro
+        self:drawConeOutline(self.visual.preview.color) -- Usa cor da instância
     end
-    
+
     -- Desenha a animação do ataque (apenas a metade ativa)
     if self.isAttacking then
+        -- USA A VERSÃO *SEM* innerRange por enquanto, até restaurarmos no próximo passo
         self:drawHalfConeFill(self.visual.attack.color, self.attackProgress, self.lastAttackWasLeft)
     end
 end
 
+--- Desenha a linha de mira para preview.
 function AlternatingConeStrike:drawPreviewLine()
-    love.graphics.setColor(1, 1, 1, 0.5) -- Branco semi-transparente
+    love.graphics.setColor(1, 1, 1, 0.5) -- Branco semi-transparente (pode ser configurável?)
     love.graphics.line(
         self.area.position.x, self.area.position.y,
         self.area.position.x + math.cos(self.area.angle) * self.visual.preview.lineLength,
@@ -227,8 +320,10 @@ function AlternatingConeStrike:drawPreviewLine()
     )
 end
 
--- Desenha o CONTORNO do cone inteiro (para preview)
+--- Desenha o CONTORNO do cone inteiro (para preview).
 function AlternatingConeStrike:drawConeOutline(color)
+    if not self.area or self.area.range <= 0 then return end
+    -- REMOVIDO: Chamada a updateAreaIfNeeded()
     local segments = 32
     love.graphics.setColor(color)
     local cx, cy = self.area.position.x, self.area.position.y
@@ -236,75 +331,73 @@ function AlternatingConeStrike:drawConeOutline(color)
     local startAngle = self.area.angle - self.area.halfWidth
     local endAngle = self.area.angle + self.area.halfWidth
 
-    love.graphics.arc("line", "open", cx, cy, range, startAngle, endAngle, segments)
-    love.graphics.line(cx, cy, cx + range * math.cos(startAngle), cy + range * math.sin(startAngle))
-    love.graphics.line(cx, cy, cx + range * math.cos(endAngle), cy + range * math.sin(endAngle))
+    local vertices = {}
+    table.insert(vertices, cx)
+    table.insert(vertices, cy)
+    for i = 0, segments do
+        local angle = startAngle + (endAngle - startAngle) * (i / segments)
+        table.insert(vertices, cx + range * math.cos(angle))
+        table.insert(vertices, cy + range * math.sin(angle))
+    end
+    table.insert(vertices, cx)
+    table.insert(vertices, cy)
+
+    if #vertices >= 4 then
+        love.graphics.line(unpack(vertices))
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
--- Desenha o PREENCHIMENTO de METADE do cone (para ataque)
+--- Desenha o PREENCHIMENTO de METADE do cone (para ataque).
+--- RESTAURADO: Usa innerRange novamente.
+---@param color table Cor RGBA a ser usada.
+---@param progress number Progresso da animação (0 a 1), pode ser usado para fade in/out.
+---@param drawLeft boolean True para desenhar a metade esquerda, False para a direita.
 function AlternatingConeStrike:drawHalfConeFill(color, progress, drawLeft)
-    local segments = 16 -- Metade dos segmentos normais
-    local innerRange = self.playerManager.radius * 1.5 -- Remove ponta perto do player
+    if not self.area or self.area.range <= 0 then return end
+    -- Não chama mais updateAreaIfNeeded()
+    local segments = 16
+    -- RESTAURADO: Define o raio interno para desenhar um anel de setor
+    local innerRange = (self.playerManager.player and self.playerManager.player.radius or 10) * 1.5
 
-    love.graphics.setColor(color)
+    local alpha = color[4] or 1.0
+    local currentAlpha = alpha * (1 - progress)
+    love.graphics.setColor(color[1], color[2], color[3], currentAlpha)
+
     local cx, cy = self.area.position.x, self.area.position.y
-    local outerRange = self.area.range
-    local coneHalfWidth = self.area.halfWidth
-    local centerAngle = self.area.angle
+    local range = self.area.range
 
     local startAngle, endAngle
     if drawLeft then
-        startAngle = centerAngle - coneHalfWidth
-        endAngle = centerAngle
+        startAngle = self.area.angle - self.area.halfWidth
+        endAngle = self.area.angle
     else
-        startAngle = centerAngle
-        endAngle = centerAngle + coneHalfWidth
+        startAngle = self.area.angle
+        endAngle = self.area.angle + self.area.halfWidth
     end
 
-    if progress > 0 then
-        -- A animação cobre a metade do início ao fim baseado no progresso
-        local fillEndAngle = startAngle + (coneHalfWidth * progress)
-        if not drawLeft then -- Se for direita, o progresso vai de center até end
-             fillEndAngle = startAngle + (coneHalfWidth * progress)
-        else -- Se for esquerda, inverte o progresso visualmente (opcional, pode só preencher normal)
-             fillEndAngle = endAngle - (coneHalfWidth * (1-progress)) -- Ou preencher da borda para o centro
-             -- Ou mais simples: fillEndAngle = startAngle + (coneHalfWidth * progress)
-        end
-        -- Simplificação: Sempre preenche de startAngle até o progresso relativo.
-        fillEndAngle = startAngle + (coneHalfWidth * progress)
+    -- Cria os vértices para o polígono preenchido (formato de ANEL DE SETOR)
+    local vertices = {}
 
-        local vertices = {}
-        local currentSegments = math.max(1, math.ceil(segments * progress))
-        local angle_step = (fillEndAngle - startAngle) / currentSegments
-
-        -- Arco externo
-        for i = 0, currentSegments do
-            local angle = startAngle + i * angle_step
-            table.insert(vertices, cx + outerRange * math.cos(angle))
-            table.insert(vertices, cy + outerRange * math.sin(angle))
-        end
-        -- Arco interno (invertido)
-        for i = currentSegments, 0, -1 do
-            local angle = startAngle + i * angle_step
-            table.insert(vertices, cx + innerRange * math.cos(angle))
-            table.insert(vertices, cy + innerRange * math.sin(angle))
-        end
-
-        -- Desenha polígono preenchido
-        love.graphics.setColor(color[1], color[2], color[3], color[4] * 0.8)
-        if #vertices >= 6 then
-             love.graphics.polygon("fill", vertices)
-        end
-
-        -- Linha intensa no final do preenchimento
-        love.graphics.setColor(color[1], color[2], color[3], color[4])
-        love.graphics.line(
-            cx + innerRange * math.cos(fillEndAngle),
-            cy + innerRange * math.sin(fillEndAngle),
-            cx + outerRange * math.cos(fillEndAngle),
-            cy + outerRange * math.sin(fillEndAngle)
-        )
+    -- Vértices do arco externo (do início ao fim)
+    for i = 0, segments do
+        local angle = startAngle + (endAngle - startAngle) * (i / segments)
+        table.insert(vertices, cx + range * math.cos(angle)) -- Insere X externo
+        table.insert(vertices, cy + range * math.sin(angle)) -- Insere Y externo
     end
+    -- Vértices do arco interno (do fim para o início)
+    for i = segments, 0, -1 do
+        local angle = startAngle + (endAngle - startAngle) * (i / segments)
+        table.insert(vertices, cx + innerRange * math.cos(angle)) -- Insere X interno
+        table.insert(vertices, cy + innerRange * math.sin(angle)) -- Insere Y interno
+    end
+
+    -- Desenha o polígono preenchido se tivermos pelo menos 3 pontos (6 coordenadas)
+    if #vertices >= 6 then
+        love.graphics.polygon("fill", unpack(vertices))
+    end
+    love.graphics.setColor(1, 1, 1, 1) -- Reseta cor
 end
 
 function AlternatingConeStrike:getCooldownRemaining()
@@ -320,4 +413,4 @@ function AlternatingConeStrike:getPreview()
 end
 
 -- return setmetatable(AlternatingConeStrike, {__index = require("src.abilities.player.attacks.cone_slash")}) -- Herda de ConeSlash? Não, melhor não herdar diretamente.
-return AlternatingConeStrike 
+return AlternatingConeStrike
