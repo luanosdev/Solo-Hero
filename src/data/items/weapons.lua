@@ -74,6 +74,7 @@ local weapons = {
         damage = 20,
         attackSpeed = 3.33, -- 1 / 0.3
         range = 150,
+        attackClass = "src.abilities.player.attacks.alternating_cone_strike",
     },
     dual_noctilara_daggers = {
         id = "dual_noctilara_daggers",

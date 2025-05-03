@@ -196,7 +196,11 @@ function PlayerManager:setupGameplay(registry, hunterId)
                 -- Cria uma instância da classe da arma
                 self.equippedWeapon = setmetatable({}, { __index = WeaponClass })
                 -- Chama o método :equip DA INSTÂNCIA da arma, passando o PlayerManager
+                print(string.format("    -> [DEBUG] Calling :equip on weapon instance (Type: %s)",
+                    type(self.equippedWeapon)))                   -- DEBUG
                 self.equippedWeapon:equip(self, weaponItem)       -- Passa a instância do item equipado
+                print(string.format("    -> [DEBUG] After :equip, type of attackInstance: %s",
+                    type(self.equippedWeapon.attackInstance)))    -- DEBUG
                 self.state:updateWeaponStats(self.equippedWeapon) -- Atualiza stats baseados na arma equipada
                 print(string.format("    - Weapon '%s' equipped successfully.", self.equippedWeapon.name))
             else
@@ -338,20 +342,15 @@ function PlayerManager:update(dt)
 
     -- Atualiza a câmera
     if self.player and self.player.position then
-        -- >>> LOG ANTES DE Camera:follow <<<
-        print(string.format("  [DEBUG PM:update] Player Pos: (%.1f, %.1f) | Cam Pos: (%.1f, %.1f) | dt: %.4f",
-            self.player.position.x, self.player.position.y, Camera.x, Camera.y, dt)) -- DEBUG
         Camera:follow(self.player.position, dt)
-        -- >>> LOG DEPOIS DE Camera:follow <<<
-        print(string.format("  [DEBUG PM:update] After Follow - Cam Pos: (%.1f, %.1f)", Camera.x, Camera.y)) -- DEBUG
     else
-        print("PlayerManager Update: SKIPPING Camera:follow (Player or position is nil)")                    -- DEBUG
+        -- print("PlayerManager Update: SKIPPING Camera:follow (Player or position is nil)") -- DEBUG (Mantido por segurança)
     end
 end
 
 -- Desenha o player e elementos relacionados
 function PlayerManager:draw()
-    print(string.format("--- PlayerManager:draw called. Type of self.player: %s", type(self.player))) -- DEBUG
+    print(string.format("--- PlayerManager:draw called. Type of self.player: %s", type(self.player))) -- DEBUG (Mantido por segurança)
     -- REMOVIDO: Aplica transformação da câmera (já feita pela GameplayScene)
     -- Camera:attach()
 
@@ -387,10 +386,7 @@ function PlayerManager:draw()
     -- Desenha o sprite do player
     if self.player then
         -- Correção: Chama a função draw do MÓDULO SpritePlayer, passando a instância self.player
-        -- >>> LOGS ANTES DE DESENHAR O SPRITE <<<
-        print(string.format("  [DEBUG PM:draw] Drawing player sprite at World Coords: (%.1f, %.1f)",
-            self.player.position.x, self.player.position.y))                                              -- DEBUG
-        print(string.format("  [DEBUG PM:draw] Current Camera Coords: (%.1f, %.1f)", Camera.x, Camera.y)) -- DEBUG
+        -- REMOVIDOS: Logs antes de desenhar o sprite
         SpritePlayer.draw(self.player)
     else
         print("PlayerManager:draw - self.player is nil, cannot draw.")
@@ -448,9 +444,17 @@ function PlayerManager:updateAutoAttack(currentAngle)
         local args = {
             angle = currentAngle
         }
+        -- >>> LOG ANTES DE CHAMAR CAST <<<
+        print(string.format("  [DEBUG PM:updateAutoAttack] Calling attackInstance:cast() | Type: %s | Cooldown: %.2f",
+            type(self.equippedWeapon.attackInstance), self.equippedWeapon.attackInstance.cooldownRemaining or -1)) -- DEBUG
 
         -- Chama cast com a tabela de argumentos
         self.equippedWeapon.attackInstance:cast(args)
+    elseif self.autoAttack then
+        -- >>> LOG SE TENTAR ATACAR SEM ARMA/INSTÂNCIA <<<
+        print(string.format(
+            "  [DEBUG PM:updateAutoAttack] AutoAttack ON but weapon/instance missing. Weapon: %s, Instance: %s",
+            tostring(self.equippedWeapon), tostring(self.equippedWeapon and self.equippedWeapon.attackInstance))) -- DEBUG
     end
 end
 

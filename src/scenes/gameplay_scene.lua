@@ -270,9 +270,6 @@ function GameplayScene:draw()
     love.graphics.setBackgroundColor(0.1, 0.1, 0.1) -- <<< MUDADO: Cor de fundo mais escura >>>
     love.graphics.clear(0.1, 0.1, 0.1, 1)           -- <<< MUDADO: Limpa com a mesma cor >>>
 
-    -- >>> LOG ANTES DE Camera:attach <<< -- Usa Camera global
-    print(string.format("  [DEBUG GS:draw] Cam Pos GLOBAL BEFORE attach: (%.1f, %.1f)", Camera.x, Camera.y)) -- DEBUG
-
     -- Aplica transformação da câmera para o mundo (usando Camera global)
     Camera:attach()
 
