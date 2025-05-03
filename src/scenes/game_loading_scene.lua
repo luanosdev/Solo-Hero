@@ -8,7 +8,7 @@ local GameLoadingScene = {}
 
 GameLoadingScene.sceneArgs = nil            -- <<< RENOMEADO: Para armazenar todos os args
 local timer = 0
-local timeToSwitch = 3.0                    -- Aumentei um pouco o tempo de carregamento simulado
+local timeToSwitch = 0.5                    -- Aumentei um pouco o tempo de carregamento simulado
 local loadingText = "Entrando no Portal..." -- <<< Texto ajustado
 
 --- Chamado quando a cena é carregada.

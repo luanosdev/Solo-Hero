@@ -15,7 +15,7 @@ local STARTING_SECTIONS = 1
 local nextInstanceId = 1
 
 --- Cria uma nova instância do gerenciador de armazenamento do lobby.
---- @param itemDataManager Instância do ItemDataManager.
+--- @param itemDataManager ItemDataManager Instância do ItemDataManager.
 --- @return LobbyStorageManager
 function LobbyStorageManager:new(itemDataManager)
     print("[LobbyStorageManager] Criando nova instância...")

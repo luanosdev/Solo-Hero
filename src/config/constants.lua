@@ -18,7 +18,8 @@ Constants.SLOT_IDS = {
     CHEST = "chest",
     GLOVES = "gloves",
     BOOTS = "boots",
-    LEGS = "legs"
+    LEGS = "legs",
+    RUNE = "rune_"
     -- Adicionar outros slots conforme necessário (amuletos, anéis etc.)
 }
 
@@ -43,5 +44,8 @@ Constants.HUNTER_DEFAULT_STATS = {
     runeSlots = 3,             -- Number of rune slots
     luck = 1.0,                -- Multiplier (1.0 = 100% luck)
 }
+
+Constants.DEFENSE_DAMAGE_REDUCTION_K = 52
+Constants.MAX_DAMAGE_REDUCTION = 0.8
 
 return Constants

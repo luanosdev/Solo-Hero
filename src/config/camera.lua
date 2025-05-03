@@ -3,7 +3,7 @@ local Camera = {
     y = 0,
     scale = 1,
     rotation = 0,
-    smoothness = 5,  -- Suavidade da câmera (maior = mais suave)
+    smoothness = 5, -- Suavidade da câmera (maior = mais suave)
     screenWidth = 0,
     screenHeight = 0
 }
@@ -25,7 +25,7 @@ function Camera:follow(position, dt)
     -- Calcula a posição alvo (centro da tela)
     local targetX = position.x - (self.screenWidth / 2)
     local targetY = position.y - (self.screenHeight / 2)
-    
+
     -- Interpola suavemente para a posição alvo
     self.x = self.x + (targetX - self.x) * dt * self.smoothness
     self.y = self.y + (targetY - self.y) * dt * self.smoothness
@@ -55,4 +55,12 @@ function Camera:worldToScreen(worldX, worldY)
     return worldX - self.x, worldY - self.y
 end
 
-return Camera 
+--- Define a posição da câmera diretamente.
+---@param x number Coordenada X do canto superior esquerdo da câmera.
+---@param y number Coordenada Y do canto superior esquerdo da câmera.
+function Camera:setPosition(x, y)
+    self.x = x
+    self.y = y
+end
+
+return Camera

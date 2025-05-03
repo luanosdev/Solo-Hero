@@ -78,8 +78,12 @@ function GameplayScene:load(args)
     }
 
     -- Inicializa a câmera (transferido de main.lua)
-    self.camera = Camera:new()
-    self.camera:init()
+    -- self.camera = Camera:new() -- REMOVIDO: Usaremos o módulo global Camera
+    Camera:init() -- Inicializa o módulo global com dimensões da tela
+    print("GameplayScene: Chamado Camera:init() no módulo global.")
+
+    -- >>> IMPORTANTE: Acessa playerMgr APÓS playerMgr:setupGameplay abaixo! <<< --
+    -- >>> O código de posicionamento da câmera será movido para depois de setupGameplay <<< --
 
     -- Carrega animações (transferido de main.lua)
     -- NOTA: Isso também pode ser feito globalmente uma vez, mas garantimos aqui.
@@ -88,9 +92,10 @@ function GameplayScene:load(args)
     print("GameplayScene: AnimationLoader.loadAll() concluído.")
 
     -- Obtém referência ao player para posicionar câmera ou outras lógicas
-    local playerMgr = ManagerRegistry:get("playerManager")
     local enemyMgr = ManagerRegistry:get("enemyManager")
     local dropMgr = ManagerRegistry:get("dropManager")
+    local playerMgr = ManagerRegistry:get("playerManager")
+
     if playerMgr and playerMgr.player then
         print(string.format("GameplayScene: Jogador encontrado. Posição inicial: %.1f, %.1f",
             playerMgr.player.position.x, playerMgr.player.position.y))
@@ -107,6 +112,20 @@ function GameplayScene:load(args)
     -- Configura o PlayerManager com o hunterId
     playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
 
+    -- Define a posição inicial da câmera para CENTRALIZAR o jogador AGORA que ele foi criado (usando Camera global)
+    local playerInitialPos = playerMgr.player.position
+    if playerInitialPos then
+        local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)  -- Usa Camera.screenWidth
+        local initialCamY = playerInitialPos.y - (Camera.screenHeight / 2) -- Usa Camera.screenHeight
+        Camera:setPosition(initialCamX, initialCamY)                       -- Usa Camera:setPosition
+        print(string.format(
+            "GameplayScene: Câmera GLOBAL inicializada para CENTRALIZAR jogador em (%.1f, %.1f). Cam pos: (%.1f, %.1f)",
+            playerInitialPos.x, playerInitialPos.y, Camera.x, Camera.y)) -- DEBUG usando Camera.x/y
+    else
+        print("GameplayScene: AVISO - Posição inicial do jogador não encontrada após setup, câmera GLOBAL em (0,0).")
+        Camera:setPosition(0, 0)
+    end
+
     -- <<< INÍCIO: Inicialização do EnemyManager com hordeConfig >>>
     local enemyManagerConfig = {
         hordeConfig = self.hordeConfig, -- Passa a configuração recebida
@@ -116,11 +135,6 @@ function GameplayScene:load(args)
     }
     enemyMgr:setupGameplay(enemyManagerConfig)
     -- <<< FIM: Inicialização do EnemyManager >>>
-
-    -- Posiciona câmera (opcional, pode ser feito no update)
-    if playerMgr.player then
-        -- self.camera:setPosition(playerMgr.player.position.x, playerMgr.player.position.y)
-    end
 
     print("GameplayScene:load concluído.")
 end
@@ -145,8 +159,11 @@ function GameplayScene:update(dt)
         print("GameplayScene: AVISO - InputManager não encontrado no Registry para update")
     end
 
-    -- Pula a lógica principal se a cena está pausada OU se alguma UI principal está visível
+    -- >>> DEBUG: Verificar condição de pausa/UI <<<
     if self.isPaused or hasActiveModalOrInventory then
+        print(string.format("GameplayScene: Update SKIPPED. Paused: %s, Modal/Inv Active: %s", tostring(self.isPaused),
+            tostring(hasActiveModalOrInventory))) -- DEBUG
+
         -- Permite que modais de Level Up/Rune se atualizem se visíveis
         if LevelUpModal.visible then LevelUpModal:update() end
         if RuneChoiceModal.visible then RuneChoiceModal:update() end
@@ -167,8 +184,8 @@ end
 --- Desenha o grid isométrico com base na posição do jogador e câmera.
 -- (Função movida de main.lua e adaptada para ser método da cena)
 function GameplayScene:drawIsometricGrid()
-    if not self.grid or not self.groundTexture or not self.camera then
-        print("GameplayScene:drawIsometricGrid - Aviso: grid, groundTexture ou camera não inicializados.")
+    if not self.grid or not self.groundTexture then
+        print("GameplayScene:drawIsometricGrid - Aviso: grid ou groundTexture não inicializados.")
         return
     end
 
@@ -177,7 +194,6 @@ function GameplayScene:drawIsometricGrid()
     local screenHeight = love.graphics.getHeight()
     local grid = self.grid
     local groundTexture = self.groundTexture
-    local camera = self.camera
 
     -- Calcula o tamanho do chunk baseado no tamanho da tela
     local chunkSize = 32 -- número de células por chunk
@@ -187,21 +203,15 @@ function GameplayScene:drawIsometricGrid()
     local visibleChunksX = math.ceil(visibleCellsX / chunkSize) + 4 -- chunks visíveis + buffer
     local visibleChunksY = math.ceil(visibleCellsY / chunkSize) + 4
 
-    -- Obtém o PlayerManager do Registry
     local playerMgr = ManagerRegistry:get("playerManager")
-    local playerX, playerY = 0, 0
-    if playerMgr and playerMgr.player and playerMgr.player.position then -- <<< ADICIONADO: Checa player.position
-        playerX = playerMgr.player.position.x
-        playerY = playerMgr.player.position.y
-    else
-        -- Se player não existe ou não tem posição ainda, usa centro da câmera
-        playerX, playerY = camera:getPosition()
-        -- print("GameplayScene:drawIsometricGrid - AVISO: Player/Posição não encontrado, usando centro da câmera.")
+    local focusX, focusY = Camera.x + screenWidth / 2, Camera.y + screenHeight / 2 -- Usa centro da câmera como fallback
+    if playerMgr and playerMgr.player and playerMgr.player.position then
+        focusX = playerMgr.player.position.x
+        focusY = playerMgr.player.position.y
     end
 
-    -- Converte a posição central (jogador/câmera) para coordenadas do grid
-    local centerGridX = math.floor(playerX / (grid.size / 2))
-    local centerGridY = math.floor(playerY / (grid.size / 2 * iso_scale))
+    local centerGridX = math.floor(focusX / (grid.size / 2))
+    local centerGridY = math.floor(focusY / (grid.size / 2 * iso_scale))
 
     -- Calcula o chunk central
     local currentChunkX = math.floor(centerGridX / chunkSize)
@@ -253,27 +263,27 @@ function GameplayScene:drawIsometricGrid()
 end
 
 function GameplayScene:draw()
-    if not self.camera then
-        love.graphics.printf("ERRO: Câmera não inicializada!", 0, love.graphics.getHeight() / 2, love.graphics.getWidth(),
-            "center")
-        return
-    end
+    -- REMOVIDO: Checagem de self.camera não é mais necessária
+    -- if not self.camera then ... end
 
     -- Clear screen (opcional, pode sobrepor com fundo do grid)
     love.graphics.setBackgroundColor(0.1, 0.1, 0.1) -- <<< MUDADO: Cor de fundo mais escura >>>
     love.graphics.clear(0.1, 0.1, 0.1, 1)           -- <<< MUDADO: Limpa com a mesma cor >>>
 
-    -- Aplica transformação da câmera para o mundo
-    self.camera:attach()
+    -- >>> LOG ANTES DE Camera:attach <<< -- Usa Camera global
+    print(string.format("  [DEBUG GS:draw] Cam Pos GLOBAL BEFORE attach: (%.1f, %.1f)", Camera.x, Camera.y)) -- DEBUG
 
-    -- Desenha o grid isométrico e o chão
-    self:drawIsometricGrid()
+    -- Aplica transformação da câmera para o mundo (usando Camera global)
+    Camera:attach()
+
+    -- Desenha o grid isométrico e o chão (Garantir que use Camera global internamente ou não precise)
+    self:drawIsometricGrid() -- Verificar se drawIsometricGrid usa self.camera
 
     -- Desenha elementos do jogo que ficam sob a câmera
     ManagerRegistry:CameraDraw() -- Assumindo que isso desenha player, inimigos, projéteis, etc.
 
-    -- Desfaz transformação da câmera
-    self.camera:detach()
+    -- Desfaz transformação da câmera (usando Camera global)
+    Camera:detach()
 
     -- Desenha elementos da UI que ficam por cima de tudo
     ManagerRegistry:draw() -- Assumindo que isso desenha UI como FloatingText

@@ -1,20 +1,14 @@
 local SceneManager = require("src.core.scene_manager")
+local Camera = require("src.config.camera")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
-local LobbyPortalManager = require("src.managers.lobby_portal_manager")
-local ItemDataManager = require("src.managers.item_data_manager")
-local LobbyStorageManager = require("src.managers.lobby_storage_manager")
-local LoadoutManager = require("src.managers.loadout_manager")
-local MockPlayerManager = require("src.managers.mock_player_manager")
-local ArchetypeManager = require("src.managers.archetype_manager")
-local HunterManager = require("src.managers.hunter_manager")
+local Constants = require("src.config.constants")
 local ManagerRegistry = require("src.managers.manager_registry")
+local LobbyPortalManager = require("src.managers.lobby_portal_manager")
 local EquipmentScreen = require("src.ui.screens.equipment_screen")
 local PortalScreen = require("src.ui.screens.portal_screen")
 local GuildScreen = require("src.ui.screens.guild_screen")
-local Constants = require("src.config.constants")
-
 
 local TabIds = Constants.TabIds
 
@@ -89,12 +83,21 @@ function LobbyScene:load(args)
     print("LobbyScene:load")
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
-    self.portalManager = LobbyPortalManager:new()
-    self.itemDataManager = ItemDataManager:new()
-    self.lobbyStorageManager = LobbyStorageManager:new(self.itemDataManager)
-    self.loadoutManager = LoadoutManager:new(self.itemDataManager)
-    self.archetypeManager = ArchetypeManager:new()
-    self.hunterManager = HunterManager:new(self.loadoutManager, self.itemDataManager, self.archetypeManager)
+
+    -- Configurações básicas da cena
+    self.camera = Camera:new()
+    self.camera:init()
+    self.activeTab = args and args.startTab or TabIds.PORTALS -- Começa nos portais ou conforme argumento
+
+    -- Inicializar Gerenciadores de UI/Componentes da Cena
+    -- (Obtém managers persistentes do Registry em vez de criá-los)
+    print("[LobbyScene] Obtendo managers persistentes do Registry...")
+    LobbyScene.itemDataManager = ManagerRegistry:get("itemDataManager")
+    LobbyScene.lobbyStorageManager = ManagerRegistry:get("lobbyStorageManager")
+    LobbyScene.loadoutManager = ManagerRegistry:get("loadoutManager")
+    LobbyScene.archetypeManager = ManagerRegistry:get("archetypeManager")
+    LobbyScene.hunterManager = ManagerRegistry:get("hunterManager")
+    LobbyScene.portalManager = LobbyPortalManager:new()
 
     self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
         self.loadoutManager)
@@ -102,22 +105,13 @@ function LobbyScene:load(args)
     self.guildScreen = GuildScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
         self.loadoutManager)
 
-    -- <<< CRIA E REGISTRA O MOCK PLAYER MANAGER (Mantido por enquanto) >>>
-    local mockPlayerManagerInstance = MockPlayerManager:new()
-    ManagerRegistry:register("playerManager", mockPlayerManagerInstance)
-    print("LobbyScene: MockPlayerManager registrado no ManagerRegistry.")
 
-    -- <<< INÍCIO: Adiciona runas ao storage para teste >>>
-    if self.lobbyStorageManager then
-        --local addedOrbital = self.lobbyStorageManager:addItem("rune_orbital_e", 1)
-        --local addedThunder = self.lobbyStorageManager:addItem("rune_thunder_e", 1)
-        --local addedAura = self.lobbyStorageManager:addItem("rune_aura_e", 1)
-        --print(string.format("LobbyScene: Tentativa de adicionar runas ao storage - Orbital:%s, Thunder:%s, Aura:%s",
-        --    tostring(addedOrbital > 0), tostring(addedThunder > 0), tostring(addedAura > 0)))
-    else
-        print("AVISO (LobbyScene): LobbyStorageManager não inicializado, não foi possível adicionar runas de teste.")
+    -- Validação básica se os managers foram carregados corretamente em main.lua
+    if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager then
+        error(
+            "ERRO CRÍTICO [LobbyScene:load]: Falha ao obter um ou mais managers persistentes do Registry! Eles foram inicializados em main.lua?")
     end
-    -- <<< FIM: Adiciona runas ao storage para teste >>>
+    print("[LobbyScene] Managers persistentes obtidos com sucesso.")
 
     -- Reseta estado de zoom/seleção
     self.portalScreen.isZoomedIn = false
@@ -391,7 +385,7 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                 -- print(string.format("LobbyScene:mousepressed - Tab %s HOVERED", tab.text)) -- LOG 2
                 -- print(string.format("LobbyScene: Tab '%s' clicado!", tab.text))
                 if tab.id == TabIds.QUIT then
-                    SceneManager.requestQuit()
+                    love.event.quit()
                 else
                     if i ~= self.activeTabIndex then -- Só ignora se realmente trocou de tab
                         self.activeTabIndex = i
@@ -602,12 +596,6 @@ function LobbyScene:unload()
     self.lobbyStorageManager = nil
     self.loadoutManager = nil
     self.hunterManager = nil
-
-    -- Desregistra Mock Player Manager
-    if ManagerRegistry then
-        ManagerRegistry:unregister("playerManager")
-        print("LobbyScene: MockPlayerManager desregistrado.")
-    end
 end
 
 return LobbyScene

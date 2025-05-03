@@ -82,8 +82,8 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
         end
         
         if playerManager and playerManager.player then
-            local newX = playerManager.player.position.x + moveX * playerManager.state:getTotalSpeed() * dt
-            local newY = playerManager.player.position.y + moveY * playerManager.state:getTotalSpeed() * dt
+            local newX = playerManager.player.position.x + moveX * playerManager.state:getTotalMoveSpeed() * dt
+            local newY = playerManager.player.position.y + moveY * playerManager.state:getTotalMoveSpeed() * dt
             
             playerManager.player.position.x = newX
             playerManager.player.position.y = newY

@@ -8,7 +8,7 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local BossHealthBar = require("src.ui.boss_health_bar")
-local PlayerManager = require("src.managers.player_manager")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 -- Função auxiliar para formatar tempo
 local function formatTime(s)
@@ -20,29 +20,29 @@ end
 -- Função auxiliar para desenhar status do player com estilo Solo Leveling
 local function drawPlayerStatus(x, y, label, value, color)
     love.graphics.setFont(fonts.hud)
-    
+
     local labelWidth = fonts.hud:getWidth(label)
     local valueWidth = fonts.hud:getWidth(value)
     local totalWidth = labelWidth + valueWidth + 10
     local height = fonts.hud:getHeight() + 8
-    
+
     -- Fundo do status com efeito gradiente
     love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.7)
     love.graphics.rectangle("fill", x, y, totalWidth, height, 2, 2)
-    
+
     -- Borda com efeito de brilho
     love.graphics.setColor(colors.window_border)
     love.graphics.setLineWidth(1)
     love.graphics.rectangle("line", x, y, totalWidth, height, 2, 2)
-    
+
     -- Desenha o label com efeito de brilho
     love.graphics.setColor(colors.text_label)
     love.graphics.print(label, x + 5, y + 4)
-    
+
     -- Desenha o valor com efeito de brilho
     love.graphics.setColor(color or colors.text_value)
     love.graphics.print(value, x + labelWidth + 10, y + 4)
-    
+
     -- Reset font após desenhar status
     love.graphics.setFont(fonts.main)
 end
@@ -57,14 +57,15 @@ function HUD:draw()
     -- Desenha a barra de vida do boss
     BossHealthBar:draw()
 
+    local playerManager = ManagerRegistry:get("playerManager")
     -- Barra de XP com estilo Solo Leveling
-    local experienceForNextLevel = PlayerManager.state.experienceToNextLevel - (PlayerManager.state.level > 1 and PlayerManager.state.experienceToNextLevel / (1 + PlayerManager.state.experienceMultiplier) or 0)
-    local currentExperience = PlayerManager.state.experience - (PlayerManager.state.level > 1 and PlayerManager.state.experienceToNextLevel / (1 + PlayerManager.state.experienceMultiplier) or 0)
+    local currentExperience = playerManager.state.experience or 0
+    local experienceForNextLevel = playerManager.state.experienceToNextLevel or 100 -- Usa 100 como fallback
     local barW = screenW * 0.4
     local barH = 20
     local barX = (screenW - barW) / 2
     local barY = 20
-    
+
     -- Desenha a barra de XP com o novo estilo
     elements.drawResourceBar({
         x = barX,
@@ -82,26 +83,26 @@ function HUD:draw()
         glow = true,
         glowColor = colors.xp_fill
     })
-    
+
     -- Nível do Player com estilo Solo Leveling
     love.graphics.setFont(fonts.hud)
-    local levelText = string.format("Nível %d", PlayerManager.state.level or 1)
+    local levelText = string.format("Nível %d", playerManager.state.level or 1)
     local levelWidth = fonts.hud:getWidth(levelText)
     local levelX = barX + (barW - levelWidth) / 2
     local levelY = barY + barH + 5
-    
+
     -- Fundo do nível
     love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.7)
     love.graphics.rectangle("fill", levelX - 10, levelY, levelWidth + 20, fonts.hud:getHeight() + 8, 2, 2)
-    
+
     -- Borda com efeito de brilho
     love.graphics.setColor(colors.window_border)
     love.graphics.rectangle("line", levelX - 10, levelY, levelWidth + 20, fonts.hud:getHeight() + 8, 2, 2)
-    
+
     -- Texto do nível com efeito de brilho
     love.graphics.setColor(colors.text_highlight)
     love.graphics.print(levelText, levelX, levelY + 4)
-    
+
     -- Reset font após nível
     love.graphics.setFont(fonts.main)
 
@@ -111,9 +112,9 @@ function HUD:draw()
     local spacing = 35
 
     -- Desenha as informações com o novo estilo
-    drawPlayerStatus(textX, textY, "Tempo:", formatTime(PlayerManager.gameTime or 0), colors.text_highlight)
-    drawPlayerStatus(textX + 150, textY, "Kills:", tostring(PlayerManager.kills or 0), colors.text_highlight)
-    drawPlayerStatus(textX + 300, textY, "Ouro:", tostring(PlayerManager.gold or 0), colors.text_gold)
+    drawPlayerStatus(textX, textY, "Tempo:", formatTime(playerManager.gameTime or 0), colors.text_highlight)
+    drawPlayerStatus(textX + 150, textY, "Kills:", tostring(playerManager.state.kills or 0), colors.text_highlight)
+    drawPlayerStatus(textX + 300, textY, "Ouro:", tostring(playerManager.state.gold or 0), colors.text_gold)
 
     -- Status de Auto-Ataque e Auto-Aim com novo estilo
     local autoX = screenW - 250
@@ -126,24 +127,25 @@ function HUD:draw()
 
     -- Auto-Ataque
     love.graphics.setFont(fonts.hud)
-    local autoAttackText = "[X] Auto-Ataque: " .. (PlayerManager.autoAttackEnabled and "ON" or "OFF")
-    love.graphics.setColor(PlayerManager.autoAttackEnabled and colors.text_highlight or colors.damage_player)
+    local autoAttackText = "[X] Auto-Ataque: " .. (playerManager.autoAttackEnabled and "ON" or "OFF")
+    love.graphics.setColor(playerManager.autoAttackEnabled and colors.text_highlight or colors.damage_player)
     love.graphics.print(autoAttackText, autoX, autoY + 15)
 
 
     -- Auto-Aim
-    local autoAimText = "[Z] Auto-Aim: " .. (PlayerManager.autoAimEnabled and "ON" or "OFF")
-    love.graphics.setColor(PlayerManager.autoAimEnabled and colors.text_highlight or colors.damage_player)
+    local autoAimText = "[Z] Auto-Aim: " .. (playerManager.autoAimEnabled and "ON" or "OFF")
+    love.graphics.setColor(playerManager.autoAimEnabled and colors.text_highlight or colors.damage_player)
     love.graphics.print(autoAimText, autoX, autoY + 45)
 
 
     -- Visualização da habilidade
-    local previewEnabled = PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and PlayerManager.equippedWeapon.attackInstance:getPreview()
+    local previewEnabled = playerManager.equippedWeapon and playerManager.equippedWeapon.attackInstance and
+        playerManager.equippedWeapon.attackInstance:getPreview()
     local abilityText = "[V] Previa da habilidade: " .. (previewEnabled and "ON" or "OFF")
     love.graphics.setColor(previewEnabled and colors.text_highlight or colors.damage_player)
     love.graphics.print(abilityText, autoX, autoY + 75)
 
-    
+
     -- Reset font no final do HUD
     love.graphics.setFont(fonts.main)
 
@@ -177,7 +179,6 @@ function HUD:draw()
         cornerSize = 15
     })
     ]]
-
 end
 
 return HUD

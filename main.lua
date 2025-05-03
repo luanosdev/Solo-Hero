@@ -1,60 +1,147 @@
--- Novo sistema de cenas
+-- main.lua
+-- Love2D callbacks e inicialização principal
+
+-- DEBUG: Configurar saída para UTF-8 se possível (tentativa)
+xpcall(function()
+    if love.system.getOS() == "Windows" then
+        os.execute("chcp 65001 > nul") -- Tenta definir code page para UTF-8
+    end
+end, function(err)
+    print("Aviso: Falha ao tentar definir code page para UTF-8:", err)
+end)
+
+-- [[ Variáveis Globais Essenciais ]] --
 local SceneManager = require("src.core.scene_manager")
+local ManagerRegistry = require("src.managers.manager_registry")
+-- NOVOS REQUIRES para Managers Persistentes
+local ItemDataManager = require("src.managers.item_data_manager")
+local ArchetypeManager = require("src.managers.archetype_manager")
+local LoadoutManager = require("src.managers.loadout_manager")
+local LobbyStorageManager = require("src.managers.lobby_storage_manager")
+local HunterManager = require("src.managers.hunter_manager")
+local fonts = require("src.ui.fonts")
 
+local currentScene = nil
+
+-- [[ Inicialização LOVE ]] --
 function love.load()
-    math.randomseed(os.time())              -- <<< NOVO: Inicializa o gerador de números aleatórios
-    love.filesystem.setIdentity("SoloHero") -- <<< NOVO: Define a pasta de salvamento
+    print("\n--- Iniciando love.load() ---")
+    fonts.load()
+    love.graphics.setDefaultFilter("nearest", "nearest")
+    love.keyboard.setKeyRepeat(true) -- Habilita repetição de tecla
 
-    -- Window settings - Fullscreen (mantido, pode ser útil globalmente)
-    love.window.setMode(0, 0, { fullscreen = true })
-    -- Carrega a primeira cena
     SceneManager.switchScene("bootloader_scene")
+
+    print("[main.lua] Inicializando ManagerRegistry...")
+    print("[main.lua] Criando e carregando managers persistentes...")
+
+    print("  - Criando ItemDataManager...")
+    local itemDataMgr = ItemDataManager:new()
+    ManagerRegistry:register("itemDataManager", itemDataMgr)
+    print("    > ItemDataManager registrado.")
+
+    print("  - Criando ArchetypeManager...")
+    local archetypeMgr = ArchetypeManager:new()
+    ManagerRegistry:register("archetypeManager", archetypeMgr)
+    print("    > ArchetypeManager registrado.")
+
+    print("  - Criando LobbyStorageManager...")
+    local lobbyStorageMgr = LobbyStorageManager:new(itemDataMgr) -- Injeta dependência
+    ManagerRegistry:register("lobbyStorageManager", lobbyStorageMgr)
+    print("    > LobbyStorageManager registrado.")
+
+    print("  - Criando LoadoutManager...")
+    local loadoutMgr = LoadoutManager:new(itemDataMgr) -- Passa apenas ItemDataManager
+    ManagerRegistry:register("loadoutManager", loadoutMgr)
+    print("    > LoadoutManager registrado.")
+
+    print("  - Criando HunterManager...")
+    local hunterMgr = HunterManager:new(loadoutMgr, itemDataMgr, archetypeMgr) -- Injeta dependências
+    ManagerRegistry:register("hunterManager", hunterMgr)
+    print("    > HunterManager registrado.")
+
+    print("[main.lua] Managers persistentes registrados no ManagerRegistry.")
+
+    print("--- love.load() concluído ---")
 end
 
-function love.update(dt)
-    -- Verifica se o SceneManager solicitou o encerramento
-    if SceneManager.isQuitRequested() then
-        print("main.lua: SceneManager solicitou quit. Descarregando cena atual...")
-        -- Garante que a cena atual seja descarregada antes de sair
-        if SceneManager.currentScene and SceneManager.currentScene.unload then
-            SceneManager.currentScene:unload()
-            SceneManager.currentScene = nil -- Limpa referência
-        end
-        print("main.lua: Chamando love.event.quit()")
-        love.event.quit() -- Encerra o jogo
-        return            -- Interrompe o update aqui
-    end
+-- [[ Ciclo de Vida LOVE ]] --
 
+function love.update(dt)
     -- Delega o update para a cena atual (se não for encerrar)
     SceneManager.update(dt)
 end
 
 function love.draw()
-    -- Clear the screen (pode ser definido pela cena, mas um default é bom)
-    love.graphics.clear(0.1, 0.1, 0.1, 1) -- Cor de fundo padrão escura
-
-    -- Delega o draw para a cena atual
+    -- Desenha a cena ativa
     SceneManager.draw()
+
+    -- Informações de Debug (FPS, etc.) - Opcional
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setFont(fonts.main)
+    love.graphics.print("FPS: " .. love.timer.getFPS(), 10, 10)
 end
 
--- Delega eventos de input para o SceneManager
+-- [[ Callbacks de Input LOVE ]] --
+
 function love.keypressed(key, scancode, isrepeat)
+    -- Passa o evento para a cena ativa
     SceneManager.keypressed(key, scancode, isrepeat)
+
+    -- Toggle Fullscreen com F11 (exemplo global)
+    if key == "f11" then
+        local isFullscreen, fullscreenType = love.window.getFullscreen()
+        love.window.setFullscreen(not isFullscreen, "desktop")
+    end
+end
+
+function love.keyreleased(key, scancode)
+    SceneManager.keyreleased(key, scancode)
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
     SceneManager.mousepressed(x, y, button, istouch, presses)
 end
 
--- Adiciona funções para keyreleased e mousemoved para delegar também
-function love.keyreleased(key, scancode)
-    SceneManager.keyreleased(key, scancode)
+function love.mousereleased(x, y, button, istouch, presses)
+    SceneManager.mousereleased(x, y, button, istouch, presses)
 end
 
 function love.mousemoved(x, y, dx, dy, istouch)
     SceneManager.mousemoved(x, y, dx, dy, istouch)
 end
 
-function love.mousereleased(x, y, button, istouch, presses)
-    SceneManager.mousereleased(x, y, button, istouch, presses)
+--[[
+    Callback chamado quando o jogo está prestes a fechar.
+    Ideal para salvar o estado final.
+]]
+function love.quit()
+    print("\n--- Iniciando love.quit() ---")
+    -- Chama o método de unload da cena atual, se existir
+    if SceneManager.currentScene and SceneManager.currentScene.unload then
+        SceneManager.currentScene:unload()
+        SceneManager.currentScene = nil -- Limpa referência
+    end
+
+    -- Salvar estado de Managers Globais/Persistentes (Exemplo)
+    print("[main.lua] Solicitando salvamento final dos managers persistentes...")
+    local hunterMgr = ManagerRegistry:get("hunterManager")
+    if hunterMgr and hunterMgr.saveState then
+        print("  - Salvando HunterManager...")
+        hunterMgr:saveState()
+    end
+    local loadoutMgr = ManagerRegistry:get("loadoutManager")
+    if loadoutMgr and loadoutMgr.saveState then -- saveState() pode não existir em LoadoutManager? Verificar
+        print("  - Salvando LoadoutManager...")
+        loadoutMgr:saveState()                  -- Ou :saveAllLoadouts() se for o caso
+    end
+    local lobbyStorageMgr = ManagerRegistry:get("lobbyStorageManager")
+    if lobbyStorageMgr and lobbyStorageMgr.saveStorage then
+        print("  - Salvando LobbyStorageManager...")
+        lobbyStorageMgr:saveStorage()
+    end
+    -- Adicione saves para outros managers persistentes aqui se necessário
+
+    print("--- love.quit() concluído ---")
+    return false -- Retorna false para permitir o fechamento padrão
 end

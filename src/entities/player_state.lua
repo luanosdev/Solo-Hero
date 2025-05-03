@@ -3,58 +3,98 @@
     Manages player's current state and status
 ]]
 
+local Constants = require("src.config.constants") -- Usado para valores padrão se necessário
+
 local PlayerState = {
     currentHealth = 0,
     maxHealth = 0,
     isAlive = true,
-    
+
     -- Atributos de Jogo
     level = 1,
     experience = 0,
-    experienceToNextLevel = 50, -- Valor inicial, pode ser ajustado
-    experienceMultiplier = 1.10, -- Multiplicador para o próximo nível
+    experienceToNextLevel = 100,
+    experienceMultiplier = 1.10,
     kills = 0,
     gold = 0,
-    
-    -- Atributos base
-    baseHealth = 0,
-    baseDamage = 0,
-    baseDefense = 0,
-    baseSpeed = 0,
-    baseAttackSpeed = 0,
-    baseCriticalChance = 0,
-    baseCriticalMultiplier = 0,
-    baseHealthRegen = 0, -- Nova propriedade: regeneração de vida base
-    baseMultiAttackChance = 0, -- Nova propriedade: chance de ataque múltiplo base
-    baseArea = 0, -- Nova propriedade: área base
-    baseRange = 0, -- Nova propriedade: alcance base
-    
-    -- Bônus por nível (em porcentagem)
+
+    -- Atributos base (Nomes padronizados com initialStats)
+    health = 100,
+    damage = 0,            -- Nota: 'damage' parece ser tratado de forma diferente (vem da arma?), manter por enquanto
+    defense = 10,
+    moveSpeed = 40,        -- Renomeado de 'speed'
+    attackSpeed = 1.0,
+    critChance = 0.1,      -- Renomeado de 'criticalChance', valor como fração (0.1 = 10%)
+    critDamage = 1.5,      -- Renomeado de 'criticalMultiplier', valor como multiplicador (1.5 = +50%)
+    healthRegen = 0.5,     -- HP/s base
+    multiAttackChance = 0, -- Como fração (0 = 0%)
+    runeSlots = 1,
+
+    -- Atributos Adicionados (com base nos logs de initialStats, com padrões)
+    expBonus = 1.0,            -- Multiplicador
+    healingBonus = 1.0,        -- Multiplicador
+    pickupRadius = 100,        -- Pixels
+    healthRegenDelay = 8.0,    -- Segundos
+    range = 1.0,               -- Multiplicador? Pixels? (Padrão 1)
+    luck = 1.0,                -- Multiplicador? (Padrão 1)
+    attackArea = 1.0,          -- Multiplicador? (Padrão 1)
+    healthPerTick = 1.0,       -- HP por tick de regeneração (Padrão 1)
+    cooldownReduction = 1.0,   -- Multiplicador (1.0 = sem redução)
+    healthRegenCooldown = 1.0, -- Segundos entre ticks de regen? (Padrão 1)
+
+    -- Bônus por nível (em porcentagem ou valor base, dependendo do stat)
     levelBonus = {
         health = 0,
         damage = 0,
         defense = 0,
-        speed = 0,
+        moveSpeed = 0,
         attackSpeed = 0,
-        criticalChance = 0,
-        criticalMultiplier = 0,
-        healthRegen = 0, -- Novo bônus: regeneração de vida
-        multiAttackChance = 0, -- Novo bônus: chance de ataque múltiplo
-        area = 0, -- Novo bônus: área
-        range = 0 -- Novo bônus: alcance
+        critChance = 0, -- Renomeado
+        critDamage = 0, -- Renomeado
+        healthRegen = 0,
+        multiAttackChance = 0,
+        -- Adicionar outros bônus de level se aplicável (luck, area, etc.)? Por enquanto não.
+        expBonus = 0,
+        healingBonus = 0,
+        pickupRadius = 0,
+        healthRegenDelay = 0,
+        range = 0,
+        luck = 0,
+        attackArea = 0,
+        healthPerTick = 0,
+        cooldownReduction = 0,
+        healthRegenCooldown = 0
     },
 
-    -- Bônus fixos
+    -- Bônus fixos (aditivos)
     fixedBonus = {
-        speed = 0, -- Bônus fixo de velocidade em m/s
-        health = 0, -- Bônus fixo de vida
-        defense = 0, -- Bônus fixo de defesa
+        health = 0,
+        damage = 0,
+        defense = 0,
+        moveSpeed = 0,  -- Renomeado
+        attackSpeed = 0,
+        critChance = 0, -- Renomeado
+        critDamage = 0, -- Renomeado
         healthRegen = 0,
-        multiAttackChance = 0, -- Bônus fixo de chance de ataque múltiplo
-        criticalChance = 0, -- Bônus fixo de chance de crítico
-        criticalMultiplier = 0 -- Bônus fixo de multiplicador de crítico
-    }
+        multiAttackChance = 0,
+        -- Adicionar outros bônus fixos se aplicável
+        expBonus = 0,
+        healingBonus = 0,
+        pickupRadius = 0,
+        healthRegenDelay = 0,
+        range = 0,
+        luck = 0,
+        attackArea = 0,
+        healthPerTick = 0,
+        cooldownReduction = 0,
+        healthRegenCooldown = 0
+    },
+
+    -- Modificadores de status (ex: buffs/debuffs temporários)
+    statusModifiers = {}
 }
+
+PlayerState.__index = PlayerState
 
 --[[
     Initialize player state
@@ -62,41 +102,81 @@ local PlayerState = {
 ]]
 function PlayerState:init(baseStats)
     -- Inicializa atributos base
-    self.baseHealth = baseStats.health
-    self.baseDamage = baseStats.damage
-    self.baseDefense = baseStats.defense
-    self.baseSpeed = baseStats.speed
-    self.baseAttackSpeed = baseStats.attackSpeed
-    self.baseCriticalChance = baseStats.criticalChance or 20
-    self.baseCriticalMultiplier = baseStats.criticalMultiplier or 1.5
-    self.baseHealthRegen = baseStats.healthRegen or 0 -- Inicializa regeneração de vida base
-    self.baseMultiAttackChance = baseStats.multiAttackChance or 0 -- Inicializa chance de ataque múltiplo base
-    self.baseArea = baseStats.area or 0 -- Inicializa área base
-    self.baseRange = baseStats.range or 0 -- Inicializa alcance base
-    
+    self.health = baseStats.health or PlayerState.health
+    self.damage = baseStats.damage or PlayerState.damage
+    self.defense = baseStats.defense or PlayerState.defense
+    self.moveSpeed = baseStats.moveSpeed or PlayerState.moveSpeed    -- Atualizado
+    self.attackSpeed = baseStats.attackSpeed or PlayerState.attackSpeed
+    self.critChance = baseStats.critChance or PlayerState.critChance -- Atualizado
+    self.critDamage = baseStats.critDamage or PlayerState.critDamage -- Atualizado
+    self.healthRegen = baseStats.healthRegen or PlayerState.healthRegen
+    self.multiAttackChance = baseStats.multiAttackChance or PlayerState.multiAttackChance
+    self.runeSlots = baseStats.runeSlots or PlayerState.runeSlots
+    -- Adiciona inicialização para os novos atributos
+    self.expBonus = baseStats.expBonus or PlayerState.expBonus
+    self.healingBonus = baseStats.healingBonus or PlayerState.healingBonus
+    self.pickupRadius = baseStats.pickupRadius or PlayerState.pickupRadius
+    self.healthRegenDelay = baseStats.healthRegenDelay or PlayerState.healthRegenDelay
+    self.range = baseStats.range or PlayerState.range
+    self.luck = baseStats.luck or PlayerState.luck
+    self.attackArea = baseStats.attackArea or PlayerState.attackArea
+    self.healthPerTick = baseStats.healthPerTick or PlayerState.healthPerTick
+    self.cooldownReduction = baseStats.cooldownReduction or PlayerState.cooldownReduction
+    self.healthRegenCooldown = baseStats.healthRegenCooldown or PlayerState.healthRegenCooldown
+
     -- Reinicializa atributos de jogo para o estado inicial
     self.level = 1
     self.experience = 0
-    self.experienceToNextLevel = 50 -- Ou um valor base configurável
-    self.experienceMultiplier = 1.10 -- Ou um valor base configurável
+    self.experienceToNextLevel = 100
+    self.experienceMultiplier = 1.10
     self.kills = 0
     self.gold = 0
-    
-    -- Inicializa bônus de nível
+
+    -- Inicializa bônus de nível (com novos nomes e adicionados)
     self.levelBonus = {
         health = 0,
         damage = 0,
         defense = 0,
-        speed = 0,
+        moveSpeed = 0,
         attackSpeed = 0,
-        criticalChance = 0,
-        criticalMultiplier = 0,
-        healthRegen = 0, -- Inicializa bônus de regeneração de vida
-        multiAttackChance = 0, -- Inicializa bônus de chance de ataque múltiplo
-        area = 0, -- Inicializa bônus de área
-        range = 0 -- Inicializa bônus de alcance
+        critChance = 0,
+        critDamage = 0,
+        healthRegen = 0,
+        multiAttackChance = 0,
+        expBonus = 0,
+        healingBonus = 0,
+        pickupRadius = 0,
+        healthRegenDelay = 0,
+        range = 0,
+        luck = 0,
+        attackArea = 0,
+        healthPerTick = 0,
+        cooldownReduction = 0,
+        healthRegenCooldown = 0
     }
-    
+    -- Inicializa bônus fixos (com novos nomes e adicionados)
+    self.fixedBonus = {
+        health = 0,
+        damage = 0,
+        defense = 0,
+        moveSpeed = 0,
+        attackSpeed = 0,
+        critChance = 0,
+        critDamage = 0,
+        healthRegen = 0,
+        multiAttackChance = 0,
+        expBonus = 0,
+        healingBonus = 0,
+        pickupRadius = 0,
+        healthRegenDelay = 0,
+        range = 0,
+        luck = 0,
+        attackArea = 0,
+        healthPerTick = 0,
+        cooldownReduction = 0,
+        healthRegenCooldown = 0
+    }
+
     -- Inicializa vida atual e máxima
     self.maxHealth = self:getTotalHealth()
     self.currentHealth = self.maxHealth
@@ -108,7 +188,7 @@ end
     @return number Total health
 ]]
 function PlayerState:getTotalHealth()
-    return self.baseHealth * (1 + self.levelBonus.health / 100)
+    return (self.health * (1 + self.levelBonus.health / 100)) + self.fixedBonus.health
 end
 
 --[[
@@ -118,13 +198,11 @@ end
 ]]
 function PlayerState:getTotalDamage(baseDamage)
     local effectiveBase = 0
-    if type(baseDamage) == "table" and baseDamage.min and baseDamage.max then
-        effectiveBase = (baseDamage.min + baseDamage.max) / 2
-    elseif type(baseDamage) == "number" then
+    if type(baseDamage) == "number" then
         effectiveBase = baseDamage
     else
         print("[PlayerState:getTotalDamage] Aviso: baseDamage inválido -", baseDamage)
-        effectiveBase = 0 -- Ou algum valor padrão
+        effectiveBase = self.damage -- Usa o 'damage' base do PlayerState como fallback
     end
 
     local totalDamage = math.floor(effectiveBase * (1 + self.levelBonus.damage / 100))
@@ -136,7 +214,7 @@ end
     @return number Total defense
 ]]
 function PlayerState:getTotalDefense()
-    return math.floor(self.baseDefense * (1 + self.levelBonus.defense / 100) + self.fixedBonus.defense)
+    return math.floor(self.defense * (1 + self.levelBonus.defense / 100) + self.fixedBonus.defense)
 end
 
 --[[
@@ -145,17 +223,17 @@ end
 ]]
 function PlayerState:getDamageReduction()
     local defense = self:getTotalDefense()
-    local K = 52
+    local K = Constants and Constants.DEFENSE_DAMAGE_REDUCTION_K
     local reduction = defense / (defense + K)
-    return math.min(0.8, reduction) -- Limita a redução em 80%
+    return math.min(Constants and Constants.MAX_DAMAGE_REDUCTION, reduction) -- Limita a redução
 end
 
 --[[
-    Get total speed (base + bonus)
-    @return number Total speed
+    Get total move speed (base + bonus)
+    @return number Total move speed
 ]]
-function PlayerState:getTotalSpeed()
-    return self.baseSpeed * (1 + self.levelBonus.speed / 100) + self.fixedBonus.speed
+function PlayerState:getTotalMoveSpeed()
+    return (self.moveSpeed * (1 + self.levelBonus.moveSpeed / 100)) + self.fixedBonus.moveSpeed
 end
 
 --[[
@@ -163,23 +241,25 @@ end
     @return number Total attack speed
 ]]
 function PlayerState:getTotalAttackSpeed()
-    return self.baseAttackSpeed * (1 + self.levelBonus.attackSpeed / 100)
+    return (self.attackSpeed * (1 + self.levelBonus.attackSpeed / 100)) + self.fixedBonus.attackSpeed
 end
 
 --[[
     Get total critical chance (base + bonus)
     @return number Total critical chance
 ]]
-function PlayerState:getTotalCriticalChance()
-    return self.baseCriticalChance * (1 + self.levelBonus.criticalChance / 100) + self.fixedBonus.criticalChance
+function PlayerState:getTotalCritChance()
+    return self.critChance * (1 + self.levelBonus.critChance / 100) + self.fixedBonus.critChance
 end
 
 --[[
     Get total critical multiplier (base + bonus)
     @return number Total critical multiplier
 ]]
-function PlayerState:getTotalCriticalMultiplier()
-    return self.baseCriticalMultiplier * (1 + self.levelBonus.criticalMultiplier / 100) + self.fixedBonus.criticalMultiplier
+function PlayerState:getTotalCritDamage()
+    -- Assumindo bônus de level e fixo são aditivos (pois são multiplicadores/%)
+    -- Retorna como multiplicador (ex: 1.7 para +70% dano)
+    return (self.critDamage + self.levelBonus.critDamage / 100) + self.fixedBonus.critDamage / 100
 end
 
 --[[
@@ -187,7 +267,8 @@ end
     @return number Quantidade de HP recuperado por segundo
 ]]
 function PlayerState:getTotalHealthRegen()
-    return self.baseHealthRegen * (1 + self.levelBonus.healthRegen / 100) + self.fixedBonus.healthRegen
+    -- Assumindo bônus de level percentual, fixo aditivo
+    return (self.healthRegen * (1 + self.levelBonus.healthRegen / 100)) + self.fixedBonus.healthRegen
 end
 
 --[[
@@ -195,7 +276,7 @@ end
     @return number Total multi attack chance
 ]]
 function PlayerState:getTotalMultiAttackChance()
-    return self.baseMultiAttackChance * (1 + self.levelBonus.multiAttackChance / 100)
+    return self.multiAttackChance * (1 + self.levelBonus.multiAttackChance / 100)
 end
 
 --[[
@@ -221,13 +302,17 @@ function PlayerState:takeDamage(damage)
     return actualDamage -- Retorna o dano real sofrido
 end
 
---[[
-    Heal player
-    @param amount Amount of health to restore
-]]
+--- Heal player
+---@param amount number Amount of health to restore
+---@return number|nil Effective amount of health restored
 function PlayerState:heal(amount)
     if not self.isAlive then return end
-    self.currentHealth = math.min(self.currentHealth + amount, self:getTotalHealth())
+
+    local effectiveAmount = amount *
+        (self.healingBonus * (1 + self.levelBonus.healingBonus / 100)) -- Aplica bônus de cura
+    self.currentHealth = math.min(self.currentHealth + effectiveAmount, self:getTotalHealth())
+
+    return effectiveAmount
 end
 
 --[[
@@ -235,7 +320,9 @@ end
     @return number Health percentage (0 to 1)
 ]]
 function PlayerState:getHealthPercentage()
-    return self.currentHealth / self:getTotalHealth()
+    local totalHealth = self:getTotalHealth()
+    if totalHealth <= 0 then return 0 end -- Evita divisão por zero
+    return self.currentHealth / totalHealth
 end
 
 --[[
@@ -245,92 +332,41 @@ end
     @param fixed Fixed percentage of bonus to add (for defense)
 ]]
 function PlayerState:addAttributeBonus(attribute, percentage, fixed)
-    -- Garante que 'fixed' tenha um valor numérico para evitar erros
     fixed = fixed or 0
 
-    if self.levelBonus[attribute] then
-        -- Adiciona o bônus
+    local isLevelBonus = self.levelBonus[attribute] ~= nil
+    local isFixedBonus = self.fixedBonus[attribute] ~= nil
+
+    if isLevelBonus then
         local oldBonus = self.levelBonus[attribute]
-        self.levelBonus[attribute] = self.levelBonus[attribute] + percentage
-        
-        -- Debug: Mostra o bônus adicionado
+        self.levelBonus[attribute] = self.levelBonus[attribute] +
+            percentage -- Assume bônus de level é sempre percentual? Verificar.
         print(string.format(
-            "[PlayerState] Bônus de %s adicionado: +%.1f%% (Antigo: %.1f%%, Novo: %.1f%%)", 
-            attribute, 
-            percentage,
-            oldBonus,
-            self.levelBonus[attribute]
-        ))
-        
-        -- Atualiza os valores totais baseado no atributo
-        if attribute == "health" then
-            self.maxHealth = self:getTotalHealth()
-            self.currentHealth = self.maxHealth
-            print(string.format("[PlayerState] Vida atualizada: %.1f/%.1f", self.currentHealth, self.maxHealth))
-        elseif attribute == "damage" then
-            print(string.format("[PlayerState] Dano total: %.1f", self:getTotalDamage(self.baseDamage)))
-        elseif attribute == "defense" then
-            self.fixedBonus.defense = self.fixedBonus.defense + fixed
-            print(string.format("[PlayerState] Defesa total: %.1f (Base: %.1f, Bônus: %.1f%%, Fixo: %.1f)", 
-                self:getTotalDefense(), 
-                self.baseDefense, 
-                self.levelBonus.defense,
-                self.fixedBonus.defense))
-        elseif attribute == "speed" then
-            print(string.format("[PlayerState] Velocidade total: %.1f", self:getTotalSpeed()))
-        elseif attribute == "attackSpeed" then
-            print(string.format("[PlayerState] Velocidade de ataque total: %.1f", self:getTotalAttackSpeed()))
-        elseif attribute == "criticalChance" then
-            print(string.format("[PlayerState] Chance de crítico total: %.1f%%", self:getTotalCriticalChance()))
-        elseif attribute == "criticalMultiplier" then
-            print(string.format("[PlayerState] Multiplicador de crítico total: %.1fx", self:getTotalCriticalMultiplier()))
-        elseif attribute == "healthRegen" then
-            self.fixedBonus.healthRegen = self.fixedBonus.healthRegen + fixed
-            print(string.format("[PlayerState] Regeneração de vida total: %.1f/s (Base: %.1f, Bônus: %.1f%%, Fixo: %.1f)", 
-                self:getTotalHealthRegen(),
-                self.baseHealthRegen,
-                self.levelBonus.healthRegen,
-                self.fixedBonus.healthRegen))
-        elseif attribute == "multiAttackChance" then
-            print(string.format("[PlayerState] Chance de ataque múltiplo total: %.1f%%", self:getTotalMultiAttackChance()))
-        elseif attribute == "area" then
-            print(string.format("[PlayerState] Área total: %.1f", self:getTotalArea()))
-        elseif attribute == "range" then
-            print(string.format("[PlayerState] Alcance total: %.1f", self:getTotalRange()))
-        end
-    elseif attribute == "fixed_speed" then
-        -- Adiciona bônus fixo de velocidade
-        self.fixedBonus.speed = self.fixedBonus.speed + percentage
-        print(string.format("[PlayerState] Velocidade fixa adicionada: +%.1f m/s (Total: %.1f m/s)", percentage, self.fixedBonus.speed))
-    elseif attribute == "fixed_health" then
-        -- Adiciona bônus fixo de vida
-        self.fixedBonus.health = self.fixedBonus.health + percentage
-        self.maxHealth = self:getTotalHealth()
-        self.currentHealth = self.maxHealth
-        print(string.format("[PlayerState] Vida fixa adicionada: +%.1f (Total: %.1f)", percentage, self.fixedBonus.health))
-    elseif attribute == "fixed_defense" then
-        -- Adiciona bônus fixo de defesa
-        self.fixedBonus.defense = self.fixedBonus.defense + percentage
-        print(string.format("[PlayerState] Defesa fixa adicionada: +%.1f (Total: %.1f)", percentage, self.fixedBonus.defense))
-    elseif attribute == "fixed_health_regen" then
-        -- Adiciona bônus fixo de regeneração de vida
-        self.fixedBonus.healthRegen = self.fixedBonus.healthRegen + percentage
-        print(string.format("[PlayerState] Regeneração de vida fixa adicionada: +%.1f HP/s (Total: %.1f HP/s)", percentage, self.fixedBonus.healthRegen))
-    elseif attribute == "fixed_multi_attack" then
-        -- Adiciona bônus fixo de chance de ataque múltiplo
-        self.fixedBonus.multiAttackChance = self.fixedBonus.multiAttackChance + percentage
-        print(string.format("[PlayerState] Chance de ataque múltiplo fixa adicionada: +%.1f%% (Total: %.1f%%)", percentage, self.fixedBonus.multiAttackChance))
-    elseif attribute == "fixed_critical_chance" then
-        -- Adiciona bônus fixo de chance de crítico
-        self.fixedBonus.criticalChance = self.fixedBonus.criticalChance + percentage
-        print(string.format("[PlayerState] Chance de crítico fixa adicionada: +%.1f%% (Total: %.1f%%)", percentage, self.fixedBonus.criticalChance))
-    elseif attribute == "fixed_critical_multiplier" then
-        -- Adiciona bônus fixo de multiplicador de crítico
-        self.fixedBonus.criticalMultiplier = self.fixedBonus.criticalMultiplier + percentage
-        print(string.format("[PlayerState] Multiplicador de crítico fixo adicionado: +%.1fx (Total: %.1fx)", percentage, self.fixedBonus.criticalMultiplier))
+            "[PlayerState] Bônus de Level %s adicionado: +%.1f%% (Antigo: %.1f%%, Novo: %.1f%%)",
+            attribute, percentage, oldBonus, self.levelBonus[attribute]))
+    elseif isFixedBonus then -- Se não for bônus de level, talvez seja fixo?
+        local oldBonus = self.fixedBonus[attribute]
+        self.fixedBonus[attribute] = self.fixedBonus[attribute] +
+            (fixed or percentage) -- Usa 'fixed' se fornecido, senão 'percentage'
+        print(string.format(
+            "[PlayerState] Bônus Fixo %s adicionado: +%.1f (Antigo: %.1f, Novo: %.1f)",
+            attribute, (fixed or percentage), oldBonus, self.fixedBonus[attribute]))
     else
-        print(string.format("[PlayerState] ERRO: Atributo '%s' não encontrado", attribute))
+        print(string.format("[PlayerState] ERRO: Atributo '%s' não encontrado para adicionar bônus.", attribute))
+        return -- Sai se o atributo não existe nem em levelBonus nem em fixedBonus
     end
+
+    -- Atualiza valores derivados APENAS se for health
+    if attribute == "health" then
+        self.maxHealth = self:getTotalHealth()
+        -- Cura completa ao ganhar vida máxima? Ou mantém percentual? Manter percentual parece melhor.
+        local percent = self:getHealthPercentage()
+        self.currentHealth = self.maxHealth * percent
+        print(string.format("[PlayerState] Vida atualizada: %.1f/%.1f", self.currentHealth, self.maxHealth))
+    end
+
+    -- Adiciona logs para outros atributos se necessário (getTotal... já calcula o valor final)
+    -- Ex: if attribute == "moveSpeed" then print(...) end
 end
 
 --[[
@@ -339,9 +375,10 @@ end
 ]]
 function PlayerState:updateWeaponStats(weapon)
     if not weapon then return end
-    
-    -- Atualiza apenas o dano base da arma
-    self.baseDamage = weapon.damage
+    -- Atualiza apenas o dano base da arma (se a arma definir 'damage')
+    self.damage = weapon.damage or self.damage -- Mantém o anterior se a arma não tiver 'damage'
+    -- Poderia atualizar outros stats aqui se a arma os fornecer (ex: attackSpeed base da arma)
+    -- self.attackSpeed = weapon.attackSpeed or self.attackSpeed
 end
 
 --[[
@@ -349,7 +386,9 @@ end
     @return number Total area
 ]]
 function PlayerState:getTotalArea()
-    return self.baseArea * (1 + self.levelBonus.area / 100)
+    -- Usando attackArea agora que foi adicionado
+    return self:getTotalAttackArea() -- Delega para o novo método (se criado) ou cálculo direto
+    -- return (self.attackArea * (1 + self.levelBonus.attackArea / 100)) + self.fixedBonus.attackArea
 end
 
 --[[
@@ -357,7 +396,8 @@ end
     @return number Total range
 ]]
 function PlayerState:getTotalRange()
-    return self.baseRange * (1 + self.levelBonus.range / 100)
+    -- Assumindo bônus de level percentual, fixo aditivo
+    return (self.range * (1 + self.levelBonus.range / 100)) + self.fixedBonus.range
 end
 
 --[[
@@ -367,18 +407,18 @@ end
 ]]
 function PlayerState:addExperience(amount)
     if not self.isAlive then return false end
-
-    self.experience = self.experience + amount
+    local effectiveAmount = amount * (self.expBonus * (1 + self.levelBonus.expBonus / 100)) -- Aplica bônus de XP
+    self.experience = self.experience + effectiveAmount
     local leveledUp = false
     while self.experience >= self.experienceToNextLevel do
         self.level = self.level + 1
         local previousRequired = self.experienceToNextLevel
-        -- Mantém o excesso de XP para o próximo nível
         self.experience = self.experience - previousRequired
-        self.experienceToNextLevel = previousRequired + math.floor(previousRequired * self.experienceMultiplier)
+        -- Recalcula XP para o próximo nível (ex: usando constante ou fórmula)
+        local xpFactor = Constants and Constants.XP_LEVEL_FACTOR or 1.15
+        self.experienceToNextLevel = math.floor(self.experienceToNextLevel * xpFactor)
         leveledUp = true
-        -- TODO: Considerar adicionar lógica de recompensa de level up aqui (cura, bônus, etc.)
-        -- Ex: self:heal(self:getTotalHealth() * 0.25) -- Cura 25% da vida ao subir de nível
+        self:heal(self:getTotalHealth() * 0.25) -- Cura 25% ao subir de nível
     end
     return leveledUp
 end
@@ -389,6 +429,8 @@ end
 ]]
 function PlayerState:addGold(amount)
     if not self.isAlive then return end
+    -- Aplicar bônus de sorte/gold find aqui?
+    -- local effectiveAmount = amount * (self:getTotalLuck() * ??)
     self.gold = self.gold + amount
 end
 
@@ -402,22 +444,85 @@ end
 
 --[[
     Construtor: Cria e inicializa uma nova instância de PlayerState.
-    @param baseStats (table): Tabela contendo os atributos base.
+    @param initialStats (table): Tabela contendo os atributos base.
     @return table: A nova instância de PlayerState.
 ]]
-function PlayerState:new(baseStats)
-    local instance = {}
-    -- Copia propriedades padrão da classe para a instância (opcional, mas pode ser útil)
-    for k, v in pairs(PlayerState) do
-        if type(v) ~= 'function' then -- Não copia funções
-            instance[k] = v
+function PlayerState:new(initialStats)
+    print("--- PlayerState:new --- ") -- DEBUG
+    local state = setmetatable({}, PlayerState)
+
+    -- 1. Define valores padrão da CLASSE para todos os atributos
+    for key, value in pairs(PlayerState) do
+        if type(value) ~= 'function' and key ~= '__index' then -- Copia apenas dados, não métodos
+            if type(value) == 'table' then
+                state[key] = {}                                -- Cria uma nova tabela para bônus
+                for k, v in pairs(value) do
+                    state[key][k] = v
+                end
+            else
+                state[key] = value
+            end
         end
     end
-    
-    setmetatable(instance, self)
-    self.__index = self -- Garante que métodos da classe sejam encontrados na instância
-    instance:init(baseStats) -- Chama a função de inicialização existente
-    return instance
+
+    -- 2. Sobrescreve com initialStats, se fornecido
+    print("  [DEBUG] Applying initialStats:") -- DEBUG
+    if initialStats and next(initialStats) then
+        for key, value in pairs(initialStats) do
+            if state[key] ~= nil then                                                                             -- Só sobrescreve se o atributo existir no PlayerState
+                state[key] = value
+                print(string.format("    - Applied: state.%s = %.2f", key, value))                                -- DEBUG
+            else
+                print(string.format("    - WARNING: initialStat '%s' not defined in PlayerState. Ignored.", key)) -- DEBUG
+            end
+        end
+    else
+        print("    - WARNING: No initialStats provided! Using PlayerState class defaults.") -- DEBUG
+    end
+
+    -- 3. Define estado inicial
+    state.level = 1
+    state.experience = 0
+    state.experienceToNextLevel = Constants and Constants.INITIAL_XP_TO_LEVEL or 100
+    state.kills = 0
+    state.gold = 0
+    state.isAlive = true
+    state.maxHealth = state:getTotalHealth() -- Calcula maxHealth com base nos stats aplicados
+    state.currentHealth = state.maxHealth    -- Começa com vida cheia
+    state.statusModifiers = {}               -- Limpa modificadores
+
+    -- Log final de verificação para moveSpeed
+    print(string.format("  [DEBUG] PlayerState:new - Final value check before return: state.moveSpeed = %.2f",
+        state.moveSpeed)) -- DEBUG
+
+    return state
 end
 
-return PlayerState 
+--[[
+    Get total rune slots
+    @return number Total rune slots
+]]
+function PlayerState:getTotalRuneSlots()
+    -- Assumindo que bônus de level e fixo são aditivos
+    return self.runeSlots
+end
+
+--[[ Get total luck ]] -- NOVO
+function PlayerState:getTotalLuck()
+    -- Assumindo bônus de level percentual, fixo aditivo
+    return (self.luck * (1 + self.levelBonus.luck / 100)) + self.fixedBonus.luck
+end
+
+--[[ Get total attackArea ]] -- NOVO
+function PlayerState:getTotalAttackArea()
+    -- Assumindo bônus de level percentual, fixo aditivo
+    return (self.attackArea * (1 + self.levelBonus.attackArea / 100)) + self.fixedBonus.attackArea
+end
+
+--[[ Get total pickupRadius ]] -- NOVO
+function PlayerState:getTotalPickupRadius()
+    -- Assumindo bônus de level percentual, fixo aditivo
+    return (self.pickupRadius * (1 + self.levelBonus.pickupRadius / 100)) + self.fixedBonus.pickupRadius
+end
+
+return PlayerState

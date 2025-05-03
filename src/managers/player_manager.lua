@@ -169,14 +169,18 @@ function PlayerManager:setupGameplay(registry, hunterId)
             hunterId))
     end
     print(string.format("  - PlayerState initialized. HP: %d/%d, Speed: %.2f",
-        self.state.currentHealth, self.state:getTotalHealth(), self.state:getTotalSpeed()))
+        self.state.currentHealth, self.state:getTotalHealth(), self.state:getTotalMoveSpeed()))
 
     -- 4. Cria a instância do Sprite do Jogador
+    local finalSpeed = self.state:getTotalMoveSpeed()                                       -- ATUALIZADO para getTotalMoveSpeed
+    print(string.format("  - Player final speed for sprite: %.2f", finalSpeed))             -- DEBUG
     self.player = SpritePlayer.newConfig({
         position = { x = love.graphics.getWidth() / 2, y = love.graphics.getHeight() / 2 }, -- Posição inicial padrão
         scale = 0.8,
-        speed = self.state:getTotalSpeed()                                                  -- Usa a velocidade calculada pelo PlayerState
+        speed =
+            finalSpeed                                                                                     -- Usa a velocidade calculada pelo PlayerState
     })
+    print(string.format("  - Player Sprite instance created. Type of self.player: %s", type(self.player))) -- DEBUG
     print("  - Player Sprite instance created.")
 
     -- 5. Equipa a Arma
@@ -333,13 +337,23 @@ function PlayerManager:update(dt)
     SpritePlayer.update(self.player, dt, targetPosition)
 
     -- Atualiza a câmera
-    Camera:follow(self.player.position, dt)
+    if self.player and self.player.position then
+        -- >>> LOG ANTES DE Camera:follow <<<
+        print(string.format("  [DEBUG PM:update] Player Pos: (%.1f, %.1f) | Cam Pos: (%.1f, %.1f) | dt: %.4f",
+            self.player.position.x, self.player.position.y, Camera.x, Camera.y, dt)) -- DEBUG
+        Camera:follow(self.player.position, dt)
+        -- >>> LOG DEPOIS DE Camera:follow <<<
+        print(string.format("  [DEBUG PM:update] After Follow - Cam Pos: (%.1f, %.1f)", Camera.x, Camera.y)) -- DEBUG
+    else
+        print("PlayerManager Update: SKIPPING Camera:follow (Player or position is nil)")                    -- DEBUG
+    end
 end
 
 -- Desenha o player e elementos relacionados
 function PlayerManager:draw()
-    -- Aplica transformação da câmera
-    Camera:attach()
+    print(string.format("--- PlayerManager:draw called. Type of self.player: %s", type(self.player))) -- DEBUG
+    -- REMOVIDO: Aplica transformação da câmera (já feita pela GameplayScene)
+    -- Camera:attach()
 
     -- Desenha o círculo de colisão primeiro (embaixo de tudo)
     local circleY = self.player.position.y + 25 -- Ajusta para ficar nos pés do sprite
@@ -371,179 +385,24 @@ function PlayerManager:draw()
     end
 
     -- Desenha o sprite do player
-    love.graphics.setColor(1, 1, 1, 1)
-    SpritePlayer.draw(self.player)
+    if self.player then
+        -- Correção: Chama a função draw do MÓDULO SpritePlayer, passando a instância self.player
+        -- >>> LOGS ANTES DE DESENHAR O SPRITE <<<
+        print(string.format("  [DEBUG PM:draw] Drawing player sprite at World Coords: (%.1f, %.1f)",
+            self.player.position.x, self.player.position.y))                                              -- DEBUG
+        print(string.format("  [DEBUG PM:draw] Current Camera Coords: (%.1f, %.1f)", Camera.x, Camera.y)) -- DEBUG
+        SpritePlayer.draw(self.player)
+    else
+        print("PlayerManager:draw - self.player is nil, cannot draw.")
+    end
 
     -- Desenha a arma equipada e seu ataque
     if self.equippedWeapon and self.equippedWeapon.attackInstance then
         self.equippedWeapon.attackInstance:draw()
     end
 
-    Camera:detach()
-
-    -- Debug info
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print(string.format(
-    -- Informações básicas
-        "=== JOGADOR ===\n" ..
-        "Posição: (%.1f, %.1f)\n" ..
-        "Direção: %s\n" ..
-        "Estado: %s\n" ..
-        "Frame: %d\n" ..
-        "Movimento: %s\n\n" ..
-
-        -- Sistema de level
-        "=== LEVEL ===\n" ..
-        "Nível: %d\n" ..
-        "Experiência: %d/%d\n" ..
-        "Kills: %d\n" ..
-        "Gold: %d\n" ..
-        "Tempo de Jogo: %.1fs\n\n" ..
-
-        -- Sistema de habilidades
-        "=== HABILIDADES ===\n" ..
-        "Arma Equipada: %s\n" ..
-        "Descrição: %s\n" ..
-        "Dano: %.1f (x%.1f%%) (+%.1f -%.1f%% de %.1f) = %.1f\n" ..
-        "Velocidade de Ataque: %.1f\n" ..
-        "Alcance: %.1f\n" ..
-        "Tipo de Dano: %s\n" ..
-        "Cooldown: %.1f/%.1f\n" ..
-        "Auto Attack: %s\n" ..
-        "Auto Aim: %s\n" ..
-        "Preview: %s\n" ..
-        "Runas Ativas (Equipadas): %d\n\n" ..
-
-        -- Sistema de regeneração
-        "=== REGENERAÇÃO ===\n" ..
-        "Tempo desde último dano: %.1fs\n" ..
-        "Cooldown de dano: %.1fs\n" ..
-        "HP acumulado: %.1f\n" ..
-        "Intervalo de regeneração: %.1fs\n" ..
-        "Quantidade de regeneração: %.1f\n\n" ..
-
-        -- Bônus por Level
-        "=== BÔNUS POR LEVEL ===\n" ..
-        "Vida: %.1f (x%.1f%%) (+%.1f -%.1f%% de %.1f) = %.1f\n" ..
-        "Dano: %.1f (x%.1f%%) (+%.1f -%.1f%% de %.1f) = %.1f\n" ..
-        "Defesa: %.1f (x%.1f%%) (+%.1f -%.1f%% de %.1f) = %.1f\n" ..
-        "Velocidade: %.1f (x%.1f%%) (+%.1f -%.1f%% de %.1f) = %.1f m/s\n" ..
-        "Velocidade de Ataque: %.1f (x%.1f%%) (+%.1f -%.1f%% de %.1f) = %.1f (%.1f ataques/s)\n" ..
-        "Chance de Crítico: %.1f%% (x%.1f%%) (+%.1f%% -%.1f%% de %.1f%%) = %.1f%%\n" ..
-        "Multiplicador de Crítico: %.1fx (x%.1f%%) (+%.1fx -%.1f%% de %.1fx) = %.1fx\n" ..
-        "Regeneração de Vida: %.1f/s (x%.1f%%) (+%.1f/s -%.1f%% de %.1f/s) = %.1f/s\n" ..
-        "Chance de Ataque Múltiplo: %.1f%% (x%.1f%%) (+%.1f%% -%.1f%% de %.1f%%) = %.1f%%",
-
-        -- Valores básicos
-        PlayerManager.player.position.x, PlayerManager.player.position.y,
-        PlayerManager.player.animation.direction,
-        PlayerManager.player.animation.state,
-        PlayerManager.player.animation.currentFrame,
-        PlayerManager.player.animation.isMovingBackward and "Backward" or "Forward",
-
-        -- Valores de level (agora em PlayerState)
-        PlayerManager.state.level,
-        PlayerManager.state.experience,
-        PlayerManager.state.experienceToNextLevel,
-        PlayerManager.state.kills,
-        PlayerManager.state.gold,
-        PlayerManager.gameTime,
-
-        -- Valores de habilidades
-        PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.name or "Nenhuma",
-        PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.description or "Nenhuma",
-        PlayerManager.state.baseDamage,
-        PlayerManager.state.levelBonus.damage,
-        PlayerManager.state.baseDamage * (PlayerManager.state.levelBonus.damage / 100),
-        PlayerManager.state.levelBonus.damage,
-        PlayerManager.state.baseDamage,
-        PlayerManager.state:getTotalDamage(PlayerManager.state.baseDamage),
-        PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackSpeed or 0,
-        PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.range or 0,
-        PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and
-        PlayerManager.equippedWeapon.attackInstance.damageType or "Nenhum",
-        PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and
-        PlayerManager.equippedWeapon.attackInstance.cooldownRemaining or 0,
-        PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and
-        PlayerManager.equippedWeapon.attackInstance.cooldown or 0,
-        PlayerManager.autoAttackEnabled and "Ativado" or "Desativado",
-        PlayerManager.autoAimEnabled and "Ativado" or "Desativado",
-        PlayerManager.equippedWeapon and PlayerManager.equippedWeapon.attackInstance and
-        PlayerManager.equippedWeapon.attackInstance:getPreview() and "Ativado" or "Desativado",
-        getTableSize(self.activeRuneAbilities),
-
-        -- Valores de regeneração
-        PlayerManager.lastDamageTime,
-        PlayerManager.damageCooldown,
-        PlayerManager.accumulatedRegen,
-        PlayerManager.regenInterval,
-        PlayerManager.regenAmount,
-
-        -- Valores de bônus por level
-        PlayerManager.state.baseHealth,
-        PlayerManager.state.levelBonus.health,
-        PlayerManager.state.baseHealth * (PlayerManager.state.levelBonus.health / 100),
-        PlayerManager.state.levelBonus.health,
-        PlayerManager.state.baseHealth,
-        PlayerManager.state:getTotalHealth(),
-
-        PlayerManager.state.baseDamage,
-        PlayerManager.state.levelBonus.damage,
-        PlayerManager.state.baseDamage * (PlayerManager.state.levelBonus.damage / 100),
-        PlayerManager.state.levelBonus.damage,
-        PlayerManager.state.baseDamage,
-        PlayerManager.state:getTotalDamage(PlayerManager.state.baseDamage),
-
-        PlayerManager.state.baseDefense,
-        PlayerManager.state.levelBonus.defense,
-        PlayerManager.state.baseDefense * (PlayerManager.state.levelBonus.defense / 100),
-        PlayerManager.state.levelBonus.defense,
-        PlayerManager.state.baseDefense,
-        PlayerManager.state:getTotalDefense(),
-
-        PlayerManager.state.baseSpeed,
-        PlayerManager.state.levelBonus.speed,
-        PlayerManager.state.baseSpeed * (PlayerManager.state.levelBonus.speed / 100),
-        PlayerManager.state.levelBonus.speed,
-        PlayerManager.state.baseSpeed,
-        PlayerManager.state:getTotalSpeed(),
-
-        PlayerManager.state.baseAttackSpeed,
-        PlayerManager.state.levelBonus.attackSpeed,
-        PlayerManager.state.baseAttackSpeed * (PlayerManager.state.levelBonus.attackSpeed / 100),
-        PlayerManager.state.levelBonus.attackSpeed,
-        PlayerManager.state.baseAttackSpeed,
-        PlayerManager.state:getTotalAttackSpeed(),
-        1 / PlayerManager.state:getTotalAttackSpeed(), -- Ataques por segundo
-
-        PlayerManager.state.baseCriticalChance,
-        PlayerManager.state.levelBonus.criticalChance,
-        PlayerManager.state.baseCriticalChance * (PlayerManager.state.levelBonus.criticalChance / 100),
-        PlayerManager.state.levelBonus.criticalChance,
-        PlayerManager.state.baseCriticalChance,
-        PlayerManager.state:getTotalCriticalChance(),
-
-        PlayerManager.state.baseCriticalMultiplier,
-        PlayerManager.state.levelBonus.criticalMultiplier,
-        PlayerManager.state.baseCriticalMultiplier * (PlayerManager.state.levelBonus.criticalMultiplier / 100),
-        PlayerManager.state.levelBonus.criticalMultiplier,
-        PlayerManager.state.baseCriticalMultiplier,
-        PlayerManager.state:getTotalCriticalMultiplier(),
-
-        PlayerManager.state.baseHealthRegen,
-        PlayerManager.state.levelBonus.healthRegen,
-        PlayerManager.state.baseHealthRegen * (PlayerManager.state.levelBonus.healthRegen / 100),
-        PlayerManager.state.levelBonus.healthRegen,
-        PlayerManager.state.baseHealthRegen,
-        PlayerManager.state:getTotalHealthRegen(),
-
-        PlayerManager.state.baseMultiAttackChance,
-        PlayerManager.state.levelBonus.multiAttackChance,
-        PlayerManager.state.baseMultiAttackChance * (PlayerManager.state.levelBonus.multiAttackChance / 100),
-        PlayerManager.state.levelBonus.multiAttackChance,
-        PlayerManager.state.baseMultiAttackChance,
-        PlayerManager.state:getTotalMultiAttackChance()
-    ), 10, 10)
+    -- REMOVIDO: Libera a transformação da câmera (já feita pela GameplayScene)
+    -- Camera:detach()
 end
 
 --[[-
