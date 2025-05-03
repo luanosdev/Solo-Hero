@@ -1,35 +1,4 @@
--- src/data/items/weapons.lua
 local weapons = {
-    rifle = { -- Mantido do original
-        id = "rifle",
-        name = "Rifle",
-        type = "weapon",
-        rarity = "A",
-        description = "Arma de longo alcance.",
-        icon = nil,
-        gridWidth = 1,
-        gridHeight = 3,
-        stackable = false,
-        maxStack = 1,
-        damage = 50,       -- Placeholder
-        attackSpeed = 1.0, -- Placeholder
-        range = 300,       -- Placeholder
-    },
-    skull_staff = {        -- Mantido do original
-        id = "skull_staff",
-        name = "Cajado da Caveira",
-        type = "weapon",
-        rarity = "B",
-        description = "Um cajado com poderes sombrios.",
-        icon = "assets/items/skull_staff.png",
-        gridWidth = 1,
-        gridHeight = 3,
-        stackable = false,
-        maxStack = 1,
-        damage = 15,
-        attackSpeed = 1.1,
-        range = 150,
-    },
     hammer = {
         id = "hammer",
         name = "Martelo de Guerra",
@@ -57,8 +26,10 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 100,
-        attackSpeed = 1.25, -- 1 / 0.8
-        range = 200,
+        cooldown = 1.2,                                          -- Cooldown base em segundos (AJUSTE SE NECESSÁRIO)
+        range = 60,                                              -- Alcance do cone (AJUSTE SE NECESSÁRIO)
+        angle = math.pi / 10,                                     -- Ângulo do cone (60 graus) (AJUSTE SE NECESSÁRIO)
+        attackClass = "src.abilities.player.attacks.cone_slash", -- Classe de ataque associada
     },
     dual_daggers = {
         id = "dual_daggers",
@@ -71,7 +42,7 @@ local weapons = {
         gridHeight = 2,
         stackable = false,
         maxStack = 1,
-        damage = 20,
+        damage = 40,
         cooldown = 1,
         range = 40,
         angle = math.pi / 3,
