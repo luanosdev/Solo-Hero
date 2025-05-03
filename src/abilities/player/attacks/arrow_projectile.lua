@@ -8,7 +8,7 @@ ArrowProjectile.__index = ArrowProjectile
 ArrowProjectile.visual = {
     preview = {
         active = false,
-        lineLength = 150
+        -- lineLength = 150 -- REMOVIDO: Será calculado dinamicamente
         -- color será definido no :new
     },
     attack = {
@@ -50,6 +50,7 @@ function ArrowProjectile:new(playerManager, weaponInstance)
     o.currentAngle = 0
     o.currentRange = o.baseRange
     o.currentAngleWidth = o.baseAngleWidth
+    o.currentPreviewLength = o.currentRange / 2 -- Inicializa preview length
 
     print("[ArrowProjectile:new] Instância criada.")
     return o
@@ -73,6 +74,7 @@ function ArrowProjectile:update(dt, angle)
     -- Calcula valores FINAIS para este frame
     self.currentRange = self.baseRange * (1 + rangeBonus)
     self.currentAngleWidth = self.baseAngleWidth * (1 + areaBonus)
+    self.currentPreviewLength = self.currentRange / 2 -- Calcula preview length baseado no range atual
 
     -- Atualiza as flechas ativas
     for i = #self.activeArrows, 1, -1 do
@@ -173,17 +175,16 @@ function ArrowProjectile:drawPreviewLine(color)
     love.graphics.line(
         self.currentPosition.x,
         self.currentPosition.y,
-        self.currentPosition.x + math.cos(self.currentAngle) * self.visual.preview.lineLength,
-        self.currentPosition.y + math.sin(self.currentAngle) * self.visual.preview.lineLength
+        self.currentPosition.x + math.cos(self.currentAngle) * self.currentPreviewLength, -- Usa currentPreviewLength
+        self.currentPosition.y + math.sin(self.currentAngle) * self.currentPreviewLength  -- Usa currentPreviewLength
     )
 end
 
 -- Adiciona função para desenhar o cone de preview
 function ArrowProjectile:drawPreviewCone(color)
-    local segments = 16
     love.graphics.setColor(color)
     local cx, cy = self.currentPosition.x, self.currentPosition.y
-    local range = self.visual.preview.lineLength -- Usa o lineLength para o tamanho do preview
+    local range = self.currentPreviewLength -- Usa currentPreviewLength para o tamanho do preview
     local startAngle = self.currentAngle - self.currentAngleWidth / 2
     local endAngle = self.currentAngle + self.currentAngleWidth / 2
 

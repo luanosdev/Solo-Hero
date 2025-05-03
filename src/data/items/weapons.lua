@@ -98,8 +98,8 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 33,
-        cooldown = 0.8,                                                -- Cooldown base em segundos (era attackSpeed = 1.25)
-        range = 250,                                                   -- Alcance máximo das flechas
+        cooldown = 1.5,                                                -- Cooldown base em segundos (era attackSpeed = 1.25)
+        range = 150,                                                   -- Alcance máximo das flechas
         angle = math.pi / 6,                                           -- Ângulo do cone de disparo (30 graus)
         projectiles = 3,                                               -- Número base de flechas
         attackClass = "src.abilities.player.attacks.arrow_projectile", -- Classe de ataque
