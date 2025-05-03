@@ -80,9 +80,11 @@ local weapons = {
         gridHeight = 2,
         stackable = false,
         maxStack = 1,
-        damage = 20,
-        attackSpeed = 5.56, -- 1 / 0.18
-        range = 180,
+        damage = 20,                                               -- Dano por partícula/tick?
+        cooldown = 0.18,                                           -- Cooldown base MUITO baixo para fluxo contínuo (era attackSpeed = 5.56)
+        range = 180,                                               -- Distância máxima das partículas
+        angle = math.pi / 12,                                      -- Ângulo de DISPERSÃO do fluxo (15 graus)
+        attackClass = "src.abilities.player.attacks.flame_stream", -- Classe de ataque
     },
     bow = {
         id = "bow",
@@ -96,8 +98,11 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 33,
-        attackSpeed = 1.25, -- 1 / 0.8
-        range = 250,
+        cooldown = 0.8,                                                -- Cooldown base em segundos (era attackSpeed = 1.25)
+        range = 250,                                                   -- Alcance máximo das flechas
+        angle = math.pi / 6,                                           -- Ângulo do cone de disparo (30 graus)
+        projectiles = 3,                                               -- Número base de flechas
+        attackClass = "src.abilities.player.attacks.arrow_projectile", -- Classe de ataque
     },
     chain_laser = {
         id = "chain_laser",
