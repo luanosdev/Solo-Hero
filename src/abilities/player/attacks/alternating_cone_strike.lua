@@ -299,7 +299,6 @@ function AlternatingConeStrike:draw()
 
     -- Desenha a prévia da linha se ativa (mostra o cone inteiro)
     if self.visual.preview.active then
-        self:drawPreviewLine()
         self:drawConeOutline(self.visual.preview.color) -- Usa cor da instância
     end
 
@@ -308,16 +307,6 @@ function AlternatingConeStrike:draw()
         -- USA A VERSÃO *SEM* innerRange por enquanto, até restaurarmos no próximo passo
         self:drawHalfConeFill(self.visual.attack.color, self.attackProgress, self.lastAttackWasLeft)
     end
-end
-
---- Desenha a linha de mira para preview.
-function AlternatingConeStrike:drawPreviewLine()
-    love.graphics.setColor(1, 1, 1, 0.5) -- Branco semi-transparente (pode ser configurável?)
-    love.graphics.line(
-        self.area.position.x, self.area.position.y,
-        self.area.position.x + math.cos(self.area.angle) * self.visual.preview.lineLength,
-        self.area.position.y + math.sin(self.area.angle) * self.visual.preview.lineLength
-    )
 end
 
 --- Desenha o CONTORNO do cone inteiro (para preview).
