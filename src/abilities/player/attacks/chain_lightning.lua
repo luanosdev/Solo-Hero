@@ -7,6 +7,9 @@
 local ChainLightning = {}
 ChainLightning.__index = ChainLightning
 
+-- Fator de decaimento para o alcance de salto a cada pulo
+ChainLightning.JUMP_RANGE_DECAY = 0.85 -- Reduz 15% por salto
+
 -- Configurações
 ChainLightning.name = "Corrente Elétrica"
 ChainLightning.description = "Um raio que atinge um inimigo e salta para outros próximos."
@@ -57,7 +60,7 @@ function ChainLightning:new(playerManager, weaponInstance)
     -- currentAngle não é usado diretamente para mirar, mas pode ser útil saber a direção do jogador
     o.currentAngle = 0
     o.currentRange = o.baseRange
-    o.currentJumpRange = o.baseJumpRange
+    -- o.currentJumpRange = o.baseJumpRange -- REMOVIDO: Será calculado no cast
     o.currentThickness = o.baseThickness -- Inicializa a espessura atual
 
     print("[ChainLightning:new] Instância criada.")
@@ -82,7 +85,7 @@ function ChainLightning:update(dt, angle)
     -- Calcula valores FINAIS para este frame
     self.currentRange = self.baseRange * (1 + rangeBonus)
     -- Decisão: O bônus de área aumenta o alcance do salto? Vamos assumir que sim por enquanto.
-    self.currentJumpRange = self.baseJumpRange * (1 + areaBonus)
+    -- self.currentJumpRange = self.baseJumpRange * (1 + areaBonus) -- REMOVIDO daqui
     -- Calcula a espessura atual do laser
     self.currentThickness = self.baseThickness * (1 + areaBonus)
 
@@ -139,8 +142,78 @@ function ChainLightning:findClosestEnemy(centerX, centerY, radius, excludedIDs)
     return closestEnemy
 end
 
+--- Verifica colisão entre um segmento de linha e inimigos.
+--- Retorna o inimigo mais próximo colidido ao longo do segmento a partir do início, ou nil.
+---@param startX number Posição X inicial do segmento.
+---@param startY number Posição Y inicial do segmento.
+---@param endX number Posição X final do segmento.
+---@param endY number Posição Y final do segmento.
+---@param thickness number Espessura do segmento (para calcular raio de colisão).
+---@param enemies table Tabela de inimigos a verificar.
+---@return table? Instância do inimigo colidido ou nil.
+function ChainLightning:findCollisionOnSegment(startX, startY, endX, endY, thickness, enemies)
+    local closestHitEnemy = nil
+    local minHitDistSq = math.huge -- Inicia com infinito
+
+    local segmentDirX = endX - startX
+    local segmentDirY = endY - startY
+    local segmentLenSq = segmentDirX * segmentDirX + segmentDirY * segmentDirY
+
+    -- Normaliza a direção do segmento (se o comprimento for > 0)
+    if segmentLenSq > 0.0001 then
+        local segmentLen = math.sqrt(segmentLenSq)
+        segmentDirX = segmentDirX / segmentLen
+        segmentDirY = segmentDirY / segmentLen
+    else -- Segmento de comprimento zero, não faz nada
+        return nil
+    end
+
+    for id, enemy in pairs(enemies) do
+        if enemy.isAlive and id then
+            local enemyRadius = enemy.radius
+            local checkRadius = enemyRadius + thickness / 2 -- Raio para checagem de colisão
+
+            -- Vetor do início do segmento até o inimigo
+            local vecX = enemy.position.x - startX
+            local vecY = enemy.position.y - startY
+
+            -- Projeção do vetor no segmento (produto escalar)
+            local projection = vecX * segmentDirX + vecY * segmentDirY
+
+            -- Ponto mais próximo no RAIO INFINITO ao centro do inimigo
+            local closestPointX, closestPointY
+            if projection <= 0 then -- Atrás ou no ponto inicial
+                closestPointX = startX
+                closestPointY = startY
+            elseif projection * projection >= segmentLenSq then -- Além do ponto final
+                closestPointX = endX
+                closestPointY = endY
+            else -- Em algum lugar no meio do segmento
+                closestPointX = startX + segmentDirX * projection
+                closestPointY = startY + segmentDirY * projection
+            end
+
+            -- Distância quadrada do centro do inimigo ao ponto mais próximo no SEGMENTO
+            local distSqToSegment = (enemy.position.x - closestPointX) ^ 2 + (enemy.position.y - closestPointY) ^ 2
+
+            -- Verifica colisão (distância < raio de checagem)
+            if distSqToSegment <= checkRadius * checkRadius then
+                -- Calcula distância do *início* do segmento ao inimigo (para ordenar)
+                local distSqFromStart = vecX * vecX + vecY * vecY
+                if distSqFromStart < minHitDistSq then
+                    minHitDistSq = distSqFromStart
+                    closestHitEnemy = enemy
+                end
+            end
+        end
+    end
+    return closestHitEnemy
+end
+
 function ChainLightning:cast(args)
     args = args or {}
+    -- O ângulo da mira agora é crucial
+    local aimAngle = self.currentAngle
 
     if self.cooldownRemaining > 0 then
         return false
@@ -156,31 +229,59 @@ function ChainLightning:cast(args)
     local damagePerHit = state:getTotalDamage(self.baseDamage)
     local criticalChance = state:getTotalCritChance()
     local criticalMultiplier = state:getTotalCritDamage()
+    local rangeBonus = state:getTotalRange() -- Obter bonus de range
+    local areaBonus = state:getTotalArea()   -- Obter bonus de area
 
-    -- Lógica do Chain Lightning
+    -- Calcula o número total de saltos permitidos baseado no range bonus
+    local totalAllowedJumps = math.floor(self.baseChainCount * (1 + rangeBonus))
+
+    -- Busca todos os inimigos uma vez
+    local allEnemies = self.playerManager.enemyManager:getEnemies()
+
+    -- Lógica do Chain Lightning Refatorada
     local targetsHit = {}   -- Guarda os inimigos atingidos nesta corrente { [id] = enemyInstance }
     local hitPositions = {} -- Guarda as posições dos alvos para desenhar a linha
     local excludedIDs = {}  -- Guarda IDs dos inimigos já atingidos para não saltar para o mesmo
 
-    -- 1. Encontra o primeiro alvo (mais próximo do jogador dentro do range inicial)
-    local firstTarget = self:findClosestEnemy(self.currentPosition.x, self.currentPosition.y, self.currentRange, nil)
+    -- 1. Segmento Inicial (Direcional)
+    local startPos = self.currentPosition
+    local endX = startPos.x + math.cos(aimAngle) * self.currentRange
+    local endY = startPos.y + math.sin(aimAngle) * self.currentRange
+    table.insert(hitPositions, { x = startPos.x, y = startPos.y }) -- Adiciona posição inicial
 
-    if not firstTarget then
-        -- print("ChainLightning: Nenhum alvo inicial encontrado.")
-        return false -- Não faz nada se não achar o primeiro alvo
+    -- Verifica colisão no primeiro segmento
+    local firstHitEnemy = self:findCollisionOnSegment(startPos.x, startPos.y, endX, endY, self.currentThickness,
+        allEnemies)
+
+    local startChainingFrom = nil -- Ponto de onde a corrente vai começar a saltar (se houver)
+
+    if firstHitEnemy then
+        -- Acertou um inimigo no primeiro segmento!
+        print("ChainLightning: First segment hit enemy ID: " .. tostring(firstHitEnemy.id))
+        table.insert(hitPositions, { x = firstHitEnemy.position.x, y = firstHitEnemy.position.y }) -- Adiciona posição do inimigo atingido
+        targetsHit[firstHitEnemy.id] = firstHitEnemy
+        excludedIDs[firstHitEnemy.id] = true
+        startChainingFrom = firstHitEnemy -- Começa a corrente a partir deste inimigo
+    else
+        -- Não acertou ninguém no primeiro segmento
+        print("ChainLightning: First segment missed.")
+        table.insert(hitPositions, { x = endX, y = endY }) -- Adiciona ponto final do segmento que errou
+        -- startChainingFrom continua nil, então o loop de saltos não vai rodar
     end
 
-    local currentTarget = firstTarget
-    table.insert(hitPositions, { x = self.currentPosition.x, y = self.currentPosition.y }) -- Posição inicial (jogador)
-    table.insert(hitPositions, { x = currentTarget.position.x, y = currentTarget.position.y })
-    targetsHit[currentTarget.id] = currentTarget
-    excludedIDs[currentTarget.id] = true
-
-    -- 2. Encontra alvos subsequentes (saltos)
-    local jumpsRemaining = self.baseChainCount
-    while jumpsRemaining > 0 do
+    -- 2. Encontra alvos subsequentes (saltos), SE o primeiro segmento acertou algo
+    local currentTarget = startChainingFrom
+    local successfulJumps = 0
+    while currentTarget and successfulJumps < totalAllowedJumps do -- Só entra se currentTarget não for nil
         local lastHitPosition = currentTarget.position
-        local nextTarget = self:findClosestEnemy(lastHitPosition.x, lastHitPosition.y, self.currentJumpRange, excludedIDs)
+
+        -- Calcula o raio de busca para ESTE salto específico
+        local decayedJumpRange = self.baseJumpRange * (ChainLightning.JUMP_RANGE_DECAY ^ successfulJumps)
+        local currentJumpSearchRadius = decayedJumpRange * (1 + areaBonus)
+
+        -- Busca o próximo alvo usando o raio calculado e a lista completa de inimigos
+        local nextTarget = self:findClosestEnemy(lastHitPosition.x, lastHitPosition.y, currentJumpSearchRadius,
+            excludedIDs)
 
         if nextTarget then
             -- Encontrou o próximo alvo
@@ -188,7 +289,7 @@ function ChainLightning:cast(args)
             table.insert(hitPositions, { x = currentTarget.position.x, y = currentTarget.position.y })
             targetsHit[currentTarget.id] = currentTarget
             excludedIDs[currentTarget.id] = true
-            jumpsRemaining = jumpsRemaining - 1
+            successfulJumps = successfulJumps + 1 -- Incrementa saltos bem sucedidos
         else
             -- Não encontrou mais alvos no alcance do salto
             break -- Interrompe a corrente
@@ -220,9 +321,9 @@ function ChainLightning:cast(args)
 end
 
 function ChainLightning:draw()
-    -- Desenha a prévia (um círculo de range inicial?)
+    -- Desenha a prévia (agora uma linha de range inicial)
     if self.visual.preview.active then
-        self:drawPreviewCircle(self.visual.preview.color)
+        self:drawPreviewLine(self.visual.preview.color)
         -- Poderia desenhar um círculo menor para o jumpRange também
     end
 
@@ -241,11 +342,17 @@ function ChainLightning:draw()
     love.graphics.setColor(1, 1, 1, 1) -- Reseta a cor
 end
 
-function ChainLightning:drawPreviewCircle(color)
+-- Renomeada de drawPreviewCircle para drawPreviewLine
+function ChainLightning:drawPreviewLine(color)
     love.graphics.setColor(color)
-    love.graphics.circle("line", self.currentPosition.x, self.currentPosition.y, self.currentRange)
-    -- Desenha círculo menor para jump range (a partir do jogador, só como referência)
-    -- love.graphics.circle("line", self.currentPosition.x, self.currentPosition.y, self.currentJumpRange)
+    -- Desenha uma linha do jogador na direção da mira com o comprimento do range atual
+    local startX, startY = self.currentPosition.x, self.currentPosition.y
+    local endX = startX + math.cos(self.currentAngle) * self.currentRange
+    local endY = startY + math.sin(self.currentAngle) * self.currentRange
+    love.graphics.line(startX, startY, endX, endY)
+
+    -- Opcional: Desenha círculo menor para jump range (a partir do jogador, só como referência)
+    -- love.graphics.circle("line", self.currentPosition.x, self.currentPosition.y, self.baseJumpRange * (1+self.playerManager.state:getTotalArea()))
 end
 
 function ChainLightning:getCooldownRemaining()
