@@ -20,98 +20,119 @@ local DropEntity = {
     collectionProgress = 0,
     collectionSpeed = 3,
     initialY = 0,
-    color = {1, 1, 1},
+    beamColor = { 1, 1, 1 },
+    beamHeight = 50,
+    glowScale = 1.0,
     glowEffect = true,
     glowTimer = 0,
     animation = nil
 }
 
-function DropEntity:new(position, config)
+function DropEntity:new(position, config, beamColor, beamHeight, glowScale)
     local drop = setmetatable({}, { __index = self })
-    drop.initialPosition = position
-    drop.position = position
+    drop.initialPosition = { x = position.x, y = position.y }
+    drop.position = { x = position.x, y = position.y }
     drop.config = config
     drop.collected = false
     drop.collectionProgress = 0
-    
-    -- Define a cor baseado no tipo de drop
+    drop.glowTimer = love.math.random() * 10
+
+    drop.beamColor = beamColor or { 1, 1, 1 }
+    drop.beamHeight = beamHeight or 50
+    drop.glowScale = glowScale or 1.0
+
     if config.type == "rune" then
-        drop.color = {1, 0.5, 0} -- Laranja para runas
-        drop.animation = runeAnimation -- Usa a animação das runas
-    elseif config.type == "gold" then
-        drop.color = {1, 0.84, 0} -- Dourado para ouro
-    elseif config.type == "experience" then
-        drop.color = {0.5, 0, 0.5} -- Roxo para experiência
+        drop.animation = runeAnimation
     end
-    
+
     return drop
 end
 
 function DropEntity:update(dt, playerManager)
     if self.collected then return true end
-    
-    -- Atualiza o efeito de brilho
+
     self.glowTimer = self.glowTimer + dt
-    
-    -- Atualiza a animação se existir
+
     if self.animation then
         self.animation:update(dt)
     end
-    
-    -- Calcula a distância até o jogador
+
     local dx = playerManager.player.position.x - self.position.x
     local dy = playerManager.player.position.y - self.position.y
     local distance = math.sqrt(dx * dx + dy * dy)
-    
-    -- Se estiver dentro do raio de coleta do jogador
+
     if distance <= playerManager.collectionRadius then
-        -- Inicia a animação de coleta
         self.collectionProgress = self.collectionProgress + dt * self.collectionSpeed
-        
-        -- Atualiza a posição do drop
-        local t = self.collectionProgress
-        -- Função de easing para movimento suave
+
+        local t = math.min(self.collectionProgress, 1)
         local easeOutQuad = 1 - (1 - t) * (1 - t)
-        
-        -- Atualiza a posição com a animação
-        self.position.x = self.initialPosition.x + (playerManager.player.position.x - self.initialPosition.x) * easeOutQuad
-        self.position.y = self.initialPosition.y + (playerManager.player.position.y - self.initialPosition.y) * easeOutQuad
-        
-        -- Se a animação terminou
+
+        self.position.x = self.initialPosition.x +
+            (playerManager.player.position.x - self.initialPosition.x) * easeOutQuad
+        self.position.y = self.initialPosition.y +
+            (playerManager.player.position.y - self.initialPosition.y) * easeOutQuad
+
         if self.collectionProgress >= 1 then
             self.collected = true
             return true
         end
     end
-    
+
     return false
 end
 
 function DropEntity:draw()
     if self.collected then return end
-    
-    -- Desenha o efeito de brilho
+
+    local x, y = self.position.x, self.position.y
+    local r, g, b = self.beamColor[1], self.beamColor[2], self.beamColor[3]
+    local beamWidth = 4
+
+    love.graphics.push()
+
+    love.graphics.translate(x, y)
+    love.graphics.scale(1, 0.5)
+
+    local segments = 5
+    local heightStep = self.beamHeight / segments
+    local alphaBase = 0.8
+    local alphaStep = alphaBase / segments
+
+    love.graphics.setLineWidth(beamWidth)
+    for i = 0, segments - 1 do
+        local startY = -(i * heightStep)
+        local endY = -((i + 1) * heightStep)
+
+        local startX = 0
+        local endX = 0
+
+        local currentAlpha = alphaBase - (i * alphaStep)
+        love.graphics.setColor(r, g, b, currentAlpha)
+
+        love.graphics.line(startX, startY, endX, endY)
+    end
+    love.graphics.setLineWidth(1)
+
     if self.glowEffect then
-        local glowAlpha = 0.3 + math.sin(self.glowTimer * 2) * 0.2
-        love.graphics.setColor(self.color[1], self.color[2], self.color[3], glowAlpha)
-        love.graphics.circle("fill", self.position.x, self.position.y, self.radius * 1.5)
+        local glowAlpha = (0.4 + math.sin(self.glowTimer * 2) * 0.2) * self.glowScale
+        glowAlpha = math.max(0, math.min(1, glowAlpha))
+        love.graphics.setColor(r, g, b, glowAlpha)
+        love.graphics.circle("fill", 0, 0, self.radius * (1.5 + (self.glowScale - 1) * 0.5))
     end
-    
-    -- Desenha o drop
+
     if self.animation then
-        -- Usa a animação das runas
-        self.animation:draw(self.position.x, self.position.y, self.config.rarity)
+        self.animation:draw(0, 0, self.config.rarity)
     else
-        -- Desenha o drop padrão
-        love.graphics.setColor(self.color)
-        love.graphics.circle("fill", self.position.x, self.position.y, self.radius)
-        
-        -- Desenha um brilho interno
-        love.graphics.setColor(1, 1, 1, 0.5)
-        love.graphics.circle("fill", self.position.x, self.position.y, self.radius * 0.7)
+        love.graphics.setColor(r, g, b, 1)
+        love.graphics.circle("fill", 0, 0, self.radius)
+
+        love.graphics.setColor(1, 1, 1, 0.7)
+        love.graphics.circle("fill", 0, 0, self.radius * 0.6)
     end
-    
+
+    love.graphics.pop()
+
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-return DropEntity 
+return DropEntity

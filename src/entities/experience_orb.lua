@@ -1,9 +1,9 @@
-local PlayerManager = require("src.managers.player_manager")
-
 --[[
     Experience Orb
     Representa um orbe de experiência que pode ser coletado pelo jogador
 ]]
+
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local ExperienceOrb = {
     position = {
@@ -79,13 +79,15 @@ function ExperienceOrb:update(dt)
         })
     end
     
+    local playerManager = ManagerRegistry:get("playerManager")
+
     -- Calcula a distância até o jogador
-    local dx = PlayerManager.player.position.x - self.position.x
-    local dy = PlayerManager.player.position.y - (self.position.y + levitationOffset)
+    local dx = playerManager.player.position.x - self.position.x
+    local dy = playerManager.player.position.y - (self.position.y + levitationOffset)
     local distance = math.sqrt(dx * dx + dy * dy)
     
     -- Se estiver dentro do raio de coleta do jogador
-    if distance <= PlayerManager.collectionRadius then
+    if distance <= playerManager.collectionRadius then
         -- Inicia a animação de coleta
         self.collectionProgress = self.collectionProgress + dt * self.collectionSpeed
         
@@ -95,8 +97,8 @@ function ExperienceOrb:update(dt)
         local easeOutQuad = 1 - (1 - t) * (1 - t)
         
         -- Atualiza a posição com a animação
-        self.position.x = self.initialPosition.x + (PlayerManager.player.position.x - self.initialPosition.x) * easeOutQuad
-        self.position.y = self.initialPosition.y + (PlayerManager.player.position.y - self.initialPosition.y) * easeOutQuad
+        self.position.x = self.initialPosition.x + (playerManager.player.position.x - self.initialPosition.x) * easeOutQuad
+        self.position.y = self.initialPosition.y + (playerManager.player.position.y - self.initialPosition.y) * easeOutQuad
         
         -- Se a animação terminou
         if self.collectionProgress >= 1 then

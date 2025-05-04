@@ -11,6 +11,16 @@ local DropManager = {
     activeDrops = {}, -- Lista de drops ativos no mundo
 }
 
+-- Adicione esta tabela dentro do DropManager, logo após a definição da tabela DropManager = {}
+local raritySettings = {
+    -- Raridades de Itens (Exemplo, ajuste conforme seu sistema)
+    ["E"] = { color = { 0.8, 0.8, 0.8 }, height = 50, glow = 0.8 },  -- Cinza/Branco
+    ["D"] = { color = { 0.2, 0.5, 1.0 }, height = 70, glow = 1.0 },  -- Azul
+    ["C"] = { color = { 1.0, 1.0, 0.2 }, height = 90, glow = 1.2 },  -- Amarelo
+    ["B"] = { color = { 1.0, 0.6, 0.0 }, height = 110, glow = 1.5 }, -- Laranja (Imagem Laranja/Amarelo)
+    ["A"] = { color = { 1.0, 0.2, 0.2 }, height = 130, glow = 1.8 }, -- Vermelho (Imagem Vermelho)
+}
+
 --[[
     Inicializa o gerenciador de drops
     @param config (table): Tabela contendo as dependências { playerManager, enemyManager, runeManager, floatingTextManager, itemDataManager }
@@ -25,12 +35,15 @@ function DropManager:init(config)
     self.floatingTextManager = config.floatingTextManager
     self.itemDataManager = config.itemDataManager
 
+    -- DEBUG: Print the type right after assignment
+    print(string.format("[DropManager:init] self.itemDataManager type: %s", type(self.itemDataManager)))
+
     -- Validação
     if not self.playerManager or not self.enemyManager or not self.runeManager or not self.floatingTextManager or not self.itemDataManager then
         error("ERRO CRÍTICO [DropManager]: Uma ou mais dependências não foram injetadas!")
     end
 
-    print("DropManager inicializado com rank de mapa:", self.mapRank)
+    print("DropManager inicializado") -- Removido rank do mapa que não estava definido
 end
 
 --[[
@@ -144,15 +157,67 @@ function DropManager:processEntityDrop(entity)
 end
 
 --[[
+    Obtém as configurações visuais (cor, altura, brilho) para um drop.
+    @param dropConfig A configuração do drop.
+    @return table Cor {r, g, b}.
+    @return number Altura do feixe.
+    @return number Escala do brilho base.
+]]
+function DropManager:_getDropVisualSettings(dropConfig)
+    local settings = raritySettings["E"] -- Padrão para comum
+
+    -- DEBUG: Print the type right before use
+    print(string.format("[_getDropVisualSettings] ENTERING. Drop type: %s, Item ID: %s",
+        tostring(dropConfig.type), tostring(dropConfig.itemId)))
+    print(string.format("[_getDropVisualSettings] self.itemDataManager type: %s", type(self.itemDataManager)))
+
+    if dropConfig.type == "item" and dropConfig.itemId then
+        -- Busca os dados base do item para obter a raridade
+        local baseData = self.itemDataManager:getBaseItemData(dropConfig.itemId)
+        local rarity = baseData and baseData.rarity or "E" -- Assume 'E' se não encontrar raridade
+        settings = raritySettings[rarity] or raritySettings["E"]
+        -- print(string.format("Item %s Rarity: %s -> Color: %s", dropConfig.itemId, rarity, love.math.colorToBytes(settings.color))) -- Debug
+    elseif raritySettings[dropConfig.type] then -- Verifica se há uma configuração direta para o tipo (gold, experience, rune)
+        settings = raritySettings[dropConfig.type]
+
+        -- Lógica adicional se runas tiverem raridades que afetam a cor/altura
+        -- if dropConfig.type == "rune" and dropConfig.rarity then
+        --     local runeRarityKey = string.lower(dropConfig.rarity)
+        --     if runeRarityKey == "a" or runeRarityKey == "s" then settings = raritySettings["legendary"]
+        --     elseif runeRarityKey == "b" then settings = raritySettings["rare"]
+        --     -- etc...
+        -- end
+    else
+        -- Fallback para itens sem ID ou tipos não mapeados
+        print(string.format("Aviso: Não foi possível determinar a raridade/tipo para drop: %s. Usando 'E'.",
+            dropConfig.type))
+    end
+
+    -- Fallback final removido daqui pois a lógica acima já define 'settings'
+    -- local finalSettings = settings -- Usa a variável 'settings' já definida
+
+    -- Retorna os valores desempacotados para clareza
+    -- Verifica se settings não é nil antes de retornar (embora a lógica acima deva garantir isso)
+    if not settings then
+        print("[_getDropVisualSettings] CRITICAL WARNING: Settings became nil unexpectedly. Using 'E'.")
+        settings = raritySettings["E"]
+    end
+    return settings.color, settings.height, settings.glow
+end
+
+--[[
     Cria uma entidade de drop no mundo
-    @param dropConfig Configuração do drop (ex: {type="rune", rarity="D"} ou {type="jewel", rank="C"})
+    @param dropConfig Configuração do drop (ex: {type="rune", rarity="D"} ou {type="item", itemId="sword_01"})
     @param position Posição {x, y} do drop
 ]]
 function DropManager:createDrop(dropConfig, position)
-    -- Passa a configuração diretamente para DropEntity
-    local dropEntity = DropEntity:new(position, dropConfig)
+    -- Determina as propriedades visuais antes de criar a entidade
+    local color, height, glowScale = self:_getDropVisualSettings(dropConfig)
+
+    -- Cria a entidade de drop passando as propriedades visuais
+    local dropEntity = DropEntity:new(position, dropConfig, color, height, glowScale)
     table.insert(self.activeDrops, dropEntity)
-    -- print(string.format("DropEntity criado em (%.1f, %.1f) para tipo: %s", position.x, position.y, dropConfig.type)) -- Log mais genérico
+    -- print(string.format("DropEntity criado em (%.1f, %.1f) para tipo: %s", position.x, position.y, dropConfig.type))
 end
 
 --[[

@@ -12,7 +12,6 @@ local ExperienceOrbManager = {
 
 function ExperienceOrbManager:init()
     self.orbs = {}
-    self.playerManager = ManagerRegistry:get("playerManager")
 end
 
 function ExperienceOrbManager:update(dt)
@@ -20,8 +19,9 @@ function ExperienceOrbManager:update(dt)
     for i = #self.orbs, 1, -1 do
         local orb = self.orbs[i]
         if orb:update(dt) then
+            local playerManager = ManagerRegistry:get("playerManager")
             -- Adiciona a experiência ao jogador através do PlayerManager
-            self.playerManager:addExperience(orb.experience)
+            playerManager:addExperience(orb.experience)
             table.remove(self.orbs, i)
         end
     end
@@ -38,4 +38,4 @@ function ExperienceOrbManager:draw()
     end
 end
 
-return ExperienceOrbManager 
+return ExperienceOrbManager

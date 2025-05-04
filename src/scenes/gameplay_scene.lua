@@ -18,40 +18,34 @@ GameplayScene.__index = GameplayScene -- <<< ADICIONADO __index >>>
 
 function GameplayScene:load(args)
     print("GameplayScene:load - Inicializando sistemas de gameplay...")
-    self.portalId = args and args.portalId or "unknown_portal" -- Guarda ID para referência
-    self.hordeConfig = args and args.hordeConfig or nil        -- <<< ADICIONADO: Guarda a hordeConfig
+    self.portalId = args and args.portalId or "unknown_portal"
+    self.hordeConfig = args and args.hordeConfig or nil
     self.hunterId = args and args.hunterId or nil
 
+    -- Validações iniciais
     if not self.hordeConfig then
-        error("ERRO CRÍTICO [GameplayScene:load]: Nenhuma hordeConfig fornecida para iniciar a cena!")
+        error(
+            "ERRO CRÍTICO [GameplayScene:load]: Nenhuma hordeConfig fornecida para iniciar a cena!")
     end
-    if not self.hunterId then
-        error("ERRO CRÍTICO [GameplayScene:load]: Nenhum hunterId fornecido para iniciar a cena!")
-    end
+    if not self.hunterId then error("ERRO CRÍTICO [GameplayScene:load]: Nenhum hunterId fornecido para iniciar a cena!") end
     print(string.format("  - Carregando portal ID: %s, Hunter ID: %s", self.portalId, self.hunterId))
 
-    -- Estado da cena
+    -- 1. Carrega assets e configurações básicas da cena
     self.isPaused = false
     self.camera = nil
     self.groundTexture = nil
     self.grid = nil
-
-    -- Carrega as fontes (caso ainda não tenham sido carregadas ou precise de reload)
-    -- NOTA: Idealmente, fontes são carregadas uma vez globalmente, mas garantimos aqui.
     if not fonts.main then fonts.load() end
 
-    -- Carrega o shader de brilho (transferido de main.lua)
-    -- TODO: Considerar se o shader deve ser global ou gerenciado pela cena/renderer
     local success, shaderOrErr = pcall(love.graphics.newShader, "assets/shaders/glow.fs")
     if success then
         elements.setGlowShader(shaderOrErr)
-        InventoryScreen.setGlowShader(shaderOrErr) -- InventoryScreen precisa do shader
+        InventoryScreen.setGlowShader(shaderOrErr)
         print("GameplayScene: Glow shader carregado.")
     else
         print("GameplayScene: Aviso - Falha ao carregar glow shader.", shaderOrErr)
     end
 
-    -- Carrega a textura do terreno (transferido de main.lua)
     local texSuccess, texErr = pcall(function()
         self.groundTexture = love.graphics.newImage("assets/ground.png")
         self.groundTexture:setWrap("repeat", "repeat")
@@ -61,80 +55,87 @@ function GameplayScene:load(args)
         -- Tratar erro como apropriado (ex: usar cor sólida)
     end
 
-    -- Inicializa todos os managers e suas dependências (transferido de main.lua)
-    -- IMPORTANTE: Bootstrap provavelmente inicializa o ManagerRegistry globalmente.
-    -- Se Bootstrap criar instâncias *novas* a cada chamada, isso precisa ser ajustado.
-    -- Assumindo que Bootstrap configura um Registry singleton ou retorna as instâncias.
-    print("GameplayScene: Chamando Bootstrap.initialize()...")
-    Bootstrap.initialize()
-    print("GameplayScene: Bootstrap.initialize() concluído.")
-
-    -- Isometric grid configuration (transferido de main.lua)
-    self.grid = {
-        size = 128,
-        rows = 100, -- Tamanho do mundo (pode vir do portalData no futuro)
-        columns = 100,
-        color = { 0.3, 0.3, 0.3, 0.2 }
-    }
-
-    -- Inicializa a câmera (transferido de main.lua)
-    -- self.camera = Camera:new() -- REMOVIDO: Usaremos o módulo global Camera
-    Camera:init() -- Inicializa o módulo global com dimensões da tela
+    self.grid = { size = 128, rows = 100, columns = 100, color = { 0.3, 0.3, 0.3, 0.2 } }
+    Camera:init()
     print("GameplayScene: Chamado Camera:init() no módulo global.")
-
-    -- >>> IMPORTANTE: Acessa playerMgr APÓS playerMgr:setupGameplay abaixo! <<< --
-    -- >>> O código de posicionamento da câmera será movido para depois de setupGameplay <<< --
-
-    -- Carrega animações (transferido de main.lua)
-    -- NOTA: Isso também pode ser feito globalmente uma vez, mas garantimos aqui.
     print("GameplayScene: Chamando AnimationLoader.loadAll()...")
     AnimationLoader.loadAll()
     print("GameplayScene: AnimationLoader.loadAll() concluído.")
 
-    -- Obtém referência ao player para posicionar câmera ou outras lógicas
+    -- 2. Chama Bootstrap para criar e registrar managers de GAMEPLAY
+    print("GameplayScene: Chamando Bootstrap.initialize() para criar managers de gameplay...")
+    Bootstrap.initialize()
+    print("GameplayScene: Bootstrap.initialize() concluído.")
+
+    -- 3. Obtém referências a TODOS os managers necessários do Registry
+    print("GameplayScene: Obtendo managers (gameplay e persistentes) do Registry...")
     local enemyMgr = ManagerRegistry:get("enemyManager")
     local dropMgr = ManagerRegistry:get("dropManager")
     local playerMgr = ManagerRegistry:get("playerManager")
+    local itemDataMgr = ManagerRegistry:get("itemDataManager") -- Persistente
+    -- Adicionar outros managers necessários aqui (Input, Inventory, etc.)
 
-    if playerMgr and playerMgr.player then
-        print(string.format("GameplayScene: Jogador encontrado. Posição inicial: %.1f, %.1f",
-            playerMgr.player.position.x, playerMgr.player.position.y))
-        -- Ex: Centralizar câmera no jogador inicialmente
-        -- self.camera:setPosition(playerMgr.player.position.x, playerMgr.player.position.y)
-    else
-        print("GameplayScene: AVISO - PlayerManager ou player não encontrado após bootstrap!")
+    -- Validação PÓS-Bootstrap
+    if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr then
+        -- Imprime quais falharam
+        local missing = {}
+        if not playerMgr then table.insert(missing, "PlayerManager") end
+        if not enemyMgr then table.insert(missing, "EnemyManager") end
+        if not dropMgr then table.insert(missing, "DropManager") end
+        if not itemDataMgr then table.insert(missing, "ItemDataManager") end
+        error("ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers essenciais do Registry após Bootstrap: " ..
+            table.concat(missing, ", "))
     end
+    print("GameplayScene: Managers obtidos com sucesso.")
 
-    if not playerMgr or not enemyMgr or not dropMgr then
-        error("ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers essenciais do Registry!")
-    end
+    -- 4. Configura managers com dados específicos da cena/jogo
+    print("GameplayScene: Configurando PlayerManager...")
+    playerMgr:setupGameplay(ManagerRegistry, self.hunterId) -- Passa o Registry inteiro para dependências internas
 
-    -- Configura o PlayerManager com o hunterId
-    playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
+    print("GameplayScene: Configurando EnemyManager...")
+    local enemyManagerConfig = {
+        hordeConfig = self.hordeConfig,
+        playerManager = playerMgr,
+        dropManager = dropMgr
+    }
+    enemyMgr:setupGameplay(enemyManagerConfig)
 
-    -- Define a posição inicial da câmera para CENTRALIZAR o jogador AGORA que ele foi criado (usando Camera global)
+    -- Posiciona a câmera após o jogador ser criado em setupGameplay
     local playerInitialPos = playerMgr.player.position
     if playerInitialPos then
-        local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)  -- Usa Camera.screenWidth
-        local initialCamY = playerInitialPos.y - (Camera.screenHeight / 2) -- Usa Camera.screenHeight
-        Camera:setPosition(initialCamX, initialCamY)                       -- Usa Camera:setPosition
+        local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)
+        local initialCamY = playerInitialPos.y - (Camera.screenHeight / 2)
+        Camera:setPosition(initialCamX, initialCamY)
         print(string.format(
-            "GameplayScene: Câmera GLOBAL inicializada para CENTRALIZAR jogador em (%.1f, %.1f). Cam pos: (%.1f, %.1f)",
-            playerInitialPos.x, playerInitialPos.y, Camera.x, Camera.y)) -- DEBUG usando Camera.x/y
+            "GameplayScene: Câmera GLOBAL ajustada para jogador em (%.1f, %.1f). Cam pos: (%.1f, %.1f)",
+            playerInitialPos.x, playerInitialPos.y, Camera.x, Camera.y))
     else
         print("GameplayScene: AVISO - Posição inicial do jogador não encontrada após setup, câmera GLOBAL em (0,0).")
         Camera:setPosition(0, 0)
     end
 
-    -- <<< INÍCIO: Inicialização do EnemyManager com hordeConfig >>>
-    local enemyManagerConfig = {
-        hordeConfig = self.hordeConfig, -- Passa a configuração recebida
-        playerManager = playerMgr,      -- Passa a dependência
-        dropManager = dropMgr           -- Passa a dependência
-        -- Adicionar outras dependências se EnemyManager:init precisar
-    }
-    enemyMgr:setupGameplay(enemyManagerConfig)
-    -- <<< FIM: Inicialização do EnemyManager >>>
+    -- 5. Executa código de início de cena (Ex: drop de teste)
+    -- [[ INÍCIO CÓDIGO DE TESTE TEMPORÁRIO ]]
+    local function createTestDrop()
+        if dropMgr and playerMgr and playerMgr.player and itemDataMgr then
+            local playerPos = playerMgr.player.position
+            local testWeaponId = "hammer" -- <<< CONFIRME ID VÁLIDO!
+
+            if itemDataMgr:getBaseItemData(testWeaponId) then
+                local dropConfig = { type = "item", itemId = testWeaponId, quantity = 1 }
+                local dropPosition = { x = playerPos.x + 250, y = playerPos.y }
+                print(string.format("[TESTE GameplayScene] Criando drop de '%s' perto do jogador.", testWeaponId))
+                dropMgr:createDrop(dropConfig, dropPosition)
+            else
+                print(string.format("[TESTE GameplayScene] AVISO: Item de teste '%s' não encontrado.", testWeaponId))
+            end
+        else
+            print(
+                "[TESTE GameplayScene] AVISO: Dependências (DropMgr, Player, ItemDataMgr) não encontradas para criar drop.")
+        end
+    end
+    createTestDrop()
+    -- [[ FIM CÓDIGO DE TESTE TEMPORÁRIO ]]
 
     print("GameplayScene:load concluído.")
 end

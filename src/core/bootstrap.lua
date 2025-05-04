@@ -22,75 +22,75 @@ local Bootstrap = {}
 function Bootstrap.initialize()
     print("--- [Bootstrap] Criando Instâncias dos Managers de GAMEPLAY com DI ---")
 
-    -- 1. Obter managers PERSISTENTES do Registry (essenciais como dependências)
+    -- 1. Obter managers PERSISTENTES do Registry
     local itemDataManager = ManagerRegistry:get("itemDataManager")
     local hunterManager = ManagerRegistry:get("hunterManager")
-    -- Adicione outros managers persistentes necessários como dependências aqui
-    -- Ex: loadoutManager, archetypeManager, se forem necessários para os managers de gameplay
+    if not itemDataManager then error("ERRO CRÍTICO [Bootstrap.initialize]: Falha ao obter ItemDataManager do Registry!") end
 
-    -- Validação das dependências persistentes obtidas
-    if not itemDataManager or not hunterManager then
-        error("ERRO CRÍTICO [Bootstrap.initialize]: Falha ao obter ItemDataManager ou HunterManager do Registry!")
-    end
+    -- 2. Criar/Inicializar/Registrar managers de GAMEPLAY (Ordem ajustada)
 
-    -- 2. Criar e Registrar managers de GAMEPLAY
-
-    print("  - Criando InputManager...")
-    local inputManager = InputManager -- :new não precisa de dependências persistentes?
-    ManagerRegistry:register("inputManager", inputManager)
+    -- InputManager
+    print("  - Criando/Registrando InputManager...")
+    ManagerRegistry:register("inputManager", InputManager)
     print("    > InputManager registrado.")
 
-    -- InventoryManager (depende de ItemDataManager)
-    print("  - Criando InventoryManager...")
-    -- CORRIGIDO: Passa explicitamente como parâmetro nomeado esperado pelo construtor do InventoryManager
-    -- (Assumindo que InventoryManager:new espera uma tabela de config {itemDataManager = ...})
+    -- InventoryManager
+    print("  - Criando/Registrando InventoryManager...")
     local inventoryManager = InventoryManager:new({ itemDataManager = itemDataManager })
     ManagerRegistry:register("inventoryManager", inventoryManager)
     print("    > InventoryManager registrado.")
 
-    -- FloatingTextManager (sem dependências diretas aqui?)
-    print("  - Criando FloatingTextManager...")
-    local floatingTextManager = FloatingTextManager
-    ManagerRegistry:register("floatingTextManager", floatingTextManager, true)
+    -- FloatingTextManager
+    print("  - Inicializando/Registrando FloatingTextManager...")
+    ManagerRegistry:register("floatingTextManager", FloatingTextManager, true)
     print("    > FloatingTextManager registrado.")
 
-    -- ExperienceOrbManager (depende de FloatingTextManager?)
-    print("  - Criando ExperienceOrbManager...")
-    local experienceOrbManager = ExperienceOrbManager
-    ManagerRegistry:register("experienceOrbManager", experienceOrbManager, true)
+    -- ExperienceOrbManager
+    print("  - Inicializando/Registrando ExperienceOrbManager...")
+    ManagerRegistry:register("experienceOrbManager", ExperienceOrbManager, true)
     print("    > ExperienceOrbManager registrado.")
 
-    -- PlayerManager (será configurado depois pela GameplayScene, mas precisa ser criado)
-    -- Suas dependências SÃO injetadas pelo setupGameplay via Registry
-    print("  - Criando PlayerManager...")
+    -- PlayerManager (Cria instância)
+    print("  - Criando/Registrando PlayerManager...")
     local playerMgr = PlayerManager:new()
-    -- CORREÇÃO: Registra PlayerManager com drawInCamera = true
     ManagerRegistry:register("playerManager", playerMgr, true)
     print("    > PlayerManager registrado (aguardando setupGameplay).")
 
-    -- DropManager (depende de ItemDataManager, FloatingTextManager, ExperienceOrbManager)
-    print("  - Criando DropManager...")
-    local dropManager = DropManager
-    ManagerRegistry:register("dropManager", dropManager, true)
-    print("    > DropManager registrado.")
-
-    -- EnemyManager (será configurado depois pela GameplayScene, precisa ser criado)
-    -- Depende de PlayerManager e DropManager (obtidos via Registry em setupGameplay)
-    print("  - Criando EnemyManager...")
-    local enemyManager = EnemyManager
-    ManagerRegistry:register("enemyManager", enemyManager, true)
+    -- EnemyManager (Registra ANTES de DropManager)
+    print("  - Criando/Registrando EnemyManager...")
+    local enemyManager =
+    EnemyManager                                                 -- Assume Singleton. Se não for: local enemyManager = EnemyManager:new()
+    -- Chamar :init se necessário: if enemyManager.init then enemyManager:init({...}) end
+    ManagerRegistry:register("enemyManager", enemyManager, true) -- Registra a tabela/instância
     print("    > EnemyManager registrado (aguardando setupGameplay).")
 
-    -- RuneManager (depende de PlayerManager?, ItemDataManager?) - Verificar dependências
-    print("  - Criando RuneManager...")
-    -- Ajustar o :new se RuneManager precisar de dependências injetadas
-    local runeManager = RuneManager
+    -- RuneManager (Registra ANTES de DropManager)
+    print("  - Inicializando/Registrando RuneManager...")
+    local runeManager = RuneManager -- Assume Singleton.
+    -- Chamar :init se necessário: if runeManager.init then runeManager:init({...}) end
     ManagerRegistry:register("runeManager", runeManager, true)
     print("    > RuneManager registrado.")
 
-    -- 3. Inicializar Managers (Opcional aqui, pode ser feito na GameplayScene ou nos :new)
-    -- A inicialização específica de gameplay (como setupGameplay) será chamada pela GameplayScene.
-    -- A inicialização genérica (:init) deve ser feita aqui se necessário.
+    -- DropManager (Agora recebe EnemyManager)
+    print("  - Inicializando/Registrando DropManager...")
+    local dropManagerConfig = {
+        playerManager = playerMgr,                 -- Instância
+        enemyManager = enemyManager,               -- <<< Referência ao EnemyManager (singleton/instância)
+        runeManager = runeManager,                 -- Tabela/Singleton
+        floatingTextManager = FloatingTextManager, -- Tabela/Singleton
+        itemDataManager = itemDataManager          -- Tabela/Singleton
+    }
+    -- Validação
+    if not dropManagerConfig.playerManager or not dropManagerConfig.enemyManager or not dropManagerConfig.runeManager or not dropManagerConfig.floatingTextManager or not dropManagerConfig.itemDataManager then
+        print("AVISO [Bootstrap]: Uma ou mais dependências para DropManager:init estão faltando!")
+        -- Considere error() se forem críticas
+    end
+    DropManager:init(dropManagerConfig)
+    ManagerRegistry:register("dropManager", DropManager, true)
+    print("    > DropManager registrado e inicializado.")
+
+
+    -- 3. Inicialização específica (setupGameplay) é feita na cena
 
     print("--- [Bootstrap] Inicialização dos Managers de GAMEPLAY Concluída ---")
 end
