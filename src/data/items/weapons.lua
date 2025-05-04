@@ -116,8 +116,11 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 35,
-        attackSpeed = 1.43, -- 1 / 0.7
-        range = 200,        -- Default assumption
+        cooldown = 0.7,                                               -- Cooldown base em segundos (era attackSpeed = 1.43)
+        range = 100,                                                  -- Alcance inicial para encontrar o primeiro alvo
+        chainCount = 3,                                               -- Número de saltos para inimigos adicionais (total 4 alvos)
+        jumpRange = 100,                                              -- Distância máxima para saltar entre inimigos
+        attackClass = "src.abilities.player.attacks.chain_lightning", -- Classe de ataque
     },
 }
 return weapons
