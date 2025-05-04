@@ -95,4 +95,10 @@ Esta seção descreve alguns dos principais componentes e como eles interagem.
     *   **Benefícios:** Maior clareza, manutenibilidade, testabilidade e reutilização do código da UI.
     *   **Exemplo:** Refatorar telas como `GuildScreen` para que a classe principal (`GuildScreen.lua`) foque na apresentação e delegue o estado e a lógica para uma classe complementar (`GuildScreenController.lua`).
 
+*   **Novas Ideias de Armas/Habilidades:**
+    *   **Lâmina Orbital (Orbital Blade):** Uma ou mais lâminas circundam o jogador, causando dano passivo a inimigos próximos. Stats: `damage`, `orbitalCount`, `orbitalRadius`, `rotationSpeed`. Bônus: Área (raio/tamanho), Projéteis (contagem).
+    *   **Besta Perfurante (Piercing Crossbow):** Dispara um virote lento que atravessa múltiplos inimigos. Stats: `damage`, `cooldown`, `range`, `pierceCount`, `projectileSpeed`. Bônus: Perfuração (contagem), Área (tamanho do projétil).
+    *   **Cajado Pestilento (Blight Staff):** Lança projétil que cria poça de dano contínuo no chão. Stats: `damage` (por tick), `cooldown`, `projectileRange`, `poolRadius`, `poolDuration`, `tickRate`. Bônus: Área (raio da poça), Duração (tempo da poça).
+    *   **Varinha de Mísseis Teleguiados (Homing Missile Wand):** Dispara projéteis que buscam inimigos próximos. Stats: `damage`, `cooldown`, `missileCount`, `missileSpeed`, `missileLifetime`, `turnRate`, `acquisitionRange`. Bônus: Projéteis (contagem).
+
 *   **(Adicione outras ideias futuras aqui)**
