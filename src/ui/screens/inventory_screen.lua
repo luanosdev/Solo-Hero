@@ -466,15 +466,41 @@ function InventoryScreen.handleMouseRelease(dragState)
                     print(string.format(
                         "   -> Item antigo %s (ID: %s) estava no slot. Tentando adicionar ao inventário...",
                         oldItemInstance.itemBaseId, oldItemInstance.instanceId))
-                    local addedBack = inventoryManager:addItem(oldItemInstance) -- Tenta adicionar em qualquer lugar
-                    if addedBack > 0 then                                       -- Assumindo que addItem retorna quantidade adicionada
+                    -- Tenta adicionar em qualquer lugar, retorna quantidade adicionada (0 se falhar)
+                    local addedQuantity = inventoryManager:addItem(oldItemInstance.itemBaseId,
+                        oldItemInstance.quantity or 1)
+
+                    if addedQuantity > 0 then
                         print(string.format("   Item antigo %s adicionado de volta ao inventário.",
                             oldItemInstance.itemBaseId))
                     else
                         print(string.format(
-                            "   ERRO: Falha ao adicionar item antigo %s de volta ao inventário (sem espaço?). Item pode estar perdido!",
+                            "   AVISO: Falha ao adicionar item antigo %s de volta ao inventário (sem espaço?). Dropando no chão...",
                             oldItemInstance.itemBaseId))
-                        -- TODO: Implementar sistema de drop no chão ou mensagem?
+
+                        -- <<< ADICIONADO: Lógica para dropar o item no chão >>>
+                        local dropManager = ManagerRegistry:get("dropManager")
+                        local playerManager = ManagerRegistry:get("playerManager")
+
+                        if dropManager and playerManager and playerManager.player and playerManager.player.position then
+                            local dropConfig = {
+                                type = "item",
+                                itemId = oldItemInstance.itemBaseId,
+                                quantity = oldItemInstance.quantity or 1
+                            }
+                            -- Cria o drop perto do jogador
+                            local dropPos = {
+                                x = playerManager.player.position.x + love.math.random(-15, 15),
+                                y =
+                                    playerManager.player.position.y + love.math.random(-15, 15)
+                            }
+                            dropManager:createDrop(dropConfig, dropPos)
+                            print(string.format("   Item antigo %s dropado em [%.1f, %.1f].", oldItemInstance.itemBaseId,
+                                dropPos.x, dropPos.y))
+                        else
+                            print(
+                                "   ERRO GRAVE: DropManager ou PlayerManager indisponível para dropar item antigo! Item perdido.")
+                        end
                     end
                 end
                 success = true -- Marca a operação geral como sucesso

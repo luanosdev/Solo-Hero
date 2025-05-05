@@ -123,7 +123,8 @@ function InventoryManager:addItem(itemBaseId, quantity)
                 maxStack = maxStack,
                 -- Poderia adicionar outros como name, rarity aqui se útil
                 name = baseData.name,
-                rarity = baseData.rarity
+                rarity = baseData.rarity,
+                icon = baseData.icon -- <<< ADICIONADO: Copia a referência do ícone >>>
             }
             self.placedItems[instanceId] = newItemInstance
 
