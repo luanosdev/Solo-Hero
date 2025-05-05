@@ -256,15 +256,9 @@ end
 function InventoryScreen.keypressed(key)
     if not InventoryScreen.isVisible then return end
 
-    -- Rotaciona o item sendo arrastado (se for do inventário)
-    if InventoryScreen.isDragging and InventoryScreen.draggedItem and InventoryScreen.sourceGridId == "inventory" then
-        if key == "space" or key == "r" then -- Teclas comuns para rotação
-            InventoryScreen.draggedItemIsRotated = not InventoryScreen.draggedItemIsRotated
-            -- Recalcula validade do drop (update fará isso, mas pode forçar aqui)
-            InventoryScreen.update(0, InventoryScreen.mouseX, InventoryScreen.mouseY)
-            print("Item rotation toggled:", InventoryScreen.draggedItemIsRotated)
-            return true -- Consome a tecla
-        end
+    if key == "space" then
+        print("(EquipmentScreen) Rotação solicitada (Espaço)")
+        return true -- Sinaliza para a cena que queremos rotacionar
     end
 
     -- Fecha inventário com ESC ou I (padrão)
@@ -388,9 +382,6 @@ end
 ---@param dragState table Estado completo do drag gerenciado pela cena.
 ---@return boolean success Se a operação foi bem-sucedida.
 function InventoryScreen.handleMouseRelease(dragState)
-    -- Não verifica mais isDragging aqui, a cena só chama se estiver arrastando
-    -- e o drop for considerado válido pela lógica da cena (targetGrid/targetCoords existem e isDropValid=true).
-
     -- Captura estado do parâmetro dragState
     local draggedItem = dragState.draggedItem
     local sourceGrid = dragState.sourceGridId
@@ -412,7 +403,7 @@ function InventoryScreen.handleMouseRelease(dragState)
         sourceGrid or "nil", sourceSlot or "grid", targetGrid or "nil",
         (type(targetCoords) == "string" and targetCoords) or
         (type(targetCoords) == "table" and string.format("[%d,%d]", targetCoords.row, targetCoords.col) or "nil"),
-        tostring(isTargetValid), draggedItem.itemBaseId, tostring(itemWasRotated)))
+        tostring(isTargetValid), draggedItem.itemBaseId, tostring(draggedItem.instanceId), tostring(itemWasRotated)))
 
     -- Se a cena passou isDropValid=false (ex: tipo incompatível, sem espaço), não faz nada.
     -- A cena é responsável por resetar o estado de drag mesmo assim.
@@ -451,9 +442,46 @@ function InventoryScreen.handleMouseRelease(dragState)
             -- Ação: Equipar item do inventário
             print(string.format("-> Ação: Equipar item %s (ID: %s) do Inventário no Slot %s", draggedItem.itemBaseId,
                 draggedItem.instanceId, targetSlotId))
-            success = hunterManager:equipItemFromInventory(currentHunterId, draggedItem.instanceId, targetSlotId,
-                inventoryManager)
-            if success then print("   SUCESSO: Item equipado.") else print("   FALHA: Não foi possível equipar o item.") end
+
+            -- <<< CORRIGIDO: Usa hunterManager:equipItem e trata remoção/item antigo manualmente >>>
+            -- 1. Tenta equipar o item
+            local equipped, oldItemInstance = hunterManager:equipItem(draggedItem, targetSlotId)
+
+            if equipped then
+                print(string.format("   SUCESSO: hunterManager:equipItem equipou %s (ID: %s)", draggedItem.itemBaseId,
+                    draggedItem.instanceId))
+                -- 2. Remove o item equipado do InventoryManager
+                local removed = inventoryManager:removeItemInstance(draggedItem.instanceId)
+                if not removed then
+                    print(string.format("   ERRO GRAVE: Item %s equipado, mas falha ao remover do inventário!",
+                        draggedItem.instanceId))
+                    -- Tentar desequipar como fallback? Ou deixar como está? Por ora, apenas log.
+                else
+                    print(string.format("   Item %s removido do inventário.", draggedItem.instanceId))
+                end
+
+                -- 3. Se havia um item antigo no slot, tenta adicioná-lo ao InventoryManager
+                if oldItemInstance then
+                    print(string.format(
+                        "   -> Item antigo %s (ID: %s) estava no slot. Tentando adicionar ao inventário...",
+                        oldItemInstance.itemBaseId, oldItemInstance.instanceId))
+                    local addedBack = inventoryManager:addItem(oldItemInstance) -- Tenta adicionar em qualquer lugar
+                    if addedBack > 0 then                                       -- Assumindo que addItem retorna quantidade adicionada
+                        print(string.format("   Item antigo %s adicionado de volta ao inventário.",
+                            oldItemInstance.itemBaseId))
+                    else
+                        print(string.format(
+                            "   ERRO: Falha ao adicionar item antigo %s de volta ao inventário (sem espaço?). Item pode estar perdido!",
+                            oldItemInstance.itemBaseId))
+                        -- TODO: Implementar sistema de drop no chão ou mensagem?
+                    end
+                end
+                success = true -- Marca a operação geral como sucesso
+            else
+                print(string.format("   FALHA: hunterManager:equipItem não conseguiu equipar %s.", draggedItem
+                    .itemBaseId))
+                success = false
+            end
         elseif sourceGrid == "equipment" then
             -- Ação: Mover item entre slots de equipamento (swap)
             if sourceSlot == targetSlotId then

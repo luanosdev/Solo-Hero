@@ -203,13 +203,39 @@ function GameplayScene:update(dt)
                     local baseData = itemDataManager:getBaseItemData(draggedItem.itemBaseId)
                     local itemType = baseData and baseData.type
                     if itemType then
-                        local expectedType = Constants.SLOT_TYPES and Constants.SLOT_TYPES[slotId]
-                        if not expectedType and string.sub(slotId, 1, 5) == "rune_" then expectedType = "rune" end
-                        if expectedType and expectedType == itemType then
-                            -- TODO: Adicionar verificação se o slot já está ocupado e se é um swap válido?
-                            -- Por agora, só verifica tipo.
-                            self.inventoryDragState.isDropValid = true
+                        -- <<< CORRIGIDO: Determina o tipo esperado com base no slotId, como em EquipmentScreen >>>
+                        local expectedType = nil
+                        if slotId == Constants.SLOT_IDS.WEAPON then
+                            expectedType = "weapon"
+                        elseif slotId == Constants.SLOT_IDS.HELMET then
+                            expectedType = "helmet"
+                        elseif slotId == Constants.SLOT_IDS.CHEST then
+                            expectedType = "chest"
+                        elseif slotId == Constants.SLOT_IDS.GLOVES then
+                            expectedType = "gloves"
+                        elseif slotId == Constants.SLOT_IDS.BOOTS then
+                            expectedType = "boots"
+                        elseif slotId == Constants.SLOT_IDS.LEGS then
+                            expectedType = "legs"
+                            -- Adicione outros slots de equipamento aqui (ring, amulet, etc.) se necessário
+                        elseif string.sub(slotId, 1, #Constants.SLOT_IDS.RUNE) == Constants.SLOT_IDS.RUNE then -- Verifica prefixo 'rune_'
+                            expectedType = "rune"
                         end
+
+                        if expectedType and expectedType == itemType then
+                            print(string.format(
+                                "[GameplayScene.update - Drag] Hover VÁLIDO sobre Equip Slot '%s'. Set isDropValid=true.",
+                                slotId)) -- DEBUG
+                            self.inventoryDragState.isDropValid = true
+                        else
+                            print(string.format(
+                                "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Tipos não batem: Item='%s', Slot Espera='%s'",
+                                slotId, tostring(itemType), tostring(expectedType)))
+                        end
+                    else
+                        print(string.format(
+                            "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Item '%s' não tem 'type' nos dados base.",
+                            slotId, draggedItem.itemBaseId))
                     end
                     break -- Sai do loop de slots
                 end
@@ -461,7 +487,7 @@ function GameplayScene:keypressed(key, scancode, isrepeat)
 
     -- <<< Primeiro, verifica input relacionado ao Inventário (se visível) >>>
     if InventoryScreen.isVisible then
-        local consumed, wantsToRotate = InventoryScreen.handleKeyPress(key)
+        local consumed, wantsToRotate = InventoryScreen.keypressed(key)
 
         if consumed and wantsToRotate then
             -- Verifica se estamos realmente arrastando E se a origem permite rotação
@@ -597,12 +623,26 @@ end
 function GameplayScene:mousereleased(x, y, button, istouch, presses)
     -- <<< Verifica se estávamos arrastando um item do inventário >>>
     if self.inventoryDragState.isDragging then
-        print(string.format("[GameplayScene] Drop detectado: Target=%s (%s), Valid=%s",
-            self.inventoryDragState.targetGridId or "nil",
-            (type(self.inventoryDragState.targetSlotCoords) == "string" and self.inventoryDragState.targetSlotCoords) or
-            (type(self.inventoryDragState.targetSlotCoords) == "table" and string.format("[%d,%d]", self.inventoryDragState.targetSlotCoords.row, self.inventoryDragState.targetSlotCoords.col) or "nil"),
-            tostring(self.inventoryDragState.isDropValid)
-        ))
+        -- DEBUG: Imprime o estado COMPLETO do dragState ANTES de chamar o handler
+        print("--- [GameplayScene.mousereleased - Drop Detectado] ---")
+        print("Final dragState ANTES de chamar InventoryScreen.handleMouseRelease:")
+        if type(self.inventoryDragState) == "table" then
+            for k, v in pairs(self.inventoryDragState) do
+                if k == "draggedItem" and type(v) == "table" then
+                    print(string.format("  %s: { itemBaseId=%s, instanceId=%s, ... }", k, v.itemBaseId or "nil",
+                        v.instanceId or "nil"))
+                elseif k == "targetSlotCoords" and type(v) == "table" then
+                    print(string.format("  %s: { row=%s, col=%s, ... }", k, v.row or "nil", v.col or "nil"))
+                elseif type(v) == "table" then
+                    print(string.format("  %s: table", k))
+                else
+                    print(string.format("  %s: %s", tostring(k), tostring(v)))
+                end
+            end
+        else
+            print("  self.inventoryDragState não é uma tabela:", tostring(self.inventoryDragState))
+        end
+        print("-----------------------------------------------------")
 
         -- Chama o handler do InventoryScreen para executar a ação
         -- Passa o estado atual do drag da cena

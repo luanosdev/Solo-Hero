@@ -223,15 +223,6 @@ function InventoryManager:getInventoryGridItems()
         })
     end
 
-    -- <<< PRINT DE DEBUG >>>
-    print(string.format("[getInventoryGridItems] Retornando %d itens para a UI:", #uiItems))
-    for i, item in ipairs(uiItems) do
-        print(string.format("  [%d] ID: %s, InstID: %d, Pos: [%d,%d], Rot: %s, Size: %dx%d, Qtd: %d",
-            i, item.itemBaseId or "nil", item.instanceId or 0, item.row or 0, item.col or 0, tostring(item.isRotated),
-            item.gridWidth or 0, item.gridHeight or 0, item.quantity or 0))
-    end
-    -- <<< FIM PRINT >>>
-
     return uiItems
 end
 
