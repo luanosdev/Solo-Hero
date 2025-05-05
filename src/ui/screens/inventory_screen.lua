@@ -256,18 +256,19 @@ end
 function InventoryScreen.keypressed(key)
     if not InventoryScreen.isVisible then return end
 
-    if key == "space" then
-        print("(EquipmentScreen) Rotação solicitada (Espaço)")
-        return true -- Sinaliza para a cena que queremos rotacionar
+    -- <<< MODIFICADO: Retorna consumed, wantsToRotate >>>
+    if key == "space" or key == "r" then -- Tecla para rotação
+        print("[InventoryScreen] Rotação solicitada (Espaço/R)")
+        return true, true                -- Consumiu, e quer rotacionar
     end
 
     -- Fecha inventário com ESC ou I (padrão)
-    if key == "escape" or key == "i" then
+    if key == "escape" or key == "tab" then
         InventoryScreen.hide()
-        return true -- Consome a tecla
+        return true, false -- Consumiu, mas não quer rotacionar
     end
 
-    return false -- Não consome outras teclas
+    return false, false -- Não consumiu
 end
 
 --- Verifica clique e retorna dados se um drag deve ser iniciado.

@@ -305,26 +305,8 @@ function GameplayScene:update(dt)
         print("GameplayScene: AVISO - InputManager não encontrado no Registry para update")
     end
 
-    -- >>> DEBUG: Verificar condição de pausa/UI <<<
-    if self.isPaused or hasActiveModalOrInventory then
-        -- print(string.format("GameplayScene: Update SKIPPED. Paused: %s, Modal/Inv Active: %s", tostring(self.isPaused),
-        --     tostring(hasActiveModalOrInventory))) -- DEBUG
-
-        -- Permite que modais de Level Up/Rune se atualizem se visíveis
-        if LevelUpModal.visible then LevelUpModal:update() end
-        if RuneChoiceModal.visible then RuneChoiceModal:update() end
-        -- ItemDetailsModal já foi atualizado no início
-        return -- Interrompe aqui se pausado ou modal ativo
-    end
-
     -- Atualiza todos os managers do jogo (lógica principal transferida)
     ManagerRegistry:update(dt)
-
-    -- Exemplo: Voltar para o Lobby ao pressionar ESC (mantido)
-    if love.keyboard.isDown("escape") then
-        print("GameplayScene: ESC pressionado, voltando para LobbyScene")
-        SceneManager.switchScene("lobby_scene")
-    end
 end
 
 --- Desenha o grid isométrico com base na posição do jogador e câmera.
@@ -487,52 +469,59 @@ function GameplayScene:keypressed(key, scancode, isrepeat)
 
     -- <<< Primeiro, verifica input relacionado ao Inventário (se visível) >>>
     if InventoryScreen.isVisible then
-        local consumed, wantsToRotate = InventoryScreen.keypressed(key)
+        local consumed, wantsToRotate = InventoryScreen.keypressed(key) -- Chama a função atualizada
 
         if consumed and wantsToRotate then
-            -- Verifica se estamos realmente arrastando E se a origem permite rotação
-            if self.inventoryDragState.isDragging and self.inventoryDragState.sourceGridId == "inventory" then
+            -- Verifica se estamos realmente arrastando
+            if self.inventoryDragState.isDragging then
                 self.inventoryDragState.draggedItemIsRotated = not self.inventoryDragState.draggedItemIsRotated
                 print(string.format("[GameplayScene] Rotação do item arrastado alternada para: %s",
                     tostring(self.inventoryDragState.draggedItemIsRotated)))
-                -- TODO: Forçar um update da validação do drop aqui pode ser útil se a rotação mudar a validade
-                -- Ex: self:_updateInventoryDragHover(love.mouse.getPosition()) -- (Criar função auxiliar?)
             else
-                print("[GameplayScene] Rotação solicitada, mas não aplicável (não arrastando do inventário?).")
+                print("[GameplayScene] Rotação solicitada, mas não aplicável (não arrastando?).")
             end
-            return -- Tecla consumida (seja para tentar ou conseguir rotacionar)
-        elseif consumed then
-            -- Consumida mas não para rotação (ex: fechar inventário)
-            -- Verifica se o inventário foi fechado E se estávamos arrastando, para cancelar o drag
-            if not InventoryScreen.isVisible and self.inventoryDragState.isDragging then
-                print("[GameplayScene] Inventário fechado durante drag. Cancelando drag...")
-                -- Reseta o estado de drag
-                self.inventoryDragState = {
-                    isDragging = false,
-                    draggedItem = nil,
-                    draggedItemOffsetX = 0,
-                    draggedItemOffsetY = 0,
-                    sourceGridId = nil,
-                    sourceSlotId = nil,
-                    draggedItemIsRotated = false,
-                    targetGridId = nil,
-                    targetSlotCoords = nil,
-                    isDropValid = false
-                }
+            return           -- Tecla consumida
+        elseif consumed then -- Tecla foi ESC ou I (ou outra consumida pelo InventoryScreen)
+            -- Consumida mas não para rotação (ex: fechar inventário com ESC/I)
+            -- Verifica se o inventário FOI fechado (isVisible agora é false)
+            if not InventoryScreen.isVisible then
+                print(string.format(
+                    "[GameplayScene] Inventário fechado (tecla: %s). Despausando e cancelando drag (se houver)...", key))
+                self.isPaused = false -- <<< DESPAUSA O JOGO >>>
+                -- Cancela drag se estava arrastando
+                if self.inventoryDragState.isDragging then
+                    -- Reseta o estado de drag
+                    self.inventoryDragState = {
+                        isDragging = false,
+                        draggedItem = nil,
+                        draggedItemOffsetX = 0,
+                        draggedItemOffsetY = 0,
+                        sourceGridId = nil,
+                        sourceSlotId = nil,
+                        draggedItemIsRotated = false,
+                        targetGridId = nil,
+                        targetSlotCoords = nil,
+                        isDropValid = false
+                    }
+                end
+            else
+                -- Se consumiu mas não fechou (caso raro, talvez outra tecla?), apenas retorna.
             end
             return -- Tecla consumida (ex: ESC/I para fechar)
         end
         -- Se não foi consumida pelo inventário, continua...
     end
 
-    -- Trata TAB para inventário (Fora da condição isVisible acima)
-    if key == "tab" and not isrepeat then        -- Ignora repetição para TAB
-        print("GameplayScene: TAB pressionado! Alternando inventário...")
-        self.isPaused = InventoryScreen.toggle() -- Alterna visibilidade e pausa da cena
+    -- Trata TAB para inventário (funciona mesmo se inventário estiver fechado)
+    if key == "tab" and not isrepeat then -- Ignora repetição para TAB
+        print("GameplayScene: TAB pressionado! Alternando inventário e pausa...")
+        -- Chama toggle UMA VEZ e guarda o novo estado
+        local newVisibility = InventoryScreen.toggle()
+        self.isPaused = newVisibility -- Pausa/Despausa junto com a visibilidade
         print(string.format("GameplayScene: Estado de pausa: %s", tostring(self.isPaused)))
 
         -- Cancela drag se o inventário for fechado via TAB
-        if not InventoryScreen.isVisible and self.inventoryDragState.isDragging then
+        if not newVisibility and self.inventoryDragState.isDragging then -- Usa o estado recém definido
             print("[GameplayScene] Inventário fechado (TAB) durante drag. Cancelando drag...")
             self.inventoryDragState = {
                 isDragging = false,
