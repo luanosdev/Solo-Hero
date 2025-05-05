@@ -283,22 +283,32 @@ function EquipmentScreen:handleMousePress(x, y, buttonIdx)
 
         -- Se um item foi clicado, calcula offset e retorna dados para iniciar drag
         if itemClicked and clickedGridId then
-            local itemScreenX = 0
-            local itemScreenY = 0
-            -- Requer config localmente ou passa como dependência
-            local gridConfig = require("src.ui.item_grid_ui").__gridConfig
-            local slotTotalWidth = (gridConfig and gridConfig.slotSize or 48) + (gridConfig and gridConfig.padding or 5)
-            local slotTotalHeight = (gridConfig and gridConfig.slotSize or 48) + (gridConfig and gridConfig.padding or 5)
-
+            -- <<< ADICIONADO: Determina parâmetros e chama ItemGridUI.getItemScreenPos >>>
+            local targetArea, targetRows, targetCols
             if clickedGridId == "storage" then
-                itemScreenX = self.storageGridArea.x + (itemClicked.col - 1) * slotTotalWidth
-                itemScreenY = self.storageGridArea.y + (itemClicked.row - 1) * slotTotalHeight
+                targetArea = self.storageGridArea
+                targetRows, targetCols = self.lobbyStorageManager:getActiveSectionDimensions()
             else -- loadout
-                itemScreenX = self.loadoutGridArea.x + (itemClicked.col - 1) * slotTotalWidth
-                itemScreenY = self.loadoutGridArea.y + (itemClicked.row - 1) * slotTotalHeight
+                targetArea = self.loadoutGridArea
+                targetRows, targetCols = self.loadoutManager:getDimensions()
             end
-            itemOffsetX = x - itemScreenX
-            itemOffsetY = y - itemScreenY
+
+            local itemScreenX, itemScreenY = ItemGridUI.getItemScreenPos(
+                itemClicked.row, itemClicked.col,
+                targetRows, targetCols,
+                targetArea.x, targetArea.y, targetArea.w, targetArea.h
+            )
+            -- <<< FIM ADIÇÃO >>>
+
+            -- Calcula o offset do mouse em relação ao canto do item
+            local itemOffsetX, itemOffsetY = 0, 0
+            if itemScreenX and itemScreenY then -- Verifica se a função retornou valores válidos
+                itemOffsetX = x - itemScreenX
+                itemOffsetY = y - itemScreenY
+            else
+                print(string.format("AVISO (EquipmentScreen): Falha ao calcular itemScreenPos para item %d em %s",
+                    itemClicked.instanceId, clickedGridId))
+            end
 
             local dragStartData = {
                 item = itemClicked,

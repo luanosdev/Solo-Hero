@@ -1,5 +1,6 @@
 local PersistenceManager = require("src.core.persistence_manager")
 local ItemGridLogic = require("src.core.item_grid_logic")
+local Constants = require("src.config.constants")
 
 ---@class LoadoutManager
 local LoadoutManager = {
@@ -8,8 +9,6 @@ local LoadoutManager = {
 
 LoadoutManager.__index = LoadoutManager
 
-local DEFAULT_LOADOUT_ROWS = 8
-local DEFAULT_LOADOUT_COLS = 4
 local SHARED_LOADOUT_SAVE_FILE = "shared_loadout.dat" -- Arquivo para o loadout compartilhado
 
 -- Contador para IDs únicos de instância de item DENTRO do loadout
@@ -30,8 +29,8 @@ function LoadoutManager:new(itemDataManager)
     end
 
     -- Define padrões iniciais (serão sobrescritos pelo loadState se houver save)
-    instance.rows = DEFAULT_LOADOUT_ROWS
-    instance.cols = DEFAULT_LOADOUT_COLS
+    instance.rows = Constants.GRID_ROWS
+    instance.cols = Constants.GRID_COLS
     instance.grid = {}  -- Grade 2D para referência rápida de ocupação
     instance.items = {} -- Tabela de instâncias de itens { [instanceId] = itemInstanceData }
     nextInstanceId = 1  -- Reseta contador local
@@ -351,8 +350,8 @@ function LoadoutManager:loadState()
     if not loadedData or type(loadedData) ~= "table" then
         print("[LoadoutManager] No valid shared save data found. Using defaults.")
         -- Garante que começa com uma estrutura vazia e válida se não houver save
-        self.rows = DEFAULT_LOADOUT_ROWS
-        self.cols = DEFAULT_LOADOUT_COLS
+        self.rows = Constants.GRID_ROWS
+        self.cols = Constants.GRID_COLS
         self:_createEmptyGrid(self.rows, self.cols)
         self.items = {}
         nextInstanceId = 1
@@ -362,8 +361,8 @@ function LoadoutManager:loadState()
     -- TODO: Adicionar verificação de versão se necessário no futuro
 
     -- Carrega dados básicos
-    self.rows = loadedData.rows or DEFAULT_LOADOUT_ROWS
-    self.cols = loadedData.cols or DEFAULT_LOADOUT_COLS
+    self.rows = loadedData.rows or Constants.GRID_ROWS
+    self.cols = loadedData.cols or Constants.GRID_COLS
     nextInstanceId = loadedData.nextInstanceId or 1 -- Carrega o contador
     self.items = {}                                 -- Limpa itens atuais antes de carregar
     self:_createEmptyGrid(self.rows, self.cols)     -- Cria a grade com as dimensões carregadas

@@ -333,7 +333,11 @@ function InventoryScreen.handleMousePress(x, y, button)
     local area = InventoryScreen.inventoryGridArea -- Usa área cacheada
     if area and x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
         local ItemGridUI = require("src.ui.item_grid_ui")
-        local invRows, invCols = inventoryManager:getDimensions()
+        -- <<< CORRIGIDO: Chama getGridDimensions e extrai rows/cols >>>
+        local gridDims = inventoryManager:getGridDimensions()
+        local invRows = gridDims and gridDims.rows
+        local invCols = gridDims and gridDims.cols
+
         if invRows and invCols then
             local coords = ItemGridUI.getSlotCoordsAtMouse(x, y, invRows, invCols, area.x, area.y, area.w, area.h)
             if coords then
@@ -535,7 +539,7 @@ function InventoryScreen.handleMouseRelease(dragState)
             -- Ação: Mover item dentro do inventário
             print(string.format("-> Ação: Mover item %s (ID: %s) dentro do Inventário para [%d,%d], Rotated: %s",
                 draggedItem.itemBaseId, draggedItem.instanceId, targetRow, targetCol, tostring(itemWasRotated)))
-            local removed = inventoryManager:removeItemByInstanceId(draggedItem.instanceId)
+            local removed = inventoryManager:removeItemInstance(draggedItem.instanceId)
             if removed then
                 local placed = inventoryManager:addItemAt(draggedItem, targetRow, targetCol, itemWasRotated)
                 if placed then

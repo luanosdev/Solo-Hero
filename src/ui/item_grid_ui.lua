@@ -354,4 +354,35 @@ function ItemGridUI.getSlotCoordsAtMouse(mx, my, gridRows, gridCols, areaX, area
     return nil -- Mouse fora da área da grade
 end
 
+--- NOVO: Retorna as coordenadas de tela (X, Y) do canto superior esquerdo de um item.
+-- @param itemRow number Linha do item (1-indexed).
+-- @param itemCol number Coluna do item (1-indexed).
+-- @param gridRows number Número de linhas da grade.
+-- @param gridCols number Número de colunas da grade.
+-- @param areaX number Coordenada X da área da grade.
+-- @param areaY number Coordenada Y da área da grade.
+-- @param areaW number Largura da área da grade.
+-- @param areaH number Altura da área da grade.
+-- @return number|nil screenX Coordenada X ou nil se inválido.
+-- @return number|nil screenY Coordenada Y ou nil se inválido.
+function ItemGridUI.getItemScreenPos(itemRow, itemCol, gridRows, gridCols, areaX, areaY, areaW, areaH)
+    if not itemRow or not itemCol then return nil, nil end
+
+    -- Recalcula posição/dimensões da grade (igual a outras funções)
+    local currentGridRows = gridRows or 1
+    local currentGridCols = gridCols or 1
+    local slotTotalWidth = gridConfig.slotSize + gridConfig.padding
+    local slotTotalHeight = gridConfig.slotSize + gridConfig.padding
+    local gridTotalWidth = currentGridCols * slotTotalWidth - gridConfig.padding
+    -- local gridTotalHeight = currentGridRows * slotTotalHeight - gridConfig.padding -- Não necessário para X,Y
+    local startX = areaX + (areaW - gridTotalWidth) / 2
+    local startY = areaY -- Alinhado ao topo
+
+    -- Calcula a posição do slot onde o item começa
+    local itemSlotX = startX + (itemCol - 1) * slotTotalWidth
+    local itemSlotY = startY + (itemRow - 1) * slotTotalHeight
+
+    return itemSlotX, itemSlotY
+end
+
 return ItemGridUI

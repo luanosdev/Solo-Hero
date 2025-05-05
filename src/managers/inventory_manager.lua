@@ -4,6 +4,8 @@
 ]]
 -- <<< ADICIONADO: Requer o módulo de lógica compartilhado >>>
 local ItemGridLogic = require("src.core.item_grid_logic")
+-- <<< ADICIONADO: Requer Constants >>>
+local Constants = require("src.config.constants")
 
 local InventoryManager = {}
 InventoryManager.__index = InventoryManager
@@ -15,8 +17,9 @@ local nextInstanceId = 1
 --- @param config (table): Tabela de configuração contendo { rows, cols, itemDataManager }
 function InventoryManager:init(config)
     config = config or {}
-    self.rows = config.rows or 6 -- Padrão de inventory_screen
-    self.cols = config.cols or 7 -- Padrão de inventory_screen
+    -- <<< MODIFICADO: Usa Constants como padrão >>>
+    self.rows = config.rows or Constants.GRID_ROWS
+    self.cols = config.cols or Constants.GRID_COLS
 
     -- REMOVIDO: ItemDataManager agora é injetado apenas pelo construtor (:new)
     -- self.itemDataManager = config.itemDataManager
