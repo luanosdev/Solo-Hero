@@ -13,12 +13,12 @@ local DropManager = {
 
 -- Adicione esta tabela dentro do DropManager, logo após a definição da tabela DropManager = {}
 local raritySettings = {
-    -- Raridades de Itens (Exemplo, ajuste conforme seu sistema)
-    ["E"] = { color = { 0.8, 0.8, 0.8 }, height = 50, glow = 0.8 },  -- Cinza/Branco
-    ["D"] = { color = { 0.2, 0.5, 1.0 }, height = 70, glow = 1.0 },  -- Azul
-    ["C"] = { color = { 1.0, 1.0, 0.2 }, height = 90, glow = 1.2 },  -- Amarelo
-    ["B"] = { color = { 1.0, 0.6, 0.0 }, height = 110, glow = 1.5 }, -- Laranja (Imagem Laranja/Amarelo)
-    ["A"] = { color = { 1.0, 0.2, 0.2 }, height = 130, glow = 1.8 }, -- Vermelho (Imagem Vermelho)
+    -- Raridades de Itens (Contagem de Feixes Aumentada)
+    ["E"] = { color = { 0.8, 0.8, 0.8 }, height = 80, glow = 0.8, beamCount = 1 },  -- 1 total
+    ["D"] = { color = { 0.2, 0.5, 1.0 }, height = 110, glow = 1.0, beamCount = 3 }, -- 3 total (1 central + 1 par)
+    ["C"] = { color = { 1.0, 1.0, 0.2 }, height = 140, glow = 1.2, beamCount = 3 }, -- 3 total
+    ["B"] = { color = { 1.0, 0.6, 0.0 }, height = 170, glow = 1.5, beamCount = 5 }, -- 5 total (1 central + 2 pares)
+    ["A"] = { color = { 1.0, 0.2, 0.2 }, height = 200, glow = 1.8, beamCount = 7 }, -- 7 total (1 central + 3 pares)
 }
 
 --[[
@@ -164,45 +164,30 @@ end
     @return number Escala do brilho base.
 ]]
 function DropManager:_getDropVisualSettings(dropConfig)
-    local settings = raritySettings["E"] -- Padrão para comum
-
-    -- DEBUG: Print the type right before use
-    print(string.format("[_getDropVisualSettings] ENTERING. Drop type: %s, Item ID: %s",
-        tostring(dropConfig.type), tostring(dropConfig.itemId)))
-    print(string.format("[_getDropVisualSettings] self.itemDataManager type: %s", type(self.itemDataManager)))
+    local settingsKey = "E"
+    local isItemWithRarity = false
 
     if dropConfig.type == "item" and dropConfig.itemId then
-        -- Busca os dados base do item para obter a raridade
         local baseData = self.itemDataManager:getBaseItemData(dropConfig.itemId)
-        local rarity = baseData and baseData.rarity or "E" -- Assume 'E' se não encontrar raridade
-        settings = raritySettings[rarity] or raritySettings["E"]
-        -- print(string.format("Item %s Rarity: %s -> Color: %s", dropConfig.itemId, rarity, love.math.colorToBytes(settings.color))) -- Debug
-    elseif raritySettings[dropConfig.type] then -- Verifica se há uma configuração direta para o tipo (gold, experience, rune)
-        settings = raritySettings[dropConfig.type]
-
-        -- Lógica adicional se runas tiverem raridades que afetam a cor/altura
-        -- if dropConfig.type == "rune" and dropConfig.rarity then
-        --     local runeRarityKey = string.lower(dropConfig.rarity)
-        --     if runeRarityKey == "a" or runeRarityKey == "s" then settings = raritySettings["legendary"]
-        --     elseif runeRarityKey == "b" then settings = raritySettings["rare"]
-        --     -- etc...
-        -- end
-    else
-        -- Fallback para itens sem ID ou tipos não mapeados
-        print(string.format("Aviso: Não foi possível determinar a raridade/tipo para drop: %s. Usando 'E'.",
-            dropConfig.type))
+        if baseData and baseData.rarity then
+            settingsKey = baseData.rarity
+            isItemWithRarity = true
+        end
+    elseif raritySettings[dropConfig.type] then
+        settingsKey = dropConfig.type
     end
 
-    -- Fallback final removido daqui pois a lógica acima já define 'settings'
-    -- local finalSettings = settings -- Usa a variável 'settings' já definida
+    -- Lógica específica para Runas (se aplicável)
+    -- if dropConfig.type == "rune" and dropConfig.rarity then ... end
 
-    -- Retorna os valores desempacotados para clareza
-    -- Verifica se settings não é nil antes de retornar (embora a lógica acima deva garantir isso)
-    if not settings then
-        print("[_getDropVisualSettings] CRITICAL WARNING: Settings became nil unexpectedly. Using 'E'.")
-        settings = raritySettings["E"]
+    local finalSettings = raritySettings[settingsKey]
+    if not finalSettings then
+        print(string.format("Aviso crítico: Chave '%s' não encontrada em raritySettings. Usando 'E'.", settingsKey))
+        finalSettings = raritySettings["E"]
     end
-    return settings.color, settings.height, settings.glow
+
+    -- Retorna todos os valores, incluindo beamCount (com fallback para 1)
+    return finalSettings.color, finalSettings.height, finalSettings.glow, finalSettings.beamCount or 1
 end
 
 --[[
@@ -211,11 +196,11 @@ end
     @param position Posição {x, y} do drop
 ]]
 function DropManager:createDrop(dropConfig, position)
-    -- Determina as propriedades visuais antes de criar a entidade
-    local color, height, glowScale = self:_getDropVisualSettings(dropConfig)
+    -- Determina as propriedades visuais
+    local color, height, glowScale, beamCount = self:_getDropVisualSettings(dropConfig)
 
-    -- Cria a entidade de drop passando as propriedades visuais
-    local dropEntity = DropEntity:new(position, dropConfig, color, height, glowScale)
+    -- Cria a entidade passando beamCount também
+    local dropEntity = DropEntity:new(position, dropConfig, color, height, glowScale, beamCount)
     table.insert(self.activeDrops, dropEntity)
     -- print(string.format("DropEntity criado em (%.1f, %.1f) para tipo: %s", position.x, position.y, dropConfig.type))
 end

@@ -23,12 +23,13 @@ local DropEntity = {
     beamColor = { 1, 1, 1 },
     beamHeight = 50,
     glowScale = 1.0,
+    beamCount = 1,
     glowEffect = true,
     glowTimer = 0,
     animation = nil
 }
 
-function DropEntity:new(position, config, beamColor, beamHeight, glowScale)
+function DropEntity:new(position, config, beamColor, beamHeight, glowScale, beamCount)
     local drop = setmetatable({}, { __index = self })
     drop.initialPosition = { x = position.x, y = position.y }
     drop.position = { x = position.x, y = position.y }
@@ -40,6 +41,7 @@ function DropEntity:new(position, config, beamColor, beamHeight, glowScale)
     drop.beamColor = beamColor or { 1, 1, 1 }
     drop.beamHeight = beamHeight or 50
     drop.glowScale = glowScale or 1.0
+    drop.beamCount = beamCount or 1
 
     if config.type == "rune" then
         drop.animation = runeAnimation
@@ -139,68 +141,124 @@ function DropEntity:_drawCollectionEffect()
 end
 
 --[[--------------------------------------------------------------------------
-  Função de desenho principal - Decide qual efeito mostrar
+  Função de desenho principal - Refatorada para novos efeitos de feixe
 ----------------------------------------------------------------------------]]
 function DropEntity:draw()
     if self.collected then return end
 
-    -- Verifica se está no processo de coleta
     if self.collectionProgress > 0 then
         self:_drawCollectionEffect()
     else
-        -- Se não estiver coletando, desenha o efeito no chão (Feixe + Onda + Base)
         local x, y = self.position.x, self.position.y
         local r, g, b = self.beamColor[1], self.beamColor[2], self.beamColor[3]
-        local beamWidth = 4
+        local beamWidth = 2.5 -- Largura do feixe
+        local baseBeamHeight = self.beamHeight
+        local beamCount = self.beamCount * 2
+        local glowTimer = self.glowTimer
+        local radius = self.radius
 
-        -- Aplica transformação isométrica para tudo no chão
+        if beamCount % 2 == 0 and beamCount > 0 then beamCount = beamCount - 1 end
+        if beamCount <= 0 then beamCount = 1 end
+        local numSideBeamPairs = (beamCount - 1) / 2
+        local globalPulse = 0.95 + math.sin(glowTimer * 1.8) * 0.05
+
         love.graphics.push()
         love.graphics.translate(x, y)
-        love.graphics.scale(1, 0.5)
+        love.graphics.scale(1, 0.5) -- Escala isométrica
 
-        -- 1. Desenha o Feixe de Luz (Vertical no espaço escalado)
-        local segments = 5
-        local heightStep = self.beamHeight / segments
-        local alphaBase = 0.8
-        local alphaStep = alphaBase / segments
+        -- 1. Desenha os Feixes de Luz (CONTÍNUOS)
+        local alphaBase = 0.85 * globalPulse -- Alfa base (um pouco mais opaco)
+        local baseSpacing = beamWidth * 0.8  -- Espaçamento base (ajustado)
+        local heightReductionFactor = 0.08   -- Redução de altura (ajustado)
+        local alphaReductionFactor = 0.15    -- Redução de alfa (ajustado)
 
-        love.graphics.setLineWidth(beamWidth)
-        for i = 0, segments - 1 do
-            local startY = -(i * heightStep)
-            local endY = -((i + 1) * heightStep)
-            local startX = 0
-            local endX = 0
-            local currentAlpha = alphaBase - (i * alphaStep)
-            love.graphics.setColor(r, g, b, currentAlpha)
-            love.graphics.line(startX, startY, endX, endY)
+        -- Desenha de trás para frente (laterais mais distantes primeiro)
+        for pairIndex = numSideBeamPairs, 0, -1 do
+            local isCentral = (pairIndex == 0)
+            local currentHeight, currentMaxAlpha
+
+            if isCentral then
+                currentHeight = baseBeamHeight
+                currentMaxAlpha = alphaBase
+            else
+                currentHeight = baseBeamHeight * (1 - pairIndex * heightReductionFactor)
+                currentMaxAlpha = alphaBase * (1 - pairIndex * alphaReductionFactor)
+                currentHeight = math.max(currentHeight, baseBeamHeight * 0.15)
+                currentMaxAlpha = math.max(currentMaxAlpha, alphaBase * 0.08)
+            end
+
+            if currentHeight <= 0 then goto continue_beam_loop end
+
+            -- Desenha o par de feixes laterais (ou o central)
+            for beamSide = -1, 1, (isCentral and 2 or 1) do
+                if isCentral and beamSide == 1 then goto continue_side_loop end
+
+                local offsetX = 0
+                if not isCentral then
+                    local tremor = math.sin(glowTimer * 3 + pairIndex * 1.5) * radius * 0.05
+                    offsetX = beamSide * (pairIndex * baseSpacing + tremor)
+                end
+
+                -- Define a cor base para o retângulo
+                local rectR, rectG, rectB
+                if isCentral then
+                    -- Para o central, podemos usar uma cor média ou a cor da raridade
+                    -- Usar branco na base fica complexo sem gradiente real. Usaremos a cor média.
+                    rectR = (1 + r) / 2
+                    rectG = (1 + g) / 2
+                    rectB = (1 + b) / 2
+                else
+                    rectR, rectG, rectB = r, g, b -- Laterais usam cor da raridade
+                end
+
+                -- Define o alfa médio para o retângulo (simples fade out)
+                local rectAlpha = currentMaxAlpha * 0.6 -- Alfa médio (ajuste conforme necessário)
+                rectAlpha = math.max(0, rectAlpha)
+
+                love.graphics.setColor(rectR, rectG, rectB, rectAlpha)
+
+                -- Desenha o retângulo contínuo
+                love.graphics.rectangle(
+                    "fill",
+                    offsetX - beamWidth / 2, -- X do canto superior esquerdo
+                    -currentHeight,          -- Y do canto superior esquerdo
+                    beamWidth,               -- Largura
+                    currentHeight            -- Altura
+                )
+
+                -- Opcional: Desenhar uma linha central mais brilhante para dar definição
+                local coreAlpha = currentMaxAlpha *
+                    0.5                                                 -- Linha central mais opaca (<<< VALOR ALTERADO DE 0.9)
+                local coreR, coreG, coreB = 1, 1, 1                     -- Linha central branca (ou cor da raridade?)
+                if not isCentral then coreR, coreG, coreB = r, g, b end -- Laterais usam cor da raridade
+                love.graphics.setColor(coreR, coreG, coreB, coreAlpha)
+                love.graphics.setLineWidth(beamWidth * 0.4)             -- Linha fina
+                love.graphics.line(offsetX, 0, offsetX, -currentHeight) -- Linha do centro
+                love.graphics.setLineWidth(1)                           -- Reseta
+
+                ::continue_side_loop::
+            end
+            ::continue_beam_loop::
         end
-        love.graphics.setLineWidth(1)
 
-        -- 2. Desenha a Onda de Choque na Base (SUBSTITUI o glowEffect anterior)
-        -- Usa a cor do feixe com um alfa base para a onda
-        local shockwaveColor = { r, g, b, 0.6 }
-        -- O raio base da onda pode ser um pouco maior que o raio do item
-        -- Passa glowScale para ajustar a intensidade da onda
-        self:_drawShockwave(shockwaveColor, self.glowTimer, self.radius * 1.2, self.glowScale)
+        -- 2. Desenha a Onda de Choque na Base
+        local shockwaveColor = { r, g, b, 0.6 * globalPulse }
+        self:_drawShockwave(shockwaveColor, glowTimer, radius * 1.2, self.glowScale)
 
-        -- 3. Desenha o Item Base (Círculo ou Animação)
+        -- 3. Desenha o Item Base (Efeito esfera)
         if self.animation then
-            -- A animação deve ser desenhada no espaço transformado (0,0)
-            -- Pode precisar de ajustes de escala/posição internos se a animação não for afetada pelo scale global
             self.animation:draw(0, 0, self.config.rarity)
         else
-            -- Desenha os círculos base em (0,0) no espaço transformado
-            love.graphics.setColor(r, g, b, 1)
-            love.graphics.circle("fill", 0, 0, self.radius)
-
-            love.graphics.setColor(1, 1, 1, 0.7)
-            love.graphics.circle("fill", 0, 0, self.radius * 0.6)
+            love.graphics.setColor(r, g, b, 1 * globalPulse)
+            love.graphics.circle("fill", 0, 0, radius)
+            love.graphics.setColor(1, 1, 1, 0.75 * globalPulse)
+            local highlightRadius = radius * 0.7
+            love.graphics.arc("fill", 0, 0, highlightRadius, math.pi * 1.1, math.pi * 1.9, 20)
         end
 
         love.graphics.pop() -- Restaura transformação
     end
 
-    -- Reseta a cor padrão globalmente
     love.graphics.setColor(1, 1, 1, 1)
 end
 
