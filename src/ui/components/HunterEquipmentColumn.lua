@@ -19,6 +19,13 @@ function HunterEquipmentColumn.draw(x, y, w, h, hunterManager, hunterId)
     -- Passa a tabela local 'equipmentSlotAreas' para ser preenchida por EquipmentSection:draw
     EquipmentSection:draw(x, y, w, h, hunterManager, equipmentSlotAreas, hunterId)
 
+    -- DEBUG: Imprime a tabela antes de retornar
+    -- print("[HunterEquipmentColumn] Returning slot areas:")
+    -- for id, data in pairs(equipmentSlotAreas) do
+    --     print(string.format("  SlotID: %s, Area: {x=%s, y=%s, w=%s, h=%s}",
+    --         tostring(id), tostring(data.x), tostring(data.y), tostring(data.w), tostring(data.h)))
+    -- end
+
     -- Retorna a tabela preenchida com as áreas dos slots
     return equipmentSlotAreas
 end

@@ -264,7 +264,7 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
         local rankColor = colors.rarity[rank] or colors.white
 
         local damage = baseData and baseData.damage or (weaponInstance.damage or 0)
-        local attackSpeed = baseData and baseData.attackSpeed or (weaponInstance.attackSpeed or 0)
+        local cooldown = baseData and baseData.cooldown or (weaponInstance.cooldown or 0)
 
         -- <<< INÍCIO: Desenha Ícone da Arma >>>
         if weaponInstance.icon and type(weaponInstance.icon) == "userdata" then
@@ -292,11 +292,11 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
         else
             local iconSize = math.min(weaponSlotW, weaponSlotH) * 0.8
             local iconX = weaponSlotX + (weaponSlotW - iconSize) / 2
-        local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2
-        elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
-        love.graphics.setColor(colors.white)
-        love.graphics.setFont(fonts.title)
-        love.graphics.printf(string.sub(name, 1, 1), iconX, iconY + iconSize * 0.1, iconSize, "center")
+            local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2
+            elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
+            love.graphics.setColor(colors.white)
+            love.graphics.setFont(fonts.title)
+            love.graphics.printf(string.sub(name, 1, 1), iconX, iconY + iconSize * 0.1, iconSize, "center")
             love.graphics.setFont(fonts.main)
         end
         -- <<< FIM: Desenha Ícone da Arma >>>
@@ -317,7 +317,7 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
         love.graphics.setColor(colors.text_main)
         love.graphics.printf(string.format("Dano: %.1f", damage), infoX, infoY, weaponSlotW * 0.6, "left") -- Limita largura para texto
         infoY = infoY + fonts.main:getHeight() + 2
-        love.graphics.printf(string.format("Vel. Atq: %.2f/s", attackSpeed), infoX, infoY, weaponSlotW * 0.6, "left")
+        love.graphics.printf(string.format("Cooldown: %.2f/s", cooldown), infoX, infoY, weaponSlotW * 0.6, "left")
         -- <<< FIM: Desenha Informações da Arma >>>
     else
         -- Slot de arma vazio (sem alterações)

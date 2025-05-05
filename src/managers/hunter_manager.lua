@@ -109,29 +109,29 @@ end
 function HunterManager:_calculateFinalStats(hunterId)
     local hunterData = self.hunters[hunterId]
     if not hunterData then
-        print("WARNING [_calculateFinalStats]: Hunter not found:", hunterId)
+        -- print("WARNING [_calculateFinalStats]: Hunter not found:", hunterId)
         return {}
     end
-    print(string.format("--- HunterManager:_calculateFinalStats for %s ---", hunterId)) -- DEBUG
+    -- print(string.format("--- HunterManager:_calculateFinalStats for %s ---", hunterId)) -- DEBUG
 
     -- 1. Start with default stats
     local finalStats = {}
-    print("  [DEBUG] Starting with default stats:") -- DEBUG
+    -- print("  [DEBUG] Starting with default stats:") -- DEBUG
     for key, value in pairs(Constants.HUNTER_DEFAULT_STATS) do
         finalStats[key] = value
-        print(string.format("    - %s = %s", key, tostring(value))) -- DEBUG
+        -- print(string.format("    - %s = %s", key, tostring(value))) -- DEBUG
     end
 
     -- 2. Apply archetype modifiers (New Structure)
     local archetypeIds = hunterData.archetypeIds or {}
-    print(string.format("  [DEBUG] Applying modifiers from archetypes: [%s]", table.concat(archetypeIds, ", "))) -- DEBUG
+    -- print(string.format("  [DEBUG] Applying modifiers from archetypes: [%s]", table.concat(archetypeIds, ", "))) -- DEBUG
     local accumulatedBase = {}                                                                                   -- Accumulate base additions
     local accumulatedMult = {}                                                                                   -- Accumulate multiplicative changes (start at 1.0)
 
     for _, archetypeId in ipairs(archetypeIds) do
         local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
         if archetypeData and archetypeData.modifiers then
-            print(string.format("    > Processing archetype: %s", archetypeId)) -- DEBUG
+            -- print(string.format("    > Processing archetype: %s", archetypeId)) -- DEBUG
             -- Iterate through the list of modifier tables
             for _, mod in ipairs(archetypeData.modifiers) do
                 local statName = mod.stat
@@ -141,32 +141,32 @@ function HunterManager:_calculateFinalStats(hunterId)
                         archetypeId))
                     goto continue_modifier_loop                                 -- Skip this modifier
                 end
-                print(string.format("      - Modifier for stat: %s", statName)) -- DEBUG
+                -- print(string.format("      - Modifier for stat: %s", statName)) -- DEBUG
 
                 -- Check for baseValue
                 if mod.baseValue ~= nil then
                     if finalStats[statName] == nil then
-                        print(string.format(
-                            "WARNING [_calculateFinalStats]: Base stat '%s' not found for baseValue in '%s'", statName,
-                            archetypeId))
+                        -- print(string.format(
+                        --     "WARNING [_calculateFinalStats]: Base stat '%s' not found for baseValue in '%s'", statName,
+                        --     archetypeId))
                     else
                         accumulatedBase[statName] = (accumulatedBase[statName] or 0) + mod.baseValue
-                        print(string.format("        -> Base Value: %.2f (Accumulated Base for %s: %.2f)", mod.baseValue,
-                            statName, accumulatedBase[statName])) -- DEBUG
+                        -- print(string.format("        -> Base Value: %.2f (Accumulated Base for %s: %.2f)", mod.baseValue,
+                        --     statName, accumulatedBase[statName])) -- DEBUG
                     end
                 end
 
                 -- Check for multValue
                 if mod.multValue ~= nil then
                     if finalStats[statName] == nil then
-                        print(string.format(
-                            "WARNING [_calculateFinalStats]: Base stat '%s' not found for multValue in '%s'", statName,
-                            archetypeId))
+                        -- print(string.format(
+                        --     "WARNING [_calculateFinalStats]: Base stat '%s' not found for multValue in '%s'", statName,
+                        --     archetypeId))
                     else
                         -- Accumulate the percentage change (0.08 means +8%)
                         accumulatedMult[statName] = (accumulatedMult[statName] or 0) + mod.multValue
-                        print(string.format("        -> Mult Value: %.2f (Accumulated Mult for %s: %.2f)", mod.multValue,
-                            statName, accumulatedMult[statName])) -- DEBUG
+                        -- print(string.format("        -> Mult Value: %.2f (Accumulated Mult for %s: %.2f)", mod.multValue,
+                        --     statName, accumulatedMult[statName])) -- DEBUG
                     end
                 end
                 ::continue_modifier_loop::
@@ -175,12 +175,12 @@ function HunterManager:_calculateFinalStats(hunterId)
     end
 
     -- 3. Apply accumulated modifiers (Base first, then Mult)
-    print("  [DEBUG] Applying accumulated modifiers...") -- DEBUG
+    -- print("  [DEBUG] Applying accumulated modifiers...") -- DEBUG
     -- Apply Base Additions
     for statName, baseAdd in pairs(accumulatedBase) do
         if finalStats[statName] ~= nil then
-            print(string.format("    - Applying Base Add to %s: %.2f + %.2f = %.2f", statName, finalStats[statName],
-                baseAdd, finalStats[statName] + baseAdd)) -- DEBUG
+            -- print(string.format("    - Applying Base Add to %s: %.2f + %.2f = %.2f", statName, finalStats[statName],
+            --     baseAdd, finalStats[statName] + baseAdd)) -- DEBUG
             finalStats[statName] = finalStats[statName] + baseAdd
         end
     end
@@ -189,17 +189,17 @@ function HunterManager:_calculateFinalStats(hunterId)
     for statName, multChange in pairs(accumulatedMult) do
         if finalStats[statName] ~= nil then
             local multiplier = (1.0 + multChange)
-            print(string.format("    - Applying Mult Change to %s: %.2f * %.2f (1.0 + %.2f) = %.2f", statName,
-                finalStats[statName], multiplier, multChange, finalStats[statName] * multiplier)) -- DEBUG
+            -- print(string.format("    - Applying Mult Change to %s: %.2f * %.2f (1.0 + %.2f) = %.2f", statName,
+            --     finalStats[statName], multiplier, multChange, finalStats[statName] * multiplier)) -- DEBUG
             -- Apply the total multiplier (1.0 + accumulated percentage change)
             finalStats[statName] = finalStats[statName] * multiplier
         end
     end
 
     -- TODO: Apply stats from equipped items (later phase)
-    print("  [DEBUG] Final calculated stats (before equipment):")                      -- DEBUG
-    for k, v in pairs(finalStats) do print(string.format("    - %s = %.2f", k, v)) end -- DEBUG
-    print("--- HunterManager:_calculateFinalStats END ---")                            -- DEBUG
+    -- print("  [DEBUG] Final calculated stats (before equipment):")                      -- DEBUG
+    -- for k, v in pairs(finalStats) do print(string.format("    - %s = %.2f", k, v)) end -- DEBUG
+    -- print("--- HunterManager:_calculateFinalStats END ---")                            -- DEBUG
 
     return finalStats
 end
