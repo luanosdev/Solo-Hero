@@ -205,13 +205,30 @@ function InventoryManager:getInventoryGridItems()
     local uiItems = {}
     for _, instance in pairs(self.placedItems) do
         table.insert(uiItems, {
-            itemId = instance.itemBaseId,
+            -- <<< Passa todas as informações relevantes para a UI >>>
+            instanceId = instance.instanceId,
+            itemBaseId = instance.itemBaseId,
             quantity = instance.quantity,
             row = instance.row,
-            col = instance.col
-            -- A UI buscará os dados base (tamanho) usando o itemId
+            col = instance.col,
+            isRotated = instance.isRotated or false, -- Garante boolean
+            gridWidth = instance.gridWidth or 1,     -- Garante valor default
+            gridHeight = instance.gridHeight or 1,   -- Garante valor default
+            name = instance.name,                    -- Pode ser nil
+            rarity = instance.rarity                 -- Pode ser nil
+            -- Ícone geralmente é buscado pela UI, mas poderia ser passado se carregado aqui
         })
     end
+
+    -- <<< PRINT DE DEBUG >>>
+    print(string.format("[getInventoryGridItems] Retornando %d itens para a UI:", #uiItems))
+    for i, item in ipairs(uiItems) do
+        print(string.format("  [%d] ID: %s, InstID: %d, Pos: [%d,%d], Rot: %s, Size: %dx%d, Qtd: %d",
+            i, item.itemBaseId or "nil", item.instanceId or 0, item.row or 0, item.col or 0, tostring(item.isRotated),
+            item.gridWidth or 0, item.gridHeight or 0, item.quantity or 0))
+    end
+    -- <<< FIM PRINT >>>
+
     return uiItems
 end
 
