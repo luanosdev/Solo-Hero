@@ -211,30 +211,41 @@ function DropEntity:draw()
                     rectR, rectG, rectB = r, g, b -- Laterais usam cor da raridade
                 end
 
-                -- Define o alfa médio para o retângulo (simples fade out)
-                local rectAlpha = currentMaxAlpha * 0.6 -- Alfa médio (ajuste conforme necessário)
-                rectAlpha = math.max(0, rectAlpha)
+                -- Desenha o feixe com gradiente usando Mesh
+                local bottomAlpha = currentMaxAlpha * 0.5 -- Alfa na base (<<< AJUSTADO DE 0.7)
+                bottomAlpha = math.max(0, bottomAlpha)
+                local topAlpha = 0                        -- Alfa no topo (transparente)
 
-                love.graphics.setColor(rectR, rectG, rectB, rectAlpha)
+                local vertices = {
+                    -- x, y, u, v, r, g, b, a
+                    { offsetX - beamWidth / 2, -currentHeight, 0, 0, rectR, rectG, rectB, topAlpha },    -- Top-left
+                    { offsetX + beamWidth / 2, -currentHeight, 0, 0, rectR, rectG, rectB, topAlpha },    -- Top-right
+                    { offsetX + beamWidth / 2, 0,              0, 0, rectR, rectG, rectB, bottomAlpha }, -- Bottom-right
+                    { offsetX - beamWidth / 2, 0,              0, 0, rectR, rectG, rectB, bottomAlpha }  -- Bottom-left
+                }
+                -- Cria e desenha a malha (Mesh)
+                local mesh = love.graphics.newMesh(vertices, "fan", "static")
+                love.graphics.setColor(1, 1, 1, 1) -- Reseta a cor global antes de desenhar o mesh
+                love.graphics.draw(mesh, 0, 0)
 
-                -- Desenha o retângulo contínuo
-                love.graphics.rectangle(
-                    "fill",
-                    offsetX - beamWidth / 2, -- X do canto superior esquerdo
-                    -currentHeight,          -- Y do canto superior esquerdo
-                    beamWidth,               -- Largura
-                    currentHeight            -- Altura
-                )
-
-                -- Opcional: Desenhar uma linha central mais brilhante para dar definição
-                local coreAlpha = currentMaxAlpha *
-                    0.5                                                 -- Linha central mais opaca (<<< VALOR ALTERADO DE 0.9)
-                local coreR, coreG, coreB = 1, 1, 1                     -- Linha central branca (ou cor da raridade?)
+                -- Opcional: Desenhar uma linha central mais brilhante com gradiente
+                local coreBottomAlpha = currentMaxAlpha *
+                    0.5                                                 -- Alfa na base da linha central (<<< VALOR ALTERADO DE 0.9)
+                coreBottomAlpha = math.max(0, coreBottomAlpha)
+                local coreTopAlpha = 0                                  -- Alfa no topo da linha central
+                local coreR, coreG, coreB = 1, 1, 1                     -- Cor da linha central (branca)
                 if not isCentral then coreR, coreG, coreB = r, g, b end -- Laterais usam cor da raridade
-                love.graphics.setColor(coreR, coreG, coreB, coreAlpha)
-                love.graphics.setLineWidth(beamWidth * 0.4)             -- Linha fina
-                love.graphics.line(offsetX, 0, offsetX, -currentHeight) -- Linha do centro
-                love.graphics.setLineWidth(1)                           -- Reseta
+                local coreLineWidth = beamWidth * 0.4                   -- Largura da "linha"
+
+                local coreVertices = {
+                    { offsetX - coreLineWidth / 2, -currentHeight, 0, 0, coreR, coreG, coreB, coreTopAlpha },    -- Top-left
+                    { offsetX + coreLineWidth / 2, -currentHeight, 0, 0, coreR, coreG, coreB, coreTopAlpha },    -- Top-right
+                    { offsetX + coreLineWidth / 2, 0,              0, 0, coreR, coreG, coreB, coreBottomAlpha }, -- Bottom-right
+                    { offsetX - coreLineWidth / 2, 0,              0, 0, coreR, coreG, coreB, coreBottomAlpha }  -- Bottom-left
+                }
+                local coreMesh = love.graphics.newMesh(coreVertices, "fan", "static")
+                love.graphics.setColor(1, 1, 1, 1) -- Reseta a cor global
+                love.graphics.draw(coreMesh, 0, 0)
 
                 ::continue_side_loop::
             end
