@@ -37,14 +37,12 @@ function InventoryScreen.draw()
 
     -- Obtém Managers do registro
     local playerManager = ManagerRegistry:get("playerManager")
-    local hunterManager = ManagerRegistry:get("hunterManager") -- <<<< REINTRODUZIDO
+    local hunterManager = ManagerRegistry:get("hunterManager")
     local archetypeManager = ManagerRegistry:get("archetypeManager")
     local loadoutManager = ManagerRegistry:get("loadoutManager")
     local itemDataManager = ManagerRegistry:get("itemDataManager")
 
-    -- MODIFICADO: Reintroduz hunterManager na checagem
     if not playerManager or not hunterManager or not archetypeManager or not loadoutManager or not itemDataManager then
-        -- Desenha uma mensagem de erro se algum manager essencial faltar
         local screenW, screenH = love.graphics.getDimensions()
         love.graphics.setColor(colors.red)
         love.graphics.printf("Erro: Managers essenciais não encontrados!", 0, screenH / 2, screenW, "center")
@@ -55,75 +53,93 @@ function InventoryScreen.draw()
     local screenW, screenH = love.graphics.getDimensions()
 
     -- Fundo semi-transparente para escurecer o jogo
-    love.graphics.setColor(0, 0, 0, 0.8) -- Preto com 80% de opacidade
+    love.graphics.setColor(0, 0, 0, 0.8)
     love.graphics.rectangle("fill", 0, 0, screenW, screenH)
-    love.graphics.setColor(colors.white) -- Reset color
+    love.graphics.setColor(colors.white)
 
     -- Divide a tela em 3 colunas iguais
     local colW = screenW / 3
-    local colH = screenH -- Usa a altura total da tela
-    local colY = 0       -- Começa no topo
+    local colH = screenH
+    local colY = 0
 
     local statsX = 0
     local equipX = colW
     local loadoutX = colW * 2
 
-    -- Adiciona um pequeno padding interno para as colunas (opcional)
+    -- Adiciona um pequeno padding interno
     local padding = 10
+    local topPadding = 100 -- <<< ADICIONADO: Mesma distância do topo que equipment_screen
     local innerColW = colW - padding * 2
     local innerColXOffset = padding
-    local innerColY = colY + padding
-    local innerColH = colH - padding * 2
+    local innerColY = topPadding + padding           -- <<< MODIFICADO: Usa topPadding
+    local innerColH = screenH - topPadding - padding -- <<< MODIFICADO: Altura disponível considera top e bottom padding
 
-    -- Obtém os stats finais ATUAIS do PlayerManager
+    -- <<< ADICIONADO: Desenho dos Títulos >>>
+    local titleFont = fonts.title or love.graphics.getFont()       -- Usa fonte do título ou fallback
+    local titleHeight = titleFont:getHeight()
+    local titleMarginY = 15                                        -- Espaço entre título e conteúdo
+    local titleY = innerColY                                       -- Coloca o título onde o conteúdo começaria
+    local contentStartY = titleY + titleHeight + titleMarginY      -- Conteúdo começa abaixo do título + margem
+    local contentInnerH = innerColH - (titleHeight + titleMarginY) -- Altura restante para o conteúdo
+
+    love.graphics.setFont(titleFont)
+    love.graphics.setColor(colors.text_highlight)
+    love.graphics.printf("ATRIBUTOS", statsX + innerColXOffset, titleY, innerColW, "center")
+    love.graphics.printf("EQUIPAMENTO", equipX + innerColXOffset, titleY, innerColW, "center")
+    love.graphics.printf("MOCHILA", loadoutX + innerColXOffset, titleY, innerColW, "center")
+    love.graphics.setColor(colors.white)
+    love.graphics.setFont(fonts.main or titleFont) -- Reseta para fonte principal
+    -- <<< FIM: Desenho dos Títulos >>>
+
+    -- <<< ADICIONADO: Cálculo para centralização vertical do conteúdo >>>
+    local contentMaxHeightFactor = 0.9 -- Fator da altura da coluna que o conteúdo pode ocupar (ajuste conforme necessário)
+    local centeredContentH = contentInnerH * contentMaxHeightFactor
+    local contentOffsetY = (contentInnerH - centeredContentH) / 2
+    local centeredContentStartY = contentStartY + contentOffsetY
+    -- <<< FIM: Cálculo para centralização vertical >>>
+
+    -- Obtém dados necessários
     local currentFinalStats = playerManager:getCurrentFinalStats()
-    -- Obtém os IDs dos arquétipos do HunterManager
-    local currentHunterId = playerManager:getCurrentHunterId() -- Pega o ID primeiro
+    local currentHunterId = playerManager:getCurrentHunterId()
     local hunterArchetypeIds = nil
     if currentHunterId then
         hunterArchetypeIds = hunterManager:getArchetypeIds(currentHunterId)
     end
 
-    -- <<<< CRIA TABELA DE CONFIGURAÇÃO >>>>
-    local columnConfig = {
-        currentHp = playerManager.state and playerManager.state.currentHealth, -- Passa dados de gameplay
+    -- <<<< CRIA TABELA DE CONFIGURAÇÃO PARA STATS COLUMN >>>>
+    local statsColumnConfig = {
+        -- Dados de Gameplay (usando 'and' para evitar erro se playerManager.state for nil)
+        currentHp = playerManager.state and playerManager.state.currentHealth,
         level = playerManager.state and playerManager.state.level,
         currentXp = playerManager.state and playerManager.state.experience,
         xpToNextLevel = playerManager.state and playerManager.state.experienceToNextLevel,
-        finalStats = currentFinalStats,          -- Passa stats finais de gameplay
-        archetypeIds = hunterArchetypeIds or {}, -- Passa IDs de arquétipo
+        -- Dados Comuns
+        finalStats = currentFinalStats,
+        archetypeIds = hunterArchetypeIds or {},
         archetypeManager = archetypeManager,
         mouseX = InventoryScreen.mouseX or 0,
         mouseY = InventoryScreen.mouseY or 0
     }
 
-    -- Desenha as 3 colunas usando os novos módulos
+    -- Desenha Coluna de Stats -- MODIFICADO: Usa Y e H centralizados
     HunterStatsColumn.draw(
-        statsX + innerColXOffset, innerColY, innerColW, innerColH,
-        columnConfig -- <<<< Passa a tabela de configuração
+        statsX + innerColXOffset, centeredContentStartY, innerColW, centeredContentH,
+        statsColumnConfig
     )
 
-    -- Guarda as áreas dos slots retornadas pela coluna de equipamento
+    -- Desenha e guarda área da Coluna de Equipamento -- MODIFICADO: Usa Y e H centralizados
     InventoryScreen.equipmentSlotAreas = HunterEquipmentColumn.draw(
-        equipX + innerColXOffset, innerColY, innerColW, innerColH,
-        playerManager,                     -- Passa o PlayerManager
-        playerManager:getCurrentHunterId() -- Passa o ID do Hunter atual
+        equipX + innerColXOffset, centeredContentStartY, innerColW, centeredContentH,
+        hunterManager,
+        currentHunterId
     )
 
-    -- Guarda a área da grade retornada pela coluna de loadout
+    -- Desenha e guarda área da Coluna de Loadout -- MODIFICADO: Usa Y e H centralizados
     InventoryScreen.loadoutGridArea = HunterLoadoutColumn.draw(
-        loadoutX + innerColXOffset, innerColY, innerColW, innerColH,
-        loadoutManager, -- Passa o LoadoutManager
-        itemDataManager -- Passa o ItemDataManager
+        loadoutX + innerColXOffset, centeredContentStartY, innerColW, centeredContentH,
+        loadoutManager,
+        itemDataManager
     )
-
-    -- Linhas divisórias entre as colunas (opcional)
-    love.graphics.setColor(colors.border_dark)
-    love.graphics.setLineWidth(2)
-    love.graphics.line(colW, 0, colW, screenH)
-    love.graphics.line(colW * 2, 0, colW * 2, screenH)
-    love.graphics.setLineWidth(1)        -- Reset line width
-    love.graphics.setColor(colors.white) -- Reset color
 end
 
 -- Mantém as funções de input, mas a lógica interna precisará ser adaptada
