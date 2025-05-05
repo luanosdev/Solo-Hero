@@ -2,129 +2,176 @@
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
-local glowShader = nil                                           -- Variável para armazenar o shader, se carregado
 local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado
--- local player = require("src.entities.player") -- Assumindo que os dados do jogador virão daqui
 
--- Carrega as seções refatoradas
-local StatsSection = require("src.ui.inventory.sections.stats_section")
-local EquipmentSection = require("src.ui.inventory.sections.equipment_section")
-local InventoryGridSection = require("src.ui.inventory.sections.inventory_grid_section")
-
--- Helper para formatar números (MOVIDO PARA ui_elements.lua)
--- local function formatNumber(num) ... end
-
--- Helper para formatar Chance de Ataque Múltiplo (MOVIDO PARA stats_section.lua)
--- local function formatMultiAttack(value) ... end
+-- Carrega as NOVAS colunas
+local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
+local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn")
+local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn") -- Renomeado de Inventory para Loadout
 
 local InventoryScreen = {}
 InventoryScreen.isVisible = false
-InventoryScreen.slotsPerRow = 7        -- Reduzido de 8 para 7
-InventoryScreen.slotSize = 58          -- Aumentado de 48 (48 * 1.2 = 57.6 -> 58)
-InventoryScreen.slotSpacing = 5
-InventoryScreen.equipmentSlotSize = 64 -- Tamanho maior para slots de equipamento
-InventoryScreen.runeSlotSize = 32      -- Tamanho menor para runas
 
--- Função para obter o shader (será chamado pelo main.lua)
+-- Função para obter o shader (mantida, mas o shader não é usado atualmente)
 function InventoryScreen.setGlowShader(shader)
-    glowShader = shader
+    -- glowShader = shader -- Shader não é usado neste novo layout, remover ou adaptar se necessário
 end
 
--- Função para alternar a visibilidade e pausar/retomar o jogo
+-- Função para alternar a visibilidade (mantida)
 function InventoryScreen.toggle()
-    -- print("  [InventoryScreen] toggle START. Current isVisible:", InventoryScreen.isVisible) -- DEBUG Removido
     InventoryScreen.isVisible = not InventoryScreen.isVisible
-    -- print("  [InventoryScreen] toggle END. New isVisible:", InventoryScreen.isVisible) -- DEBUG Removido
-    -- A lógica real de pausa/retomada será gerenciada no main.lua
-    if InventoryScreen.isVisible then
-        -- print("Inventário aberto.") -- DEBUG Removido
-        -- TODO: Potencialmente buscar dados frescos do jogador aqui, se necessário
-    else
-        -- print("Inventário fechado.") -- DEBUG Removido
-    end
-    return InventoryScreen.isVisible -- Retorna o novo estado
+    -- A lógica de pausa/retomada é gerenciada no main.lua ou onde for chamado
+    return InventoryScreen.isVisible
 end
 
-function InventoryScreen.update(dt)
+function InventoryScreen.update(dt, mx, my) -- Adiciona mx, my para passar para tooltips
     if not InventoryScreen.isVisible then return end
-    -- Lógica de atualização da UI, se houver (ex: efeitos de hover, animações)
+    -- Lógica de atualização da UI pode ser adicionada aqui, se necessário
+    InventoryScreen.mouseX = mx
+    InventoryScreen.mouseY = my
 end
 
--- Função principal de desenho da tela
-function InventoryScreen.draw() -- Removido playerManager como argumento
+-- Função principal de desenho da tela (MODIFICADA)
+function InventoryScreen.draw()
     if not InventoryScreen.isVisible then return end
 
-    -- Obtém PlayerManager do registro
+    -- Obtém Managers do registro
     local playerManager = ManagerRegistry:get("playerManager")
+    local hunterManager = ManagerRegistry:get("hunterManager") -- <<<< REINTRODUZIDO
+    local archetypeManager = ManagerRegistry:get("archetypeManager")
+    local loadoutManager = ManagerRegistry:get("loadoutManager")
+    local itemDataManager = ManagerRegistry:get("itemDataManager")
+
+    -- MODIFICADO: Reintroduz hunterManager na checagem
+    if not playerManager or not hunterManager or not archetypeManager or not loadoutManager or not itemDataManager then
+        -- Desenha uma mensagem de erro se algum manager essencial faltar
+        local screenW, screenH = love.graphics.getDimensions()
+        love.graphics.setColor(colors.red)
+        love.graphics.printf("Erro: Managers essenciais não encontrados!", 0, screenH / 2, screenW, "center")
+        love.graphics.setColor(colors.white)
+        return
+    end
 
     local screenW, screenH = love.graphics.getDimensions()
-    -- Dimensões e posição do painel principal (Aumentado)
-    local panelW = math.min(screenW * 0.95, 1400)
-    local panelH = math.min(screenH * 0.85, 800)
-    local panelX = (screenW - panelW) / 2
-    local panelY = (screenH - panelH) / 2
-    -- print("  [InventoryScreen.draw] Calculou Painel e Seções") -- DEBUG Removido
 
-    -- print("  [InventoryScreen.draw] Chamando drawWindowFrame...") -- DEBUG Removido
-    elements.drawWindowFrame(panelX, panelY, panelW, panelH, "CHEERFUL JACK")
-    -- print("  [InventoryScreen.draw] Retornou de drawWindowFrame") -- DEBUG Removido
+    -- Fundo semi-transparente para escurecer o jogo
+    love.graphics.setColor(0, 0, 0, 0.8) -- Preto com 80% de opacidade
+    love.graphics.rectangle("fill", 0, 0, screenW, screenH)
+    love.graphics.setColor(colors.white) -- Reset color
 
-    -- Calcula dimensões e posições das seções
-    local padding = 20
-    local titleHeight = fonts.title:getHeight()
-    local sectionTopY = panelY + titleHeight * 1.5 + padding
-    local sectionContentH = panelH - (sectionTopY - panelY) - padding
+    -- Divide a tela em 3 colunas iguais
+    local colW = screenW / 3
+    local colH = screenH -- Usa a altura total da tela
+    local colY = 0       -- Começa no topo
 
-    -- Larguras das seções (Ajustadas para 25%, 35%, 40% da área útil e centralizadas)
-    local totalPaddingWidth = padding * 4 -- Padding esquerdo, 2x entre seções, padding direito
-    local sectionAreaW = panelW - totalPaddingWidth
+    local statsX = 0
+    local equipX = colW
+    local loadoutX = colW * 2
 
-    -- Define as larguras baseadas nas proporções da área útil
-    local statsW = sectionAreaW * 0.25
-    local equipmentW = sectionAreaW * 0.35
-    -- Calcula a última largura para garantir que a soma seja exata
-    local inventoryW = sectionAreaW - statsW - equipmentW
+    -- Adiciona um pequeno padding interno para as colunas (opcional)
+    local padding = 10
+    local innerColW = colW - padding * 2
+    local innerColXOffset = padding
+    local innerColY = colY + padding
+    local innerColH = colH - padding * 2
 
-    -- Calcula as posições X começando após o padding esquerdo
-    local statsX = panelX + padding
-    local equipmentX = statsX + statsW + padding
-    local inventoryX = equipmentX + equipmentW + padding
+    -- Obtém os stats finais ATUAIS do PlayerManager
+    local currentFinalStats = playerManager:getCurrentFinalStats()
+    -- Obtém os IDs dos arquétipos do HunterManager
+    local currentHunterId = playerManager:getCurrentHunterId() -- Pega o ID primeiro
+    local hunterArchetypeIds = nil
+    if currentHunterId then
+        hunterArchetypeIds = hunterManager:getArchetypeIds(currentHunterId)
+    end
 
-    -- Chama as funções de desenho das seções refatoradas com novos W e X
-    StatsSection.draw(statsX, sectionTopY, statsW, sectionContentH, playerManager)
-    EquipmentSection:draw(equipmentX, sectionTopY, equipmentW, sectionContentH)
-    InventoryGridSection:draw(inventoryX, sectionTopY, inventoryW, sectionContentH)
+    -- <<<< CRIA TABELA DE CONFIGURAÇÃO >>>>
+    local columnConfig = {
+        currentHp = playerManager.state and playerManager.state.currentHealth, -- Passa dados de gameplay
+        level = playerManager.state and playerManager.state.level,
+        currentXp = playerManager.state and playerManager.state.experience,
+        xpToNextLevel = playerManager.state and playerManager.state.experienceToNextLevel,
+        finalStats = currentFinalStats,          -- Passa stats finais de gameplay
+        archetypeIds = hunterArchetypeIds or {}, -- Passa IDs de arquétipo
+        archetypeManager = archetypeManager,
+        mouseX = InventoryScreen.mouseX or 0,
+        mouseY = InventoryScreen.mouseY or 0
+    }
+
+    -- Desenha as 3 colunas usando os novos módulos
+    HunterStatsColumn.draw(
+        statsX + innerColXOffset, innerColY, innerColW, innerColH,
+        columnConfig -- <<<< Passa a tabela de configuração
+    )
+
+    -- Guarda as áreas dos slots retornadas pela coluna de equipamento
+    InventoryScreen.equipmentSlotAreas = HunterEquipmentColumn.draw(
+        equipX + innerColXOffset, innerColY, innerColW, innerColH,
+        playerManager,                     -- Passa o PlayerManager
+        playerManager:getCurrentHunterId() -- Passa o ID do Hunter atual
+    )
+
+    -- Guarda a área da grade retornada pela coluna de loadout
+    InventoryScreen.loadoutGridArea = HunterLoadoutColumn.draw(
+        loadoutX + innerColXOffset, innerColY, innerColW, innerColH,
+        loadoutManager, -- Passa o LoadoutManager
+        itemDataManager -- Passa o ItemDataManager
+    )
+
+    -- Linhas divisórias entre as colunas (opcional)
+    love.graphics.setColor(colors.border_dark)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(colW, 0, colW, screenH)
+    love.graphics.line(colW * 2, 0, colW * 2, screenH)
+    love.graphics.setLineWidth(1)        -- Reset line width
+    love.graphics.setColor(colors.white) -- Reset color
 end
 
--- Desenha a seção de equipamento (centro)
--- function InventoryScreen.drawEquipment(x, y, w, h) ... end
+-- Mantém as funções de input, mas a lógica interna precisará ser adaptada
+-- para interagir com as áreas retornadas pelas colunas (equipmentSlotAreas, loadoutGridArea)
 
--- Desenha a seção do inventário (direita)
--- function InventoryScreen.drawInventory(x, y, w, h) ... end
-
--- Função para processar input quando o inventário está visível
 function InventoryScreen.keypressed(key)
     if not InventoryScreen.isVisible then return false end
-
-    -- TODO: Adicionar lógica de navegação/interação dentro do inventário
-    if key == "escape" or key == "tab" then -- 'tab' também fecha (a pausa é tratada em main.lua)
+    if key == "escape" or key == "tab" then
         InventoryScreen.toggle()
         return true
     end
-
-    -- print("Inventory handled key:", key) -- DEBUG Removido
-    return true -- Consome outras teclas por enquanto
+    -- TODO: Adicionar navegação por teclado entre colunas/slots?
+    return true -- Consome outras teclas
 end
 
--- Função para tratar cliques do mouse quando o inventário está visível
 function InventoryScreen.mousepressed(x, y, button)
     if not InventoryScreen.isVisible then return false end
 
-    -- TODO: Lógica de clique nos slots
-    -- print("Inventory click detection placeholder @", x, y, button) -- DEBUG Removido
+    -- Verifica cliques nos slots de equipamento (usando InventoryScreen.equipmentSlotAreas)
+    -- Verifica cliques na grade do loadout (usando InventoryScreen.loadoutGridArea)
+    -- Verifica interações com a coluna de stats (se houver)
+    -- TODO: Implementar lógica de drag-and-drop entre equipamento e loadout
 
-    -- Consome o clique por enquanto para evitar interação com o jogo
-    return true
+    print(string.format("Inventory click @ %.0f, %.0f, button %d", x, y, button)) -- DEBUG
+
+    -- Exemplo: Checar clique em um slot de equipamento
+    if InventoryScreen.equipmentSlotAreas then
+        for slotType, area in pairs(InventoryScreen.equipmentSlotAreas) do
+            if x >= area.x and x <= area.x + area.w and y >= area.y and y <= area.y + area.h then
+                print("Clicked on equipment slot:", slotType)
+                -- Iniciar drag, mostrar tooltip, etc.
+                return true -- Consome o clique
+            end
+        end
+    end
+
+    -- Exemplo: Checar clique na área do loadout (precisaria de mais detalhes do ItemGridUI)
+    if InventoryScreen.loadoutGridArea then
+        local area = InventoryScreen.loadoutGridArea
+        if x >= area.x and x <= area.x + area.w and y >= area.y and y <= area.y + area.h then
+            print("Clicked within loadout area.")
+            -- Determinar qual slot foi clicado baseado em x, y e layout da grade
+            -- Iniciar drag, mostrar tooltip, etc.
+            return true -- Consome o clique
+        end
+    end
+
+    return true -- Consome o clique por padrão se estiver dentro da tela
 end
 
 return InventoryScreen

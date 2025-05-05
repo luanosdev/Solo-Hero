@@ -547,4 +547,45 @@ function PlayerState:getTotalPickupRadius()
     return (self.pickupRadius * (1 + self.levelBonus.pickupRadius / 100)) + self.fixedBonus.pickupRadius
 end
 
+--[[ Get total expBonus ]] -- NOVO
+function PlayerState:getTotalExpBonus()
+    -- BaseMultiplier * (1 + %LevelBonus + FixedBonus%)
+    return self.expBonus * (1 + self.levelBonus.expBonus / 100 + self.fixedBonus.expBonus)
+end
+
+--[[ Get total healingBonus ]] -- NOVO
+function PlayerState:getTotalHealingBonus()
+    -- BaseMultiplier * (1 + %LevelBonus + FixedBonus%)
+    return self.healingBonus * (1 + self.levelBonus.healingBonus / 100 + self.fixedBonus.healingBonus)
+end
+
+--[[ Get total healthRegenDelay ]] -- NOVO
+function PlayerState:getTotalHealthRegenDelay()
+    -- Base - (%LevelBonus / 100 * Base) - FixedBonus (Assumindo que bônus REDUZEM o delay)
+    -- Cuidado para não ficar negativo
+    local baseDelay = self.healthRegenDelay
+    local levelReduction = baseDelay * (self.levelBonus.healthRegenDelay / 100)
+    local fixedReduction = self.fixedBonus.healthRegenDelay
+    return math.max(0.1, baseDelay - levelReduction - fixedReduction) -- Garante um delay mínimo
+end
+
+--[[ Get total healthPerTick ]] -- NOVO
+function PlayerState:getTotalHealthPerTick()
+    -- Base * (1 + %LevelBonus) + FixedBonus (Aditivo)
+    return (self.healthPerTick * (1 + self.levelBonus.healthPerTick / 100)) + self.fixedBonus.healthPerTick
+end
+
+--[[ Get total cooldownReduction ]] -- NOVO
+function PlayerState:getTotalCooldownReduction()
+    -- Retorna um multiplicador (ex: 0.8 para 20% de redução)
+    -- BaseMultiplier * (1 - %LevelBonus - FixedBonus%)
+    -- Cuidado para não ficar negativo ou zero
+    local levelReductionPercent = self.levelBonus.cooldownReduction / 100
+    local fixedReductionPercent = self.fixedBonus.cooldownReduction
+    local totalReductionPercent = levelReductionPercent + fixedReductionPercent
+    -- Limita a redução máxima (ex: 80%) para evitar cooldown zero ou negativo
+    totalReductionPercent = math.min(totalReductionPercent, Constants.MAX_COOLDOWN_REDUCTION or 0.8)
+    return self.cooldownReduction * (1 - totalReductionPercent)
+end
+
 return PlayerState

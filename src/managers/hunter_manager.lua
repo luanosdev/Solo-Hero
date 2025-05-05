@@ -249,27 +249,21 @@ end
 --- @param hunterId string
 function HunterManager:_initializeEquippedItems(hunterId)
     local hunterData = self.hunters[hunterId]
-    if not hunterData then
-        print(string.format("ERROR [_initializeEquippedItems]: Hunter %s does not exist in self.hunters!", hunterId))
-        return
-    end
-    print(string.format("  [HunterManager] Initializing equipment slots for %s", hunterId))
-    hunterData.equippedItems = {} -- Cria/reseta a tabela
+    if not hunterData then return end
 
-    -- 1. Adiciona os slots de equipamento BASE
-    for _, slotId in ipairs(self.EQUIPMENT_SLOTS_BASE) do
-        hunterData.equippedItems[slotId] = nil
+    hunterData.equippedItems = hunterData.equippedItems or {}
+
+    -- Initialize base slots
+    for _, slotId in ipairs(HunterManager.EQUIPMENT_SLOTS_BASE) do
+        hunterData.equippedItems[slotId] = hunterData.equippedItems[slotId] -- Mantém item existente ou nil
     end
 
-    -- 2. Adiciona os slots de Runa DINAMICAMENTE
-    -- Pega o número de slots dos stats PADRÃO (Constants) para inicialização
-    -- Poderia pegar dos stats FINAIS, mas _calculateFinalStats pode não ser seguro chamar aqui ainda.
-    -- Usar o padrão é seguro para a estrutura inicial. O número real será usado pela UI.
-    local numRuneSlots = Constants.HUNTER_DEFAULT_STATS.runeSlots or 0
-    print(string.format("    > Initializing with %d default rune slots.", numRuneSlots))
+    -- Initialize rune slots based on final stats (pode ser 0 inicialmente!)
+    local finalStats = self:_calculateFinalStats(hunterId)
+    local numRuneSlots = finalStats and finalStats.runeSlots or 0
     for i = 1, numRuneSlots do
-        local slotId = "rune_" .. i
-        hunterData.equippedItems[slotId] = nil
+        local slotId = Constants.SLOT_IDS.RUNE .. i                         -- Ex: "rune_1"
+        hunterData.equippedItems[slotId] = hunterData.equippedItems[slotId] -- Mantém item existente ou nil
     end
 end
 
@@ -897,6 +891,18 @@ function HunterManager:recruitHunter(candidateData)
 
     print(string.format("[HunterManager] Hunter %s recruited successfully.", hunterId))
     return hunterId
+end
+
+--- Returns the list of archetype IDs for a specific hunter.
+--- @param hunterId string The ID of the hunter.
+--- @return table | nil A list of archetype ID strings or nil if hunter not found.
+function HunterManager:getArchetypeIds(hunterId)
+    local hunterData = self.hunters[hunterId]
+    if hunterData then
+        return hunterData.archetypeIds or {} -- Retorna a lista ou uma tabela vazia se não houver arquétipos
+    end
+    print(string.format("WARNING [getArchetypeIds]: Hunter %s not found.", hunterId))
+    return nil -- Retorna nil se o caçador não for encontrado
 end
 
 return HunterManager

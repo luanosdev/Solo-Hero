@@ -78,7 +78,8 @@ local PlayerManager = {
     floatingTextManager = nil,
     inventoryManager = nil,
     hunterManager = nil,
-    itemDataManager = nil
+    itemDataManager = nil,
+    currentHunterId = nil             -- <<< ADICIONADO: Para armazenar o ID do caçador ativo
 }
 PlayerManager.__index = PlayerManager -- <<< ADICIONADO __index >>>
 
@@ -135,6 +136,9 @@ end
 --- @param hunterId string ID do caçador a ser configurado.
 function PlayerManager:setupGameplay(registry, hunterId)
     print(string.format("[PlayerManager] Setting up gameplay for hunter ID: %s", hunterId))
+
+    -- Armazena o ID do caçador atual
+    self.currentHunterId = hunterId -- <<<< ADICIONADO
 
     -- 1. Obtém os managers necessários do Registry
     self.inputManager = registry:get("inputManager")
@@ -212,14 +216,14 @@ function PlayerManager:setupGameplay(registry, hunterId)
                     print(string.format("    -> :equip called. Type of attackInstance inside weapon: %s",
                         type(self.equippedWeapon.attackInstance))) -- Verifica se attackInstance foi criado
                     print(string.format("    - Weapon '%s' equipped and configured via its class.", weaponItem
-                    .itemBaseId))
+                        .itemBaseId))
 
                     -- REMOVIDO: A atualização dos stats agora é responsabilidade do método :equip da arma.
                     -- self.state:updateWeaponStats(self.equippedWeapon)
                 else
                     print(string.format("    - ERRO CRÍTICO: O método :equip não foi encontrado na classe da arma '%s'!",
                         weaponClassPath))
-                    self.equippedWeapon = nil  -- Desequipa se :equip falhar ou não existir
+                    self.equippedWeapon = nil -- Desequipa se :equip falhar ou não existir
                 end
             else
                 print(string.format("    - ERRO: Falha ao criar a instância da arma '%s' usando :new().", weaponClassPath))
@@ -698,6 +702,41 @@ local function table_size(t)
     local count = 0
     for _ in pairs(t) do count = count + 1 end
     return count
+end
+
+--- Retorna uma tabela contendo os valores finais dos atributos do jogador,
+--- incluindo bônus de nível e fixos calculados pelo PlayerState.
+function PlayerManager:getCurrentFinalStats()
+    if not self.state then
+        print("AVISO [PlayerManager:getCurrentFinalStats]: PlayerState não inicializado. Retornando tabela vazia.")
+        return {}
+    end
+    return {
+        health = self.state:getTotalHealth(),
+        defense = self.state:getTotalDefense(),
+        moveSpeed = self.state:getTotalMoveSpeed(),
+        critChance = self.state:getTotalCritChance(),
+        critDamage = self.state:getTotalCritDamage(),
+        healthPerTick = self.state:getTotalHealthPerTick(),       -- Método adicionado em PlayerState
+        healthRegenDelay = self.state:getTotalHealthRegenDelay(), -- Método adicionado em PlayerState
+        multiAttackChance = self.state:getTotalMultiAttackChance(),
+        attackSpeed = self.state:getTotalAttackSpeed(),
+        expBonus = self.state:getTotalExpBonus(),                   -- Método adicionado em PlayerState
+        cooldownReduction = self.state:getTotalCooldownReduction(), -- Método adicionado em PlayerState
+        range = self.state:getTotalRange(),
+        attackArea = self.state:getTotalArea(),
+        pickupRadius = self.state:getTotalPickupRadius(),
+        healingBonus = self.state:getTotalHealingBonus(), -- Método adicionado em PlayerState
+        runeSlots = self.state:getTotalRuneSlots(),
+        luck = self.state:getTotalLuck()
+        -- Garantir que todos os stats usados por HunterStatsColumn/StatsSection estejam aqui
+    }
+end
+
+--- Retorna o ID do caçador atualmente configurado para o gameplay.
+--- @return string|nil O ID do caçador ou nil se não estiver configurado.
+function PlayerManager:getCurrentHunterId()
+    return self.currentHunterId
 end
 
 return PlayerManager

@@ -105,8 +105,18 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
 
     -- 1. Desenha Coluna de Stats e Arquétipos (usando o novo componente)
     if self.hunterManager and finalStats and archetypeIds and archetypeManager then
+        -- <<<< CRIA TABELA DE CONFIGURAÇÃO >>>>
+        local statsColumnConfig = {
+            -- SEM dados de gameplay (currentHp, level, etc.)
+            finalStats = finalStats,           -- Passa stats finais de LOBBY
+            archetypeIds = archetypeIds or {}, -- Passa IDs de arquétipo
+            archetypeManager = archetypeManager,
+            mouseX = mx,                       -- Passa mouse coords
+            mouseY = my
+        }
         HunterStatsColumn.draw(statsX, contentStartY, statsW, sectionContentH,
-            finalStats, archetypeIds, archetypeManager, mx, my)
+            statsColumnConfig -- <<<< Passa a tabela de configuração
+        )
     else
         -- Mensagem de erro se HunterManager ou dados essenciais não estiverem disponíveis
         love.graphics.setColor(colors.red)
