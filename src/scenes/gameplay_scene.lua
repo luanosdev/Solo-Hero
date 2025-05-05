@@ -158,12 +158,21 @@ function GameplayScene:load(args)
 end
 
 function GameplayScene:update(dt)
-    -- Permite atualizar UIs que funcionam mesmo pausadas (transferido de main.lua)
-    local mx, my = love.mouse.getPosition() -- <<< OBTÉM COORDENADAS >>>
+    -- 1. Atualiza UIs que SEMPRE devem funcionar (mesmo pausado)
+    local mx, my = love.mouse.getPosition() -- <<< OBTÉM COORDENADAS UMA VEZ >>>
     InventoryScreen.update(dt, mx, my)      -- <<< PASSA COORDENADAS >>>
-    -- ItemDetailsModal foi movido para depois da lógica de pausa
+    -- ItemDetailsModal precisa ser atualizado se estiver visível, mesmo pausado?
+    -- Se sim, adicione aqui: ItemDetailsModal:update(dt, mx, my)
+    -- Se não, pode ficar dentro do if not self.isPaused ou ser chamado pelo InputManager.
 
-    -- <<< ADICIONADO: Lógica de Update do Drag do Inventário (antes da pausa) >>>
+    -- 2. <<< ATUALIZAÇÃO DA LÓGICA DE PAUSA >>>
+    -- Determina se o jogo DEVE estar pausado pela visibilidade de UIs bloqueantes
+    local shouldBePaused = LevelUpModal.visible or RuneChoiceModal.visible or InventoryScreen.isVisible or
+        ItemDetailsModal.isVisible
+    self.isPaused = shouldBePaused -- Define o estado de pausa da cena
+
+    -- 3. <<< LÓGICA DE UPDATE DO DRAG DO INVENTÁRIO >>>
+    -- Deve rodar mesmo se pausado para o feedback visual do drag funcionar
     if InventoryScreen.isVisible and self.inventoryDragState.isDragging and self.inventoryDragState.draggedItem then
         -- Reseta informações do alvo no início do update
         self.inventoryDragState.targetGridId = nil
@@ -223,29 +232,14 @@ function GameplayScene:update(dt)
                         end
 
                         if expectedType and expectedType == itemType then
-                            -- if expectedType and expectedType == itemType then -- DEBUG
-                            --     print(string.format(
-                            --         "[GameplayScene.update - Drag] Hover VÁLIDO sobre Equip Slot '%s'. Set isDropValid=true.",
-                            --         slotId)) -- DEBUG
                             self.inventoryDragState.isDropValid = true
-                            -- else -- DEBUG
-                            --     print(string.format(
-                            --         "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Tipos não batem: Item='%s', Slot Espera='%s'",
-                            --         slotId, tostring(itemType), tostring(expectedType)))
-                            -- end -- DEBUG
                         else
-                            -- if expectedType and expectedType == itemType then -- DEBUG
-                            --     print(string.format(
-                            --         "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Tipos não batem: Item='%s', Slot Espera='%s'",
-                            --         slotId, tostring(itemType), tostring(expectedType)))
-                            -- end -- DEBUG
+                            -- Tipos não batem, drop inválido
+                            self.inventoryDragState.isDropValid = false
                         end
                     else
-                        -- if expectedType and expectedType == itemType then -- DEBUG
-                        --     print(string.format(
-                        --         "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Item '%s' não tem 'type' nos dados base.",
-                        --         slotId, draggedItem.itemBaseId))
-                        -- end -- DEBUG
+                        -- Item sem 'type', drop inválido
+                        self.inventoryDragState.isDropValid = false
                     end
                     break -- Sai do loop de slots
                 end
@@ -257,19 +251,17 @@ function GameplayScene:update(dt)
                 if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
                     self.inventoryDragState.targetGridId = "inventory"
 
-                    -- <<< ADICIONADA VERIFICAÇÃO EXPLÍCITA >>>
                     if not inventoryManager then
                         print(
                             "ERRO GRAVE [GameplayScene.update - Drag]: inventoryManager é NIL ao tentar obter dimensões!")
+                        self.inventoryDragState.isDropValid = false -- Impede drop se manager sumir
                     else
-                        -- <<< CORRIGIDO: Chama getGridDimensions e extrai rows/cols >>>
                         local gridDims = inventoryManager:getGridDimensions()
                         local invRows = gridDims and gridDims.rows
                         local invCols = gridDims and gridDims.cols
 
                         if invRows and invCols then
                             local ItemGridUI = require("src.ui.item_grid_ui")
-                            -- <<< Obtém grade interna e chama ItemGridLogic >>>
                             local internalGrid = inventoryManager:getInternalGrid()
                             local ItemGridLogic = require("src.core.item_grid_logic")
 
@@ -281,42 +273,53 @@ function GameplayScene:update(dt)
                                     internalGrid, -- Passa a grade interna
                                     invRows,
                                     invCols,
-                                    draggedItem.instanceId, -- Passa ID do item sendo arrastado (opcional para a lógica atual de canPlaceItemAt)
+                                    draggedItem.instanceId, -- Passa ID do item sendo arrastado (opcional)
                                     self.inventoryDragState.targetSlotCoords.row,
                                     self.inventoryDragState.targetSlotCoords.col,
                                     visualW,
                                     visualH
                                 )
+                            else
+                                self.inventoryDragState.isDropValid = false -- Fora da grade
                             end
                         else
                             print(
                                 "AVISO [GameplayScene.update - Drag]: inventoryManager:getDimensions() retornou nil ou inválido.")
+                            self.inventoryDragState.isDropValid = false -- Impede drop se dimensões falharem
                         end
                     end
-                    -- <<< FIM VERIFICAÇÃO >>>
                 end
             end
         end
     end
     -- <<< FIM: Lógica de Update do Drag >>>
 
-    -- Verifica se alguma UI principal (modal ou inventário) está ativa
-    local hasActiveModalOrInventory = LevelUpModal.visible or RuneChoiceModal.visible or InventoryScreen.isVisible or
-        ItemDetailsModal.isVisible
-
-    -- Atualiza o InputManager (lógica transferida)
-    -- Passamos o estado de pausa da cena e se UI está ativa
+    -- 4. Atualiza InputManager (passa se UI está ativa E se está pausado)
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
-        -- Nota: A pausa do InputManager pode precisar ser ajustada. A cena gerencia self.isPaused
-        -- mas talvez InputManager deva saber apenas se modais/inventário estão ativos.
-        inputMgr:update(dt, hasActiveModalOrInventory, self.isPaused)
+        -- Passa true para uiActive se QUALQUER modal/inventário estiver visível (shouldBePaused)
+        -- Passa o estado de pausa da cena (self.isPaused)
+        inputMgr:update(dt, shouldBePaused, self.isPaused)
     else
         print("GameplayScene: AVISO - InputManager não encontrado no Registry para update")
     end
 
-    -- Atualiza todos os managers do jogo (lógica principal transferida)
-    ManagerRegistry:update(dt)
+    -- 5. <<< ATUALIZAÇÃO PRINCIPAL DO JOGO >>>
+    -- Só atualiza a lógica principal do jogo se NÃO estiver pausado
+    if not self.isPaused then
+        -- Atualiza todos os managers do jogo (movimento, inimigos, projéteis, player state, etc.)
+        ManagerRegistry:update(dt)
+        -- Outras lógicas de gameplay que devem pausar...
+        -- Ex: Timers específicos da cena, etc.
+    else
+        -- O jogo está pausado.
+        -- Lógica que pode rodar enquanto pausado (se houver, ex: animações de UI que não dependem do dt do jogo)
+        -- ...
+    end
+
+    -- 6. Atualiza ItemDetailsModal se ele precisa de update mesmo pausado
+    -- (Movido para fora do if not self.isPaused, mas pode ir para seção 1 também)
+    ItemDetailsModal:update(dt, mx, my)
 end
 
 --- Desenha o grid isométrico com base na posição do jogador e câmera.
