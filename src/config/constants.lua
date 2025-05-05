@@ -49,8 +49,8 @@ Constants.DEFENSE_DAMAGE_REDUCTION_K = 52
 Constants.MAX_DAMAGE_REDUCTION = 0.8
 
 -- <<< ADICIONADO: Dimensões Padrão da Grade >>>
-Constants.GRID_ROWS = 6
-Constants.GRID_COLS = 7
+Constants.GRID_ROWS = 4
+Constants.GRID_COLS = 4
 -- <<< FIM ADIÇÃO >>>
 
 return Constants

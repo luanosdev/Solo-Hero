@@ -326,10 +326,11 @@ function LoadoutManager:saveState()
 
     local dataToSave = {
         version = 1, -- Versão inicial do save compartilhado
-        rows = self.rows,
-        cols = self.cols,
+        -- <<< REMOVIDO: Não salva mais rows/cols >>>
+        -- rows = self.rows,
+        -- cols = self.cols,
         items = serializableItems,
-        nextInstanceId = nextInstanceId -- Salva o contador local
+        nextInstanceId = nextInstanceId -- Salva o contador local (mantido)
     }
 
     local success = PersistenceManager.saveData(SHARED_LOADOUT_SAVE_FILE, dataToSave)
@@ -360,12 +361,15 @@ function LoadoutManager:loadState()
 
     -- TODO: Adicionar verificação de versão se necessário no futuro
 
-    -- Carrega dados básicos
-    self.rows = loadedData.rows or Constants.GRID_ROWS
-    self.cols = loadedData.cols or Constants.GRID_COLS
-    nextInstanceId = loadedData.nextInstanceId or 1 -- Carrega o contador
+    -- <<< MODIFICADO: Ignora dimensões salvas, usa Constantes >>>
+    print("[LoadoutManager] Ignorando dimensões salvas (se houver), usando Constantes.")
+    self.rows = Constants.GRID_ROWS
+    self.cols = Constants.GRID_COLS
+    -- self.rows = loadedData.rows or Constants.GRID_ROWS -- REMOVIDO
+    -- self.cols = loadedData.cols or Constants.GRID_COLS -- REMOVIDO
+    nextInstanceId = loadedData.nextInstanceId or 1 -- Carrega o contador (mantido)
     self.items = {}                                 -- Limpa itens atuais antes de carregar
-    self:_createEmptyGrid(self.rows, self.cols)     -- Cria a grade com as dimensões carregadas
+    self:_createEmptyGrid(self.rows, self.cols)     -- Cria a grade com as dimensões das Constantes
 
     -- Reconstrói as instâncias de itens
     local loadedItemsData = loadedData.items or {}
