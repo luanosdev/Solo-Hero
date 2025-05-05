@@ -223,19 +223,29 @@ function GameplayScene:update(dt)
                         end
 
                         if expectedType and expectedType == itemType then
-                            print(string.format(
-                                "[GameplayScene.update - Drag] Hover VÁLIDO sobre Equip Slot '%s'. Set isDropValid=true.",
-                                slotId)) -- DEBUG
+                            -- if expectedType and expectedType == itemType then -- DEBUG
+                            --     print(string.format(
+                            --         "[GameplayScene.update - Drag] Hover VÁLIDO sobre Equip Slot '%s'. Set isDropValid=true.",
+                            --         slotId)) -- DEBUG
                             self.inventoryDragState.isDropValid = true
+                            -- else -- DEBUG
+                            --     print(string.format(
+                            --         "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Tipos não batem: Item='%s', Slot Espera='%s'",
+                            --         slotId, tostring(itemType), tostring(expectedType)))
+                            -- end -- DEBUG
                         else
-                            print(string.format(
-                                "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Tipos não batem: Item='%s', Slot Espera='%s'",
-                                slotId, tostring(itemType), tostring(expectedType)))
+                            -- if expectedType and expectedType == itemType then -- DEBUG
+                            --     print(string.format(
+                            --         "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Tipos não batem: Item='%s', Slot Espera='%s'",
+                            --         slotId, tostring(itemType), tostring(expectedType)))
+                            -- end -- DEBUG
                         end
                     else
-                        print(string.format(
-                            "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Item '%s' não tem 'type' nos dados base.",
-                            slotId, draggedItem.itemBaseId))
+                        -- if expectedType and expectedType == itemType then -- DEBUG
+                        --     print(string.format(
+                        --         "[GameplayScene.update - Drag] Hover INVÁLIDO sobre Equip Slot '%s'. Item '%s' não tem 'type' nos dados base.",
+                        --         slotId, draggedItem.itemBaseId))
+                        -- end -- DEBUG
                     end
                     break -- Sai do loop de slots
                 end

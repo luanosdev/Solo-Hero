@@ -237,16 +237,16 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
 
     -- Define as cores base do slot (padrão ou baseado na raridade da arma)
     local slotBgColor = colors.slot_empty_bg
-    print(string.format("[EquipmentSection:draw - WEAPON] HunterID: %s, Weapon Slot ID: %s", targetHunterId, weaponSlotId)) -- DEBUG
-    print(string.format("  - weaponInstance found: %s", tostring(weaponInstance ~= nil)))                                   -- DEBUG
-    if weaponInstance then                                                                                                  -- DEBUG
-        print(string.format("    - weaponInstance.itemBaseId: %s", weaponInstance.itemBaseId or "nil"))                     -- DEBUG
-        print(string.format("    - weaponInstance.icon exists: %s", tostring(weaponInstance.icon ~= nil)))                  -- DEBUG
-        if weaponInstance.icon then                                                                                         -- DEBUG
-            print(string.format("    - weaponInstance.icon type: %s", type(weaponInstance.icon)))                           -- DEBUG
-        end                                                                                                                 -- DEBUG
+    -- print(string.format("[EquipmentSection:draw - WEAPON] HunterID: %s, Weapon Slot ID: %s", targetHunterId, weaponSlotId)) -- DEBUG
+    -- print(string.format("  - weaponInstance found: %s", tostring(weaponInstance ~= nil))) -- DEBUG
+    if weaponInstance then
+        -- print(string.format("    - weaponInstance.itemBaseId: %s", weaponInstance.itemBaseId or "nil")) -- DEBUG
+        -- print(string.format("    - weaponInstance.icon exists: %s", tostring(weaponInstance.icon ~= nil))) -- DEBUG
+        -- if weaponInstance.icon then -- DEBUG
+        --     print(string.format("    - weaponInstance.icon type: %s", type(weaponInstance.icon))) -- DEBUG
+        -- end -- DEBUG
         rarityColor = colors.rarity[weaponInstance.rarity or 'E'] or colors.rarity['E']
-        slotBgColor = { rarityColor[1], rarityColor[2], rarityColor[3], 0.15 }                                              -- Alpha baixo (15%)
+        slotBgColor = { rarityColor[1], rarityColor[2], rarityColor[3], 0.15 } -- Alpha baixo (15%)
         slotBorderColor = rarityColor
     end
 
@@ -284,26 +284,23 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
             if baseGridW > baseGridH then
                 rotation = 0
                 -- DEBUG: Print scale calculation factors
-                print(string.format("    - Icon Draw (Horizontal): slotW=%.1f, slotH=%.1f, iw=%.1f, ih=%.1f", weaponSlotW,
-                    weaponSlotH, iw, ih)) -- DEBUG
+                -- print(string.format("    - Icon Draw (Horizontal): slotW=%.1f, slotH=%.1f, iw=%.1f, ih=%.1f", weaponSlotW, weaponSlotH, iw, ih)) -- DEBUG
                 scale = math.min(weaponSlotW * 0.9 / iw, weaponSlotH * 0.9 / ih)
                 drawX = weaponSlotX + weaponSlotW - (iw * scale / 2)
                 drawY = weaponSlotY + weaponSlotH / 2
             else
                 rotation = math.pi / 2
                 -- DEBUG: Print scale calculation factors
-                print(string.format("    - Icon Draw (Vertical): slotW=%.1f, slotH=%.1f, iw=%.1f, ih=%.1f", weaponSlotW,
-                    weaponSlotH, iw, ih)) -- DEBUG
+                -- print(string.format("    - Icon Draw (Vertical): slotW=%.1f, slotH=%.1f, iw=%.1f, ih=%.1f", weaponSlotW, weaponSlotH, iw, ih)) -- DEBUG
                 scale = math.min(weaponSlotW * 0.9 / ih, weaponSlotH * 0.9 / iw)
                 drawX = weaponSlotX + weaponSlotW - (ih * scale / 2)
                 drawY = weaponSlotY + weaponSlotH / 2
             end
-            print(string.format("    - Calculated scale=%.2f, drawX=%.1f, drawY=%.1f, rotation=%.2f", scale, drawX, drawY,
-                rotation)) -- DEBUG
+            -- print(string.format("    - Calculated scale=%.2f, drawX=%.1f, drawY=%.1f, rotation=%.2f", scale, drawX, drawY, rotation)) -- DEBUG
             love.graphics.setColor(1, 1, 1, 1)
             love.graphics.draw(icon, drawX, drawY, rotation, scale, scale, ox, oy)
         else
-            print("    - Icon Draw: weaponInstance.icon is nil or not userdata") -- DEBUG
+            -- print("    - Icon Draw: weaponInstance.icon is nil or not userdata") -- DEBUG
             local iconSize = math.min(weaponSlotW, weaponSlotH) * 0.8
             local iconX = weaponSlotX + (weaponSlotW - iconSize) / 2
             local iconY = weaponSlotY + (weaponSlotH - iconSize) / 2

@@ -189,6 +189,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
 
     -- 5. Equipa a Arma
     local weaponItem = equippedItems[Constants.SLOT_IDS.WEAPON]
+
     if weaponItem then
         -- Constrói o caminho para a CLASSE da arma (ex: src.items.weapons.dual_daggers)
         local weaponClassPath = string.format("src.items.weapons.%s", weaponItem.itemBaseId)
@@ -210,7 +211,8 @@ function PlayerManager:setupGameplay(registry, hunterId)
 
                 -- Chama o método :equip DA INSTÂNCIA da arma
                 -- Passa o PlayerManager (self) e os dados do item específico (weaponItem)
-                print(string.format("    -> Calling :equip on weapon instance (Type: %s)", type(self.equippedWeapon)))
+                print(string.format("    -> Calling :equip on weapon instance (Type: %s)",
+                    type(self.equippedWeapon.attackInstance)))
                 if self.equippedWeapon.equip then -- Verifica se o método existe
                     self.equippedWeapon:equip(self, weaponItem)
                     print(string.format("    -> :equip called. Type of attackInstance inside weapon: %s",
@@ -358,6 +360,14 @@ function PlayerManager:update(dt)
     end
 
     -- Atualiza o auto attack, passando o ângulo calculado
+    -- DEBUG: Verifica o estado da arma ANTES de chamar updateAutoAttack
+    if self.equippedWeapon then
+        print(string.format("  [DEBUG PM:update PRE-ATTACK] Weapon: %s, AttackInstance Type: %s",
+            self.equippedWeapon.itemBaseId or "nil", type(self.equippedWeapon.attackInstance)))
+    else
+        print("  [DEBUG PM:update PRE-ATTACK] No weapon equipped.")
+    end
+    -- Atualiza o auto attack, passando o ângulo calculado
     self:updateAutoAttack(currentAngle)
 
     -- Atualiza o sprite do player passando a posição do alvo
@@ -464,16 +474,16 @@ function PlayerManager:updateAutoAttack(currentAngle)
             angle = currentAngle
         }
         -- >>> LOG ANTES DE CHAMAR CAST <<<
-        print(string.format("  [DEBUG PM:updateAutoAttack] Calling attackInstance:cast() | Type: %s | Cooldown: %.2f",
-            type(self.equippedWeapon.attackInstance), self.equippedWeapon.attackInstance.cooldownRemaining or -1)) -- DEBUG
+        -- print(string.format("  [DEBUG PM:updateAutoAttack] Calling attackInstance:cast() | Type: %s | Cooldown: %.2f",
+        --     type(self.equippedWeapon.attackInstance), self.equippedWeapon.attackInstance.cooldownRemaining or -1)) -- DEBUG (Temporarily Disabled)
 
         -- Chama cast com a tabela de argumentos
         self.equippedWeapon.attackInstance:cast(args)
     elseif self.autoAttack then
         -- >>> LOG SE TENTAR ATACAR SEM ARMA/INSTÂNCIA <<<
-        print(string.format(
-            "  [DEBUG PM:updateAutoAttack] AutoAttack ON but weapon/instance missing. Weapon: %s, Instance: %s",
-            tostring(self.equippedWeapon), tostring(self.equippedWeapon and self.equippedWeapon.attackInstance))) -- DEBUG
+        -- print(string.format(
+        --     "  [DEBUG PM:updateAutoAttack] AutoAttack ON but weapon/instance missing. Weapon: %s, Instance: %s",
+        --     tostring(self.equippedWeapon), tostring(self.equippedWeapon and self.equippedWeapon.attackInstance))) -- DEBUG (Temporarily Disabled)
     end
 end
 
@@ -737,6 +747,64 @@ end
 --- @return string|nil O ID do caçador ou nil se não estiver configurado.
 function PlayerManager:getCurrentHunterId()
     return self.currentHunterId
+end
+
+--- ADICIONADO: Define/Limpa a arma ativa e inicializa seu estado
+--- Define a arma ativa no PlayerManager e chama seu método :equip.
+--- Passar nil para limpar a arma ativa.
+--- @param weaponInstance table|nil A instância completa do item da arma (dados), ou nil.
+function PlayerManager:setActiveWeapon(weaponInstance)
+    print(string.format("[PlayerManager] Setting active weapon to: %s",
+        (weaponInstance and weaponInstance.itemBaseId) or "nil"))
+    -- Limpa a arma anterior (se houver)
+    self.equippedWeapon = nil
+
+    -- Se estamos equipando uma nova arma (não nil)
+    if weaponInstance and weaponInstance.itemBaseId then
+        local itemBaseId = weaponInstance.itemBaseId
+        local weaponClassPath = string.format("src.items.weapons.%s", itemBaseId)
+        print(string.format("  -> Attempting to load weapon class: %s", weaponClassPath))
+
+        -- Tenta carregar a classe da arma
+        local success, WeaponClass = pcall(require, weaponClassPath)
+
+        if success and WeaponClass then
+            print(string.format("    - Weapon class '%s' loaded successfully.", weaponClassPath))
+            -- Cria uma nova instância da CLASSE da arma
+            local classInstance = WeaponClass:new({ itemBaseId = itemBaseId })
+
+            if classInstance then
+                print(string.format("    - Weapon CLASS instance created for '%s'.", itemBaseId))
+                -- Armazena a INSTÂNCIA DA CLASSE
+                self.equippedWeapon = classInstance
+
+                -- Chama o método :equip da INSTÂNCIA DA CLASSE, passando os DADOS do item
+                if self.equippedWeapon.equip then
+                    print(string.format(
+                        "    -> Calling :equip on weapon CLASS instance (AttackInstance Type BEFORE: %s)",
+                        type(self.equippedWeapon.attackInstance)))
+                    self.equippedWeapon:equip(self, weaponInstance) -- Passa os DADOS (weaponInstance)
+                    print(string.format("    -> :equip called. Attack instance type AFTER: %s",
+                        type(self.equippedWeapon.attackInstance)))
+                else
+                    print(string.format("    - ERRO CRÍTICO: O método :equip não foi encontrado na classe da arma '%s'!",
+                        weaponClassPath))
+                    self.equippedWeapon = nil -- Desequipa se :equip falhar
+                end
+            else
+                print(string.format("    - ERRO: Falha ao criar a instância da CLASSE da arma '%s' usando :new().",
+                    weaponClassPath))
+                self.equippedWeapon = nil
+            end
+        else
+            print(string.format("    - ERRO CRÍTICO: Não foi possível carregar a classe da arma: %s. Detalhe: %s",
+                weaponClassPath, tostring(WeaponClass)))
+            self.equippedWeapon = nil
+        end
+    else
+        -- Se weaponInstance for nil, self.equippedWeapon já foi setado para nil
+        print("  -> Clearing active weapon (weaponInstance is nil).")
+    end
 end
 
 return PlayerManager

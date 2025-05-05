@@ -12,6 +12,7 @@ HunterManager.__index = HunterManager
 local PersistenceManager = require("src.core.persistence_manager")
 local Constants = require("src.config.constants")
 local ArchetypesData = require("src.data.archetypes_data")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local SAVE_FILE = "hunters.dat"
 
@@ -125,8 +126,8 @@ function HunterManager:_calculateFinalStats(hunterId)
     -- 2. Apply archetype modifiers (New Structure)
     local archetypeIds = hunterData.archetypeIds or {}
     -- print(string.format("  [DEBUG] Applying modifiers from archetypes: [%s]", table.concat(archetypeIds, ", "))) -- DEBUG
-    local accumulatedBase = {}                                                                                   -- Accumulate base additions
-    local accumulatedMult = {}                                                                                   -- Accumulate multiplicative changes (start at 1.0)
+    local accumulatedBase = {} -- Accumulate base additions
+    local accumulatedMult = {} -- Accumulate multiplicative changes (start at 1.0)
 
     for _, archetypeId in ipairs(archetypeIds) do
         local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
@@ -139,7 +140,7 @@ function HunterManager:_calculateFinalStats(hunterId)
                     print(string.format(
                         "WARNING [_calculateFinalStats]: Missing 'stat' field in modifier for archetype '%s'",
                         archetypeId))
-                    goto continue_modifier_loop                                 -- Skip this modifier
+                    goto continue_modifier_loop -- Skip this modifier
                 end
                 -- print(string.format("      - Modifier for stat: %s", statName)) -- DEBUG
 
@@ -393,6 +394,17 @@ function HunterManager:equipItem(itemInstance, slotId)
     print(string.format("[HunterManager] Item %d (%s) equipped in slot %s for %s", itemInstance.instanceId,
         itemInstance.itemBaseId, slotId, self.activeHunterId))
 
+    -- <<< ADICIONADO: Notifica PlayerManager sobre a nova arma >>>
+    if slotId == Constants.SLOT_IDS.WEAPON then
+        local playerManager = ManagerRegistry:get("playerManager")
+        if playerManager then
+            playerManager:setActiveWeapon(itemInstance) -- Passa a NOVA instância
+            print("  -> Notified PlayerManager to set new active weapon.")
+        else
+            print("  -> WARNING: Could not get PlayerManager to set new weapon!")
+        end
+    end
+
     -- TODO: Recalculate hunter's final stats (or mark for recalculation)
 
     -- Return success and the old item instance (UI needs to handle placing it back)
@@ -415,6 +427,16 @@ function HunterManager:unequipItem(slotId)
         print(string.format("[HunterManager] Unequipping item (%s, ID: %d) from slot %s for %s",
             itemToUnequip.itemBaseId, itemToUnequip.instanceId, slotId, self.activeHunterId))
         hunterEquipment[slotId] = nil
+        -- <<< ADICIONADO: Notifica PlayerManager se for a arma >>>
+        if slotId == Constants.SLOT_IDS.WEAPON then
+            local playerManager = ManagerRegistry:get("playerManager")
+            if playerManager then
+                playerManager:setActiveWeapon(nil) -- <<< CORRIGIDO: Chama setActiveWeapon com nil
+                print("  -> Notified PlayerManager to clear active weapon (set to nil).")
+            else
+                print("  -> WARNING: Could not get PlayerManager to clear weapon!")
+            end
+        end
         -- TODO: Recalculate hunter's final stats (or mark for recalculation)
         return itemToUnequip -- Return the full instance
     end
