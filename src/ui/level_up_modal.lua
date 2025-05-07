@@ -1,170 +1,19 @@
-local LevelUpModal = {
-    visible = false,
-    options = {},
-    selectedOption = 1,
-    playerManager = nil,
-    hoveredOption = nil,
-    upgradeOptions = {},
-    upgrades = {}
-}
-
 local elements = require("src.ui.ui_elements")
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
+local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
 
--- Atributos que podem ser melhorados
-local ATTRIBUTES = {
-    {
-        name = "vida_maxima",
-        displayName = "Vida Máxima",
-        description = "Aumenta a vida máxima em 10%",
-        icon = "H",
-        attribute = "health",
-        bonus = 10
-    },
-    {
-        name = "vida_fixa",
-        displayName = "Vida Fixa",
-        description = "Aumenta a vida máxima em 20 pontos",
-        icon = "H",
-        attribute = "fixed_health",
-        bonus = 20
-    },
-    {
-        name = "dano",
-        displayName = "Dano",
-        description = "Aumenta o dano em 10%",
-        icon = "D",
-        attribute = "damage",
-        bonus = 10
-    },
-    {
-        name = "velocidade",
-        displayName = "Velocidade",
-        description = "Aumenta a velocidade em 10%",
-        icon = "S",
-        attribute = "speed",
-        bonus = 10
-    },
-    {
-        name = "velocidade_fixa",
-        displayName = "Velocidade Fixa",
-        description = "Aumenta a velocidade em 3 m/s",
-        icon = "F",
-        attribute = "fixed_speed",
-        bonus = 3
-    },
-    {
-        name = "defesa",
-        displayName = "Defesa",
-        description = "Aumenta a defesa em 5%",
-        icon = "D",
-        attribute = "defense",
-        bonus = 5
-    },
-    {
-        name = "defesa_fixa",
-        displayName = "Defesa Fixa",
-        description = "Aumenta a defesa em 5 pontos",
-        icon = "D",
-        attribute = "fixed_defense",
-        bonus = 5
-    },
-    {
-        name = "velocidade_ataque",
-        displayName = "Velocidade de Ataque",
-        description = "Aumenta a velocidade de ataque em 5%",
-        icon = "A",
-        attribute = "attackSpeed",
-        bonus = 5
-    },
-    {
-        name = "chance_critico",
-        displayName = "Chance Crítico",
-        description = "Aumenta a chance de acerto crítico em 5%",
-        icon = "C",
-        attribute = "criticalChance",
-        bonus = 5
-    },
-    {
-        name = "chance_critico_fixa",
-        displayName = "Chance Crítico Fixa",
-        description = "Aumenta a chance de acerto crítico em 0.3x",
-        icon = "C",
-        attribute = "fixed_critical_chance",
-        bonus = 0.3
-    },
-    {
-        name = "multiplicador_critico",
-        displayName = "Multiplicador Crítico",
-        description = "Aumenta o dano crítico em 5%",
-        icon = "M",
-        attribute = "criticalMultiplier",
-        bonus = 5
-    },
-    {
-        name = "multiplicador_critico_fixo",
-        displayName = "Multiplicador Crítico Fixo",
-        description = "Aumenta o dano crítico base em 0.3",
-        icon = "M",
-        attribute = "fixed_critical_multiplier",
-        bonus = 3
-    },
-    {
-        name = "regeneracao_vida",
-        displayName = "Regeneração de Vida",
-        description = "Aumenta a regeneração de vida em 5%",
-        icon = "R",
-        attribute = "healthRegen",
-        bonus = 5
-    },
-    {
-        name = "regeneracao_vida_fixa",
-        displayName = "Regeneração de Vida Fixa",
-        description = "Aumenta a regeneração de vida em 0.1 HP/s",
-        icon = "R",
-        attribute = "fixed_health_regen",
-        bonus = 0.1
-    },
-    {
-        name = "ataque_multiplo",
-        displayName = "Ataque Múltiplo",
-        description = "Aumenta a chance de ataque múltiplo em 5%",
-        icon = "X",
-        attribute = "multiAttackChance",
-        bonus = 5
-    },
-    {
-        name = "ataque_multiplo_fixo",
-        displayName = "Ataque Múltiplo Fixo",
-        description = "Aumenta a chance de ataque múltiplo em 0.2x",
-        icon = "X",
-        attribute = "fixed_multi_attack",
-        bonus = 0.2
-    },
-    {
-        name = "area",
-        displayName = "Área de Ataque",
-        description = "Aumenta a área de ataque em 10%",
-        icon = "A",
-        attribute = "area",
-        bonus = 10
-    },
-    {
-        name = "alcance",
-        displayName = "Alcance",
-        description = "Aumenta o alcance do ataque em 10%",
-        icon = "R",
-        attribute = "range",
-        bonus = 10
-    }
+local LevelUpModal = {
+    visible = false,
+    options = {}, -- Agora vai armazenar as definições completas dos bônus de LevelUpBonusesData
+    selectedOption = 1,
+    playerManager = nil,
+    hoveredOption = nil,
 }
 
 function LevelUpModal:init(playerManager, inputManager)
     self.playerManager = playerManager
     self.inputManager = inputManager
-    self.upgradeOptions = {}
-    self.upgrades = {}
     print("[LevelUpModal] Inicializado com PlayerManager:", playerManager and "OK" or "NULO")
 end
 
@@ -182,20 +31,45 @@ end
 
 function LevelUpModal:generateOptions()
     self.options = {}
-    local availableAttributes = {}
+    local availableBonuses = {}
 
-    -- Copia os atributos disponíveis
-    for _, attr in ipairs(ATTRIBUTES) do
-        table.insert(availableAttributes, attr)
+    if not self.playerManager or not self.playerManager.state or not self.playerManager.state.learnedLevelUpBonuses then
+        error("ERRO [LevelUpModal:generateOptions]: PlayerManager ou learnedLevelUpBonuses não está pronto.")
     end
 
-    -- Seleciona 3 atributos aleatórios
-    for i = 1, 3 do
-        if #availableAttributes > 0 then
-            local randomIndex = love.math.random(1, #availableAttributes)
-            table.insert(self.options, availableAttributes[randomIndex])
-            table.remove(availableAttributes, randomIndex)
+    local learned = self.playerManager.state.learnedLevelUpBonuses
+
+    -- Itera sobre todos os bônus definidos em LevelUpBonusesData.Bonuses
+    for bonusId, bonusData in pairs(LevelUpBonusesData.Bonuses) do
+        local currentLevel = learned[bonusId] or 0
+        if currentLevel < bonusData.max_level then
+            -- Adiciona uma cópia dos dados do bônus para evitar modificar o original,
+            -- e podemos adicionar o nível atual para fácil acesso na UI se necessário.
+            local optionData = {} -- Cópia rasa (shallow copy)
+            for k, v in pairs(bonusData) do
+                optionData[k] = v
+            end
+            optionData.current_level_for_display = currentLevel -- Para UI
+            table.insert(availableBonuses, optionData)
         end
+    end
+
+    -- Seleciona até 3 bônus aleatórios da lista de disponíveis
+    local numToSelect = math.min(3, #availableBonuses)
+    for i = 1, numToSelect do
+        if #availableBonuses > 0 then
+            local randomIndex = love.math.random(1, #availableBonuses)
+            table.insert(self.options, availableBonuses[randomIndex])
+            table.remove(availableBonuses, randomIndex)
+        else
+            break -- Não há mais bônus disponíveis para selecionar
+        end
+    end
+
+    if #self.options == 0 then
+        print(
+            "AVISO [LevelUpModal:generateOptions]: Nenhuma opção de bônus disponível para o nível atual ou todos no máx.")
+        -- Opcional: Adicionar uma opção "Pular" ou "Pegar Ouro" se nenhuma melhoria estiver disponível.
     end
 end
 
@@ -235,17 +109,25 @@ function LevelUpModal:getOptionAtPosition(x, y)
     return nil
 end
 
-function LevelUpModal:applyUpgrade(option)
-    if not self.playerManager or not self.playerManager.state then return end
-
-    -- Aplica o bônus ao atributo
-    self.playerManager.state:addAttributeBonus(option.attribute, option.bonus)
-
-    -- Atualiza os valores totais se necessário
-    if option.attribute == "health" or option.attribute == "fixed_health" then -- Check both types
-        self.playerManager.state.maxHealth = self.playerManager.state:getTotalHealth()
-        self.playerManager.state.currentHealth = self.playerManager.state.maxHealth
+function LevelUpModal:applyUpgrade(optionData) -- Renomeado para clareza que é o full data do bônus
+    if not self.playerManager or not self.playerManager.state then
+        error("ERRO [LevelUpModal:applyUpgrade]: PlayerManager ou PlayerState não está pronto.")
     end
+
+    if not optionData or not optionData.id then
+        error("ERRO [LevelUpModal:applyUpgrade]: optionData inválido ou sem ID.")
+    end
+
+    -- 1. Aplica os modificadores de atributos usando a função de LevelUpBonusesData
+    LevelUpBonusesData.ApplyBonus(self.playerManager.state, optionData.id)
+
+    -- 2. Atualiza o nível do bônus aprendido no PlayerState
+    local bonusId = optionData.id
+    local learnedBonuses = self.playerManager.state.learnedLevelUpBonuses
+    learnedBonuses[bonusId] = (learnedBonuses[bonusId] or 0) + 1
+
+    print(string.format("[LevelUpModal:applyUpgrade] Bônus '%s' (ID: %s) aplicado. Novo nível: %d",
+        optionData.name, bonusId, learnedBonuses[bonusId]))
 end
 
 function LevelUpModal:draw()
@@ -256,8 +138,8 @@ function LevelUpModal:draw()
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
 
     -- Calcula posição central do modal
-    local modalWidth = 500
-    local modalHeight = 400
+    local modalWidth = 550
+    local modalHeight = 450
     local modalX = (love.graphics.getWidth() - modalWidth) / 2
     local modalY = (love.graphics.getHeight() - modalHeight) / 2
 
@@ -265,72 +147,82 @@ function LevelUpModal:draw()
     elements.drawWindowFrame(modalX, modalY, modalWidth, modalHeight, "Level Up!")
 
     -- Desenha as opções de atributos
-    for i, option in ipairs(self.options) do
-        local optionY = modalY + 120 + (i - 1) * 80
-        local optionHeight = 70
-        local optionX = modalX + 20         -- Define X position
-        local optionWidth = modalWidth - 40 -- Define Width
+    local optionStartY = modalY + 90 -- Ajustado para título
+    local optionHeight = 100         -- Aumentado para mais detalhes
+    local optionGap = 15
+
+    for i, optionData in ipairs(self.options) do
+        local currentOptionY = optionStartY + (i - 1) * (optionHeight + optionGap)
+        local optionX = modalX + 20
+        local optionWidth = modalWidth - 40
 
         local isSelectedByKey = (i == self.selectedOption)
         local isHoveredByMouse = (i == self.hoveredOption)
 
-        -- Define a cor baseada na seleção/hover
         local bgColor = nil
         local textColor = colors.text_main
+        local nameColor = colors.text_highlight -- Cor para o nome da melhoria
+
         if isSelectedByKey then
-            elements.drawRarityBorderAndGlow('S', optionX, optionY, optionWidth, optionHeight) -- Exemplo de raridade S para selecionado
+            elements.drawRarityBorderAndGlow('S', optionX, optionY, optionWidth, optionHeight) -- Usar rank/tier do bônus?
             bgColor = { colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.3 }
             textColor = colors.text_highlight
+            nameColor = colors.text_selected -- Nome mais destacado se selecionado
         elseif isHoveredByMouse then
             bgColor = { colors.slot_hover_bg[1], colors.slot_hover_bg[2], colors.slot_hover_bg[3], 0.5 }
-            textColor = colors.text_highlight -- Highlight text on hover too
+            textColor = colors.text_highlight
+            nameColor = colors.text_hover -- Nome destacado no hover
         end
 
-        -- Desenha fundo se houver hover/seleção
         if bgColor then
             love.graphics.setColor(bgColor)
-            love.graphics.rectangle("fill", optionX, optionY, optionWidth, optionHeight, 5, 5)
+            love.graphics.rectangle("fill", optionX, currentOptionY, optionWidth, optionHeight, 5, 5)
         end
 
-        -- Desenha o ícone
-        love.graphics.setColor(textColor) -- Use text color for icon too
-        love.graphics.setFont(fonts.title)
-        love.graphics.printf(
-            option.icon,
-            optionX + 10,                                             -- Padding from left
-            optionY + optionHeight / 2 - fonts.title:getHeight() / 2, -- Center vertically
-            30,                                                       -- Icon width
-            "center"
-        )
+        -- Ícone
+        love.graphics.setFont(fonts.title) -- Fonte maior para ícone
+        love.graphics.setColor(textColor)
+        love.graphics.printf(optionData.icon or "?", optionX + 15,
+            currentOptionY + optionHeight / 2 - fonts.title:getHeight() / 2, 40, "center")
 
-        -- Desenha o nome e bônus
-        local bonusText = ""
-        if string.find(option.attribute, "fixed_") then
-            bonusText = string.format("+%.1f", option.bonus)
-        else
-            bonusText = string.format("+%.1f%%", option.bonus)
-        end
+        local textStartX = optionX + 65
+        local textWidth = optionWidth - 80 -- Espaço para texto (descontando ícone e paddings)
 
-        love.graphics.setFont(fonts.main)
-        love.graphics.setColor(textColor) -- Use determined text color
-        love.graphics.printf(
-            string.format("%s %s", option.displayName, bonusText),
-            optionX + 50,     -- Start text after icon + padding
-            optionY + 10,     -- Position near top
-            optionWidth - 60, -- Width for text
-            "left"
-        )
+        -- Nome da Melhoria e Nível
+        love.graphics.setFont(fonts.hud) -- Fonte um pouco maior para o nome
+        love.graphics.setColor(nameColor)
+        local currentDisplayLevel = (optionData.current_level_for_display or 0)
+        local nextLevel = currentDisplayLevel + 1
+        local nameText = string.format("%s (Nv. %d/%d)", optionData.name, nextLevel, optionData.max_level)
+        love.graphics.printf(nameText, textStartX, currentOptionY + 10, textWidth, "left")
 
-        -- Desenha a descrição
-        love.graphics.setColor(colors.text_label) -- Dim color for description
+        -- Descrição Formatada
         love.graphics.setFont(fonts.main_small)
-        love.graphics.printf(
-            option.description,
-            optionX + 50,     -- Start text after icon + padding
-            optionY + 35,     -- Position below name
-            optionWidth - 60, -- Width for text
-            "left"
-        )
+        love.graphics.setColor(textColor) -- Usar textColor normal para descrição
+
+        local description = optionData.description_template or ""
+        -- Tenta substituir placeholders na descrição
+        if optionData.modifiers_per_level then
+            for idx, mod in ipairs(optionData.modifiers_per_level) do
+                local valueString = ""
+                if mod.type == "fixed" then
+                    valueString = string.format("%.1f", mod.value):gsub("%.0$", "") -- Remove .0
+                elseif mod.type == "percentage" then
+                    valueString = string.format("%.1f", mod.value):gsub("%.0$", "") .. "%"
+                elseif mod.type == "fixed_percentage_as_fraction" then
+                    valueString = string.format("%.1f", mod.value * 100):gsub("%.0$", "") .. "%"
+                else
+                    valueString = tostring(mod.value)
+                end
+
+                local placeholder = "{value" .. (idx > 1 and tostring(idx) or "") .. "}" -- {value} ou {value1}, {value2}
+                description = string.gsub(description, placeholder, valueString)
+            end
+        end
+        -- Fallback se algum placeholder não foi substituído (raro se templates e mods estiverem alinhados)
+        description = string.gsub(description, "{value[1-9]?}", "?")
+
+        love.graphics.printf(description, textStartX, currentOptionY + 35, textWidth, "left", 0, 1, 1) -- Permitir quebra de linha
     end
 end
 

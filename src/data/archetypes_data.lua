@@ -1,3 +1,25 @@
+-- CONVENÇÕES PARA VALORES DE MODIFICADORES DE ARQUÉTIPO:
+-- Cada modificador DEVE ter um campo 'type' e 'value'.
+--
+-- type = "fixed":
+--   O 'value' é um número absoluto que será somado diretamente ao fixedBonus do PlayerState.
+--   Ex: { stat = "health", type = "fixed", value = 100 }
+--
+-- type = "percentage":
+--   O 'value' é um número que representa o percentual direto (ex: 10 para +10%, -5 para -5%).
+--   Este valor é somado ao 'levelBonus' do PlayerState.
+--   Ex: { stat = "attackSpeed", type = "percentage", value = 6 } (resulta em +6% no levelBonus.attackSpeed)
+--
+-- type = "fixed_percentage_as_fraction":
+--   O 'value' é a fração decimal correspondente ao percentual desejado (ex: 0.05 para 5%).
+--   Este valor é somado ao 'fixedBonus' do PlayerState para atributos como critChance.
+--   Ex: { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.05 }
+--
+-- A lógica que aplica os arquétipos ao PlayerState deve usar esses tipos para chamar
+-- playerState:addAttributeBonus(stat, percentageValue, fixedValue) corretamente:
+--   - type="percentage" -> percentageValue = modifier.value, fixedValue = 0
+--   - type="fixed" OR type="fixed_percentage_as_fraction" -> percentageValue = 0, fixedValue = modifier.value
+
 local ArchetypesData = {}
 
 -- Definição das propriedades de cada Rank
@@ -21,7 +43,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "É mais rapido que outros, bom para fugir de inimigos.",
         modifiers = {
-            { stat = "moveSpeed", baseValue = 40 }
+            { stat = "moveSpeed", type = "fixed", value = 40 }
         }
     },
     vigorous = {
@@ -30,7 +52,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Um pouco mais resistente que outros, bom para resistir aos ataques.",
         modifiers = {
-            { stat = "health", baseValue = 100 }
+            { stat = "health", type = "fixed", value = 100 }
         }
     },
     -- Rank D
@@ -40,7 +62,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Ataca com mais frequência.",
         modifiers = {
-            { stat = "attackSpeed", baseValue = 0.06 }
+            { stat = "attackSpeed", type = "fixed_percentage_as_fraction", value = 0.06 }
         }
     },
     cautious = {
@@ -49,7 +71,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Percebe itens de mais longe.",
         modifiers = {
-            { stat = "pickupRadius", baseValue = 50 }
+            { stat = "pickupRadius", type = "fixed", value = 50 }
         }
     },
     -- Rank C
@@ -59,7 +81,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Velocidade de ataque consistentemente maior.",
         modifiers = {
-            { stat = "attackSpeed", multValue = 0.12 }
+            { stat = "attackSpeed", type = "percentage", value = 12 }
         }
     },
     predestined = {
@@ -68,7 +90,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a Sorte.",
         modifiers = {
-            { stat = "luck", baseValue = 0.05 }
+            { stat = "luck", type = "fixed_percentage_as_fraction", value = 0.05 }
         }
     },
     blessed = {
@@ -77,7 +99,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a Quantidade de Slots Runa.",
         modifiers = {
-            { stat = "runeSlots", baseValue = 1 }
+            { stat = "runeSlots", type = "fixed", value = 1 }
         }
     },
     precise = {
@@ -86,7 +108,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a chance de acertos críticos.",
         modifiers = {
-            { stat = "critChance", baseValue = 0.05 }
+            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.05 }
         }
     },
     -- Rank B
@@ -96,8 +118,8 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Chance crítica massiva ao custo de defesa.",
         modifiers = {
-            { stat = "critChance", baseValue = 0.30 },
-            { stat = "defense",    multValue = -0.10 }
+            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.30 },
+            { stat = "defense",    type = "percentage",                   value = -10 }
         }
     },
     -- Rank A
@@ -107,9 +129,9 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Dano crítico e velocidade de ataque aprimorados.",
         modifiers = {
-            { stat = "critDamage",  multValue = 0.20 },
-            { stat = "critChance",  multValue = 0.40 },
-            { stat = "attackSpeed", multValue = 0.20 }
+            { stat = "critDamage",  type = "fixed_percentage_as_fraction", value = 0.20 },
+            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.10 },
+            { stat = "attackSpeed", type = "percentage",                   value = 10 }
         }
     },
     -- Rank S
@@ -119,7 +141,7 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Vida drasticamente aumentada.",
         modifiers = {
-            { stat = "health", multValue = 0.60 }
+            { stat = "health", type = "percentage", value = 60 }
         }
     },
     demon = {
@@ -128,9 +150,9 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Aumenta a chance de acertos críticos.",
         modifiers = {
-            { stat = "critChance", multValue = 0.66 },
-            { stat = "critDamage", multValue = 0.66 },
-            { stat = "health",     multValue = -0.33 }
+            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.20 },
+            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.30 },
+            { stat = "health",     type = "percentage",                   value = -33 }
         }
     },
     insane = {
@@ -139,8 +161,8 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Ataques múltiplos frequentes, mas muito vulnerável.",
         modifiers = {
-            { stat = "multiAttackChance", baseValue = 0.50, multValue = 0.50 },
-            { stat = "defense",           multValue = -0.50 }
+            { stat = "multiAttackChance", type = "fixed_percentage_as_fraction", value = 0.30 },
+            { stat = "defense",           type = "percentage",                   value = -50 }
         }
     },
     -- Rank E
@@ -150,7 +172,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Recupera vida ligeiramente mais rápido após sofrer dano.",
         modifiers = {
-            { stat = "healthRegenDelay", baseValue = -1.0 }
+            { stat = "healthRegenDelay", type = "fixed", value = 1.0 }
         }
     },
     collector = {
@@ -159,7 +181,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Aumenta levemente o alcance para coletar itens.",
         modifiers = {
-            { stat = "pickupRadius", baseValue = 20 }
+            { stat = "pickupRadius", type = "fixed", value = 20 }
         }
     },
     vigilant = {
@@ -168,7 +190,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Detecta inimigos de mais longe.",
         modifiers = {
-            { stat = "pickupRadius", baseValue = 30 }
+            { stat = "pickupRadius", type = "fixed", value = 30 }
         }
     },
 
@@ -179,7 +201,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Recuperação de vida constante melhorada.",
         modifiers = {
-            { stat = "healthPerTick", baseValue = 1 }
+            { stat = "healthPerTick", type = "fixed", value = 1 }
         }
     },
     focused = {
@@ -188,7 +210,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Reduz um pouco o tempo de recarga de habilidades.",
         modifiers = {
-            { stat = "cooldownReduction", multValue = -0.05 }
+            { stat = "cooldownReduction", type = "percentage", value = -0.05 }
         }
     },
     shielded = {
@@ -197,7 +219,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Ganha uma pequena quantidade de defesa adicional.",
         modifiers = {
-            { stat = "defense", baseValue = 3 }
+            { stat = "defense", type = "fixed", value = 3 }
         }
     },
 
@@ -208,7 +230,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a defesa.",
         modifiers = {
-            { stat = "defense", baseValue = 5 }
+            { stat = "defense", type = "fixed", value = 5 }
         }
     },
     healer = {
@@ -217,7 +239,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a quantidade de cura recebida.",
         modifiers = {
-            { stat = "healingBonus", multValue = 0.20 }
+            { stat = "healingBonus", type = "percentage", value = 0.20 }
         }
     },
     swift = {
@@ -226,7 +248,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Movimenta-se mais rapidamente que o normal.",
         modifiers = {
-            { stat = "moveSpeed", multValue = 0.15 }
+            { stat = "moveSpeed", type = "percentage", value = 0.15 }
         }
     },
     tactical = {
@@ -235,7 +257,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Pequeno bônus de redução de recarga.",
         modifiers = {
-            { stat = "cooldownReduction", multValue = 0.10 }
+            { stat = "cooldownReduction", type = "percentage", value = 0.10 }
         }
     },
 
@@ -246,7 +268,7 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Aumenta o alcance dos ataques.",
         modifiers = {
-            { stat = "range", multValue = 0.20 }
+            { stat = "range", type = "percentage", value = 0.20 }
         }
     },
     crusher = {
@@ -255,7 +277,7 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Amplia a área de ataque das habilidades e armas.",
         modifiers = {
-            { stat = "attackArea", multValue = 0.30 }
+            { stat = "attackArea", type = "percentage", value = 0.30 }
         }
     },
     opportunist = {
@@ -264,7 +286,7 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Pequeno bônus de sorte para acertos críticos e itens.",
         modifiers = {
-            { stat = "luck", multValue = 0.15 }
+            { stat = "luck", type = "percentage", value = 0.15 }
         }
     },
 
@@ -275,9 +297,9 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Velocidade de ataque e área de ataque aumentadas, mas menos defesa.",
         modifiers = {
-            { stat = "attackSpeed", multValue = 0.25 },
-            { stat = "attackArea",  multValue = 0.20 },
-            { stat = "defense",     multValue = -0.10 }
+            { stat = "attackSpeed", type = "percentage", value = 0.25 },
+            { stat = "attackArea",  type = "percentage", value = 0.20 },
+            { stat = "defense",     type = "percentage", value = -0.10 }
         }
     },
     guardian = {
@@ -286,8 +308,8 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Defesa maciça, mas com velocidade reduzida.",
         modifiers = {
-            { stat = "defense",   multValue = 0.40 },
-            { stat = "moveSpeed", multValue = -0.20 }
+            { stat = "defense",   type = "percentage", value = 0.40 },
+            { stat = "moveSpeed", type = "percentage", value = -0.20 }
         }
     },
     avenger = {
@@ -296,7 +318,7 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Aumenta o dano crítico após sofrer dano.",
         modifiers = {
-            { stat = "critDamage", multValue = 0.25 }
+            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.25 }
         }
     },
 
@@ -307,9 +329,9 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Chance absurda de multi-ataques, mas extremamente frágil.",
         modifiers = {
-            { stat = "multiAttackChance", multValue = 1.0 },
-            { stat = "defense",           multValue = -0.70 },
-            { stat = "health",            multValue = -0.50 }
+            { stat = "multiAttackChance", type = "percentage", value = 1.0 },
+            { stat = "defense",           type = "percentage", value = -0.70 },
+            { stat = "health",            type = "percentage", value = -0.50 }
         }
     },
     godspeed = {
@@ -318,8 +340,8 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Movimentação e ataque extremamente rápidos.",
         modifiers = {
-            { stat = "moveSpeed",   multValue = 0.50 },
-            { stat = "attackSpeed", multValue = 0.50 }
+            { stat = "moveSpeed",   type = "percentage", value = 0.50 },
+            { stat = "attackSpeed", type = "percentage", value = 0.50 }
         }
     },
     phoenix = {
@@ -328,7 +350,7 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Renasce automaticamente uma vez por partida com metade da vida.",
         modifiers = {
-            { stat = "health", multValue = 0.50 }
+            { stat = "health", type = "percentage", value = 0.50 }
             -- Efeito especial: revive (pode ser implementado no sistema de habilidades especiais)
         }
     },
@@ -338,8 +360,8 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Reduz drasticamente o tempo de recarga, mas aumenta o dano recebido.",
         modifiers = {
-            { stat = "cooldownReduction", multValue = 0.50 },
-            { stat = "defense",           multValue = -0.30 }
+            { stat = "cooldownReduction", type = "percentage", value = 0.50 },
+            { stat = "defense",           type = "percentage", value = -0.30 }
         }
     }
     -- Adicionar MUITOS outros arquétipos aqui para cada rank...

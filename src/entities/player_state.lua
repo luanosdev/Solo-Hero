@@ -180,6 +180,7 @@ function PlayerState:init(baseStats)
     self.maxHealth = self:getTotalHealth()
     self.currentHealth = self.maxHealth
     self.isAlive = true
+    self.learnedLevelUpBonuses = {} -- <<< ADICIONADO PARA RASTREAR NÍVEIS DE BÔNUS DE LEVEL UP
 end
 
 --[[
@@ -373,6 +374,8 @@ end
     @param fixed Fixed value to add (for fixed bonus)
 ]]
 function PlayerState:addAttributeBonus(attribute, percentage, fixed)
+    print(string.format("[PlayerState:addAttributeBonus DEBUG] Called with: attribute=%s, percentage=%s, fixed=%s",
+        tostring(attribute), tostring(percentage), tostring(fixed)))
     percentage = percentage or 0
     fixed = fixed or 0
 
@@ -519,6 +522,7 @@ function PlayerState:new(initialStats)
     state.maxHealth = state:getTotalHealth() -- Calcula maxHealth com base nos stats aplicados
     state.currentHealth = state.maxHealth    -- Começa com vida cheia
     state.statusModifiers = {}               -- Limpa modificadores
+    state.learnedLevelUpBonuses = {}         -- <<< ADICIONADO PARA RASTREAR NÍVEIS DE BÔNUS DE LEVEL UP
 
     -- Log final de verificação
     print(string.format("  [DEBUG] PlayerState:new - Final health: %.1f/%.1f", state.currentHealth, state.maxHealth)) -- DEBUG

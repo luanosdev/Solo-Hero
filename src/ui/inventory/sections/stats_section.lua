@@ -595,6 +595,13 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                 tooltipX = mx + 15 -- Posição do tooltip relativa ao mouse
                 tooltipY = my
 
+                -- Cores para o tooltip
+                local baseColor = colors.text_label
+                local fixedBonusColor = colors.positive  -- Verde para bônus fixos
+                local percentBonusColor = colors.warning -- Amarelo/Laranja para bônus percentuais
+                local sourceColor = colors.text_muted    -- Cinza claro para fonte do bônus (Arquétipo, Nível)
+                local finalValueColor = colors.text_highlight
+
                 -- 1. Linha Base
                 local baseDisplayValue = defaultValue
                 if attr.isReduction then
@@ -605,58 +612,156 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                     baseDisplayValue = defaultValue * (attr.baseMultiplier or displayMultiplier)
                 end
                 local baseStr = string.format(displayFormat, baseDisplayValue)
-                table.insert(tooltipLines, { text = "Base: " .. baseStr, color = colors.text_label })
+                table.insert(tooltipLines, { text = "Base: " .. baseStr, color = baseColor })
 
-                -- 2. Linhas de Arquétipos
-                local hasArchetypeBonus = false
+                -- Coletores para bônus
+                local fixedBonuses = {}
+                local percentBonuses = {}
+
+                -- 2. Coleta de Bônus de Arquétipos
                 if archetypeIds and archetypeManager then
-                    table.insert(tooltipLines, { text = "Arquétipos:", color = colors.text_highlight }) -- Subtítulo
-                    for _, mod in ipairs(archetypeIds) do                                               -- Itera sobre IDs primeiro?
-                        local archData = archetypeManager:getArchetypeData(mod.id)                      -- <<< Ajuste: Usa mod.id se archIds for lista de {id, rank, ...}
+                    for _, archIdInfo in ipairs(archetypeIds) do
+                        local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
+                        local archData = archetypeManager:getArchetypeData(finalArchId)
                         if archData and archData.modifiers then
-                            local foundModifierForThisArchetype = false
-                            -- Itera sobre a lista de modificadores DENTRO do arquétipo
                             for _, modifierData in ipairs(archData.modifiers) do
                                 if modifierData.stat == attr.key then
-                                    local modKeyString = ""
-                                    local modValue = 0
+                                    local sourceText = "(" .. (archData.name or archData.id) .. ")"
                                     if modifierData.baseValue ~= nil then
-                                        modKeyString = modifierData.stat .. "_add"
-                                        modValue = modifierData.baseValue
+                                        local val = modifierData.baseValue
+                                        local modStr = ""
+                                        if attr.key == "critChance" or attr.key == "expBonus" or attr.key == "healingBonus" or attr.key == "multiAttackChance" or attr.isReduction then
+                                            modStr = string.format("%+.1f%%", val * 100)
+                                        elseif attr.key == "critDamage" then
+                                            modStr = string.format("%+.0fx", val * 100) -- Ex: +20x
+                                        else
+                                            modStr = string.format("%+.1f", val):gsub("%.0$", "")
+                                        end
+                                        table.insert(fixedBonuses,
+                                            { text = "Arq. " .. sourceText .. ": " .. modStr, color = fixedBonusColor })
                                     elseif modifierData.multValue ~= nil then
-                                        modKeyString = modifierData.stat .. "_mult"
-                                        -- Passa o valor como multiplicador (ex: 1.1) para a formatação
-                                        modValue = 1 + modifierData.multValue
-                                    else
-                                        goto continue_inner_loop -- Pula modificador inválido
+                                        local val = modifierData.multValue -- é 0.1 para 10%
+                                        local modStr = ""
+                                        if attr.key == "range" or attr.key == "attackArea" then
+                                            modStr = string.format("x%.2f", 1 + val)     -- Ex: x1.10
+                                        elseif attr.isReduction then                     -- Redução de recarga (ex: 0.1 para 10% de redução)
+                                            modStr = string.format("-%.0f%%", val * 100) -- Mostra como redução
+                                        else
+                                            modStr = string.format("%+.0f%%", val * 100)
+                                        end
+                                        table.insert(percentBonuses,
+                                            { text = "Arq. " .. sourceText .. ": " .. modStr, color = percentBonusColor })
                                     end
-
-                                    local modifierStr = formatArchetypeModifier(modKeyString, modValue)
-                                    -- Remove o nome do stat do início (já estamos no tooltip do stat)
-                                    modifierStr = modifierStr:gsub("^[^:]+:%s*", "")
-                                    table.insert(tooltipLines,
-                                        {
-                                            text = " - " .. (archData.name or archData.id) .. ": " .. modifierStr,
-                                            color = colors.rank[archData.rank or 'E']
-                                        })
-                                    hasArchetypeBonus = true
-                                    foundModifierForThisArchetype = true
-                                    -- Não precisa de break, pode haver _add e _mult para o mesmo stat no mesmo arquétipo?
                                 end
-                                ::continue_inner_loop::
                             end
                         end
                     end
                 end
-                if not hasArchetypeBonus and #tooltipLines > 1 then -- Se tem subtítulo mas nenhum bônus
-                    table.insert(tooltipLines, { text = " (Nenhum)", color = colors.text_label })
-                elseif #tooltipLines == 1 then                      -- Se só tem a linha Base (nem desenhou subtitulo Arquétipo)
-                    table.remove(tooltipLines)                      -- Remove o subtitulo se não houver bônus
+
+                -- AGORA VAMOS PROCESSAR OS BÔNUS DE NÍVEL E FIXOS OBTIDOS DE finalStats
+                local levelBonusesDirect = finalStats._levelBonus or {}
+                local fixedBonusesDirect = finalStats._fixedBonus or {}
+
+                -- Processa Bônus de Nível (de finalStats._levelBonus)
+                local levelBonusValue = levelBonusesDirect[attr.key]
+                if levelBonusValue and levelBonusValue ~= 0 then
+                    local val = levelBonusValue -- Em PlayerState, levelBonus são percentuais diretos (ex: 5 para 5%)
+                    local modStr = ""
+                    -- A maioria dos levelBonus são percentuais
+                    if attr.key == "critDamage" then           -- critDamage é um multiplicador direto sobre o base de 1.5 (150%)
+                        -- Se levelBonus.critDamage é 20, significa +20% sobre o multiplicador, e não 20x
+                        modStr = string.format("%+.0f%%", val) -- Ex: +20%
+                    elseif attr.key == "range" or attr.key == "attackArea" or attr.key == "attackSpeed" or attr.key == "expBonus" or attr.key == "healingBonus" or attr.key == "luck" or attr.key == "cooldownReduction" then
+                        -- Estes são bônus percentuais que se somam
+                        modStr = string.format("%+.0f%%", val)
+                    elseif attr.key == "health" or attr.key == "defense" or attr.key == "moveSpeed" or attr.key == "healthRegen" or attr.key == "multiAttackChance" or attr.key == "critChance" or attr.key == "healthPerTick" or attr.key == "pickupRadius" then
+                        -- Esses são bonus percentuais aplicados ao valor base do atributo.
+                        modStr = string.format("%+.0f%%", val)
+                    else -- Fallback para outros casos, tratar como percentual
+                        modStr = string.format("%+.0f%%", val)
+                    end
+                    -- Adiciona à lista correta (level bonus são geralmente multiplicativos/percentuais)
+                    table.insert(percentBonuses, { text = "Nível: " .. modStr, color = percentBonusColor })
                 end
 
-                -- 3. Linha Final (Opcional, já visível na tela)
-                table.insert(tooltipLines, { text = "-----------", color = colors.text_label })
-                table.insert(tooltipLines, { text = "Final: " .. finalStr, color = colors.text_highlight })
+                -- Processa Outros Bônus Fixos (de finalStats._fixedBonus)
+                local fixedBonusValue = fixedBonusesDirect[attr.key]
+                print("[DEBUG StatsSection] Attr: " ..
+                    tostring(attr.key) .. ", FixedBonusValue from _fixedBonus: " .. tostring(fixedBonusValue)) -- LINHA DE DEBUG
+                if fixedBonusValue and fixedBonusValue ~= 0 then
+                    local val = fixedBonusValue
+                    local modStr = ""
+                    local isFixed = true -- Flag para decidir se vai para fixedBonuses ou percentBonuses
+
+                    if attr.key == "health" or attr.key == "defense" or attr.key == "moveSpeed" or attr.key == "pickupRadius" or attr.key == "healthRegen" or attr.key == "healthPerTick" then
+                        -- Aditivos diretos
+                        modStr = string.format("%+.1f", val):gsub("%.0$", "")
+                        if attr.suffix then modStr = modStr .. attr.suffix:match("^%s*(.+)") end -- Adiciona unidade se houver
+                    elseif attr.key == "critChance" or attr.key == "multiAttackChance" then
+                        -- Aditivo percentual (valor já é fração, ex: 0.05 para 5%)
+                        modStr = string.format("%+.1f%%", val * 100)
+                    elseif attr.key == "critDamage" then
+                        -- Aditivo ao multiplicador (valor já é multiplicador, ex: 0.25 para +0.25x)
+                        modStr = string.format("%+.2fx", val)
+                    elseif attr.key == "attackSpeed" or attr.key == "expBonus" or attr.key == "healingBonus" or attr.key == "luck" or attr.key == "range" or attr.key == "attackArea" or attr.key == "cooldownReduction" then
+                        -- Estes são bônus percentuais fixos (valor já é fração, ex: 0.1 para 10%)
+                        modStr = string.format("%+.0f%%", val * 100)
+                        isFixed = false -- Estes são percentuais
+                    else
+                        -- Fallback para outros, tratar como aditivo por segurança
+                        modStr = string.format("%+.1f", val):gsub("%.0$", "")
+                    end
+
+                    if isFixed then
+                        table.insert(fixedBonuses, { text = "Fixo: " .. modStr, color = fixedBonusColor })
+                    else
+                        table.insert(percentBonuses, { text = "Fixo: " .. modStr, color = percentBonusColor })
+                    end
+                end
+
+                -- Adiciona bônus fixos ao tooltip
+                if #fixedBonuses > 0 then
+                    if #tooltipLines > 1 or (#tooltipLines == 1 and tooltipLines[1].text ~= "Base: " .. baseStr) then -- Adiciona espaço se já houver algo além da base
+                        table.insert(tooltipLines, { text = "", color = baseColor })                                  -- Linha em branco para separar
+                    end
+                    table.insert(tooltipLines, { text = "Bônus Fixos:", color = sourceColor })
+                    for _, bonusLine in ipairs(fixedBonuses) do
+                        table.insert(tooltipLines, bonusLine)
+                    end
+                end
+
+                -- Adiciona divisor se houver ambos os tipos de bônus
+                if #fixedBonuses > 0 and #percentBonuses > 0 then
+                    table.insert(tooltipLines, { text = "-------------", color = colors.text_muted })
+                end
+
+                -- Adiciona bônus percentuais ao tooltip
+                if #percentBonuses > 0 then
+                    if (#tooltipLines > 1 or (#tooltipLines == 1 and tooltipLines[1].text ~= "Base: " .. baseStr)) and #fixedBonuses == 0 then
+                        table.insert(tooltipLines, { text = "", color = baseColor }) -- Linha em branco para separar
+                    end
+                    table.insert(tooltipLines, { text = "Bônus Percentuais:", color = sourceColor })
+                    for _, bonusLine in ipairs(percentBonuses) do
+                        table.insert(tooltipLines, bonusLine)
+                    end
+                end
+
+                -- Garante que algo foi adicionado além do base antes de mostrar "Nenhum Bônus" ou o final
+                local hasAnyBonus = #fixedBonuses > 0 or #percentBonuses > 0
+
+                if not hasAnyBonus and #tooltipLines == 1 then -- Apenas a linha "Base"
+                    -- Não adiciona "Nenhum bônus" se só a base está lá, pois a base já é uma info.
+                    -- Poderia adicionar uma mensagem se preferir, mas por ora fica limpo.
+                elseif not hasAnyBonus and #tooltipLines > 1 then -- Ex: Tinha um subtítulo de arquétipo mas nenhum bônus dele
+                    table.insert(tooltipLines, { text = " (Nenhum bônus adicional)", color = colors.text_label })
+                end
+
+
+                -- Linha Final (já visível na tela, mas bom para confirmação no tooltip)
+                if #tooltipLines > 0 then -- Adiciona separador final apenas se houver bônus ou base
+                    table.insert(tooltipLines, { text = "-------------", color = colors.text_muted })
+                end
+                table.insert(tooltipLines, { text = "Final: " .. finalStr, color = finalValueColor })
             end
 
             currentY = currentY + lineHeight

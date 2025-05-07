@@ -443,11 +443,12 @@ function PlayerManager:updateHealthRecovery(dt)
 
             -- Se a regeneração acumulada for >= 1, cura o jogador
             local healAmount = math.floor(self.accumulatedRegen)
-            if healAmount >= 1 then
+            if healAmount >= 1 and self.state.currentHealth < self.state:getTotalHealth() then
                 self.state:heal(healAmount)
                 self.accumulatedRegen = self.accumulatedRegen - healAmount
                 -- Mostra texto flutuante de cura (opcional)
-                self.floatingTextManager:addText(self.player.position.x, self.player.position.y - 50, "+" .. healAmount .. " HP", false, nil, {0, 1, 0})
+                self.floatingTextManager:addText(self.player.position.x, self.player.position.y - 50,
+                    "+" .. healAmount .. " HP", false, nil, { 0, 1, 0 })
             end
         end
     else
@@ -724,8 +725,10 @@ function PlayerManager:getCurrentFinalStats()
         pickupRadius = self.state:getTotalPickupRadius(),
         healingBonus = self.state:getTotalHealingBonus(), -- Método adicionado em PlayerState
         runeSlots = self.state:getTotalRuneSlots(),
-        luck = self.state:getTotalLuck()
-        -- Garantir que todos os stats usados por HunterStatsColumn/StatsSection estejam aqui
+        luck = self.state:getTotalLuck(),
+        -- Adiciona as tabelas de bônus brutos para o tooltip poder discriminá-los
+        _levelBonus = self.state.levelBonus,
+        _fixedBonus = self.state.fixedBonus
     }
 end
 
