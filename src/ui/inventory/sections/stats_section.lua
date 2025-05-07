@@ -618,44 +618,95 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                 local fixedBonuses = {}
                 local percentBonuses = {}
 
+                -- DEBUG: Verificar archetypeIds e archetypeManager
+                if not archetypeIds or not next(archetypeIds or {}) then
+                    print("[StatsSection DEBUG] archetypeIds está vazio ou nulo.")
+                else
+                    print("[StatsSection DEBUG] archetypeIds: ", json.encode(archetypeIds)) -- Usar json.encode para melhor visualização de tabelas
+                end
+                if not archetypeManager then
+                    print("[StatsSection DEBUG] archetypeManager é nulo.")
+                end
+
                 -- 2. Coleta de Bônus de Arquétipos
-                if archetypeIds and archetypeManager then
+                if archetypeIds and archetypeManager and next(archetypeIds or {}) then -- Adicionado next(archetypeIds or {}) para garantir que não está vazio
+                    print("[StatsSection DEBUG] Iniciando coleta de bônus de arquétipos para o atributo: " .. attr.key)
                     for _, archIdInfo in ipairs(archetypeIds) do
                         local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
+                        print("[StatsSection DEBUG] Processando archIdInfo: ", json.encode(archIdInfo),
+                            " -> finalArchId: " .. tostring(finalArchId))
+
                         local archData = archetypeManager:getArchetypeData(finalArchId)
-                        if archData and archData.modifiers then
+                        if not archData then
+                            print("[StatsSection DEBUG] archData NÃO encontrado para finalArchId: " ..
+                                tostring(finalArchId))
+                            goto continue_archetype_loop -- Pula para o próximo arquétipo
+                        else
+                            print("[StatsSection DEBUG] archData encontrado para " ..
+                                tostring(finalArchId) .. ". Verificando modifiers...")
+                        end
+
+                        if archData.modifiers and next(archData.modifiers) then -- Verifica se modifiers existe e não está vazio
+                            print("[StatsSection DEBUG] archData.modifiers ENCONTRADO para " .. finalArchId .. ": ",
+                                json.encode(archData.modifiers))
                             for _, modifierData in ipairs(archData.modifiers) do
+                                print("[StatsSection DEBUG]  - Comparando modifierData.stat (", modifierData.stat,
+                                    ") com attr.key (", attr.key, ")")
                                 if modifierData.stat == attr.key then
+                                    print("[StatsSection DEBUG]   MATCH! stat: ", attr.key, ", modifierData.type: ",
+                                        modifierData.type, ", value: ", modifierData.value)
                                     local sourceText = "(" .. (archData.name or archData.id) .. ")"
-                                    if modifierData.baseValue ~= nil then
-                                        local val = modifierData.baseValue
-                                        local modStr = ""
-                                        if attr.key == "critChance" or attr.key == "expBonus" or attr.key == "healingBonus" or attr.key == "multiAttackChance" or attr.isReduction then
-                                            modStr = string.format("%+.1f%%", val * 100)
+                                    local modStr = ""
+                                    local val = modifierData.value
+
+                                    if modifierData.type == "fixed" then
+                                        if attr.key == "critChance" or attr.key == "expBonus" or attr.key == "healingBonus" or attr.key == "multiAttackChance" then
+                                            -- Estes são geralmente percentuais na base, mas se o arquétipo os dá como fixos, podem ser absolutos.
+                                            -- Se o 'value' for pequeno (ex: < 1), pode ser uma fração para %; se for grande, é absoluto.
+                                            -- Para simplificar e consistência com fixedBonus de level up, vamos tratar fixed como aditivo direto.
+                                            modStr = string.format("%+.1f", val):gsub("\\.0$", "")
+                                            if attr.suffix and attr.key ~= "critDamage" then
+                                                modStr = modStr ..
+                                                    attr.suffix:match("^%s*(.+)")
+                                            end
                                         elseif attr.key == "critDamage" then
-                                            modStr = string.format("%+.0fx", val * 100) -- Ex: +20x
+                                            -- critDamage em 'fixed' de arquétipo pode ser um aumento direto no multiplicador (ex: +0.25x)
+                                            modStr = string.format("%+.2fx", val)
+                                        elseif attr.key == "runeSlots" then
+                                            modStr = string.format("%+d", val)
                                         else
-                                            modStr = string.format("%+.1f", val):gsub("%.0$", "")
+                                            modStr = string.format("%+.1f", val):gsub("\\.0$", "")
+                                            if attr.suffix then modStr = modStr .. attr.suffix:match("^%s*(.+)") end
                                         end
                                         table.insert(fixedBonuses,
                                             { text = "Arq. " .. sourceText .. ": " .. modStr, color = fixedBonusColor })
-                                    elseif modifierData.multValue ~= nil then
-                                        local val = modifierData.multValue -- é 0.1 para 10%
-                                        local modStr = ""
-                                        if attr.key == "range" or attr.key == "attackArea" then
-                                            modStr = string.format("x%.2f", 1 + val)     -- Ex: x1.10
-                                        elseif attr.isReduction then                     -- Redução de recarga (ex: 0.1 para 10% de redução)
-                                            modStr = string.format("-%.0f%%", val * 100) -- Mostra como redução
+                                    elseif modifierData.type == "percentage" then
+                                        -- 'value' é o percentual direto (ex: 10 para 10%)
+                                        modStr = string.format("%+.0f%%", val)
+                                        table.insert(percentBonuses,
+                                            { text = "Arq. " .. sourceText .. ": " .. modStr, color = percentBonusColor })
+                                    elseif modifierData.type == "fixed_percentage_as_fraction" then
+                                        -- 'value' é a fração (ex: 0.05 para 5%)
+                                        if attr.key == "critDamage" then
+                                            modStr = string.format("%+.0fx", val * 100) -- ex: 0.25 -> +25x (se base é 150, vira 175)
                                         else
                                             modStr = string.format("%+.0f%%", val * 100)
                                         end
+                                        -- Este tipo de bônus de arquétipo geralmente se comporta como um bônus percentual fixo.
                                         table.insert(percentBonuses,
                                             { text = "Arq. " .. sourceText .. ": " .. modStr, color = percentBonusColor })
                                     end
                                 end
                             end
+                        else
+                            print("[StatsSection DEBUG] archData.modifiers NÃO encontrado ou VAZIO para " ..
+                                tostring(finalArchId))
                         end
+                        ::continue_archetype_loop:: -- Label para o goto
                     end
+                else
+                    print("[StatsSection DEBUG] Pस्पतिSkipping archetype bonus collection for attr: " ..
+                        attr.key .. " - archetypeIds ou archetypeManager ausente/vazio.")
                 end
 
                 -- AGORA VAMOS PROCESSAR OS BÔNUS DE NÍVEL E FIXOS OBTIDOS DE finalStats

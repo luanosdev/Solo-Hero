@@ -83,17 +83,15 @@ function HunterAttributesList:_buildLayout()
     local finalStats = self.attributes
     local lineHeight = fonts.main:getHeight() * 1.2
 
-    -- >>> Calcula a largura interna disponível DENTRO do HunterAttributesList
     local innerWidth = self.rect.w -
-        (self.mainYStack.padding.left + self.mainYStack.padding.right) -- Usa o padding da mainYStack
-    if innerWidth < 0 then innerWidth = 0 end                      -- Evita largura negativa
+        (self.mainYStack.padding.left + self.mainYStack.padding.right)
+    if innerWidth < 0 then innerWidth = 0 end
 
     for _, attrDef in ipairs(attributesToShow) do
         local finalValue = finalStats[attrDef.key]
         local defaultValue = baseStats[attrDef.key]
 
         if finalValue ~= nil and defaultValue ~= nil then
-            -- Calcula valor final formatado
             local displayMultiplier = attrDef.multiplier or 1
             local finalDisplayValue = finalValue
             if attrDef.isReduction then
@@ -105,44 +103,52 @@ function HunterAttributesList:_buildLayout()
             end
             local finalStr = string.format(attrDef.format, finalDisplayValue) .. (attrDef.suffix or "")
 
-            -- Cria o XStack para esta linha
             local lineXStack = XStack:new({ x = 0, y = 0, height = lineHeight })
-
-            -- >>> Usa innerWidth para calcular largura das colunas de texto
             local labelWidth = innerWidth * 0.6
             local valueWidth = innerWidth * 0.4
 
-            -- Cria o Label (Text)
+            -- Determina a cor/variante do valor
+            local valueVariant = "default"
+            if finalValue > defaultValue then
+                -- Para 'isReduction' (como cooldownReduction), um valor MENOR é melhor.
+                -- E para healthRegenDelay, um valor MENOR também é melhor.
+                if attrDef.isReduction or attrDef.key == "healthRegenDelay" then
+                    valueVariant = "negative_is_good" -- Verde para reduções que são boas
+                else
+                    valueVariant = "positive"         -- Verde para aumentos que são bons
+                end
+            elseif finalValue < defaultValue then
+                if attrDef.isReduction or attrDef.key == "healthRegenDelay" then
+                    valueVariant = "positive_is_bad" -- Vermelho para aumentos que são ruins (redução menor = ruim)
+                else
+                    valueVariant = "negative"        -- Vermelho para diminuições que são ruins
+                end
+            end
+
             local labelText = Text:new({
                 text = attrDef.label,
-                width = labelWidth, -- <<< Usa largura calculada
+                width = labelWidth,
                 align = "left",
-                variant = "default" -- Cor será atualizada no update/draw
-                -- x, y são definidos pelo XStack pai
+                variant = "default"
             })
-            labelText.attributeKey = attrDef.key -- Guarda a chave para hover
+            labelText.attributeKey = attrDef.key
 
-            -- Cria o Valor (Text)
             local valueText = Text:new({
                 text = finalStr,
-                width = valueWidth, -- <<< Usa largura calculada
+                width = valueWidth,
                 align = "right",
-                variant = "default" -- Cor será atualizada no update/draw
-                -- x, y são definidos pelo XStack pai
+                variant = valueVariant -- Usa a variante determinada
             })
-            valueText.attributeKey = attrDef.key -- Guarda a chave para hover
+            valueText.attributeKey = attrDef.key
 
-            -- Adiciona Labels ao XStack da linha
             lineXStack:addChild(labelText)
             lineXStack:addChild(valueText)
-
-            -- Adiciona o XStack da linha ao YStack principal
             self.mainYStack:addChild(lineXStack)
         end
     end
-    self.mainYStack:_updateLayout()      -- Calcula layout inicial
-    self.rect.h = self.mainYStack.rect.h -- Ajusta altura do container
-    self.needsLayout = false             -- Marca como layout feito
+    self.mainYStack:_updateLayout()
+    self.rect.h = self.mainYStack.rect.h
+    self.needsLayout = false
 end
 
 --- Atualiza o estado e detecta hover.
@@ -204,7 +210,7 @@ end
 -- USA DADOS DE self: hoveredKey, attributes, archetypes, archetypeManager
 function HunterAttributesList:_prepareTooltip()
     local hoveredKey = self.hoveredAttributeKey
-    if not hoveredKey then return end -- Sai se nada em hover
+    if not hoveredKey then return end
 
     local attrDefinition = nil
     for _, ad in ipairs(attributesToShow) do
@@ -220,14 +226,18 @@ function HunterAttributesList:_prepareTooltip()
     if not baseStats then return end
 
     local finalStats = self.attributes
-    local archetypeIds = self.archetypes -- Usa a lista de IDs de arquétipos
-    local archetypeManager = self.archetypeManager
+    local candidateArchetypesData = self.archetypes
 
     local finalValue = finalStats[hoveredKey]
     local defaultValue = baseStats[hoveredKey]
-    if finalValue == nil or defaultValue == nil then return end -- Segurança
+    if finalValue == nil or defaultValue == nil then return end
 
-    -- Formata valor final (para linha 'Final:' do tooltip)
+    local baseColor = colors.text_label
+    local fixedBonusColor = colors.positive
+    local percentBonusColor = colors.warning
+    local sourceColor = colors.text_muted
+    local finalValueColor = colors.text_highlight
+
     local displayMultiplier = attrDefinition.multiplier or 1
     local finalDisplayValue = finalValue
     local displayFormat = attrDefinition.format
@@ -240,75 +250,103 @@ function HunterAttributesList:_prepareTooltip()
     end
     local finalStr = string.format(displayFormat, finalDisplayValue) .. (attrDefinition.suffix or "")
 
-    -- 1. Linha Base
+    self.tooltipLines = {}
+
     local baseDisplayValue = defaultValue
-    local baseFormat = attrDefinition.format
-    local baseMultiplier = displayMultiplier
     if attrDefinition.isReduction then
         baseDisplayValue = (1 - defaultValue) * 100
     elseif attrDefinition.key == "critDamage" then
         baseDisplayValue = defaultValue * 100
     else
-        baseDisplayValue = defaultValue * baseMultiplier
+        baseDisplayValue = defaultValue *
+            (attrDefinition.baseMultiplier or displayMultiplier)
     end
-    local baseStr = string.format(baseFormat, baseDisplayValue) .. (attrDefinition.suffix or "")
-    table.insert(self.tooltipLines, { text = "Base: " .. baseStr, color = colors.text_label })
+    local baseStr = string.format(displayFormat, baseDisplayValue) .. (attrDefinition.suffix or "")
+    table.insert(self.tooltipLines, { text = "Base: " .. baseStr, color = baseColor })
 
-    -- 2. Linhas de Arquétipos
-    local hasArchetypeBonus = false
-    -- Verifica se archetypeManager e archetypeIds existem
-    if archetypeManager and archetypeIds then
-        table.insert(self.tooltipLines, { text = "Arquétipos:", color = colors.text_highlight })
-        -- Itera sobre os DADOS dos arquétipos, não só IDs
-        for _, archData in ipairs(archetypeIds) do
-            -- Verificação extra se archData é válido e tem modifiers
+    local fixedBonuses = {}
+    local percentBonuses = {}
+
+    if candidateArchetypesData then
+        for _, archData in ipairs(candidateArchetypesData) do
             if archData and archData.modifiers then
-                for _, mod in ipairs(archData.modifiers) do
-                    if mod.stat == hoveredKey then
-                        local modifierText = ""
-                        local combinedKey = ""
-                        if mod.baseValue then
-                            combinedKey = mod.stat .. "_add"
-                            modifierText = modifierText ..
-                                Formatters.formatArchetypeModifierForTooltip(combinedKey, mod.baseValue)
-                        end
-                        if mod.multValue then
-                            if #modifierText > 0 then modifierText = modifierText .. " | " end
-                            combinedKey = mod.stat .. "_mult"
-                            modifierText = modifierText ..
-                                Formatters.formatArchetypeModifierForTooltip(combinedKey, mod.multValue + 1)
-                        end
-                        if #modifierText > 0 then
-                            table.insert(self.tooltipLines, {
-                                text = " - " .. (archData.name or archData.id) .. modifierText, -- Usa archData.id se name não existir
-                                color = colors.rank[archData.rank or 'E']
-                            })
-                            hasArchetypeBonus = true
+                for _, modifierData in ipairs(archData.modifiers) do
+                    if modifierData.stat == hoveredKey then
+                        local sourceText = "(" .. (archData.name or archData.id) .. ")"
+                        local modStr = ""
+                        local val = modifierData.value
+
+                        if modifierData.type == "fixed" then
+                            if hoveredKey == "critChance" or hoveredKey == "expBonus" or hoveredKey == "healingBonus" or hoveredKey == "multiAttackChance" then
+                                modStr = string.format("%+.1f", val):gsub("\\.0$", "")
+                                if attrDefinition.suffix and hoveredKey ~= "critDamage" then
+                                    modStr = modStr ..
+                                        attrDefinition.suffix:match("^%s*(.+)")
+                                end
+                            elseif hoveredKey == "critDamage" then
+                                modStr = string.format("%+.2fx", val)
+                            elseif hoveredKey == "runeSlots" then
+                                modStr = string.format("%+d", val)
+                            else
+                                modStr = string.format("%+.1f", val):gsub("\\.0$", "")
+                                if attrDefinition.suffix then modStr = modStr .. attrDefinition.suffix:match("^%s*(.+)") end
+                            end
+                            table.insert(fixedBonuses,
+                                { text = "Arq. " .. sourceText .. ": " .. modStr, color = fixedBonusColor })
+                        elseif modifierData.type == "percentage" then
+                            modStr = string.format("%+.0f%%", val)
+                            table.insert(percentBonuses,
+                                { text = "Arq. " .. sourceText .. ": " .. modStr, color = percentBonusColor })
+                        elseif modifierData.type == "fixed_percentage_as_fraction" then
+                            if hoveredKey == "critDamage" then
+                                modStr = string.format("%+.0fx", val * 100)
+                            else
+                                modStr = string.format("%+.0f%%", val * 100)
+                            end
+                            table.insert(percentBonuses,
+                                { text = "Arq. " .. sourceText .. ": " .. modStr, color = percentBonusColor })
                         end
                     end
                 end
             end
         end
-        if not hasArchetypeBonus then
-            table.insert(self.tooltipLines, { text = " (Nenhum)", color = colors.text_label })
+    end
+
+    if #fixedBonuses > 0 then
+        if #self.tooltipLines > 1 or (#self.tooltipLines == 1 and self.tooltipLines[1].text ~= "Base: " .. baseStr) then
+            table.insert(self.tooltipLines, { text = "", color = baseColor })
         end
-    else
-        -- Remove "Arquétipos:" se não houver dados para mostrar
-        if #self.tooltipLines > 0 and self.tooltipLines[#self.tooltipLines].text == "Arquétipos:" then
-            table.remove(self.tooltipLines)
+        table.insert(self.tooltipLines, { text = "Bônus Fixos (Arquétipos):", color = sourceColor })
+        for _, bonusLine in ipairs(fixedBonuses) do
+            table.insert(self.tooltipLines, bonusLine)
         end
     end
 
-    -- Remove a linha "Arquétipos:" se nenhum bônus foi adicionado e ela existe
-    if not hasArchetypeBonus and #self.tooltipLines > 1 and self.tooltipLines[2].text == "Arquétipos:" then
-        table.remove(self.tooltipLines, 2)
+    if #fixedBonuses > 0 and #percentBonuses > 0 then
+        table.insert(self.tooltipLines, { text = "-------------", color = colors.text_muted })
     end
 
-    -- 3. Linha Final
+    if #percentBonuses > 0 then
+        if (#self.tooltipLines > 1 or (#self.tooltipLines == 1 and self.tooltipLines[1].text ~= "Base: " .. baseStr)) and #fixedBonuses == 0 then
+            table.insert(self.tooltipLines, { text = "", color = baseColor })
+        end
+        table.insert(self.tooltipLines, { text = "Bônus Percentuais (Arquétipos):", color = sourceColor })
+        for _, bonusLine in ipairs(percentBonuses) do
+            table.insert(self.tooltipLines, bonusLine)
+        end
+    end
+
+    local hasAnyArchetypeBonus = #fixedBonuses > 0 or #percentBonuses > 0
+    if not hasAnyArchetypeBonus and #self.tooltipLines == 1 then
+        -- Não faz nada, só a base será mostrada
+    elseif not hasAnyArchetypeBonus and #self.tooltipLines > 1 then -- Se tinha header mas nenhum bônus
+        table.insert(self.tooltipLines, { text = " (Nenhum bônus de arquétipo)", color = colors.text_label })
+    end
+
     if #self.tooltipLines > 0 then
-        table.insert(self.tooltipLines, { text = "-----------", color = colors.text_label })
-        table.insert(self.tooltipLines, { text = "Final: " .. finalStr, color = colors.text_highlight })
+        table.insert(self.tooltipLines, { text = "-------------", color = colors.text_muted })
     end
+    table.insert(self.tooltipLines, { text = "Final: " .. finalStr, color = finalValueColor })
 end
 
 --- Desenha a lista de atributos e o tooltip.
@@ -325,6 +363,26 @@ function HunterAttributesList:draw()
         love.graphics.setColor(colors.text_label)
         love.graphics.printf("Carregando stats...", self.rect.x, self.rect.y + self.rect.h / 2, self.rect.w, "center")
         return
+    end
+
+    -- Itera sobre as linhas (XStacks) e depois sobre os Textos (label, value) para aplicar a cor correta
+    for _, lineXStack in ipairs(self.mainYStack.children or {}) do
+        if lineXStack.children and #lineXStack.children == 2 then
+            local labelTextComponent = lineXStack.children[1] -- Componente Text do label
+            local valueTextComponent = lineXStack.children[2] -- Componente Text do valor
+
+            -- Define a cor do label (pode ser sempre default ou mudar no hover)
+            if self.hoveredAttributeKey == labelTextComponent.attributeKey then
+                labelTextComponent.variant = "highlight" -- Supondo que Text tem uma variante highlight
+            else
+                labelTextComponent.variant = "default"
+            end
+
+            -- A variante do valor já foi definida em _buildLayout
+            -- Se o componente Text não lida com variantes de cor diretamente,
+            -- teríamos que fazer: valueTextComponent:setColor(colors[valueTextComponent.variant] or colors.text_default)
+            -- Mas vamos assumir que Text:draw() usa Text.variant para pegar a cor de `colors`
+        end
     end
 
     -- Desenha a stack principal (que desenhará os filhos)

@@ -48,14 +48,11 @@ function HunterManager:new(loadoutManager, itemDataManager, archetypeManager)
 
     instance:loadState() -- Loads state (saved hunters, activeHunterId, nextHunterId)
 
-    -- If no hunter was loaded, recruit an initial one?
     if not next(instance.hunters) then
         print("[HunterManager] No hunters found. Recruiting initial hunter...")
-        instance:_recruitInitialHunter() -- Function to be created
+        instance:_recruitInitialHunter()
     end
 
-    -- If there's still no active hunter (e.g., corrupted save or failed initial recruit?),
-    -- try setting the first in the list as active.
     if not instance.activeHunterId or not instance.hunters[instance.activeHunterId] then
         local firstId = next(instance.hunters)
         if firstId then
@@ -76,32 +73,21 @@ function HunterManager:_recruitInitialHunter()
     local hunterId = "hunter_" .. self.nextHunterId
     self.nextHunterId = self.nextHunterId + 1
 
-    -- Dados básicos do caçador inicial
     local initialHunterData = {
         id = hunterId,
-        name = "Recruta",           -- Nome inicial simples
+        name = "Recruta",
         baseRankId = "E",
-        finalRankId = "E",          -- Começa igual ao base
-        archetypeIds = { "agile" }, -- Dá um arquétipo inicial simples
-        -- Não inicializa equippedItems aqui, será feito em _initializeEquippedItems
+        finalRankId = "E",
+        archetypeIds = { "agile" },
     }
 
-    -- Adiciona à tabela de caçadores
     self.hunters[hunterId] = initialHunterData
-
-    -- Inicializa a estrutura de equipamento para ele (agora dinâmico)
     self:_initializeEquippedItems(hunterId)
-
-    -- Define como ativo
     self.activeHunterId = hunterId
 
     print(string.format("  [HunterManager] Initial hunter recruited: ID=%s, Name=%s, Rank=%s, Archetypes=%s",
         hunterId, initialHunterData.name, initialHunterData.finalRankId,
         table.concat(initialHunterData.archetypeIds, ", ")))
-
-    -- Salva o estado imediatamente após recrutar o inicial?
-    -- self:saveState()
-    -- Talvez seja melhor salvar apenas ao sair da cena/jogo.
 end
 
 --- Internal helper to calculate final hunter stats based on archetypes.
@@ -110,98 +96,56 @@ end
 function HunterManager:_calculateFinalStats(hunterId)
     local hunterData = self.hunters[hunterId]
     if not hunterData then
-        -- print("WARNING [_calculateFinalStats]: Hunter not found:", hunterId)
         return {}
     end
-    -- print(string.format("--- HunterManager:_calculateFinalStats for %s ---", hunterId)) -- DEBUG
 
-    -- 1. Start with default stats
     local finalStats = {}
-    -- print("  [DEBUG] Starting with default stats:") -- DEBUG
     for key, value in pairs(Constants.HUNTER_DEFAULT_STATS) do
         finalStats[key] = value
-        -- print(string.format("    - %s = %s", key, tostring(value))) -- DEBUG
     end
 
-    -- 2. Apply archetype modifiers (New Structure)
-    local archetypeIds = hunterData.archetypeIds or {}
-    -- print(string.format("  [DEBUG] Applying modifiers from archetypes: [%s]", table.concat(archetypeIds, ", "))) -- DEBUG
-    local accumulatedBase = {} -- Accumulate base additions
-    local accumulatedMult = {} -- Accumulate multiplicative changes (start at 1.0)
+    local archetypeIdsToProcess = hunterData.archetypeIds or {}
+    if type(archetypeIdsToProcess) == "string" then -- Lida com caso antigo onde poderia ser uma string única
+        archetypeIdsToProcess = { archetypeIdsToProcess }
+    end
 
-    for _, archetypeId in ipairs(archetypeIds) do
+    for _, archetypeId in ipairs(archetypeIdsToProcess) do
         local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
         if archetypeData and archetypeData.modifiers then
-            -- print(string.format("    > Processing archetype: %s", archetypeId)) -- DEBUG
-            -- Iterate through the list of modifier tables
             for _, mod in ipairs(archetypeData.modifiers) do
                 local statName = mod.stat
-                if not statName then
+                local modType = mod.type
+                local modValue = mod.value
+
+                if finalStats[statName] == nil then
                     print(string.format(
-                        "WARNING [_calculateFinalStats]: Missing 'stat' field in modifier for archetype '%s'",
-                        archetypeId))
-                    goto continue_modifier_loop -- Skip this modifier
+                        "AVISO [_calculateFinalStats]: Stat base '%s' não definido em HUNTER_DEFAULT_STATS para arquétipo '%s'. Modificador ignorado.",
+                        statName, archetypeId))
+                    goto continue_modifier_loop
                 end
-                -- print(string.format("      - Modifier for stat: %s", statName)) -- DEBUG
-
-                -- Check for baseValue
-                if mod.baseValue ~= nil then
-                    if finalStats[statName] == nil then
-                        -- print(string.format(
-                        --     "WARNING [_calculateFinalStats]: Base stat '%s' not found for baseValue in '%s'", statName,
-                        --     archetypeId))
-                    else
-                        accumulatedBase[statName] = (accumulatedBase[statName] or 0) + mod.baseValue
-                        -- print(string.format("        -> Base Value: %.2f (Accumulated Base for %s: %.2f)", mod.baseValue,
-                        --     statName, accumulatedBase[statName])) -- DEBUG
-                    end
+                if modType == nil or modValue == nil then
+                    print(string.format(
+                        "AVISO [_calculateFinalStats]: Modificador para stat '%s' no arquétipo '%s' não possui 'type' ou 'value'. Modificador ignorado.",
+                        statName, archetypeId))
+                    goto continue_modifier_loop
                 end
 
-                -- Check for multValue
-                if mod.multValue ~= nil then
-                    if finalStats[statName] == nil then
-                        -- print(string.format(
-                        --     "WARNING [_calculateFinalStats]: Base stat '%s' not found for multValue in '%s'", statName,
-                        --     archetypeId))
-                    else
-                        -- Accumulate the percentage change (0.08 means +8%)
-                        accumulatedMult[statName] = (accumulatedMult[statName] or 0) + mod.multValue
-                        -- print(string.format("        -> Mult Value: %.2f (Accumulated Mult for %s: %.2f)", mod.multValue,
-                        --     statName, accumulatedMult[statName])) -- DEBUG
-                    end
+                if modType == "fixed" then
+                    finalStats[statName] = finalStats[statName] + modValue
+                elseif modType == "percentage" then
+                    finalStats[statName] = finalStats[statName] * (1 + modValue / 100)
+                elseif modType == "fixed_percentage_as_fraction" then
+                    -- Adiciona diretamente, assumindo que o stat base e o modValue são frações/multiplicadores compatíveis
+                    finalStats[statName] = finalStats[statName] + modValue
+                else
+                    print(string.format(
+                        "AVISO [_calculateFinalStats]: Tipo de modificador de arquétipo desconhecido '%s' para stat '%s' no arquétipo '%s'.",
+                        modType, statName, archetypeId))
                 end
                 ::continue_modifier_loop::
             end
         end
     end
-
-    -- 3. Apply accumulated modifiers (Base first, then Mult)
-    -- print("  [DEBUG] Applying accumulated modifiers...") -- DEBUG
-    -- Apply Base Additions
-    for statName, baseAdd in pairs(accumulatedBase) do
-        if finalStats[statName] ~= nil then
-            -- print(string.format("    - Applying Base Add to %s: %.2f + %.2f = %.2f", statName, finalStats[statName],
-            --     baseAdd, finalStats[statName] + baseAdd)) -- DEBUG
-            finalStats[statName] = finalStats[statName] + baseAdd
-        end
-    end
-
-    -- Apply Multiplicative Changes
-    for statName, multChange in pairs(accumulatedMult) do
-        if finalStats[statName] ~= nil then
-            local multiplier = (1.0 + multChange)
-            -- print(string.format("    - Applying Mult Change to %s: %.2f * %.2f (1.0 + %.2f) = %.2f", statName,
-            --     finalStats[statName], multiplier, multChange, finalStats[statName] * multiplier)) -- DEBUG
-            -- Apply the total multiplier (1.0 + accumulated percentage change)
-            finalStats[statName] = finalStats[statName] * multiplier
-        end
-    end
-
-    -- TODO: Apply stats from equipped items (later phase)
-    -- print("  [DEBUG] Final calculated stats (before equipment):")                      -- DEBUG
-    -- for k, v in pairs(finalStats) do print(string.format("    - %s = %.2f", k, v)) end -- DEBUG
-    -- print("--- HunterManager:_calculateFinalStats END ---")                            -- DEBUG
-
     return finalStats
 end
 
@@ -209,9 +153,6 @@ end
 --- @return table Final stats or {} if not found.
 function HunterManager:getActiveHunterFinalStats()
     if not self.activeHunterId then return {} end
-    -- Idealmente, fazer cache disso para evitar recalcular sempre,
-    -- mas por agora, recalcula quando solicitado.
-    -- TODO: Implementar cache de stats se necessário para performance.
     return self:_calculateFinalStats(self.activeHunterId)
 end
 
@@ -227,7 +168,7 @@ end
 --- @return number Number of rune slots (defaults to 0).
 function HunterManager:getActiveHunterMaxRuneSlots()
     if not self.activeHunterId then return 0 end
-    local finalStats = self:getActiveHunterFinalStats() -- Usa a função existente que calcula
+    local finalStats = self:getActiveHunterFinalStats()
     return finalStats and finalStats.runeSlots or 0
 end
 
@@ -240,8 +181,6 @@ function HunterManager:getEquippedItems(hunterId)
         print(string.format("WARNING [getEquippedItems]: Hunter %s not found.", hunterId))
         return nil
     end
-    -- Retorna a tabela completa, pode conter nils para slots vazios.
-    -- Garante que a tabela exista, mesmo que vazia (caso raro de inicialização falha).
     return hunterData.equippedItems or {}
 end
 
@@ -254,17 +193,15 @@ function HunterManager:_initializeEquippedItems(hunterId)
 
     hunterData.equippedItems = hunterData.equippedItems or {}
 
-    -- Initialize base slots
     for _, slotId in ipairs(HunterManager.EQUIPMENT_SLOTS_BASE) do
-        hunterData.equippedItems[slotId] = hunterData.equippedItems[slotId] -- Mantém item existente ou nil
+        hunterData.equippedItems[slotId] = hunterData.equippedItems[slotId]
     end
 
-    -- Initialize rune slots based on final stats (pode ser 0 inicialmente!)
-    local finalStats = self:_calculateFinalStats(hunterId)
+    local finalStats = self:_calculateFinalStats(hunterId) -- Usa os stats calculados para os slots de runa
     local numRuneSlots = finalStats and finalStats.runeSlots or 0
     for i = 1, numRuneSlots do
-        local slotId = Constants.SLOT_IDS.RUNE .. i                         -- Ex: "rune_1"
-        hunterData.equippedItems[slotId] = hunterData.equippedItems[slotId] -- Mantém item existente ou nil
+        local slotId = Constants.SLOT_IDS.RUNE .. i
+        hunterData.equippedItems[slotId] = hunterData.equippedItems[slotId]
     end
 end
 
@@ -279,7 +216,7 @@ end
 --- @param hunterId string ID of the new active hunter.
 --- @return boolean True if switched successfully, false otherwise.
 function HunterManager:setActiveHunter(hunterId)
-    if not self.hunters[hunterId] then -- Check if the hunter ID exists in our managed list
+    if not self.hunters[hunterId] then
         print(string.format("ERROR [HunterManager]: Attempt to activate invalid/unknown hunter ID: %s", hunterId))
         return false
     end
@@ -287,11 +224,7 @@ function HunterManager:setActiveHunter(hunterId)
     if hunterId ~= self.activeHunterId then
         local previousHunterId = self.activeHunterId
         print(string.format("[HunterManager] Switching active hunter from %s to %s", previousHunterId or "none", hunterId))
-
-        -- Switch the active ID
         self.activeHunterId = hunterId
-
-        -- Salva APENAS o estado do HunterManager (qual ID está ativo)
         self:saveState()
         print(string.format("[HunterManager] Active hunter changed to %s.", hunterId))
         return true
@@ -304,7 +237,7 @@ end
 function HunterManager:getActiveEquippedItems()
     if not self.activeHunterId then return nil end
     local hunterData = self.hunters[self.activeHunterId]
-    return hunterData and hunterData.equippedItems -- Return the sub-table
+    return hunterData and hunterData.equippedItems
 end
 
 --- Checks if a given slot ID is valid for the ACTIVE hunter.
@@ -314,24 +247,20 @@ end
 function HunterManager:_isSlotValidForActiveHunter(slotId)
     if not self.activeHunterId then return false end
 
-    -- 1. Check if it's a base equipment slot
     for _, baseSlotId in ipairs(self.EQUIPMENT_SLOTS_BASE) do
         if slotId == baseSlotId then
             return true
         end
     end
 
-    -- 2. Check if it's a rune slot and within the hunter's limit
     local prefix, numStr = slotId:match("^(rune_)(%d+)$")
     if prefix and numStr then
         local slotNum = tonumber(numStr)
-        local maxSlots = self:getActiveHunterMaxRuneSlots() -- Obtém o limite ATUAL
+        local maxSlots = self:getActiveHunterMaxRuneSlots()
         if slotNum > 0 and slotNum <= maxSlots then
             return true
         end
     end
-
-    -- 3. Not a valid base slot or rune slot for this hunter
     return false
 end
 
@@ -345,20 +274,18 @@ function HunterManager:equipItem(itemInstance, slotId)
         return false, nil
     end
 
-    -- Check if slotId is valid FOR THE ACTIVE HUNTER
     if not self:_isSlotValidForActiveHunter(slotId) then
         print(string.format("ERROR [HunterManager:equipItem]: Invalid or inactive equipment slot for hunter %s: %s",
             self.activeHunterId, slotId))
         return false, nil
     end
 
-    -- Check compatibility (this should ideally be done by UI, but double-check)
     local baseData = self.itemDataManager:getBaseItemData(itemInstance.itemBaseId)
     if not baseData then
         print(string.format("ERROR [HunterManager:equipItem]: Could not get base data for %s", itemInstance.itemBaseId))
         return false, nil
     end
-    -- Basic type check based on slot prefix/name
+
     local expectedType = "unknown"
     if slotId == "weapon" then expectedType = "weapon" end
     if slotId == "helmet" then expectedType = "helmet" end
@@ -372,7 +299,7 @@ function HunterManager:equipItem(itemInstance, slotId)
         print(string.format(
             "WARNING [HunterManager:equipItem]: Item type '%s' incompatible with slot '%s' (expects '%s'). Denying equip.",
             baseData.type, slotId, expectedType))
-        return false, nil -- Deny equip if incompatible
+        return false, nil
     end
 
     local hunterData = self.hunters[self.activeHunterId]
@@ -382,34 +309,27 @@ function HunterManager:equipItem(itemInstance, slotId)
     end
 
     local hunterEquipment = hunterData.equippedItems
-    local oldItemInstance = hunterEquipment[slotId] -- Get the old instance directly
+    local oldItemInstance = hunterEquipment[slotId]
 
     if oldItemInstance then
-        print(string.format("  [HunterManager] Unequipping previous item (%s, ID: %d) from slot %s",
-            oldItemInstance.itemBaseId, oldItemInstance.instanceId, slotId))
+        print(string.format("  [HunterManager] Unequipping previous item (%s, ID: %s) from slot %s",
+            oldItemInstance.itemBaseId, oldItemInstance.instanceId or -1, slotId))
     end
 
-    -- Equip the new instance
-    hunterEquipment[slotId] = itemInstance -- Store the full instance
-    print(string.format("[HunterManager] Item %d (%s) equipped in slot %s for %s", itemInstance.instanceId,
-        itemInstance.itemBaseId, slotId, self.activeHunterId))
+    hunterEquipment[slotId] = itemInstance
+    print(string.format("[HunterManager] Item %s (%s) equipped in slot %s for %s",
+        tostring(itemInstance.instanceId), itemInstance.itemBaseId, slotId, self.activeHunterId))
 
-    -- <<< ADICIONADO: Notifica PlayerManager sobre a nova arma >>>
     if slotId == Constants.SLOT_IDS.WEAPON then
-        --- Tenta obter o PlayerManager, mas não falha se não estiver disponível
         local playerManager = ManagerRegistry:tryGet("playerManager")
         if playerManager then
-            playerManager:setActiveWeapon(itemInstance) -- Passa a NOVA instância
+            playerManager:setActiveWeapon(itemInstance)
             print("  -> Notified PlayerManager to set new active weapon.")
         else
             print("  -> WARNING: Could not get PlayerManager to set new weapon!")
         end
     end
-
-    -- TODO: Recalculate hunter's final stats (or mark for recalculation)
-
-    -- Return success and the old item instance (UI needs to handle placing it back)
-    return true, oldItemInstance -- Return the old instance
+    return true, oldItemInstance
 end
 
 --- Unequips the item from a specific slot for the active hunter.
@@ -422,24 +342,22 @@ function HunterManager:unequipItem(slotId)
     if not hunterData or not hunterData.equippedItems then return nil end
 
     local hunterEquipment = hunterData.equippedItems
-    local itemToUnequip = hunterEquipment[slotId] -- Get the instance
+    local itemToUnequip = hunterEquipment[slotId]
 
     if itemToUnequip then
-        print(string.format("[HunterManager] Unequipping item (%s, ID: %d) from slot %s for %s",
-            itemToUnequip.itemBaseId, itemToUnequip.instanceId, slotId, self.activeHunterId))
+        print(string.format("[HunterManager] Unequipping item (%s, ID: %s) from slot %s for %s",
+            itemToUnequip.itemBaseId, itemToUnequip.instanceId or -1, slotId, self.activeHunterId))
         hunterEquipment[slotId] = nil
-        -- <<< ADICIONADO: Notifica PlayerManager se for a arma >>>
         if slotId == Constants.SLOT_IDS.WEAPON then
             local playerManager = ManagerRegistry:tryGet("playerManager")
             if playerManager then
-                playerManager:setActiveWeapon(nil) -- <<< CORRIGIDO: Chama setActiveWeapon com nil
+                playerManager:setActiveWeapon(nil)
                 print("  -> Notified PlayerManager to clear active weapon (set to nil).")
             else
                 print("  -> WARNING: Could not get PlayerManager to clear weapon!")
             end
         end
-        -- TODO: Recalculate hunter's final stats (or mark for recalculation)
-        return itemToUnequip -- Return the full instance
+        return itemToUnequip
     end
     return nil
 end
@@ -447,20 +365,16 @@ end
 --- Saves the HunterManager state (hunter definitions, active ID, next ID).
 function HunterManager:saveState()
     print("[HunterManager] Requesting state save (activeHunterId, nextHunterId, hunter data)...")
-
-    -- Create a serializable copy of the hunters data
     local serializableHunters = {}
     for hunterId, hunterData in pairs(self.hunters) do
-        -- Basic hunter info
         serializableHunters[hunterId] = {
             id = hunterData.id,
-            name = hunterData.name, -- Save the name
+            name = hunterData.name,
             baseRankId = hunterData.baseRankId,
             finalRankId = hunterData.finalRankId,
             archetypeIds = hunterData.archetypeIds,
-            equippedItems = {} -- Prepare equipment sub-table
+            equippedItems = {}
         }
-        -- Serialize equipped items (similar to before)
         if hunterData.equippedItems then
             for slotId, itemInstance in pairs(hunterData.equippedItems) do
                 if itemInstance then
@@ -477,10 +391,10 @@ function HunterManager:saveState()
     end
 
     local dataToSave = {
-        version = 2, -- Bump version for new structure
+        version = 2,
         activeHunterId = self.activeHunterId,
         nextHunterId = self.nextHunterId,
-        hunters = serializableHunters -- Save the serializable hunter data
+        hunters = serializableHunters
     }
     local success = PersistenceManager.saveData(SAVE_FILE, dataToSave)
     if success then
@@ -496,7 +410,7 @@ function HunterManager:loadState()
     print("[HunterManager] Attempting to load state...")
     local loadedData = PersistenceManager.loadData(SAVE_FILE)
 
-    self.hunters = {} -- Clear before loading
+    self.hunters = {}
     self.activeHunterId = nil
     self.nextHunterId = 1
 
@@ -505,31 +419,26 @@ function HunterManager:loadState()
         return false
     end
 
-    -- Basic version check (can add migration later)
     if loadedData.version ~= 2 then
         print(string.format(
             "WARNING [HunterManager]: Save data version (%s) incompatible with current (%s). Attempting to load anyway...",
             tostring(loadedData.version), 2))
-        -- TODO: Add migration logic if necessary for older versions
-        -- For now, we might fail if the structure is too different.
     end
 
     self.activeHunterId = loadedData.activeHunterId or nil
     self.nextHunterId = loadedData.nextHunterId or 1
     local loadedHuntersData = loadedData.hunters or {}
 
-    -- Reconstruct hunter data (including equipped items)
     for hunterId, savedHunterData in pairs(loadedHuntersData) do
         local newHunterEntry = {
-            id = savedHunterData.id or hunterId,            -- Use saved ID or key as fallback
+            id = savedHunterData.id or hunterId,
             name = savedHunterData.name or ("Hunter " .. hunterId),
-            baseRankId = savedHunterData.baseRankId or "E", -- Default if missing
+            baseRankId = savedHunterData.baseRankId or "E",
             finalRankId = savedHunterData.finalRankId or savedHunterData.baseRankId or "E",
             archetypeIds = savedHunterData.archetypeIds or {},
-            equippedItems = {} -- Initialize equipment table
+            equippedItems = {}
         }
 
-        -- Reconstruct equipped items for this hunter
         local savedEquippedItems = savedHunterData.equippedItems or {}
         for slotId, savedItemData in pairs(savedEquippedItems) do
             if savedItemData then
@@ -549,8 +458,8 @@ function HunterManager:loadState()
                     }
                 else
                     print(string.format(
-                        "WARNING [HunterManager]: Could not find base data for equipped item '%s' (instance %d) for hunter '%s'. Slot will be empty.",
-                        savedItemData.itemBaseId, savedItemData.instanceId, hunterId))
+                        "WARNING [HunterManager]: Could not find base data for equipped item '%s' (instance %s) for hunter '%s'. Slot will be empty.",
+                        savedItemData.itemBaseId, tostring(savedItemData.instanceId), hunterId))
                     newHunterEntry.equippedItems[slotId] = nil
                 end
             else
@@ -558,102 +467,71 @@ function HunterManager:loadState()
             end
         end
 
-        -- Ensure all DEFINED BASE slots exist in the loaded data (for newly added slots)
         for _, slotId in ipairs(self.EQUIPMENT_SLOTS_BASE) do
             if newHunterEntry.equippedItems[slotId] == nil then
-                newHunterEntry.equippedItems[slotId] = nil -- Ensure slot exists as nil
+                newHunterEntry.equippedItems[slotId] = nil
             end
         end
-        -- NOTE: Rune slots from saved data ARE loaded above. We don't iterate through
-        -- EQUIPMENT_SLOTS anymore, which contained the static rune slots.
-        -- If a save file has more rune slots than the current default, they will load,
-        -- but might not be displayed or usable if the hunter's stats limit them.
-        -- If a save file has fewer, the missing ones won't be created here, but
-        -- _initializeEquippedItems might handle this if called later? Revisit if needed.
-
-        self.hunters[hunterId] = newHunterEntry -- Add the reconstructed hunter data
+        self.hunters[hunterId] = newHunterEntry
     end
 
     print(string.format("[HunterManager] Load complete. %d hunters loaded. Active: %s. Next ID: %d",
-        table.maxn(self.hunters), -- Crude way to count, better to iterate
+        table.maxn(self.hunters) or 0,
         tostring(self.activeHunterId), self.nextHunterId))
     return true
 end
 
 --- Internal helper to calculate final stats based ONLY on archetype IDs and base stats.
 --- Does NOT consider equipped items.
---- @param archetypeIds table List of archetype IDs.
+--- @param archetypeIdsToCalculate table List of archetype IDs.
 --- @return table Table with calculated final stats.
-function HunterManager:_calculateStatsForCandidate(archetypeIds)
-    -- 1. Start with default stats
+function HunterManager:_calculateStatsForCandidate(archetypeIdsToCalculate)
     local finalStats = {}
     for key, value in pairs(Constants.HUNTER_DEFAULT_STATS) do
         finalStats[key] = value
     end
 
-    -- 2. Apply archetype modifiers (New Structure)
-    archetypeIds = archetypeIds or {}
-    local accumulatedBase = {} -- Accumulate base additions
-    local accumulatedMult = {} -- Accumulate multiplicative changes
+    local currentArchetypeIds = archetypeIdsToCalculate or {}
+    if type(currentArchetypeIds) == "string" then -- Lida com caso antigo onde poderia ser uma string única
+        currentArchetypeIds = { currentArchetypeIds }
+    end
 
-    for _, archetypeId in ipairs(archetypeIds) do
+    for _, archetypeId in ipairs(currentArchetypeIds) do
         local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
         if archetypeData and archetypeData.modifiers then
-            -- Iterate through the list of modifier tables
             for _, mod in ipairs(archetypeData.modifiers) do
                 local statName = mod.stat
-                if not statName then
+                local modType = mod.type
+                local modValue = mod.value
+
+                if finalStats[statName] == nil then
                     print(string.format(
-                        "WARNING [_calculateStatsForCandidate]: Missing 'stat' field in modifier for archetype '%s'",
-                        archetypeId))
-                    goto continue_candidate_mod_loop -- Skip this modifier
+                        "WARNING [_calculateStatsForCandidate]: Stat base '%s' não definido em HUNTER_DEFAULT_STATS para arquétipo '%s'. Modificador ignorado.",
+                        statName, archetypeId))
+                    goto continue_candidate_mod_loop
+                end
+                if modType == nil or modValue == nil then
+                    print(string.format(
+                        "WARNING [_calculateStatsForCandidate]: Modificador para stat '%s' no arquétipo '%s' não possui 'type' ou 'value'. Modificador ignorado.",
+                        statName, archetypeId))
+                    goto continue_candidate_mod_loop
                 end
 
-                -- Check for baseValue
-                if mod.baseValue ~= nil then
-                    if finalStats[statName] == nil then
-                        print(string.format(
-                            "WARNING [_calculateStatsForCandidate]: Base stat '%s' not found for baseValue in '%s'",
-                            statName,
-                            archetypeId))
-                    else
-                        accumulatedBase[statName] = (accumulatedBase[statName] or 0) + mod.baseValue
-                    end
-                end
-
-                -- Check for multValue
-                if mod.multValue ~= nil then
-                    if finalStats[statName] == nil then
-                        print(string.format(
-                            "WARNING [_calculateStatsForCandidate]: Base stat '%s' not found for multValue in '%s'",
-                            statName,
-                            archetypeId))
-                    else
-                        -- Accumulate the percentage change
-                        accumulatedMult[statName] = (accumulatedMult[statName] or 0) + mod.multValue
-                    end
+                if modType == "fixed" then
+                    finalStats[statName] = finalStats[statName] + modValue
+                elseif modType == "percentage" then
+                    finalStats[statName] = finalStats[statName] * (1 + modValue / 100)
+                elseif modType == "fixed_percentage_as_fraction" then
+                    finalStats[statName] = finalStats[statName] + modValue
+                else
+                    print(string.format(
+                        "WARNING [_calculateStatsForCandidate]: Tipo de modificador de arquétipo desconhecido '%s' para stat '%s' no arquétipo '%s'.",
+                        modType, statName, archetypeId))
                 end
                 ::continue_candidate_mod_loop::
             end
         end
     end
-
-    -- 3. Apply accumulated modifiers (Base first, then Mult)
-    -- Apply Base Additions
-    for statName, baseAdd in pairs(accumulatedBase) do
-        if finalStats[statName] ~= nil then
-            finalStats[statName] = finalStats[statName] + baseAdd
-        end
-    end
-
-    -- Apply Multiplicative Changes
-    for statName, multChange in pairs(accumulatedMult) do
-        if finalStats[statName] ~= nil then
-            -- Apply the total multiplier (1.0 + accumulated percentage change)
-            finalStats[statName] = finalStats[statName] * (1.0 + multChange)
-        end
-    end
-
     return finalStats
 end
 
@@ -664,51 +542,35 @@ end
 ---@return any The chosen data element or key.
 local function weightedRandomChoice(choices)
     local totalWeight = 0
-    local isArray = type(choices[1]) == "table" -- Detect if it's an array of choices or a map
+    local isArray = type(choices[1]) == "table"
 
     if isArray then
         for i, choice in ipairs(choices) do
             totalWeight = totalWeight + (choice.weight or 0)
         end
     else
-        -- Processando mapa (como ArchetypesData.Ranks)
-        print("DEBUG weightedRandomChoice: Calculating total weight for map...")
         for key, choiceData in pairs(choices) do
-            local w = choiceData.recruitment_weight or 0
-            print(string.format("  - Key: %s, recruitment_weight: %.1f", tostring(key), w))
-            totalWeight = totalWeight + w
+            totalWeight = totalWeight + (choiceData.recruitment_weight or 0)
         end
     end
 
-    print(string.format("DEBUG weightedRandomChoice: Total Weight calculated: %.2f", totalWeight))
-    if totalWeight <= 0 then
-        print("DEBUG weightedRandomChoice: Total weight is zero or negative. Returning nil.")
-        return nil
-    end
+    if totalWeight <= 0 then return nil end
 
     local randomNum = love.math.random() * totalWeight
     local cumulativeWeight = 0
-    print(string.format("DEBUG weightedRandomChoice: randomNum (0..totalWeight): %.4f", randomNum))
 
     if isArray then
-        -- ... (lógica do array, não deve ser usada para ranks)
+        -- Implementar lógica para array se necessário no futuro
     else
-        -- Process map (like ArchetypesData.Ranks)
-        print("DEBUG weightedRandomChoice: Iterating map for selection...")
         for key, choiceData in pairs(choices) do
             local weight = choiceData.recruitment_weight or 0
-            print(string.format("  -> Check: Key '%s', Weight %.1f. Is %.4f < %.4f + %.1f ?",
-                tostring(key), weight, randomNum, cumulativeWeight, weight))
             if randomNum < cumulativeWeight + weight then
-                print(string.format("  -->> CHOSEN: %s", tostring(key)))
-                return key -- Return the key of the chosen item
+                return key
             end
             cumulativeWeight = cumulativeWeight + weight
         end
-        print("DEBUG weightedRandomChoice: Loop finished without choice (map). Returning nil.")
     end
-
-    return nil -- Fallback, should not be reached if totalWeight > 0
+    return nil
 end
 
 --- Generates a list of potential hunter candidates for recruitment, respecting rank rules.
@@ -717,11 +579,9 @@ end
 function HunterManager:generateHunterCandidates(count)
     print(string.format("[HunterManager] Generating %d hunter candidates...", count))
     local candidates = {}
-    local names = { "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta" } -- Pool de nomes
-
-    -- Pre-filter available archetypes by rank for efficiency
+    local names = { "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta" }
     local archetypesByRank = {}
-    for archId, archData in pairs(ArchetypesData.Archetypes) do
+    for archId, archData in pairs(self.archetypeManager:getAllArchetypeData()) do -- Usa getter do ArchetypeManager
         local rank = archData.rank
         if rank then
             archetypesByRank[rank] = archetypesByRank[rank] or {}
@@ -734,117 +594,78 @@ function HunterManager:generateHunterCandidates(count)
         candidate.id = "candidate_" .. i
         candidate.name = "Candidato " .. (names[i] or i)
 
-        -- 1. Determine Rank based on weights
         local chosenRankId = weightedRandomChoice(ArchetypesData.Ranks)
-        print(string.format("  >> Weighted random choice for rank: %s", tostring(chosenRankId)))
         if not chosenRankId then
             print("ERROR [generateHunterCandidates]: Could not determine candidate rank. Defaulting to E.")
             chosenRankId = "E"
         end
         local rankData = ArchetypesData.Ranks[chosenRankId]
-        candidate.baseRankId = chosenRankId -- Start at the generated rank
+        candidate.baseRankId = chosenRankId
         candidate.finalRankId = chosenRankId
 
-        -- 2. Determine Number of Archetypes for the rank
         local minArchetypes = rankData.archetype_count_min or 1
         local maxArchetypes = rankData.archetype_count_max or minArchetypes
         local numArchetypes = love.math.random(minArchetypes, maxArchetypes)
 
-        -- 3. Select Archetypes according to new rule (Mandatory Rank + Lower Ranks)
         candidate.archetypeIds = {}
-        local numArchetypesToPick = numArchetypes
-        local pickedArchetypesSet = {} -- To easily check for duplicates if needed
-
-        -- Pool of archetypes specific to the chosen rank
+        local pickedArchetypesSet = {}
         local rankSpecificArchetypes = archetypesByRank[chosenRankId] or {}
         local availableRankSpecific = {}
-        for _, id in ipairs(rankSpecificArchetypes) do table.insert(availableRankSpecific, id) end -- Copy
+        for _, id in ipairs(rankSpecificArchetypes) do table.insert(availableRankSpecific, id) end
 
-        -- Pool of archetypes from ranks LOWER than the chosen rank
         local lowerRankArchetypesPool = {}
         local rankOrder = { "E", "D", "C", "B", "A", "S" }
         for _, currentRankId in ipairs(rankOrder) do
-            if currentRankId == chosenRankId then break end -- Stop before the chosen rank
+            if currentRankId == chosenRankId then break end
             local archetypesInThisRank = archetypesByRank[currentRankId] or {}
             for _, archId in ipairs(archetypesInThisRank) do
                 table.insert(lowerRankArchetypesPool, archId)
             end
         end
 
-        -- Step 1: Pick at least one archetype of the chosen rank (if possible and needed)
-        if numArchetypesToPick > 0 and #availableRankSpecific > 0 then
+        local numMandatoryPicked = 0
+        if #availableRankSpecific > 0 then -- Tenta pegar um do rank específico primeiro
             local randomIndex = love.math.random(#availableRankSpecific)
             local chosenArchId = availableRankSpecific[randomIndex]
             table.insert(candidate.archetypeIds, chosenArchId)
             pickedArchetypesSet[chosenArchId] = true
-            table.remove(availableRankSpecific, randomIndex) -- Remove from specific pool for step 2
-            numArchetypesToPick = numArchetypesToPick - 1
-            print(string.format("    - Picked mandatory Rank %s archetype: %s", chosenRankId, chosenArchId))
-
-            -- Also remove from the lower rank pool if it somehow existed there (shouldn't happen)
-            for k = #lowerRankArchetypesPool, 1, -1 do
-                if lowerRankArchetypesPool[k] == chosenArchId then
-                    table.remove(lowerRankArchetypesPool, k)
-                    break
-                end
-            end
-        elseif numArchetypesToPick > 0 and #availableRankSpecific == 0 then
-            print(string.format(
-                "WARNING [generateHunterCandidates]: Candidate Rank is %s, but NO archetypes were found for this specific rank. Picking only from lower ranks.",
-                chosenRankId))
+            table.remove(availableRankSpecific, randomIndex)
+            numMandatoryPicked = 1
         end
 
-        -- Step 2: Pick remaining archetypes from the combined pool of lower ranks + REMAINING rank-specific
-        local remainingAvailablePool = {}
-        -- Add remaining rank-specific archetypes (those not picked in step 1)
-        for _, id in ipairs(availableRankSpecific) do table.insert(remainingAvailablePool, id) end
-        -- Add lower rank archetypes
-        for _, id in ipairs(lowerRankArchetypesPool) do table.insert(remainingAvailablePool, id) end
+        local numRemainingToPick = numArchetypes - numMandatoryPicked
+        if numRemainingToPick > 0 then
+            local combinedPool = {}
+            for _, id in ipairs(availableRankSpecific) do table.insert(combinedPool, id) end
+            for _, id in ipairs(lowerRankArchetypesPool) do table.insert(combinedPool, id) end
 
-        if numArchetypesToPick > 0 and #remainingAvailablePool > 0 then
-            print(string.format("    - Picking %d remaining archetypes from pool of %d (Ranks <= %s)",
-                numArchetypesToPick, #remainingAvailablePool, chosenRankId))
-            -- Ensure we don't try to pick more than available
-            local actualRemainingPicks = math.min(numArchetypesToPick, #remainingAvailablePool)
-
-            -- Shuffle the remaining pool
-            for j = #remainingAvailablePool, 2, -1 do
-                local k = love.math.random(j)
-                remainingAvailablePool[j], remainingAvailablePool[k] = remainingAvailablePool[k],
-                    remainingAvailablePool[j]
-            end
-
-            -- Pick the required number
-            local pickedCount = 0
-            for j = 1, #remainingAvailablePool do
-                if pickedCount >= actualRemainingPicks then break end -- Stop if we picked enough
-
-                local pickedId = remainingAvailablePool[j]
-                -- Check if already picked in step 1 OR earlier in this step (due to potential duplicates in original pools)
-                if not pickedArchetypesSet[pickedId] then
-                    table.insert(candidate.archetypeIds, pickedId)
-                    pickedArchetypesSet[pickedId] = true
-                    pickedCount = pickedCount + 1
-                    -- else -- Optional: Log if duplicate was avoided
-                    --    print(string.format("DEBUG: Skipped duplicate %s in remaining picks", pickedId))
+            if #combinedPool > 0 then
+                for _ = 1, math.min(numRemainingToPick, #combinedPool) do
+                    if #combinedPool == 0 then break end -- Segurança extra
+                    local randomIndex = love.math.random(#combinedPool)
+                    local pickedId = combinedPool[randomIndex]
+                    if not pickedArchetypesSet[pickedId] then
+                        table.insert(candidate.archetypeIds, pickedId)
+                        pickedArchetypesSet[pickedId] = true
+                    else
+                        -- Tenta pegar outro se o sorteado já foi pego (simples, pode repetir se o pool for pequeno)
+                        -- Para uma solução mais robusta, removeria o pickedId do combinedPool
+                        -- e re-sortearia ou pegaria o próximo se o pool ficasse vazio.
+                        -- Por ora, a duplicidade é evitada pelo pickedArchetypesSet, mas pode resultar em menos arquétipos que o desejado.
+                    end
+                    table.remove(combinedPool, randomIndex) -- Remove para evitar pegar o mesmo novamente nesta fase
                 end
             end
-            -- Check if we actually picked enough (could happen if pool had many duplicates of the mandatory pick)
-            if pickedCount < actualRemainingPicks then
-                print(string.format(
-                    "WARNING [generateHunterCandidates]: Could only pick %d out of %d remaining archetypes due to potential duplicates or empty pool after mandatory pick.",
-                    pickedCount, actualRemainingPicks))
-            end
-        elseif numArchetypesToPick > 0 then
-            print(string.format(
-                "WARNING [generateHunterCandidates]: Needed %d more archetypes, but the remaining pool (Ranks <= %s) is empty.",
-                numArchetypesToPick, chosenRankId))
         end
 
-        -- 4. Get full archetype data for the UI
+        -- Garante que a contagem final não exceda o desejado, mesmo que a lógica de seleção tenha peculiaridades
+        while #candidate.archetypeIds > numArchetypes do
+            table.remove(candidate.archetypeIds)
+        end
+
         candidate.archetypes = {}
         for _, arcId in ipairs(candidate.archetypeIds) do
-            local arcData = self.archetypeManager:getArchetypeData(arcId) -- Use manager to get data
+            local arcData = self.archetypeManager:getArchetypeData(arcId)
             if arcData then
                 table.insert(candidate.archetypes, arcData)
             else
@@ -853,15 +674,11 @@ function HunterManager:generateHunterCandidates(count)
             end
         end
 
-        -- 5. Calculate final stats based on selected archetype IDs
         candidate.finalStats = self:_calculateStatsForCandidate(candidate.archetypeIds)
-
         table.insert(candidates, candidate)
-        print(string.format("  > Candidate %d: Name=%s, Rank=%s, Archetypes=[%s]", i, candidate.name,
-            candidate.finalRankId,
-            table.concat(candidate.archetypeIds, ", ")))
+        print(string.format("  > Candidate %d: Name=%s, Rank=%s, Archetypes=[%s] (%d total)", i, candidate.name,
+            candidate.finalRankId, table.concat(candidate.archetypeIds, ", "), #candidate.archetypeIds))
     end
-
     return candidates
 end
 
@@ -881,20 +698,14 @@ function HunterManager:recruitHunter(candidateData)
 
     local newHunterData = {
         id = hunterId,
-        name = candidateData.name, -- Usa o nome do candidato
+        name = candidateData.name,
         baseRankId = candidateData.baseRankId or "E",
         finalRankId = candidateData.finalRankId or "E",
         archetypeIds = candidateData.archetypeIds,
-        -- equippedItems será inicializado abaixo
     }
 
-    -- Adiciona à tabela principal de caçadores
     self.hunters[hunterId] = newHunterData
-
-    -- Inicializa a estrutura de equipamento para o novo caçador
     self:_initializeEquippedItems(hunterId)
-
-    -- Salva o estado geral (incluindo o novo caçador e nextHunterId)
     self:saveState()
 
     print(string.format("[HunterManager] Hunter %s recruited successfully.", hunterId))
@@ -907,10 +718,10 @@ end
 function HunterManager:getArchetypeIds(hunterId)
     local hunterData = self.hunters[hunterId]
     if hunterData then
-        return hunterData.archetypeIds or {} -- Retorna a lista ou uma tabela vazia se não houver arquétipos
+        return hunterData.archetypeIds or {}
     end
     print(string.format("WARNING [getArchetypeIds]: Hunter %s not found.", hunterId))
-    return nil -- Retorna nil se o caçador não for encontrado
+    return nil
 end
 
 return HunterManager

@@ -99,54 +99,59 @@ function ArchetypeDetails:_buildLayoutInternal()
 
     -- 2. Modificadores
     if data.modifiers and #data.modifiers > 0 then
-        -- Adiciona um pequeno espaço ANTES dos modificadores
-        local spacer = YStack:new({ x = 0, y = 0, width = 0, height = 5 }) -- Usa height direto
+        local spacer = YStack:new({ x = 0, y = 0, width = 0, height = 5 })
         self.internalStack:addChild(spacer)
 
         for _, mod in ipairs(data.modifiers) do
-            local statName = statDisplayNames[mod.stat] or mod.stat or "???"
-            local valueText = ""
-            local value = 0
-            local isMultiplier = false
-            local formattedKey = ""
+            local statName = statDisplayNames[mod.stat] or mod.stat or "??"
+            local valueText = "?"
 
-            if mod.baseValue ~= nil then
-                value = mod.baseValue
-                isMultiplier = false
-                formattedKey = mod.stat .. "_add"
-            elseif mod.multValue ~= nil then
-                value = mod.multValue
-                isMultiplier = true
-                formattedKey = mod.stat .. "_mult"
+            if mod.type and mod.value ~= nil then
+                local val = mod.value
+                local originalValueForSign = val -- Guarda o valor original para checar sinal > 0 ou < 0
+
+                if mod.type == "fixed" then
+                    valueText = string.format("%.1f", val):gsub("%%.0$", "")
+                elseif mod.type == "percentage" then
+                    valueText = string.format("%.1f", val):gsub("%%.0$", "") .. "%"
+                elseif mod.type == "fixed_percentage_as_fraction" then
+                    if mod.stat == "critDamage" then -- Dano crítico é um caso especial, queremos mostrar como +0.xx
+                        valueText = string.format("%.2fx", val)
+                    else                             -- Outros "fixed_percentage_as_fraction" são mostrados como %
+                        valueText = string.format("%.1f", val * 100):gsub("%%.0$", "") .. "%"
+                    end
+                else
+                    print(string.format("AVISO (ArchetypeDetails): Tipo de modificador desconhecido '%s' para stat '%s'",
+                        mod.type, mod.stat))
+                    valueText = tostring(val) -- Fallback
+                end
+
+                -- Adiciona sinal de + explicitamente para valores positivos, exceto se já tiver (como em x para critDamage)
+                if originalValueForSign > 0 and not string.match(valueText, "^%+") and not string.match(valueText, "x$") then
+                    valueText = "+" .. valueText
+                end
+                -- Valores negativos já terão o sinal de - pela formatação string.format
+
+                local colorVariant = "text_muted"
+                if originalValueForSign > 0 then colorVariant = "positive" end
+                if originalValueForSign < 0 then colorVariant = "negative" end
+
+                self.internalStack:addChild(Text:new({
+                    text = string.format("%s: %s", statName, valueText),
+                    width = 0,
+                    size = "small",
+                    variant = colorVariant,
+                    align = "left"
+                }))
             else
-                print(string.format("AVISO (ArchetypeDetails): Modificador inválido para stat '%s' em '%s'", mod.stat,
-                    data.id or data.name))
-                goto continue_mod_loop
+                print(string.format(
+                    "AVISO (ArchetypeDetails): Modificador inválido (sem type ou value) para stat '%s' em '%s'",
+                    mod.stat or "N/A", data.id or data.name))
             end
-
-            -- Usa o formatador para tooltip, pois ele já lida com _add e _mult corretamente
-            local tooltipFormatted = Formatters.formatArchetypeModifierForTooltip(formattedKey,
-                isMultiplier and (value + 1) or value)
-            valueText = tooltipFormatted:gsub("^: %s*", "") -- Remove ": " do início
-
-            local colorVariant = "text_muted"
-            if value > 0 then colorVariant = "positive" end
-            if value < 0 then colorVariant = "negative" end
-
-            self.internalStack:addChild(Text:new({
-                text = string.format("%s: %s", statName, valueText),
-                width = 0,
-                size = "small",
-                variant = colorVariant,
-                align = "left"
-            }))
-            ::continue_mod_loop::
         end
     end
 
-    -- Marca a stack interna para recalcular seu layout
     self.internalStack.needsLayout = true
-    -- Marca o próprio componente ArchetypeDetails para recalcular SEU layout (altura)
     self.needsLayout = true
 end
 
