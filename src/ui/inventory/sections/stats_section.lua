@@ -3,6 +3,8 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")    -- Para formatNumber e drawTooltipBox
 local Constants = require("src.config.constants") -- <<< IMPORTANTE: Precisamos dos stats base
+local Formatters = require("src.utils.formatters")
+local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
 
 -- Helper para formatar Chance de Ataque Múltiplo (Movido de inventory_screen)
 local function formatMultiAttack(value)
@@ -531,6 +533,7 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
     currentY = currentY + hudLineHeight
 
     local attributesToShow = {
+        { label = "Dano da Arma",    key = "weaponDamage",      format = "%d",     noDirectBase = true }, -- Flag para stats sem base direta
         { label = "Vida",            key = "health",            format = "%d" },
         { label = "Defesa",          key = "defense",           format = "%d" },
         { label = "Velocidade",      key = "moveSpeed",         format = "%.1f",   suffix = " m/s" },
@@ -547,15 +550,22 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
         { label = "Raio Coleta",     key = "pickupRadius",      format = "%d" },
         { label = "Bônus Cura",      key = "healingBonus",      format = "%.0f%%", multiplier = 100 },
         { label = "Slots Runa",      key = "runeSlots",         format = "%d" },
+        { label = "Sorte",           key = "luck",              format = "%.0f%%", multiplier = 100 },
     }
 
     love.graphics.setFont(fonts.main)
 
     for _, attr in ipairs(attributesToShow) do
         local finalValue = finalStats[attr.key]
-        local defaultValue = baseStats[attr.key]
+        local defaultValue = baseStats[attr.key] -- Pode ser nil para stats como weaponDamage
 
-        if finalValue ~= nil and defaultValue ~= nil then
+        if attr.key == "luck" then
+            -- print(string.format("[StatsSection DEBUG Sorte] Attr: %s, FinalValue: %s, DefaultValue (from Constants): %s, NoDirectBase: %s", -- COMENTADO
+            --     tostring(attr.key), tostring(finalValue), tostring(defaultValue), tostring(attr.noDirectBase)))
+        end
+
+        -- Condição para exibir: finalValue deve existir. Se noDirectBase não for true, defaultValue também deve existir.
+        if finalValue ~= nil and (attr.noDirectBase or defaultValue ~= nil) then
             -- Calcula valor final formatado para exibição principal
             local displayMultiplier = attr.multiplier or 1
             local finalDisplayValue = finalValue
@@ -591,195 +601,166 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
 
             -- Prepara dados do tooltip SE estiver em hover
             if isHovering then
-                tooltipLines = {}
-                tooltipX = mx + 15 -- Posição do tooltip relativa ao mouse
+                tooltipLines = {} -- Assegura que está limpo para cada hover
+                tooltipX = mx + 15
                 tooltipY = my
 
-                -- Cores para o tooltip
                 local baseColor = colors.text_label
-                local fixedBonusColor = colors.positive  -- Verde para bônus fixos
-                local percentBonusColor = colors.warning -- Amarelo/Laranja para bônus percentuais
-                local sourceColor = colors.text_muted    -- Cinza claro para fonte do bônus (Arquétipo, Nível)
+                local fixedBonusColor = colors.positive
+                local percentBonusColor = colors.warning
+                local sourceColor = colors.text_muted
                 local finalValueColor = colors.text_highlight
+                local attributeTitleColor = colors.text_title -- Para o nome do atributo no tooltip
 
-                -- 1. Linha Base
-                local baseDisplayValue = defaultValue
-                if attr.isReduction then
-                    baseDisplayValue = (1 - defaultValue) * 100
-                elseif attr.key == "critDamage" then
-                    baseDisplayValue = defaultValue * 100
+                -- Nome do Atributo como Título no Tooltip
+                table.insert(tooltipLines, { text = attr.label, color = attributeTitleColor })
+
+                -- 1. Linha Base (do PlayerState, que já considera arquétipos iniciais se aplicável)
+                if not attr.noDirectBase then -- <<< SÓ ADICIONA SE NÃO FOR noDirectBase
+                    local baseStatValueToDisplay = defaultValue
+                    if attr.isReduction then
+                        baseStatValueToDisplay = (1 - defaultValue) * 100
+                    elseif attr.key == "critDamage" then -- Para critDamage, o 'base' é o multiplicador * 100
+                        baseStatValueToDisplay = defaultValue * 100
+                    elseif attr.multiplier then          -- Para outros com multiplicador na definição de attributesToShow
+                        baseStatValueToDisplay = defaultValue * attr.multiplier
+                    end
+                    local baseStr = string.format(attr.format, baseStatValueToDisplay) .. (attr.suffix or "")
+                    table.insert(tooltipLines, { text = "  Base: " .. baseStr, color = baseColor })
+                end -- <<< FIM DA CONDIÇÃO noDirectBase
+
+                -- Linha Divisória Inicial
+                table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
+
+                local fixedBonusesTexts = {}
+                local percentBonusesTexts = {}
+
+                -- DEBUG: Verificar finalStats._learnedLevelUpBonuses
+                if not finalStats._learnedLevelUpBonuses or not next(finalStats._learnedLevelUpBonuses or {}) then
+                    -- print("[StatsSection Tooltip DEBUG] finalStats._learnedLevelUpBonuses está VAZIO ou NULO.") -- COMENTADO
                 else
-                    baseDisplayValue = defaultValue * (attr.baseMultiplier or displayMultiplier)
+                    -- print("[StatsSection Tooltip DEBUG] finalStats._learnedLevelUpBonuses existe e não está vazio. Contagem:", #finalStats._learnedLevelUpBonuses) -- COMENTADO
                 end
-                local baseStr = string.format(displayFormat, baseDisplayValue)
-                table.insert(tooltipLines, { text = "Base: " .. baseStr, color = baseColor })
 
-                -- Coletores para bônus
-                local fixedBonuses = {}
-                local percentBonuses = {}
-
-                -- 2. Coleta de Bônus de Arquétipos
-                if archetypeIds and archetypeManager and next(archetypeIds or {}) then -- Adicionado next(archetypeIds or {}) para garantir que não está vazio
+                -- 2. Coleta de Bônus de Arquétipos Ativos
+                if archetypeIds and archetypeManager then
                     for _, archIdInfo in ipairs(archetypeIds) do
                         local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
                         local archData = archetypeManager:getArchetypeData(finalArchId)
-                        if not archData then
-                            goto continue_archetype_loop -- Pula para o próximo arquétipo
-                        end
-
-                        if archData.modifiers and next(archData.modifiers) then -- Verifica se modifiers existe e não está vazio
+                        if archData and archData.modifiers then
                             for _, modifierData in ipairs(archData.modifiers) do
                                 if modifierData.stat == attr.key then
-                                    local sourceText = "(" .. (archData.name or archData.id) .. ")"
-                                    local modStr = ""
-                                    local val = modifierData.value
+                                    local sourceText = "(Arq: " .. (archData.name or archData.id) .. ")"
+                                    local modStr = Formatters.formatStatValue(attr.key, modifierData.value,
+                                        modifierData.type)
+                                    local prefix = modifierData.value > 0 and "+" or ""
 
                                     if modifierData.type == "fixed" then
-                                        if attr.key == "critChance" or attr.key == "expBonus" or attr.key == "healingBonus" or attr.key == "multiAttackChance" then
-                                            -- Estes são geralmente percentuais na base, mas se o arquétipo os dá como fixos, podem ser absolutos.
-                                            -- Se o 'value' for pequeno (ex: < 1), pode ser uma fração para %; se for grande, é absoluto.
-                                            -- Para simplificar e consistência com fixedBonus de level up, vamos tratar fixed como aditivo direto.
-                                            modStr = string.format("%+.1f", val):gsub("\\.0$", "")
-                                            if attr.suffix and attr.key ~= "critDamage" then
-                                                modStr = modStr ..
-                                                    attr.suffix:match("^%s*(.+)")
-                                            end
-                                        elseif attr.key == "critDamage" then
-                                            -- critDamage em 'fixed' de arquétipo pode ser um aumento direto no multiplicador (ex: +0.25x)
-                                            modStr = string.format("%+.2fx", val)
-                                        elseif attr.key == "runeSlots" then
-                                            modStr = string.format("%+d", val)
-                                        else
-                                            modStr = string.format("%+.1f", val):gsub("\\.0$", "")
-                                            if attr.suffix then modStr = modStr .. attr.suffix:match("^%s*(.+)") end
-                                        end
-                                        table.insert(fixedBonuses,
-                                            { text = "Arq. " .. sourceText .. ": " .. modStr, color = fixedBonusColor })
-                                    elseif modifierData.type == "percentage" then
-                                        -- 'value' é o percentual direto (ex: 10 para 10%)
-                                        modStr = string.format("%+.0f%%", val)
-                                        table.insert(percentBonuses,
-                                            { text = "Arq. " .. sourceText .. ": " .. modStr, color = percentBonusColor })
-                                    elseif modifierData.type == "fixed_percentage_as_fraction" then
-                                        -- 'value' é a fração (ex: 0.05 para 5%)
-                                        if attr.key == "critDamage" then
-                                            modStr = string.format("%+.0fx", val * 100) -- ex: 0.25 -> +25x (se base é 150, vira 175)
-                                        else
-                                            modStr = string.format("%+.0f%%", val * 100)
-                                        end
-                                        -- Este tipo de bônus de arquétipo geralmente se comporta como um bônus percentual fixo.
-                                        table.insert(percentBonuses,
-                                            { text = "Arq. " .. sourceText .. ": " .. modStr, color = percentBonusColor })
+                                        table.insert(fixedBonusesTexts,
+                                            {
+                                                text = "    " .. sourceText .. ": " .. prefix .. modStr,
+                                                color =
+                                                    fixedBonusColor
+                                            })
+                                    elseif modifierData.type == "percentage" or modifierData.type == "fixed_percentage_as_fraction" then
+                                        table.insert(percentBonusesTexts,
+                                            {
+                                                text = "    " .. sourceText .. ": " .. prefix .. modStr,
+                                                color =
+                                                    percentBonusColor
+                                            })
                                     end
                                 end
                             end
                         end
-                        ::continue_archetype_loop:: -- Label para o goto
                     end
                 end
 
-                -- AGORA VAMOS PROCESSAR OS BÔNUS DE NÍVEL E FIXOS OBTIDOS DE finalStats
-                local levelBonusesDirect = finalStats._levelBonus or {}
-                local fixedBonusesDirect = finalStats._fixedBonus or {}
-
-                -- Processa Bônus de Nível (de finalStats._levelBonus)
-                local levelBonusValue = levelBonusesDirect[attr.key]
-                if levelBonusValue and levelBonusValue ~= 0 then
-                    local val = levelBonusValue -- Em PlayerState, levelBonus são percentuais diretos (ex: 5 para 5%)
-                    local modStr = ""
-                    -- A maioria dos levelBonus são percentuais
-                    if attr.key == "critDamage" then           -- critDamage é um multiplicador direto sobre o base de 1.5 (150%)
-                        -- Se levelBonus.critDamage é 20, significa +20% sobre o multiplicador, e não 20x
-                        modStr = string.format("%+.0f%%", val) -- Ex: +20%
-                    elseif attr.key == "range" or attr.key == "attackArea" or attr.key == "attackSpeed" or attr.key == "expBonus" or attr.key == "healingBonus" or attr.key == "luck" or attr.key == "cooldownReduction" then
-                        -- Estes são bônus percentuais que se somam
-                        modStr = string.format("%+.0f%%", val)
-                    elseif attr.key == "health" or attr.key == "defense" or attr.key == "moveSpeed" or attr.key == "healthRegen" or attr.key == "multiAttackChance" or attr.key == "critChance" or attr.key == "healthPerTick" or attr.key == "pickupRadius" then
-                        -- Esses são bonus percentuais aplicados ao valor base do atributo.
-                        modStr = string.format("%+.0f%%", val)
-                    else -- Fallback para outros casos, tratar como percentual
-                        modStr = string.format("%+.0f%%", val)
-                    end
-                    -- Adiciona à lista correta (level bonus são geralmente multiplicativos/percentuais)
-                    table.insert(percentBonuses, { text = "Nível: " .. modStr, color = percentBonusColor })
-                end
-
-                -- Processa Outros Bônus Fixos (de finalStats._fixedBonus)
-                local fixedBonusValue = fixedBonusesDirect[attr.key]
-                if fixedBonusValue and fixedBonusValue ~= 0 then
-                    local val = fixedBonusValue
-                    local modStr = ""
-                    local isFixed = true -- Flag para decidir se vai para fixedBonuses ou percentBonuses
-
-                    if attr.key == "health" or attr.key == "defense" or attr.key == "moveSpeed" or attr.key == "pickupRadius" or attr.key == "healthRegen" or attr.key == "healthPerTick" then
-                        -- Aditivos diretos
-                        modStr = string.format("%+.1f", val):gsub("%.0$", "")
-                        if attr.suffix then modStr = modStr .. attr.suffix:match("^%s*(.+)") end -- Adiciona unidade se houver
-                    elseif attr.key == "critChance" or attr.key == "multiAttackChance" then
-                        -- Aditivo percentual (valor já é fração, ex: 0.05 para 5%)
-                        modStr = string.format("%+.1f%%", val * 100)
-                    elseif attr.key == "critDamage" then
-                        -- Aditivo ao multiplicador (valor já é multiplicador, ex: 0.25 para +0.25x)
-                        modStr = string.format("%+.2fx", val)
-                    elseif attr.key == "attackSpeed" or attr.key == "expBonus" or attr.key == "healingBonus" or attr.key == "luck" or attr.key == "range" or attr.key == "attackArea" or attr.key == "cooldownReduction" then
-                        -- Estes são bônus percentuais fixos (valor já é fração, ex: 0.1 para 10%)
-                        modStr = string.format("%+.0f%%", val * 100)
-                        isFixed = false -- Estes são percentuais
-                    else
-                        -- Fallback para outros, tratar como aditivo por segurança
-                        modStr = string.format("%+.1f", val):gsub("%.0$", "")
-                    end
-
-                    if isFixed then
-                        table.insert(fixedBonuses, { text = "Fixo: " .. modStr, color = fixedBonusColor })
-                    else
-                        table.insert(percentBonuses, { text = "Fixo: " .. modStr, color = percentBonusColor })
+                -- 3. Coleta de Bônus de Level Up Aprendidos
+                local learnedBonusesData = finalStats._learnedLevelUpBonuses or {}
+                for bonusDefId, learnedLevel in pairs(learnedBonusesData) do
+                    local bonusDef = LevelUpBonusesData.Bonuses
+                        [bonusDefId] -- Pega a definição completa do bônus
+                    -- print(string.format(
+                    --     "[StatsSection Tooltip DEBUG] Processando LevelUp Bonus: ID=%s, Level=%s, DefExists=%s",
+                    --     tostring(bonusDefId), tostring(learnedLevel), tostring(bonusDef ~= nil))) -- Log para cada bônus
+                    if bonusDef and bonusDef.modifiers_per_level then
+                        for _, modEffect in ipairs(bonusDef.modifiers_per_level) do
+                            if modEffect.stat == attr.key then
+                                -- print(string.format(
+                                --     "[StatsSection Tooltip DEBUG]   Modificador Encontrado: Stat=%s, Value=%s, Type=%s para Attr=%s",
+                                --     tostring(modEffect.stat), tostring(modEffect.value), tostring(modEffect.type),
+                                --     tostring(attr.key))) -- Log do modificador
+                                local sourceText = "(Nvl: " ..
+                                    (bonusDef.name or bonusDefId) .. " Nv." .. learnedLevel .. ")"
+                                local modStr = Formatters.formatStatValue(attr.key, modEffect.value, modEffect.type)
+                                local prefix = modEffect.value > 0 and "+" or ""
+                                if modEffect.type == "fixed" then
+                                    table.insert(fixedBonusesTexts,
+                                        {
+                                            text = "    " .. sourceText .. ": " .. prefix .. modStr,
+                                            color =
+                                                fixedBonusColor
+                                        })
+                                elseif modEffect.type == "percentage" or modEffect.type == "fixed_percentage_as_fraction" then
+                                    table.insert(percentBonusesTexts,
+                                        {
+                                            text = "    " .. sourceText .. ": " .. prefix .. modStr,
+                                            color =
+                                                percentBonusColor
+                                        })
+                                end
+                            end
+                        end
                     end
                 end
 
-                -- Adiciona bônus fixos ao tooltip
-                if #fixedBonuses > 0 then
-                    if #tooltipLines > 1 or (#tooltipLines == 1 and tooltipLines[1].text ~= "Base: " .. baseStr) then -- Adiciona espaço se já houver algo além da base
-                        table.insert(tooltipLines, { text = "", color = baseColor })                                  -- Linha em branco para separar
-                    end
-                    table.insert(tooltipLines, { text = "Bônus Fixos:", color = sourceColor })
-                    for _, bonusLine in ipairs(fixedBonuses) do
-                        table.insert(tooltipLines, bonusLine)
-                    end
+                -- ADICIONAR AQUI: Lógica para "Outros Fixos" e "Outros Percentuais" se PlayerState.fixedBonus/levelBonus
+                -- contiverem valores que NÃO vêm de arquétipos ou level ups já detalhados.
+                -- Por simplicidade, esta versão não discrimina "outros" bônus de PlayerState.fixedBonus/levelBonus,
+                -- pois eles já deveriam refletir a soma dos arquétipos e level ups. O tooltip detalha as fontes.
+
+                if #fixedBonusesTexts > 0 then
+                    table.insert(tooltipLines, { text = "  Bônus Fixos:", color = sourceColor })
+                    for _, line in ipairs(fixedBonusesTexts) do table.insert(tooltipLines, line) end
                 end
 
-                -- Adiciona divisor se houver ambos os tipos de bônus
-                if #fixedBonuses > 0 and #percentBonuses > 0 then
-                    table.insert(tooltipLines, { text = "-------------", color = colors.text_muted })
+                if #fixedBonusesTexts > 0 and #percentBonusesTexts > 0 then
+                    table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
                 end
 
-                -- Adiciona bônus percentuais ao tooltip
-                if #percentBonuses > 0 then
-                    if (#tooltipLines > 1 or (#tooltipLines == 1 and tooltipLines[1].text ~= "Base: " .. baseStr)) and #fixedBonuses == 0 then
-                        table.insert(tooltipLines, { text = "", color = baseColor }) -- Linha em branco para separar
-                    end
-                    table.insert(tooltipLines, { text = "Bônus Percentuais:", color = sourceColor })
-                    for _, bonusLine in ipairs(percentBonuses) do
-                        table.insert(tooltipLines, bonusLine)
-                    end
+                if #percentBonusesTexts > 0 then
+                    table.insert(tooltipLines, { text = "  Bônus Percentuais:", color = sourceColor })
+                    for _, line in ipairs(percentBonusesTexts) do table.insert(tooltipLines, line) end
                 end
 
-                -- Garante que algo foi adicionado além do base antes de mostrar "Nenhum Bônus" ou o final
-                local hasAnyBonus = #fixedBonuses > 0 or #percentBonuses > 0
-
-                if not hasAnyBonus and #tooltipLines == 1 then -- Apenas a linha "Base"
-                    -- Não adiciona "Nenhum bônus" se só a base está lá, pois a base já é uma info.
-                    -- Poderia adicionar uma mensagem se preferir, mas por ora fica limpo.
-                elseif not hasAnyBonus and #tooltipLines > 1 then -- Ex: Tinha um subtítulo de arquétipo mas nenhum bônus dele
-                    table.insert(tooltipLines, { text = " (Nenhum bônus adicional)", color = colors.text_label })
+                if #fixedBonusesTexts == 0 and #percentBonusesTexts == 0 then
+                    table.insert(tooltipLines, { text = "  (Nenhum bônus detalhado encontrado)", color = baseColor })
                 end
 
+                table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
 
-                -- Linha Final (já visível na tela, mas bom para confirmação no tooltip)
-                if #tooltipLines > 0 then -- Adiciona separador final apenas se houver bônus ou base
-                    table.insert(tooltipLines, { text = "-------------", color = colors.text_muted })
+                -- Tooltip para Dano da Arma (caso especial)
+                if attr.key == "weaponDamage" then
+                    table.insert(tooltipLines,
+                        {
+                            text = "  Dano Base Arma: " ..
+                                Formatters.formatStatValue("damage", finalStats._baseWeaponDamage or 0, "fixed"),
+                            color =
+                                baseColor
+                        })
+                    table.insert(tooltipLines,
+                        {
+                            text = "  Mult. Jogador: " ..
+                                Formatters.formatStatValue("damageMultiplier", finalStats._playerDamageMultiplier or 1,
+                                    nil),
+                            color =
+                                baseColor
+                        }) -- nil modType para formatação de multiplicador final
+                    table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
                 end
-                table.insert(tooltipLines, { text = "Final: " .. finalStr, color = finalValueColor })
+
+                table.insert(tooltipLines, { text = "  Total: " .. finalStr, color = finalValueColor })
             end
 
             currentY = currentY + lineHeight

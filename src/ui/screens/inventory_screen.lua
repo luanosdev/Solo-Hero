@@ -135,6 +135,22 @@ function InventoryScreen.draw(dragState)
     local currentFinalStats = playerManager:getCurrentFinalStats()
     local currentHunterId = playerManager:getCurrentHunterId()
     local hunterArchetypeIds = currentHunterId and hunterManager:getArchetypeIds(currentHunterId)
+
+    -- DEBUG: Log currentFinalStats antes de criar statsColumnConfig
+    if currentFinalStats then
+        -- print("[InventoryScreen DEBUG] currentFinalStats recebido de PlayerManager:") -- COMENTADO
+        -- print("  > Tem _learnedLevelUpBonuses?", currentFinalStats._learnedLevelUpBonuses ~= nil and not not next(currentFinalStats._learnedLevelUpBonuses or {})) -- COMENTADO
+        -- print("  > Tem _fixedBonus?", currentFinalStats._fixedBonus ~= nil and not not next(currentFinalStats._fixedBonus or {})) -- COMENTADO
+        -- print("  > Tem equippedItems?", currentFinalStats.equippedItems ~= nil and not not next(currentFinalStats.equippedItems or {})) -- COMENTADO
+        if currentFinalStats.equippedItems and currentFinalStats.equippedItems.weapon then -- COMENTADO
+            -- print("    Weapon ID:", currentFinalStats.equippedItems.weapon) -- COMENTADO
+        else
+            -- print("    Weapon ID: nil") -- COMENTADO
+        end
+    else
+        print("[InventoryScreen DEBUG] currentFinalStats de PlayerManager é NULO.") -- MANTIDO COMO ALERTA
+    end
+
     local statsColumnConfig = {
         currentHp = playerManager.state and playerManager.state.currentHealth,
         level = playerManager.state and playerManager.state.level,

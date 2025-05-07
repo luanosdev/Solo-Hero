@@ -166,6 +166,21 @@ function PlayerManager:setupGameplay(registry, hunterId)
     end
     print(string.format("  - Hunter data loaded. Name: %s, Rank: %s", hunterData.name, hunterData.finalRankId))
 
+    -- DEBUG: Log finalStats ANTES de passar para PlayerState:new
+    if finalStats and next(finalStats) then
+        -- print("[PlayerManager:setupGameplay DEBUG] finalStats ANTES de PlayerState:new:") -- COMENTADO
+        -- print("  > Tem equippedItems?", finalStats.equippedItems ~= nil and not not next(finalStats.equippedItems or {})) -- COMENTADO
+        if finalStats.equippedItems and finalStats.equippedItems.weapon then
+            print("    [PlayerManager:setupGameplay] Weapon ID em finalStats para PlayerState:new:",
+                finalStats.equippedItems.weapon)                                                           -- MANTIDO
+        else
+            print("    [PlayerManager:setupGameplay] Weapon ID em finalStats é nil para PlayerState:new.") -- MANTIDO
+        end
+        -- print("  > Tem archetypeIds?", finalStats.archetypeIds ~= nil and #finalStats.archetypeIds > 0) -- COMENTADO
+    else
+        print("[PlayerManager:setupGameplay DEBUG] finalStats é NULO ou VAZIO ANTES de PlayerState:new.")
+    end
+
     -- 3. Inicializa PlayerState com os stats finais
     self.state = PlayerState:new(finalStats)
     if not self.state then
@@ -708,28 +723,70 @@ function PlayerManager:getCurrentFinalStats()
         print("AVISO [PlayerManager:getCurrentFinalStats]: PlayerState não inicializado. Retornando tabela vazia.")
         return {}
     end
-    return {
+
+    local finalStats = {
         health = self.state:getTotalHealth(),
         defense = self.state:getTotalDefense(),
         moveSpeed = self.state:getTotalMoveSpeed(),
         critChance = self.state:getTotalCritChance(),
         critDamage = self.state:getTotalCritDamage(),
-        healthPerTick = self.state:getTotalHealthPerTick(),       -- Método adicionado em PlayerState
-        healthRegenDelay = self.state:getTotalHealthRegenDelay(), -- Método adicionado em PlayerState
+        healthPerTick = self.state:getTotalHealthPerTick(),
+        healthRegenDelay = self.state:getTotalHealthRegenDelay(),
         multiAttackChance = self.state:getTotalMultiAttackChance(),
         attackSpeed = self.state:getTotalAttackSpeed(),
-        expBonus = self.state:getTotalExpBonus(),                   -- Método adicionado em PlayerState
-        cooldownReduction = self.state:getTotalCooldownReduction(), -- Método adicionado em PlayerState
+        expBonus = self.state:getTotalExpBonus(),
+        cooldownReduction = self.state:getTotalCooldownReduction(),
         range = self.state:getTotalRange(),
         attackArea = self.state:getTotalArea(),
-        pickupRadius = self.state:getTotalPickupRadius(),
-        healingBonus = self.state:getTotalHealingBonus(), -- Método adicionado em PlayerState
+        healingBonus = self.state:getTotalHealingBonus(),
+        luck = self.state:getTotalLuck() or 0,
         runeSlots = self.state:getTotalRuneSlots(),
-        luck = self.state:getTotalLuck(),
-        -- Adiciona as tabelas de bônus brutos para o tooltip poder discriminá-los
-        _levelBonus = self.state.levelBonus,
-        _fixedBonus = self.state.fixedBonus
+        _levelBonus = self.state._levelBonus,
+        _fixedBonus = self.state._fixedBonus,
+        _archetypeBonus = self.state._archetypeBonus, -- Presumindo que _archetypeBonus é o campo correto em PlayerState para os bônus de arquétipo consolidados
+        _baseWeaponDamage = 0,
+        _playerDamageMultiplier = 1.0,
+        _learnedLevelUpBonuses = self.state.learnedLevelUpBonuses or {},
+        -- <<< ADICIONANDO OS CAMPOS QUE FALTAVAM >>>
+        equippedItems = self.state.equippedItems or {},
+        archetypeIds = self.state.archetypeIds or {} -- Assumindo que PlayerState tem um campo archetypeIds
     }
+
+    -- Adiciona informações da arma equipada, se houver
+    -- print("[PlayerManager:getCurrentFinalStats DEBUG] self.state.equippedItems ANTES de pegar weaponId. Existe?", self.state and self.state.equippedItems ~= nil) -- COMENTADO
+    local equippedWeaponId = self.state.equippedItems and self.state.equippedItems.weapon
+    if equippedWeaponId and self.itemDataManager then
+        local weaponData = self.itemDataManager:getItemData(equippedWeaponId)
+        if weaponData and weaponData.stats then
+            local baseDmg = weaponData.stats.damage or 0
+            local minDmg = weaponData.stats.min_damage
+            local maxDmg = weaponData.stats.max_damage
+
+            if minDmg and maxDmg then
+                baseDmg = (minDmg + maxDmg) / 2
+            end
+            finalStats._baseWeaponDamage = baseDmg
+        end
+    end
+
+    -- Calcula o multiplicador de dano do jogador
+    -- (1 + (total de bônus percentuais de dano / 100))
+    -- Assumindo que _levelBonus.damage é o principal bônus percentual (ex: 10 para 10%)
+    local totalPercentageDamageBonus = (self.state._levelBonus and self.state._levelBonus.damage or 0) +
+        (self.state._fixedBonus and self.state._fixedBonus.damage_percent or 0) -- Se houver um bônus fixo percentual
+
+    finalStats._playerDamageMultiplier = 1 + (totalPercentageDamageBonus / 100)
+
+    -- Calcula o dano final da arma com base nos componentes
+    -- Se _baseWeaponDamage for 0 (sem arma ou arma com 0 de dano), weaponDamage será 0.
+    finalStats.weaponDamage = (finalStats._baseWeaponDamage or 0) * (finalStats._playerDamageMultiplier or 1)
+
+    -- print(string.format("[PlayerManager DEBUG Dano] BaseDmg: %s, Multiplier: %s (TotalPercBonus: %s), FinalDmg: %s, WeaponID: %s", -- COMENTADO
+    --     tostring(finalStats._baseWeaponDamage), tostring(finalStats._playerDamageMultiplier),
+    --     tostring(totalPercentageDamageBonus), tostring(finalStats.weaponDamage),
+    --     tostring(equippedWeaponId))) -- Log para o cálculo de dano
+
+    return finalStats
 end
 
 --- Retorna o ID do caçador atualmente configurado para o gameplay.

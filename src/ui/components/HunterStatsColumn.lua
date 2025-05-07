@@ -1,29 +1,7 @@
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local StatsSection = require("src.ui.inventory.sections.stats_section")
-local Formatters = require("src.utils.formatters")
-local Constants = require("src.config.constants") -- Para BASE_HUNTER_STATS se necessário no tooltip
-
--- Necessário para a lista de arquétipos
-local statDisplayNames = {
-    ["health"] = "Vida",
-    ["defense"] = "Defesa",
-    ["moveSpeed"] = "Vel. Movimento",
-    ["critChance"] = "Chance Crítica",
-    ["critDamage"] = "Mult. Crítico",
-    ["healthPerTick"] = "Regen. Vida/s",
-    ["healthRegenDelay"] = "Delay Regen.",
-    ["multiAttackChance"] = "Atq. Múltiplo",
-    ["attackSpeed"] = "Vel. Ataque",
-    ["expBonus"] = "Bônus Exp",
-    ["cooldownReduction"] = "Red. Recarga",
-    ["range"] = "Alcance",
-    ["attackArea"] = "Área",
-    ["pickupRadius"] = "Raio Coleta",
-    ["healingBonus"] = "Bônus Cura",
-    ["runeSlots"] = "Slots Runa",
-    ["luck"] = "Sorte",
-}
+local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
 
 local HunterStatsColumn = {}
 
@@ -55,6 +33,16 @@ function HunterStatsColumn.draw(x, y, w, h, config)
     local archetypeManager = config.archetypeManager
     local mx = config.mouseX or 0
     local my = config.mouseY or 0
+
+    -- DEBUG: Log da config recebida, focando em finalStats
+    if config and config.finalStats then
+        -- print("[HunterStatsColumn DEBUG] Config.finalStats recebido:") -- COMENTADO
+        -- print("  > Tem _learnedLevelUpBonuses?", config.finalStats._learnedLevelUpBonuses ~= nil and not not next(config.finalStats._learnedLevelUpBonuses or {})) -- COMENTADO
+        -- print("  > Tem _fixedBonus?", config.finalStats._fixedBonus ~= nil and not not next(config.finalStats._fixedBonus or {})) -- COMENTADO
+        -- print("  > Tem archetypeIds na config?", config.archetypeIds ~= nil and #config.archetypeIds > 0) -- COMENTADO
+    else
+        print("[HunterStatsColumn DEBUG] Config OU config.finalStats é NULO.") -- MANTIDO COMO ALERTA
+    end
 
     -- Validações básicas
     if not finalStats or not archetypeIds or not archetypeManager then
@@ -137,8 +125,8 @@ function HunterStatsColumn.draw(x, y, w, h, config)
     -- 1. Desenha Seção de Stats (usando finalStats da config)
     if finalStats and next(finalStats) then
         -- Passa sortedArchetypes e archetypeManager para StatsSection poder calcular tooltips
-        StatsSection.drawBaseStats(x, statsY, w, statsSectionH,
-            finalStats, sortedArchetypes, archetypeManager, mx, my)
+        -- print("[HunterStatsColumn DEBUG] Chamando StatsSection.drawBaseStats. finalStats tem _learnedLevelUpBonuses? ", finalStats._learnedLevelUpBonuses ~= nil and not not next(finalStats._learnedLevelUpBonuses or {})) -- COMENTADO
+        StatsSection.drawBaseStats(x, statsY, w, statsSectionH, finalStats, sortedArchetypes, archetypeManager, mx, my)
     else
         -- Mensagem de erro se faltar dados de stats
         love.graphics.setColor(colors.red)
@@ -150,126 +138,58 @@ function HunterStatsColumn.draw(x, y, w, h, config)
     love.graphics.setFont(fonts.hud)
     love.graphics.setColor(colors.text_highlight)
     love.graphics.printf("ARQUÉTIPOS", x, archetypesTitleY, w, "left")
-    local padding = 5 -- Padding interno da coluna para a lista
+    local padding = 5
 
-    -- Desenha a lista de arquétipos
     if #sortedArchetypes > 0 then
-        local itemsPerRow = 3
-        local hGap = 15
-        local vGap = 10
+        local itemsPerRow = 3                                                         -- <<< RESTAURADO PARA 3 COLUNAS
+        local hGap = 5
+        local vGap = 5                                                                -- Aumentado um pouco o vGap para melhor espaçamento
         local availableWidth = w - padding * 2
-        local itemWidth = (availableWidth - (hGap * (itemsPerRow - 1))) / itemsPerRow
-        if itemWidth <= 0 then itemWidth = availableWidth end
+        local itemWidth = (availableWidth - (hGap * (itemsPerRow - 1))) / itemsPerRow -- <<< CALCULA LARGURA POR ITEM
 
-        local currentX = x + padding -- Começa dentro do padding da coluna
+        local currentX = x + padding
         local startListY = archetypesListStartY
         local currentY = startListY
-        local maxHeightInRow = 0
-        local nameFont = fonts.hud or fonts.main
-        local modFont = fonts.main_small or fonts.main
-        local nameFontHeight = nameFont:getHeight()
-        local modFontHeight = modFont:getHeight()
-        local lineSpacing = 2
+
+        local archetypeDetailHeight = 0
 
         for i, archetypeData in ipairs(sortedArchetypes) do
-            -- Verifica se há espaço vertical restante antes de desenhar
-            if currentY + nameFontHeight > y + h then break end
+            -- Cria uma instância de ArchetypeDetails SEM os modificadores
+            -- Log removido para limpeza, já que a exibição básica está funcionando
+            -- print(string.format("[HunterStatsColumn DEBUG] Preparando ArchetypeDetails para: ID=%s, Nome=%s, Rank=%s, ShowMod=%s",
+            --     tostring(archetypeData.id), tostring(archetypeData.name), tostring(archetypeData.rank), "false")) -- Log antes de criar
 
-            local startItemY = currentY
+            local archetypeComp = ArchetypeDetails:new({
+                archetypeData = archetypeData,
+                showModifiers = false,
+                x = currentX,
+                y = currentY,
+                width = itemWidth,                                     -- <<< USA LARGURA CALCULADA
+                padding = { left = 2, right = 2, top = 1, bottom = 1 } -- Padding interno menor para o componente
+            })
+            archetypeComp:_updateLayout()
 
-            -- Cabeçalho
-            local nameText = archetypeData.name or "??"
-            local rankText = archetypeData.rank or "?"
-            local headerText = string.format("%s (%s)", nameText, rankText)
-            local rankColor = colors.rank[rankText] or colors.text_default
-            love.graphics.setFont(nameFont)
-            love.graphics.setColor(rankColor)
-            love.graphics.printf(headerText, currentX, currentY, itemWidth, "left")
-            currentY = currentY + nameFontHeight
+            archetypeComp:draw()
 
-            -- Modificadores
-            love.graphics.setFont(modFont)
-            if archetypeData.modifiers and #archetypeData.modifiers > 0 then
-                currentY = currentY + lineSpacing
-                for _, mod in ipairs(archetypeData.modifiers) do
-                    if currentY + modFontHeight > y + h then break end
+            archetypeDetailHeight = archetypeComp.rect.h -- Atualiza a altura para o cheque de estouro
 
-                    local statId = mod.stat or "??"
-                    local modValue = mod.value
-                    local modType = mod.type
-
-                    if modValue == nil or modType == nil then
-                        print(string.format(
-                            "[HunterStatsColumn] Aviso: Modificador para %s no arquétipo %s não tem type ou value.",
-                            statId,
-                            archetypeData.id or "ID Desconhecido"))
-                        goto continue_mod_loop -- Pula este modificador
-                    end
-
-                    local valueForFormatter = modValue
-                    local isMultiplierEffect = false -- Para determinar se o formatador deve tratar como multiplicador de efeito final
-                    local prefix = ""
-
-                    if modType == "fixed" then
-                        -- valueForFormatter já é o valor correto
-                        if modValue > 0 then prefix = "+" end
-                    elseif modType == "percentage" then
-                        valueForFormatter = modValue -- Passa o percentual direto (ex: 10 para 10%)
-                        if modValue > 0 then prefix = "+" end
-                        -- O Formatters.formatStatValue deve adicionar o '%' se necessário para o tipo de stat
-                    elseif modType == "fixed_percentage_as_fraction" then
-                        valueForFormatter = modValue -- Passa a fração (ex: 0.05 para 5%)
-                        if modValue > 0 then prefix = "+" end
-                        -- O Formatters.formatStatValue deve tratar como % e multiplicar por 100 para display
-                    end
-
-                    local statName = Formatters.getStatDisplayName(statId)
-                    -- Passa o modType para o formatador, caso ele precise tratar diferente
-                    local formattedValueText = Formatters.formatStatValue(statId, valueForFormatter, modType)
-
-                    formattedValueText = prefix .. formattedValueText
-
-                    local modText = string.format("%s: %s", statName, formattedValueText)
-                    local modColor = colors.text_muted
-                    if modValue > 0 then
-                        if (modType == "fixed" or modType == "percentage" or modType == "fixed_percentage_as_fraction") and (statId == "cooldownReduction" or statId == "healthRegenDelay") then
-                            modColor = colors
-                                .negative -- Menor é melhor, mas o bônus positivo significa "mais redução/delay", o que é ruim.
-                            -- No entanto, se o VALOR do bônus for negativo (ex: type=percentage, value=-5), aí sim é bom.
-                            if modValue < 0 then modColor = colors.positive end
-                        else
-                            modColor = colors.positive
-                        end
-                    elseif modValue < 0 then
-                        if (modType == "fixed" or modType == "percentage" or modType == "fixed_percentage_as_fraction") and (statId == "cooldownReduction" or statId == "healthRegenDelay") then
-                            modColor = colors.positive -- Bônus negativo (ex: -5%) para CDR/Delay é bom.
-                        else
-                            modColor = colors.negative
-                        end
-                    end
-
-                    love.graphics.setColor(modColor)
-                    love.graphics.printf(modText, currentX, currentY, itemWidth, "left")
-                    currentY = currentY + modFontHeight + lineSpacing
-                    ::continue_mod_loop:: -- Label para o goto
-                end
-                if currentY + modFontHeight > y + h then goto break_outer_loop end
+            -- Atualiza currentX e currentY para o próximo item
+            if i % itemsPerRow == 0 then                           -- Se for o último item da linha
+                currentX = x + padding                             -- Reseta X para o início da próxima linha
+                currentY = currentY + archetypeDetailHeight + vGap -- Move Y para a próxima linha
+            else
+                currentX = currentX + itemWidth + hGap             -- Move X para a próxima coluna
             end
 
-            local itemHeight = currentY - startItemY
-            maxHeightInRow = math.max(maxHeightInRow, itemHeight)
-            local nextItemX = currentX + itemWidth + hGap
-
-            if i % itemsPerRow == 0 or i == #sortedArchetypes then
-                currentY = startItemY + maxHeightInRow + vGap
-                currentX = x + padding
-                maxHeightInRow = 0
-            else
-                currentX = nextItemX
-                currentY = startItemY
+            if currentY + archetypeDetailHeight > y + h then -- Verifica se vai estourar a altura da coluna
+                -- Adiciona um indicador de "mais arquétipos" se estourar
+                love.graphics.setFont(fonts.main_small or fonts.main)
+                love.graphics.setColor(colors.text_muted)
+                love.graphics.printf("...", currentX, currentY, itemWidth, "center")
+                love.graphics.setFont(fonts.main) -- Restaura fonte
+                break
             end
         end
-        ::break_outer_loop::
     else
         love.graphics.setFont(fonts.main)
         love.graphics.setColor(colors.text_muted)

@@ -30,6 +30,7 @@ local statDisplayNames = {
 ---@class ArchetypeDetails : Component
 ---@field archetypeData table Dados do arquétipo a ser exibido.
 ---@field internalStack YStack Stack interna para organizar o conteúdo.
+---@field showModifiers boolean|nil Flag para mostrar/esconder detalhes dos modificadores.
 local ArchetypeDetails = {}
 ArchetypeDetails.__index = ArchetypeDetails
 
@@ -47,13 +48,26 @@ function ArchetypeDetails:new(config)
     if not config or not config.archetypeData then
         error("ArchetypeDetails:new - Configuração inválida. 'archetypeData' é obrigatório.", 2)
     end
+
+    -- print(string.format("[ArchetypeDetails:new PRE-COMPONENT] Config recebido: x=%s, y=%s, width=%s, height=%s, showModifiers=%s", -- COMENTADO
+    --     tostring(config.x), tostring(config.y), tostring(config.width), tostring(config.height), tostring(config.showModifiers))) -- Log do config
+
     -- Chama construtor base (Component)
     local instance = Component:new(config)
 
     -- Define a metatable da INSTÂNCIA para ArchetypeDetails
     setmetatable(instance, ArchetypeDetails)
 
+    -- TENTATIVA DE CORREÇÃO: Forçar a largura do rect após construtor base
+    if config.width then -- MANTIDO - PODE SER NECESSÁRIO
+        instance.rect.w = config.width
+        -- print(string.format("[ArchetypeDetails:new POST-COMPONENT] Forçando instance.rect.w para: %s", tostring(instance.rect.w))) -- COMENTADO
+    end
+
     instance.archetypeData = config.archetypeData
+    instance.showModifiers = config.showModifiers == nil and true or
+        config
+        .showModifiers -- Padrão para true se não fornecido
 
     -- Cria a YStack interna
     instance.internalStack = YStack:new({
@@ -76,6 +90,9 @@ function ArchetypeDetails:_buildLayoutInternal()
     local data = self.archetypeData
     self.internalStack.children = {} -- Limpa filhos da stack interna
 
+    -- print(string.format("[ArchetypeDetails:_buildLayoutInternal] ID: %s, ShowModifiers: %s", -- COMENTADO
+    --     tostring(data and data.id), tostring(self.showModifiers))) -- Log no início do build
+
     -- 1. Cabeçalho (Nome, Rank)
     local headerText = data.name or "Arquétipo Desconhecido"
     if data.rank then
@@ -91,14 +108,17 @@ function ArchetypeDetails:_buildLayoutInternal()
         align = "left"
     }))
 
+    -- print(string.format("[ArchetypeDetails:_buildLayoutInternal] Added Header Text: '%s', Font Size: h3, Variant: %s", -- COMENTADO
+    --     headerText, "rank_" .. (data.rank or 'E'))) -- Log para o texto do header
+
     --[[ Descrição Removida
     if data.description and data.description ~= "" then
         self.internalStack:addChild(Text:new({ ... }))
     end
     --]]
 
-    -- 2. Modificadores
-    if data.modifiers and #data.modifiers > 0 then
+    -- 2. Modificadores (Condicionado pela flag)
+    if self.showModifiers and data.modifiers and #data.modifiers > 0 then
         local spacer = YStack:new({ x = 0, y = 0, width = 0, height = 5 })
         self.internalStack:addChild(spacer)
 
@@ -184,6 +204,7 @@ end
 --- Sobrescreve draw de Component
 function ArchetypeDetails:draw()
     self:_updateLayout() -- Garante que o layout (principalmente altura) esteja atualizado
+
 
     -- Desenha debug do Component base (rect, padding, margin)
     Component.draw(self)

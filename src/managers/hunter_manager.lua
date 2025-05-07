@@ -104,48 +104,71 @@ function HunterManager:_calculateFinalStats(hunterId)
         finalStats[key] = value
     end
 
-    local archetypeIdsToProcess = hunterData.archetypeIds or {}
-    if type(archetypeIdsToProcess) == "string" then -- Lida com caso antigo onde poderia ser uma string única
-        archetypeIdsToProcess = { archetypeIdsToProcess }
+    local hunterArchetypeIds = hunterData.archetypeIds or {}
+    if type(hunterArchetypeIds) == "string" then -- Lida com caso antigo onde poderia ser uma string única
+        hunterArchetypeIds = { hunterArchetypeIds }
     end
 
-    for _, archetypeId in ipairs(archetypeIdsToProcess) do
-        local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
-        if archetypeData and archetypeData.modifiers then
-            for _, mod in ipairs(archetypeData.modifiers) do
-                local statName = mod.stat
-                local modType = mod.type
-                local modValue = mod.value
+    local equippedItems = hunterData.equippedItems or {}
 
-                if finalStats[statName] == nil then
-                    print(string.format(
-                        "AVISO [_calculateFinalStats]: Stat base '%s' não definido em HUNTER_DEFAULT_STATS para arquétipo '%s'. Modificador ignorado.",
-                        statName, archetypeId))
-                    goto continue_modifier_loop
-                end
-                if modType == nil or modValue == nil then
-                    print(string.format(
-                        "AVISO [_calculateFinalStats]: Modificador para stat '%s' no arquétipo '%s' não possui 'type' ou 'value'. Modificador ignorado.",
-                        statName, archetypeId))
-                    goto continue_modifier_loop
-                end
+    print("[HunterManager:_calculateFinalStats DEBUG] equippedItems ANTES do calculo de dano. Existe?",
+        equippedItems ~= nil)
 
-                if modType == "fixed" then
-                    finalStats[statName] = finalStats[statName] + modValue
-                elseif modType == "percentage" then
-                    finalStats[statName] = finalStats[statName] * (1 + modValue / 100)
-                elseif modType == "fixed_percentage_as_fraction" then
-                    -- Adiciona diretamente, assumindo que o stat base e o modValue são frações/multiplicadores compatíveis
-                    finalStats[statName] = finalStats[statName] + modValue
-                else
-                    print(string.format(
-                        "AVISO [_calculateFinalStats]: Tipo de modificador de arquétipo desconhecido '%s' para stat '%s' no arquétipo '%s'.",
-                        modType, statName, archetypeId))
-                end
-                ::continue_modifier_loop::
+    local fixedBonuses = self:_getAggregatedBonuses(hunterArchetypeIds, "fixed", finalStats)
+    local percentageBonuses = self:_getAggregatedBonuses(hunterArchetypeIds, "percentage", finalStats)
+    local fixedFractionBonuses = self:_getAggregatedBonuses(hunterArchetypeIds, "fixed_percentage_as_fraction",
+        finalStats)
+
+    -- Aplica bônus percentuais primeiro
+    for statKey, bonusValue in pairs(percentageBonuses) do
+        finalStats[statKey] = (finalStats[statKey] or 0) * (1 + bonusValue / 100)
+    end
+
+    -- Aplica bônus fixos de fração percentual
+    for statKey, bonusValue in pairs(fixedFractionBonuses) do
+        finalStats[statKey] = (finalStats[statKey] or 0) * (1 + bonusValue) -- bonusValue já é a fração 0.xx
+    end
+
+    -- Aplica bônus fixos
+    for statKey, bonusValue in pairs(fixedBonuses) do
+        finalStats[statKey] = (finalStats[statKey] or 0) + bonusValue
+    end
+
+    -- Garante que stats que não são percentuais (como runeSlots) não sejam nil após os cálculos
+    finalStats.runeSlots = finalStats.runeSlots or finalStats.runeSlots or 0
+    finalStats.luck = finalStats.luck or baseStats.luck or 0 -- Garante que luck tenha um valor
+
+    -- Lida com equippedItems: armazena IDs em vez de instâncias completas para PlayerState
+    finalStats.equippedItems = {}
+    if equippedItems then
+        for slot, itemInstance in pairs(equippedItems) do
+            if itemInstance and itemInstance.id then
+                finalStats.equippedItems[slot] = itemInstance.id -- Armazena o ID do item
             end
         end
     end
+    -- print("[HunterManager:_calculateFinalStats DEBUG] Verificando equippedItems ANTES do calculo de dano. Existe?", finalStats.equippedItems ~= nil) -- COMENTADO
+    if finalStats.equippedItems and finalStats.equippedItems.weapon then
+        print("  [HunterManager:_calculateFinalStats] Weapon ID nos finalStats (deve ser string):",
+            finalStats.equippedItems.weapon) -- MANTIDO POR ENQUANTO
+    end
+
+    finalStats.archetypeIds = hunterArchetypeIds -- Usa o parâmetro da função
+    -- finalStats.equippedItems = equippedItems         -- <<< LINHA ANTIGA QUE PASSAVA INSTÂNCIAS
+
+    -- print("[HunterManager:_calculateFinalStats DEBUG] equippedItems ANTES do calculo de dano. Existe?", finalStats.equippedItems ~= nil) -- Log Simples
+
+    -- Calcula o dano final da arma COM BASE NOS STATS JÁ CALCULADOS
+    local weaponBaseDamage = 0
+
+    finalStats.weaponDamage = weaponBaseDamage
+
+    -- print("[HunterManager:_calculateFinalStats DEBUG] Stats FINAIS retornados (incluindo equippedItems):") -- COMENTADO
+    -- if finalStats.equippedItems then -- COMENTADO
+    -- print("  equippedItems CONTEUDO:", love.utils.table.serialize(finalStats.equippedItems)) -- REMOVIDO LOG COMPLEXO
+    -- print("  equippedItems existe nos stats finais.") -- COMENTADO
+    -- end -- COMENTADO
+
     return finalStats
 end
 
@@ -722,6 +745,42 @@ function HunterManager:getArchetypeIds(hunterId)
     end
     print(string.format("WARNING [getArchetypeIds]: Hunter %s not found.", hunterId))
     return nil
+end
+
+--- Função auxiliar para agregar bônus de múltiplos arquétipos
+---@param archetypeIds table Lista de IDs de arquétipos ativos
+---@param bonusType string Tipo de bônus a agregar ("fixed", "percentage", "fixed_percentage_as_fraction")
+---@param baseStatsForValidation table Tabela de stats base para validar a existência da chave do stat (opcional mas recomendado)
+---@return table Tabela agregada de bônus { [statKey] = totalBonusValue }
+function HunterManager:_getAggregatedBonuses(archetypeIds, bonusType, baseStatsForValidation)
+    local aggregatedBonuses = {}
+    baseStatsForValidation = baseStatsForValidation or
+        Constants.HUNTER_DEFAULT_STATS -- Fallback para stats default globais
+
+    for _, archIdInfo in ipairs(archetypeIds or {}) do
+        local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
+        local archetypeData = self.archetypeManager:getArchetypeData(finalArchId)
+
+        if archetypeData and archetypeData.modifiers then
+            for _, mod in ipairs(archetypeData.modifiers) do
+                if mod.type == bonusType then
+                    local statName = mod.stat
+                    local modValue = mod.value or 0
+
+                    if baseStatsForValidation[statName] == nil then
+                        print(string.format(
+                            "AVISO [_getAggregatedBonuses]: Stat base '%s' não definido para arquétipo '%s' (tipo %s). Modificador ignorado.",
+                            statName, finalArchId, bonusType))
+                        goto continue_modifier_loop
+                    end
+
+                    aggregatedBonuses[statName] = (aggregatedBonuses[statName] or 0) + modValue
+                end
+                ::continue_modifier_loop::
+            end
+        end
+    end
+    return aggregatedBonuses
 end
 
 return HunterManager
