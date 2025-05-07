@@ -396,7 +396,8 @@ function HunterManager:equipItem(itemInstance, slotId)
 
     -- <<< ADICIONADO: Notifica PlayerManager sobre a nova arma >>>
     if slotId == Constants.SLOT_IDS.WEAPON then
-        local playerManager = ManagerRegistry:get("playerManager")
+        --- Tenta obter o PlayerManager, mas não falha se não estiver disponível
+        local playerManager = ManagerRegistry:tryGet("playerManager")
         if playerManager then
             playerManager:setActiveWeapon(itemInstance) -- Passa a NOVA instância
             print("  -> Notified PlayerManager to set new active weapon.")
@@ -429,7 +430,7 @@ function HunterManager:unequipItem(slotId)
         hunterEquipment[slotId] = nil
         -- <<< ADICIONADO: Notifica PlayerManager se for a arma >>>
         if slotId == Constants.SLOT_IDS.WEAPON then
-            local playerManager = ManagerRegistry:get("playerManager")
+            local playerManager = ManagerRegistry:tryGet("playerManager")
             if playerManager then
                 playerManager:setActiveWeapon(nil) -- <<< CORRIGIDO: Chama setActiveWeapon com nil
                 print("  -> Notified PlayerManager to clear active weapon (set to nil).")
@@ -441,21 +442,6 @@ function HunterManager:unequipItem(slotId)
         return itemToUnequip -- Return the full instance
     end
     return nil
-end
-
---- Saves the loadout associated with a specific hunter.
---- @param hunterId string The ID of the hunter whose loadout to save.
-function HunterManager:saveActiveHunterLoadout(hunterId)
-    if not hunterId then
-        print("ERROR [HunterManager:saveActiveHunterLoadout]: hunterId not provided!")
-        return
-    end
-    print(string.format("[HunterManager] Requesting save of hunter's loadout (%s)...", hunterId))
-    if self.loadoutManager then
-        self.loadoutManager:saveLoadout(hunterId)
-    else
-        print("ERROR [HunterManager:saveActiveHunterLoadout]: LoadoutManager not available!")
-    end
 end
 
 --- Saves the HunterManager state (hunter definitions, active ID, next ID).

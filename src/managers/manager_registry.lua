@@ -28,6 +28,16 @@ function ManagerRegistry:get(name)
     return self.managers[name].instance
 end
 
+-- Obtém um manager registrado, mas retorna nil se não encontrado
+---@param name string
+---@return table|nil
+function ManagerRegistry:tryGet(name)
+    if not self.managers[name] then
+        return nil
+    end
+    return self.managers[name].instance
+end
+
 -- Inicializa todos os managers registrados
 -- Modificado para aceitar uma tabela opcional de configurações para os inits
 function ManagerRegistry:init(initConfigs)
