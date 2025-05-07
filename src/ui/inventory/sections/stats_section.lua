@@ -618,43 +618,18 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                 local fixedBonuses = {}
                 local percentBonuses = {}
 
-                -- DEBUG: Verificar archetypeIds e archetypeManager
-                if not archetypeIds or not next(archetypeIds or {}) then
-                    print("[StatsSection DEBUG] archetypeIds está vazio ou nulo.")
-                else
-                    print("[StatsSection DEBUG] archetypeIds: ", json.encode(archetypeIds)) -- Usar json.encode para melhor visualização de tabelas
-                end
-                if not archetypeManager then
-                    print("[StatsSection DEBUG] archetypeManager é nulo.")
-                end
-
                 -- 2. Coleta de Bônus de Arquétipos
                 if archetypeIds and archetypeManager and next(archetypeIds or {}) then -- Adicionado next(archetypeIds or {}) para garantir que não está vazio
-                    print("[StatsSection DEBUG] Iniciando coleta de bônus de arquétipos para o atributo: " .. attr.key)
                     for _, archIdInfo in ipairs(archetypeIds) do
                         local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
-                        print("[StatsSection DEBUG] Processando archIdInfo: ", json.encode(archIdInfo),
-                            " -> finalArchId: " .. tostring(finalArchId))
-
                         local archData = archetypeManager:getArchetypeData(finalArchId)
                         if not archData then
-                            print("[StatsSection DEBUG] archData NÃO encontrado para finalArchId: " ..
-                                tostring(finalArchId))
                             goto continue_archetype_loop -- Pula para o próximo arquétipo
-                        else
-                            print("[StatsSection DEBUG] archData encontrado para " ..
-                                tostring(finalArchId) .. ". Verificando modifiers...")
                         end
 
                         if archData.modifiers and next(archData.modifiers) then -- Verifica se modifiers existe e não está vazio
-                            print("[StatsSection DEBUG] archData.modifiers ENCONTRADO para " .. finalArchId .. ": ",
-                                json.encode(archData.modifiers))
                             for _, modifierData in ipairs(archData.modifiers) do
-                                print("[StatsSection DEBUG]  - Comparando modifierData.stat (", modifierData.stat,
-                                    ") com attr.key (", attr.key, ")")
                                 if modifierData.stat == attr.key then
-                                    print("[StatsSection DEBUG]   MATCH! stat: ", attr.key, ", modifierData.type: ",
-                                        modifierData.type, ", value: ", modifierData.value)
                                     local sourceText = "(" .. (archData.name or archData.id) .. ")"
                                     local modStr = ""
                                     local val = modifierData.value
@@ -698,15 +673,9 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                                     end
                                 end
                             end
-                        else
-                            print("[StatsSection DEBUG] archData.modifiers NÃO encontrado ou VAZIO para " ..
-                                tostring(finalArchId))
                         end
                         ::continue_archetype_loop:: -- Label para o goto
                     end
-                else
-                    print("[StatsSection DEBUG] Pस्पतिSkipping archetype bonus collection for attr: " ..
-                        attr.key .. " - archetypeIds ou archetypeManager ausente/vazio.")
                 end
 
                 -- AGORA VAMOS PROCESSAR OS BÔNUS DE NÍVEL E FIXOS OBTIDOS DE finalStats
@@ -737,8 +706,6 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
 
                 -- Processa Outros Bônus Fixos (de finalStats._fixedBonus)
                 local fixedBonusValue = fixedBonusesDirect[attr.key]
-                print("[DEBUG StatsSection] Attr: " ..
-                    tostring(attr.key) .. ", FixedBonusValue from _fixedBonus: " .. tostring(fixedBonusValue)) -- LINHA DE DEBUG
                 if fixedBonusValue and fixedBonusValue ~= 0 then
                     local val = fixedBonusValue
                     local modStr = ""

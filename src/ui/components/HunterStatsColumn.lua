@@ -194,26 +194,64 @@ function HunterStatsColumn.draw(x, y, w, h, config)
                 for _, mod in ipairs(archetypeData.modifiers) do
                     if currentY + modFontHeight > y + h then break end
 
-                    local statId = mod.stat or "???"
-                    local value = mod.baseValue ~= nil and mod.baseValue or mod.multValue
-                    local isMultiplier = mod.multValue ~= nil
-                    local valueForFormatter = isMultiplier and (value + 1) or value
+                    local statId = mod.stat or "??"
+                    local modValue = mod.value
+                    local modType = mod.type
+
+                    if modValue == nil or modType == nil then
+                        print(string.format(
+                            "[HunterStatsColumn] Aviso: Modificador para %s no arquétipo %s não tem type ou value.",
+                            statId,
+                            archetypeData.id or "ID Desconhecido"))
+                        goto continue_mod_loop -- Pula este modificador
+                    end
+
+                    local valueForFormatter = modValue
+                    local isMultiplierEffect = false -- Para determinar se o formatador deve tratar como multiplicador de efeito final
+                    local prefix = ""
+
+                    if modType == "fixed" then
+                        -- valueForFormatter já é o valor correto
+                        if modValue > 0 then prefix = "+" end
+                    elseif modType == "percentage" then
+                        valueForFormatter = modValue -- Passa o percentual direto (ex: 10 para 10%)
+                        if modValue > 0 then prefix = "+" end
+                        -- O Formatters.formatStatValue deve adicionar o '%' se necessário para o tipo de stat
+                    elseif modType == "fixed_percentage_as_fraction" then
+                        valueForFormatter = modValue -- Passa a fração (ex: 0.05 para 5%)
+                        if modValue > 0 then prefix = "+" end
+                        -- O Formatters.formatStatValue deve tratar como % e multiplicar por 100 para display
+                    end
 
                     local statName = Formatters.getStatDisplayName(statId)
-                    local formattedValueText = Formatters.formatStatValue(statId, valueForFormatter)
+                    -- Passa o modType para o formatador, caso ele precise tratar diferente
+                    local formattedValueText = Formatters.formatStatValue(statId, valueForFormatter, modType)
 
-                    if value > 0 and not (isMultiplier and value == 0) then
-                        formattedValueText = "+" .. formattedValueText
-                    end
+                    formattedValueText = prefix .. formattedValueText
 
                     local modText = string.format("%s: %s", statName, formattedValueText)
                     local modColor = colors.text_muted
-                    if value > 0 then modColor = colors.positive end
-                    if value < 0 then modColor = colors.negative end
+                    if modValue > 0 then
+                        if (modType == "fixed" or modType == "percentage" or modType == "fixed_percentage_as_fraction") and (statId == "cooldownReduction" or statId == "healthRegenDelay") then
+                            modColor = colors
+                                .negative -- Menor é melhor, mas o bônus positivo significa "mais redução/delay", o que é ruim.
+                            -- No entanto, se o VALOR do bônus for negativo (ex: type=percentage, value=-5), aí sim é bom.
+                            if modValue < 0 then modColor = colors.positive end
+                        else
+                            modColor = colors.positive
+                        end
+                    elseif modValue < 0 then
+                        if (modType == "fixed" or modType == "percentage" or modType == "fixed_percentage_as_fraction") and (statId == "cooldownReduction" or statId == "healthRegenDelay") then
+                            modColor = colors.positive -- Bônus negativo (ex: -5%) para CDR/Delay é bom.
+                        else
+                            modColor = colors.negative
+                        end
+                    end
 
                     love.graphics.setColor(modColor)
                     love.graphics.printf(modText, currentX, currentY, itemWidth, "left")
                     currentY = currentY + modFontHeight + lineSpacing
+                    ::continue_mod_loop:: -- Label para o goto
                 end
                 if currentY + modFontHeight > y + h then goto break_outer_loop end
             end

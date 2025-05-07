@@ -304,7 +304,7 @@ function GuildScreen:draw(x, y, w, h, mx, my)
                 local loadoutColW = availableWidth - statsColW - equipColW -- Loadout/Mochila (restante)
 
                 local statsColX = detailsX +
-                detailsPadding                                             -- Posição X da coluna de stats (relativa à tela)
+                    detailsPadding -- Posição X da coluna de stats (relativa à tela)
                 local equipColX = statsColX + statsColW + columnPadding
                 local loadoutColX = equipColX + equipColW + columnPadding
 
@@ -320,11 +320,18 @@ function GuildScreen:draw(x, y, w, h, mx, my)
 
                 -- <<< DESENHA CONTEÚDO DAS COLUNAS (usando novas Y e Height) >>>
                 -- 1. Desenha Coluna de Stats e Arquétipos
-                local finalStats = self.hunterManager:getHunterFinalStats(self.selectedHunterId) -- Pega stats do selecionado
-                if finalStats and selectedData.archetypeIds and self.archetypeManager then
-                    HunterStatsColumn.draw(statsColX, detailsContentY, statsColW, detailsContentHeight,
-                        finalStats, selectedData.archetypeIds, self.archetypeManager,
-                        mx, my) -- Passa mx, my globais
+                local finalStatsData = self.hunterManager:getHunterFinalStats(self.selectedHunterId) -- Pega stats do selecionado
+                if finalStatsData and selectedData.archetypeIds and self.archetypeManager then
+                    local configForColumn = {
+                        finalStats = finalStatsData,
+                        archetypeIds = selectedData.archetypeIds,
+                        archetypeManager = self.archetypeManager,
+                        mouseX = mx, -- mx global da GuildScreen:draw
+                        mouseY = my  -- my global da GuildScreen:draw
+                        -- Campos opcionais de gameplay (currentHp, level, etc.) não são passados aqui intencionalmente,
+                        -- pois esta é a tela da Guilda, não gameplay.
+                    }
+                    HunterStatsColumn.draw(statsColX, detailsContentY, statsColW, detailsContentHeight, configForColumn)
                 else
                     love.graphics.setColor(colors.red)
                     love.graphics.printf("Dados Stats/Arch Indisp.", statsColX,
