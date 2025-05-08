@@ -106,9 +106,9 @@ function Formatters.formatStatValue(statKey, value, modType)
     if modType then
         -- Formatação específica para MODIFICADORES
         if modType == "percentage" then
-            return format_number(value, 0, "%%")       -- Valor já é o percentual direto
+            return format_number(value, 0, "%")       -- Valor já é o percentual direto
         elseif modType == "fixed_percentage_as_fraction" then
-            return format_number(value * 100, 0, "%%") -- Converte fração para %
+            return format_number(value * 100, 0, "%") -- Converte fração para %
         elseif modType == "fixed" then
             -- Para 'fixed', a formatação depende um pouco do statKey para sufixos,
             -- mas o valor é absoluto.

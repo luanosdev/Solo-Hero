@@ -154,6 +154,7 @@ function LevelUpModal:draw()
     for i, optionData in ipairs(self.options) do
         local currentOptionY = optionStartY + (i - 1) * (optionHeight + optionGap)
         local optionX = modalX + 20
+        local optionY = currentOptionY
         local optionWidth = modalWidth - 40
 
         local isSelectedByKey = (i == self.selectedOption)

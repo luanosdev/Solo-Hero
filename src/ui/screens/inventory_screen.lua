@@ -126,7 +126,7 @@ function InventoryScreen.draw(dragState)
     love.graphics.setFont(fonts.main or titleFont)
 
     -- Centralização Vertical do Conteúdo
-    local contentMaxHeightFactor = 0.9
+    local contentMaxHeightFactor = 0.95
     local centeredContentH = contentInnerH * contentMaxHeightFactor
     local contentOffsetY = (contentInnerH - centeredContentH) / 2
     local centeredContentStartY = contentStartY + contentOffsetY

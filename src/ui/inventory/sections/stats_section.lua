@@ -516,7 +516,7 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
         return
     end
 
-    local lineHeight = fonts.main:getHeight() * 1.2
+    local lineHeight = fonts.main:getHeight() * 1.1
     local hudLineHeight = fonts.hud:getHeight() * 1.5
     local currentY = y
     local sectionStartY = y
@@ -533,24 +533,24 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
     currentY = currentY + hudLineHeight
 
     local attributesToShow = {
-        { label = "Dano da Arma",    key = "weaponDamage",      format = "%d",     noDirectBase = true }, -- Flag para stats sem base direta
+        { label = "Sorte",           key = "luck",              format = "%.0f%%", multiplier = 100 },
+        { label = "Dano da Arma",    key = "weaponDamage",      format = "%d",     noDirectBase = true },
         { label = "Vida",            key = "health",            format = "%d" },
         { label = "Defesa",          key = "defense",           format = "%d" },
         { label = "Velocidade",      key = "moveSpeed",         format = "%.1f",   suffix = " m/s" },
         { label = "Chance Crítico",  key = "critChance",        format = "%.1f%%", multiplier = 100 },
-        { label = "Dano Crítico",    key = "critDamage",        format = "%.0fx",  multiplier = 100 }, -- Exibido como 150x, 170x etc
+        { label = "Dano Crítico",    key = "critDamage",        format = "%.0fx",  multiplier = 100 },
         { label = "Regen. Vida/s",   key = "healthPerTick",     format = "%.1f/s" },
         { label = "Delay Regen.",    key = "healthRegenDelay",  format = "%.1fs" },
         { label = "Atq. Múltiplo",   key = "multiAttackChance", format = "%.1f%%", multiplier = 100 },
         { label = "Vel. Ataque",     key = "attackSpeed",       format = "%.2f/s" },
         { label = "Bônus Exp",       key = "expBonus",          format = "%.0f%%", multiplier = 100 },
-        { label = "Redução Recarga", key = "cooldownReduction", format = "%.0f%%", isReduction = true }, -- Flag para cálculo especial
+        { label = "Redução Recarga", key = "cooldownReduction", format = "%.0f%%", isReduction = true },
         { label = "Alcance",         key = "range",             format = "x%.1f" },
         { label = "Área Ataque",     key = "attackArea",        format = "x%.1f" },
         { label = "Raio Coleta",     key = "pickupRadius",      format = "%d" },
         { label = "Bônus Cura",      key = "healingBonus",      format = "%.0f%%", multiplier = 100 },
         { label = "Slots Runa",      key = "runeSlots",         format = "%d" },
-        { label = "Sorte",           key = "luck",              format = "%.0f%%", multiplier = 100 },
     }
 
     love.graphics.setFont(fonts.main)
@@ -687,14 +687,20 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                     if bonusDef and bonusDef.modifiers_per_level then
                         for _, modEffect in ipairs(bonusDef.modifiers_per_level) do
                             if modEffect.stat == attr.key then
-                                -- print(string.format(
-                                --     "[StatsSection Tooltip DEBUG]   Modificador Encontrado: Stat=%s, Value=%s, Type=%s para Attr=%s",
-                                --     tostring(modEffect.stat), tostring(modEffect.value), tostring(modEffect.type),
-                                --     tostring(attr.key))) -- Log do modificador
-                                local sourceText = "(Nvl: " ..
-                                    (bonusDef.name or bonusDefId) .. " Nv." .. learnedLevel .. ")"
-                                local modStr = Formatters.formatStatValue(attr.key, modEffect.value, modEffect.type)
-                                local prefix = modEffect.value > 0 and "+" or ""
+                                -- MODIFICADO: Formato "Nvl (NomeDoBonus X)"
+                                local sourceText = "Nvl (" .. (bonusDef.name or bonusDefId) .. " " .. learnedLevel .. ")"
+                                -- Corrigido: O valor do modificador já é por nível, então multiplicamos o valor unitário pelo nível.
+                                -- No entanto, se a intenção é mostrar o bônus TOTAL daquela fonte, então o cálculo do modStr deve ser o total.
+                                -- Vamos assumir que `modEffect.value` é o bônus POR NÍVEL, e queremos mostrar o bônus total DESTE MODIFICADOR para o nível atual.
+                                -- O valor total do bônus para este `modEffect` específico seria `modEffect.value * learnedLevel`.
+                                local totalEffectValue = modEffect.value * learnedLevel
+                                local modStr = Formatters.formatStatValue(attr.key, totalEffectValue, modEffect.type)
+
+                                -- A linha abaixo era a antiga para modStr, que multiplicava pelo nível.
+                                -- local modStr = Formatters.formatStatValue(attr.key, modEffect.value * learnedLevel, modEffect.type) -- Multiplica pelo nível AQUI
+
+                                -- O prefixo deve ser baseado no valor total do efeito.
+                                local prefix = totalEffectValue > 0 and "+" or ""
                                 if modEffect.type == "fixed" then
                                     table.insert(fixedBonusesTexts,
                                         {

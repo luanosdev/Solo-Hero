@@ -169,7 +169,7 @@ ArchetypesData.Archetypes = {
         description = "Aumenta o raio de coleta de itens e o ganho de experiência.",
         modifiers = {
             { stat = "pickupRadius", type = "fixed",      value = 75 },
-            { stat = "expBonus",     type = "percentage", value = 10 }
+            { stat = "expBonus",     type = "percentage", value = 100 }
         }
     },
     -- Rank B
