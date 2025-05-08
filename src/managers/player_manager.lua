@@ -724,6 +724,7 @@ function PlayerManager:getCurrentFinalStats()
         return {}
     end
 
+    -- Inicializa finalStats com os totais básicos dos atributos
     local finalStats = {
         health = self.state:getTotalHealth(),
         defense = self.state:getTotalDefense(),
@@ -741,50 +742,79 @@ function PlayerManager:getCurrentFinalStats()
         healingBonus = self.state:getTotalHealingBonus(),
         luck = self.state:getTotalLuck() or 0,
         runeSlots = self.state:getTotalRuneSlots(),
-        _levelBonus = self.state._levelBonus,
-        _fixedBonus = self.state._fixedBonus,
-        _archetypeBonus = self.state._archetypeBonus, -- Presumindo que _archetypeBonus é o campo correto em PlayerState para os bônus de arquétipo consolidados
+
+        -- Inicializa campos para cálculo de dano e detalhamento de bônus
         _baseWeaponDamage = 0,
-        _playerDamageMultiplier = 1.0,
+        _playerDamageMultiplier = 1.0, -- Começa com multiplicador base de 100%
+
+        -- Atribui corretamente as tabelas de bônus do PlayerState
+        -- Nota: PlayerState.addAttributeBonus modifica self.levelBonus e self.fixedBonus (sem underscore)
+        _levelBonus = self.state.levelBonus,
+        _fixedBonus = self.state.fixedBonus,
+        _archetypeBonus = self.state._archetypeBonus, -- Presumindo que PlayerState._archetypeBonus é preenchido em outro lugar
         _learnedLevelUpBonuses = self.state.learnedLevelUpBonuses or {},
-        -- <<< ADICIONANDO OS CAMPOS QUE FALTAVAM >>>
         equippedItems = self.state.equippedItems or {},
-        archetypeIds = self.state.archetypeIds or {} -- Assumindo que PlayerState tem um campo archetypeIds
+        archetypeIds = self.state.archetypeIds or {}
     }
 
-    -- Adiciona informações da arma equipada, se houver
-    -- print("[PlayerManager:getCurrentFinalStats DEBUG] self.state.equippedItems ANTES de pegar weaponId. Existe?", self.state and self.state.equippedItems ~= nil) -- COMENTADO
-    local equippedWeaponId = self.state.equippedItems and self.state.equippedItems.weapon
-    if equippedWeaponId and self.itemDataManager then
-        local weaponData = self.itemDataManager:getItemData(equippedWeaponId)
-        if weaponData and weaponData.stats then
-            local baseDmg = weaponData.stats.damage or 0
-            local minDmg = weaponData.stats.min_damage
-            local maxDmg = weaponData.stats.max_damage
-
-            if minDmg and maxDmg then
-                baseDmg = (minDmg + maxDmg) / 2
+    -- Obter _baseWeaponDamage corretamente
+    local weaponBaseId = nil
+    if self.currentHunterId and self.hunterManager and self.state and self.state.equippedItems then
+        -- self.state.equippedItems.weapon contém o ID da INSTÂNCIA da arma equipada (se houver)
+        -- Para obter o itemBaseId, precisamos da instância completa do item.
+        local equippedHunterItems = self.hunterManager:getEquippedItems(self.currentHunterId)
+        if equippedHunterItems then
+            local weaponInstance = equippedHunterItems[Constants.SLOT_IDS.WEAPON] -- Usar Constants.SLOT_IDS
+            if weaponInstance and weaponInstance.itemBaseId then
+                weaponBaseId = weaponInstance.itemBaseId
             end
-            finalStats._baseWeaponDamage = baseDmg
         end
     end
 
-    -- Calcula o multiplicador de dano do jogador
-    -- (1 + (total de bônus percentuais de dano / 100))
-    -- Assumindo que _levelBonus.damage é o principal bônus percentual (ex: 10 para 10%)
-    local totalPercentageDamageBonus = (self.state._levelBonus and self.state._levelBonus.damage or 0) +
-        (self.state._fixedBonus and self.state._fixedBonus.damage_percent or 0) -- Se houver um bônus fixo percentual
+    if weaponBaseId and self.itemDataManager then
+        local weaponData = self.itemDataManager:getBaseItemData(weaponBaseId) -- Usar getBaseItemData
+        print(string.format("  [PM:getCurrentFinalStats DEBUG] Weapon Base ID: %s, WeaponData exists: %s",
+            tostring(weaponBaseId), tostring(weaponData ~= nil)))
+
+        -- <<< CORREÇÃO: Lógica para ler dano base (prioriza weaponData.damage) >>>
+        if weaponData then
+            local foundDamage = false
+            finalStats._baseWeaponDamage = weaponData.damage
+            foundDamage = true
+            print(string.format(
+                "    [PM:getCurrentFinalStats DEBUG] Found damage directly in weaponData.damage: %.2f", weaponData
+                .damage))
+
+            if not foundDamage then
+                print(
+                    "    [PM:getCurrentFinalStats DEBUG] WARNING: Could not determine base weapon damage from weaponData.")
+            end
+        end
+        -- <<< FIM CORREÇÃO >>>
+    end
+
+    -- Calcular _playerDamageMultiplier corretamente
+    local totalPercentageDamageBonus = 0
+    if self.state and self.state.levelBonus and self.state.levelBonus.damageMultiplier then
+        totalPercentageDamageBonus = totalPercentageDamageBonus + self.state.levelBonus.damageMultiplier
+    end
+    if self.state and self.state.fixedBonus and self.state.fixedBonus.damageMultiplier then
+        -- Assumindo que fixedBonus.damageMultiplier também é um percentual direto (ex: 10 para 10%)
+        totalPercentageDamageBonus = totalPercentageDamageBonus + self.state.fixedBonus.damageMultiplier
+    end
 
     finalStats._playerDamageMultiplier = 1 + (totalPercentageDamageBonus / 100)
 
-    -- Calcula o dano final da arma com base nos componentes
-    -- Se _baseWeaponDamage for 0 (sem arma ou arma com 0 de dano), weaponDamage será 0.
-    finalStats.weaponDamage = (finalStats._baseWeaponDamage or 0) * (finalStats._playerDamageMultiplier or 1)
+    -- Calcular o dano final da arma
+    finalStats.weaponDamage = math.floor((finalStats._baseWeaponDamage or 0) * (finalStats._playerDamageMultiplier or 1))
 
-    -- print(string.format("[PlayerManager DEBUG Dano] BaseDmg: %s, Multiplier: %s (TotalPercBonus: %s), FinalDmg: %s, WeaponID: %s", -- COMENTADO
-    --     tostring(finalStats._baseWeaponDamage), tostring(finalStats._playerDamageMultiplier),
-    --     tostring(totalPercentageDamageBonus), tostring(finalStats.weaponDamage),
-    --     tostring(equippedWeaponId))) -- Log para o cálculo de dano
+    print(string.format(
+        "  [PM:getCurrentFinalStats DEBUG] BaseWeaponDmg: %.2f, TotalPercBonus: %.2f, PlayerDmgMultiplier: %.2f, Final WeaponDmg: %.2f",
+        finalStats._baseWeaponDamage or 0,
+        totalPercentageDamageBonus or 0,
+        finalStats._playerDamageMultiplier or 0,
+        finalStats.weaponDamage or 0
+    ))
 
     return finalStats
 end

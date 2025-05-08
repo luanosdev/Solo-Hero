@@ -533,24 +533,24 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
     currentY = currentY + hudLineHeight
 
     local attributesToShow = {
-        { label = "Sorte",           key = "luck",              format = "%.0f%%", multiplier = 100 },
-        { label = "Dano da Arma",    key = "weaponDamage",      format = "%d",     noDirectBase = true },
+        { label = "Dano",            key = "weaponDamage",      format = "%d",     noDirectBase = true },
         { label = "Vida",            key = "health",            format = "%d" },
         { label = "Defesa",          key = "defense",           format = "%d" },
         { label = "Velocidade",      key = "moveSpeed",         format = "%.1f",   suffix = " m/s" },
+        { label = "Vel. Ataque",     key = "attackSpeed",       format = "%.2f/s" },
         { label = "Chance Crítico",  key = "critChance",        format = "%.1f%%", multiplier = 100 },
         { label = "Dano Crítico",    key = "critDamage",        format = "%.0fx",  multiplier = 100 },
         { label = "Regen. Vida/s",   key = "healthPerTick",     format = "%.1f/s" },
         { label = "Delay Regen.",    key = "healthRegenDelay",  format = "%.1fs" },
         { label = "Atq. Múltiplo",   key = "multiAttackChance", format = "%.1f%%", multiplier = 100 },
-        { label = "Vel. Ataque",     key = "attackSpeed",       format = "%.2f/s" },
-        { label = "Bônus Exp",       key = "expBonus",          format = "%.0f%%", multiplier = 100 },
-        { label = "Redução Recarga", key = "cooldownReduction", format = "%.0f%%", isReduction = true },
         { label = "Alcance",         key = "range",             format = "x%.1f" },
         { label = "Área Ataque",     key = "attackArea",        format = "x%.1f" },
-        { label = "Raio Coleta",     key = "pickupRadius",      format = "%d" },
         { label = "Bônus Cura",      key = "healingBonus",      format = "%.0f%%", multiplier = 100 },
+        { label = "Redução Recarga", key = "cooldownReduction", format = "%.0f%%", isReduction = true },
         { label = "Slots Runa",      key = "runeSlots",         format = "%d" },
+        { label = "Sorte",           key = "luck",              format = "%.0f%%", multiplier = 100 },
+        { label = "Bônus Exp",       key = "expBonus",          format = "%.0f%%", multiplier = 100 },
+        { label = "Raio Coleta",     key = "pickupRadius",      format = "%d" },
     }
 
     love.graphics.setFont(fonts.main)
@@ -727,7 +727,7 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                 -- pois eles já deveriam refletir a soma dos arquétipos e level ups. O tooltip detalha as fontes.
 
                 if #fixedBonusesTexts > 0 then
-                    table.insert(tooltipLines, { text = "  Bônus Fixos:", color = sourceColor })
+                    -- table.insert(tooltipLines, { text = "  Bônus Fixos:", color = sourceColor })
                     for _, line in ipairs(fixedBonusesTexts) do table.insert(tooltipLines, line) end
                 end
 
@@ -736,12 +736,12 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                 end
 
                 if #percentBonusesTexts > 0 then
-                    table.insert(tooltipLines, { text = "  Bônus Percentuais:", color = sourceColor })
+                    -- table.insert(tooltipLines, { text = "  Bônus Percentuais:", color = sourceColor })
                     for _, line in ipairs(percentBonusesTexts) do table.insert(tooltipLines, line) end
                 end
 
                 if #fixedBonusesTexts == 0 and #percentBonusesTexts == 0 then
-                    table.insert(tooltipLines, { text = "  (Nenhum bônus detalhado encontrado)", color = baseColor })
+                    -- table.insert(tooltipLines, { text = "  (Nenhum bônus detalhado encontrado)", color = baseColor })
                 end
 
                 table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
@@ -755,14 +755,17 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                             color =
                                 baseColor
                         })
-                    table.insert(tooltipLines,
-                        {
-                            text = "  Mult. Jogador: " ..
-                                Formatters.formatStatValue("damageMultiplier", finalStats._playerDamageMultiplier or 1,
-                                    nil),
-                            color =
-                                baseColor
-                        }) -- nil modType para formatação de multiplicador final
+                    if finalStats._playerDamageMultiplier then
+                        table.insert(tooltipLines,
+                            {
+                                text = "  Mult. Jogador: " ..
+                                    Formatters.formatStatValue("damageMultiplier",
+                                    finalStats._playerDamageMultiplier or 1,
+                                        nil),
+                                color =
+                                    baseColor
+                            }) -- nil modType para formatação de multiplicador final
+                    end
                     table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
                 end
 
