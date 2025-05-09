@@ -95,9 +95,7 @@ end
 ---@return table Table with calculated final stats.
 function HunterManager:_calculateFinalStats(hunterId)
     local hunterData = self.hunters[hunterId]
-    if not hunterData then
-        return {}
-    end
+    if not hunterData then return {} end
 
     local finalStats = {}
     for key, value in pairs(Constants.HUNTER_DEFAULT_STATS) do
@@ -109,102 +107,91 @@ function HunterManager:_calculateFinalStats(hunterId)
         hunterArchetypeIds = { hunterArchetypeIds }
     end
 
-    -- <<<<<< INÍCIO: Lógica de cálculo de dano para HunterManager >>>>>>
+    -- 1. Agrega TODOS os bônus de arquétipo por tipo
+    local fixedBonuses = {}
+    local fixedFractionBonuses = {}
+    local percentageBonuses = {}
 
-    -- 1. Obter a arma equipada e seus dados base
-    local baseWeaponDamage = 0
-    local weaponInstance = nil
-    local weaponData = nil
-
-    if hunterData.equippedItems and hunterData.equippedItems[Constants.SLOT_IDS.WEAPON] then
-        weaponInstance = hunterData.equippedItems[Constants.SLOT_IDS.WEAPON]
-        if weaponInstance and weaponInstance.itemBaseId and self.itemDataManager then
-            weaponData = self.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
-            if weaponData then
-                baseWeaponDamage = weaponData.damage
-            end
-        end
-    end
-    finalStats._baseWeaponDamage = baseWeaponDamage -- Armazena para tooltip, se necessário
-
-    -- 2. Calcular multiplicador de dano TOTAL DOS ARQUÉTIPOS
-    local archetypeDamageMultiplierBonus = 0 -- Bônus percentual total dos arquétipos
-
-    -- Itera sobre os arquétipos para somar bônus de 'damageMultiplier'
     for _, archIdInfo in ipairs(hunterArchetypeIds or {}) do
         local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
         local archetypeData = self.archetypeManager:getArchetypeData(finalArchId)
         if archetypeData and archetypeData.modifiers then
             for _, mod in ipairs(archetypeData.modifiers) do
-                -- Verifica modificadores para 'damageMultiplier'
-                if mod.stat == "damageMultiplier" then
-                    if mod.type == "percentage" then
-                        -- Soma o valor percentual direto (ex: 5 para +5%)
-                        archetypeDamageMultiplierBonus = archetypeDamageMultiplierBonus + (mod.value or 0)
-                    elseif mod.type == "fixed_percentage_as_fraction" then
-                        -- Converte fração para percentual e soma (ex: 0.1 -> 10)
-                        archetypeDamageMultiplierBonus = archetypeDamageMultiplierBonus + ((mod.value or 0) * 100)
-                        -- Ignora mod.type == "fixed" para multiplicadores, pois não faria sentido somar valor fixo a um percentual
-                    end
+                local statName = mod.stat
+                local modValue = mod.value or 0
+                if mod.type == "fixed" then
+                    fixedBonuses[statName] = (fixedBonuses[statName] or 0) + modValue
+                elseif mod.type == "fixed_percentage_as_fraction" then
+                    fixedFractionBonuses[statName] = (fixedFractionBonuses[statName] or 0) + modValue
+                elseif mod.type == "percentage" then
+                    percentageBonuses[statName] = (percentageBonuses[statName] or 0) + modValue
                 end
             end
         end
     end
 
-    -- O multiplicador final é 1 (base) + bônus percentual total / 100
-    local totalArchetypeMultiplier = 1 + (archetypeDamageMultiplierBonus / 100)
-    finalStats._playerDamageMultiplier =
-        totalArchetypeMultiplier -- Reutiliza nome para consistência com PlayerManager/tooltip
+    -- 2. Aplica bônus na NOVA ORDEM para cada stat (exceto weaponDamage por enquanto)
+    for statKey, baseValue in pairs(finalStats) do
+        if statKey ~= "weaponDamage" then -- Calcula weaponDamage separadamente
+            local currentValue = baseValue
 
-    -- 3. Calcular Dano Final da Arma
-    finalStats.weaponDamage = math.floor(baseWeaponDamage * totalArchetypeMultiplier)
+            -- Aplica Fixed
+            currentValue = currentValue + (fixedBonuses[statKey] or 0)
 
-    -- <<<<<< FIM: Lógica de cálculo de dano >>>>>>
+            -- Aplica Fixed Fraction (Aditivo)
+            currentValue = currentValue + (fixedFractionBonuses[statKey] or 0)
 
+            -- Aplica Percentage
+            currentValue = currentValue * (1 + (percentageBonuses[statKey] or 0) / 100)
 
-    -- Calcula outros bônus (fixos e percentuais) dos arquétipos
-    local fixedBonuses = self:_getAggregatedBonuses(hunterArchetypeIds, "fixed", finalStats)
-    local percentageBonuses = self:_getAggregatedBonuses(hunterArchetypeIds, "percentage", finalStats)
-    local fixedFractionBonuses = self:_getAggregatedBonuses(hunterArchetypeIds, "fixed_percentage_as_fraction",
-        finalStats)
-
-    -- Aplica bônus percentuais PRIMEIRO (exceto damageMultiplier que já foi usado)
-    for statKey, bonusValue in pairs(percentageBonuses) do
-        if statKey ~= "damageMultiplier" then -- Não aplica de novo
-            finalStats[statKey] = (finalStats[statKey] or 0) * (1 + bonusValue / 100)
+            finalStats[statKey] = currentValue
         end
     end
 
-    -- Aplica bônus fixos de fração percentual (exceto damageMultiplier)
-    for statKey, bonusValue in pairs(fixedFractionBonuses) do
-        if statKey ~= "damageMultiplier" then -- Não aplica de novo
-            -- Aqui 'bonusValue' já é a fração (ex: 0.05 para 5%)
-            finalStats[statKey] = (finalStats[statKey] or 0) * (1 + bonusValue)
+    -- 3. Calcula weaponDamage separadamente
+    local baseWeaponDamage = 0
+    local weaponInstance = nil
+    local weaponData = nil
+    if hunterData.equippedItems and hunterData.equippedItems[Constants.SLOT_IDS.WEAPON] then
+        weaponInstance = hunterData.equippedItems[Constants.SLOT_IDS.WEAPON]
+        if weaponInstance and weaponInstance.itemBaseId and self.itemDataManager then
+            weaponData = self.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
+            if weaponData then
+                -- Lógica de leitura do dano base (mantida da correção anterior)
+                baseWeaponDamage = weaponData.damage
+            end
         end
     end
+    finalStats._baseWeaponDamage = baseWeaponDamage -- Salva para tooltip
 
-    -- Aplica bônus fixos (exceto damageMultiplier)
-    for statKey, bonusValue in pairs(fixedBonuses) do
-        if statKey ~= "damageMultiplier" then -- Não aplica de novo
-            finalStats[statKey] = (finalStats[statKey] or 0) + bonusValue
-        end
-    end
+    -- Calcula o multiplicador de dano aplicando os bônus na nova ordem
+    local damageMultiplierBase = 1.0 -- Dano base não tem multiplicador, o multiplicador é aplicado ao dano
+    local damageMultiplierFixed = fixedBonuses["damageMultiplier"] or
+        0                            -- Bônus fixo para multiplicador (geralmente não usado)
+    local damageMultiplierFixedFraction = fixedFractionBonuses["damageMultiplier"] or 0
+    local damageMultiplierPercentage = percentageBonuses["damageMultiplier"] or 0
 
-    -- Garante que stats que não são percentuais (como runeSlots) não sejam nil após os cálculos
-    finalStats.runeSlots = finalStats.runeSlots or 0 -- Simplificado
-    finalStats.luck = finalStats.luck or 0           -- Simplificado
+    local finalDamageMultiplier = (damageMultiplierBase + damageMultiplierFixed + damageMultiplierFixedFraction) *
+        (1 + damageMultiplierPercentage / 100)
+    finalStats._playerDamageMultiplier = finalDamageMultiplier -- Salva para tooltip
 
-    -- Lida com equippedItems: armazena IDs em vez de instâncias completas
+    -- Calcula dano final
+    finalStats.weaponDamage = math.floor(baseWeaponDamage * finalDamageMultiplier)
+
+    -- 4. Finaliza: Garante valores mínimos/máximos, formata IDs de itens equipados
+    finalStats.runeSlots = math.max(0, math.floor(finalStats.runeSlots or 0))
+    finalStats.luck = math.max(0, finalStats.luck or 0) -- Sorte não deve ser negativa?
+    -- Adicionar clamps para outros stats se necessário (ex: CDR, critChance)
+
     finalStats.equippedItems = {}
     if hunterData.equippedItems then
         for slot, itemInst in pairs(hunterData.equippedItems) do
-            if itemInst and itemInst.instanceId then -- Usa instanceId como identificador único do item equipado
+            if itemInst and itemInst.instanceId then
                 finalStats.equippedItems[slot] = itemInst.instanceId
             end
         end
     end
-
-    finalStats.archetypeIds = hunterArchetypeIds -- Usa o parâmetro da função
+    finalStats.archetypeIds = hunterArchetypeIds
 
     return finalStats
 end

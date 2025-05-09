@@ -12,7 +12,7 @@ local weapons = {
         maxStack = 1,
         damage = 180,
         cooldown = 1.2,                                              -- Cooldown base em segundos (era attackSpeed = 0.83)
-        range = 30,                                                  -- Raio da área de impacto
+        baseAreaEffectRadius = 30,                                       -- Raio da área de impacto
         attackClass = "src.abilities.player.attacks.circular_smash", -- Classe de ataque
     },
     wooden_sword = {

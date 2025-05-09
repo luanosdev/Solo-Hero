@@ -30,8 +30,8 @@ local portalDefinitions = {
             -- Configurações de Bosses neste portal
             bossConfig = {
                 spawnTimes = {
-                    -- SpiderBoss aparece aos 5 minutos (300s)
-                    { time = 300, class = SpiderBoss }
+                    -- SpiderBoss aparece aos 3 minutos
+                    { time = 60 * 3, class = SpiderBoss }
                 }
             },
 

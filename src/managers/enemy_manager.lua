@@ -1,6 +1,5 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
-local ManagerRegistry = require("src.managers.manager_registry")
 
 local EnemyManager = {
     enemies = {},     -- Tabela contendo todas as instâncias de inimigos ativos
@@ -18,9 +17,6 @@ local EnemyManager = {
     nextMinorSpawnTime = 0, -- Tempo de jogo global agendado para o próximo spawn pequeno (Minor Spawn)
     nextMVPSpawnTime = 0,   -- Tempo de jogo global agendado para o próximo spawn de MVP
     nextBossIndex = 1,      -- Índice do próximo boss a ser spawnado
-
-    spawnTimer = 0,
-    spawnInterval = 2, -- Tempo entre spawns em segundos
 
     -- Timer para controlar quando esconder a barra de vida do boss após sua morte
     bossDeathTimer = 0,

@@ -156,18 +156,6 @@ function BaseEnemy:checkPlayerCollision(dt, playerManager)
                 -- Se o jogador morreu, remove o inimigo
                 self.isAlive = false
             end
-
-            local floatingTextManager = ManagerRegistry:get("floatingTextManager")
-            -- Mostra o número de dano
-            floatingTextManager:addText(
-                playerCollision.position.x,
-                playerCollision.position.y - playerCollision.radius - 10,
-                "-" .. tostring(self.damage),
-                false,      -- Sempre falso pois inimigos não causam dano crítico
-                playerManager.player.position,
-                { 1, 0, 0 } -- Cor vermelha para dano ao jogador
-            )
-
             -- Reseta o cooldown
             self.lastDamageTime = 0
         end

@@ -79,15 +79,16 @@ function ExperienceOrb:update(dt)
         })
     end
 
-    local playerManager = ManagerRegistry:get("playerManager")
+    local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
 
     -- Calcula a distância até o jogador
     local dx = playerManager.player.position.x - self.position.x
     local dy = playerManager.player.position.y - (self.position.y + levitationOffset)
     local distance = math.sqrt(dx * dx + dy * dy)
 
+    local currentFinalStats = playerManager:getCurrentFinalStats()
     -- Se estiver dentro do raio de coleta do jogador
-    if distance <= playerManager.collectionRadius then
+    if distance <= currentFinalStats.pickupRadius then
         -- Inicia a animação de coleta
         self.collectionProgress = self.collectionProgress + dt * self.collectionSpeed
 

@@ -125,6 +125,7 @@ function LevelUpModal:applyUpgrade(optionData) -- Renomeado para clareza que é 
     local bonusId = optionData.id
     local learnedBonuses = self.playerManager.state.learnedLevelUpBonuses
     learnedBonuses[bonusId] = (learnedBonuses[bonusId] or 0) + 1
+    self.playerManager:invalidateStatsCache()
 
     print(string.format("[LevelUpModal:applyUpgrade] Bônus '%s' (ID: %s) aplicado. Novo nível: %d",
         optionData.name, bonusId, learnedBonuses[bonusId]))

@@ -5,9 +5,38 @@
 local SpritePlayer = require('src.animations.sprite_player')
 local PlayerState = require("src.entities.player_state")
 local LevelUpModal = require("src.ui.level_up_modal")
+local elements = require("src.ui.ui_elements")
 local Camera = require("src.config.camera")
 local LevelUpAnimation = require("src.animations.level_up_animation")
-local Constants = require("src.config.constants") -- <<< ADICIONADO para SLOT_IDS
+local Constants = require("src.config.constants")
+
+---@class FinalStats
+---@field health number Vida máxima final.
+---@field attackSpeed number Velocidade de ataque final (ataques por segundo).
+---@field moveSpeed number Velocidade de movimento final.
+---@field critChance number Chance de crítico final (fração, ex: 0.10 para 10%).
+---@field critDamage number Dano crítico final (multiplicador, ex: 1.5 para 150%).
+---@field multiAttackChance number Chance de ataque múltiplo final (fração).
+---@field expBonus number Bônus de experiência final (multiplicador, ex: 1.0 para 100%).
+---@field defense number Defesa final.
+---@field healthRegenCooldown number Cooldown de regeneração de vida (segundos).
+---@field healthPerTick number Regeneração de vida por tick/segundo final.
+---@field healthRegenDelay number Atraso para iniciar a regeneração de vida após dano (segundos).
+---@field cooldownReduction number Redução de cooldown final (multiplicador, ex: 1.0 para nenhuma redução).
+---@field range number Alcance final (multiplicador).
+---@field attackArea number Área de ataque final (multiplicador).
+---@field pickupRadius number Raio de coleta final.
+---@field healingBonus number Bônus de cura recebida final (multiplicador).
+---@field runeSlots number Quantidade final de slots de runa.
+---@field luck number Sorte final (multiplicador).
+---@field weaponDamage number Dano final da arma (calculado).
+---@field _baseWeaponDamage number Dano base da arma (antes de multiplicadores).
+---@field _playerDamageMultiplier number Multiplicador de dano total do jogador.
+---@field _levelBonus table<string, number>|nil Bônus de atributos ganhos por level up (formato: {statKey = value}).
+---@field _fixedBonus table<string, number>|nil Bônus fixos de atributos de outras fontes (formato: {statKey = value}).
+---@field _learnedLevelUpBonuses table<string, any>|nil Detalhes dos bônus de level up aprendidos.
+---@field equippedItems table<string, any>|nil Itens equipados (formato: {slotId = itemInstance}).
+---@field archetypeIds table[]|nil IDs dos arquétipos ativos.
 
 -- Função auxiliar para contar elementos em qualquer tabela (inclusive dicionários)
 local function getTableSize(tbl)
@@ -18,42 +47,29 @@ local function getTableSize(tbl)
     return count
 end
 
+---@class PlayerManager
 local PlayerManager = {
     -- Referência ao player sprite
-    player = nil,
-
-    -- REMOVIDO: class não é mais armazenado aqui
-    -- class = nil,
-
+    player = nil, ---@type table
     -- Estado do player (será criado em setupGameplay)
-    state = nil,
-
+    state = nil, ---@class PlayerState
     -- Game Stats
     gameTime = 0,
-
     -- Tabela para guardar instâncias de habilidades de runas EQUIPADAS
     activeRuneAbilities = {},
-
     -- Auto Attack
     autoAttack = false,
     autoAttackEnabled = false,
     autoAim = false,
     autoAimEnabled = false,
-
     -- Damage cooldown
     lastDamageTime = 0,
-    damageCooldown = 5.0, -- Tempo de espera após receber dano para começar a regenerar
-
     -- Health regeneration
     lastRegenTime = 0,
     regenInterval = 1.0,  -- Intervalo de regeneração em segundos
-    regenAmount = 1,      -- Quantidade fixa de HP recuperado
     accumulatedRegen = 0, -- HP acumulado para regeneração
-
-    -- Collection
+    -- Tamanho do círculo de colisão
     radius = 25,
-    collectionRadius = 100, -- Raio base para coletar prismas
-
     -- Mouse tracking
     lastMouseX = 0,
     lastMouseY = 0,
@@ -64,27 +80,28 @@ local PlayerManager = {
     previousLeftButtonState = false, -- Estado do botão esquerdo no frame anterior
 
     -- Weapons (equippedWeapon será definido em setupGameplay)
-    equippedWeapon = nil,
-    -- REMOVIDO: availableWeapons não é mais usado aqui
-    -- availableWeapons = { ... },
-
+    equippedWeapon = nil, ---@class BaseWeapon
     -- Level Up Animation
     isLevelingUp = false,
     levelUpAnimation = nil,
 
-    -- <<< ADICIONADO: Managers injetados >>>
-    inputManager = nil,
-    enemyManager = nil,
-    floatingTextManager = nil,
-    inventoryManager = nil,
-    hunterManager = nil,
-    itemDataManager = nil,
-    currentHunterId = nil             -- <<< ADICIONADO: Para armazenar o ID do caçador ativo
+    inputManager = nil, ---@class InputManager
+    enemyManager = nil, ---@class EnemyManager
+    floatingTextManager = nil, ---@class FloatingTextManager
+    inventoryManager = nil, ---@class InventoryManager
+    hunterManager = nil, ---@class HunterManager
+    itemDataManager = nil, ---@class ItemDataManager
+
+    currentHunterId = nil,            -- <<< ADICIONADO: Para armazenar o ID do caçador ativo
+
+    finalStatsCache = nil,            -- Guarda a última tabela de stats calculada
+    statsNeedRecalculation = true,    -- Flag para indicar se o cache precisa ser atualizado
 }
 PlayerManager.__index = PlayerManager -- <<< ADICIONADO __index >>>
 
 --- Cria uma nova instância BÁSICA do PlayerManager.
 --- A configuração real do jogador acontece em setupGameplay.
+--- @return PlayerManager
 function PlayerManager:new()
     print("[PlayerManager] Creating new instance...")
     local instance = setmetatable({}, PlayerManager) -- <<< USAR PlayerManager aqui >>>
@@ -99,19 +116,16 @@ function PlayerManager:new()
     instance.autoAim = false
     instance.autoAimEnabled = false
     instance.lastDamageTime = 0
-    instance.damageCooldown = 5.0 -- <<< DEFINIR VALOR PADRÃO damageCooldown >>>
     instance.lastRegenTime = 0
-    instance.regenInterval = 1.0  -- <<< DEFINIR VALOR PADRÃO regenInterval >>>
-    instance.regenAmount = 1      -- <<< DEFINIR VALOR PADRÃO regenAmount >>>
+    instance.regenInterval = 1.0
     instance.accumulatedRegen = 0
     instance.radius = 25
-    instance.collectionRadius = 100 -- <<< DEFINIR VALOR PADRÃO collectionRadius >>>
     instance.lastMouseX = 0
     instance.lastMouseY = 0
     instance.originalAutoAttackState = false
     instance.originalAutoAimState = false
     instance.previousLeftButtonState = false
-    instance.equippedWeapon = nil
+    instance.equippedWeapon = nil ---@class BaseWeapon
     instance.isLevelingUp = false
     instance.levelUpAnimation = LevelUpAnimation:new() -- Cria a instância da animação aqui
 
@@ -125,6 +139,9 @@ function PlayerManager:new()
     instance.inventoryManager = nil
     instance.hunterManager = nil
     instance.itemDataManager = nil
+
+    instance.finalStatsCache = nil
+    instance.statsNeedRecalculation = true
 
     print("[PlayerManager] Instance created (awaiting setupGameplay).")
     return instance
@@ -147,13 +164,13 @@ function PlayerManager:setupGameplay(registry, hunterId)
     self.inventoryManager = registry:get("inventoryManager") -- Mantém se necessário para outras funções
     self.hunterManager = registry:get("hunterManager")
     self.itemDataManager = registry:get("itemDataManager")
+    self.archetypeManager = registry:get("archetypeManager")
 
     -- Validação crucial das dependências
     if not self.inputManager or not self.enemyManager or not self.floatingTextManager or
         not self.hunterManager or not self.itemDataManager then
         error("ERRO CRÍTICO [PlayerManager:setupGameplay]: Falha ao obter um ou mais managers do Registry!")
     end
-    print("  - Managers obtained from Registry.")
 
     -- 2. Obtém dados do Caçador
     local hunterData = self.hunterManager.hunters and self.hunterManager.hunters[hunterId]
@@ -164,43 +181,23 @@ function PlayerManager:setupGameplay(registry, hunterId)
         error(string.format(
             "ERRO CRÍTICO [PlayerManager:setupGameplay]: Falha ao obter dados completos para hunter ID: %s", hunterId))
     end
-    print(string.format("  - Hunter data loaded. Name: %s, Rank: %s", hunterData.name, hunterData.finalRankId))
-
-    -- DEBUG: Log finalStats ANTES de passar para PlayerState:new
-    if finalStats and next(finalStats) then
-        -- print("[PlayerManager:setupGameplay DEBUG] finalStats ANTES de PlayerState:new:") -- COMENTADO
-        -- print("  > Tem equippedItems?", finalStats.equippedItems ~= nil and not not next(finalStats.equippedItems or {})) -- COMENTADO
-        if finalStats.equippedItems and finalStats.equippedItems.weapon then
-            print("    [PlayerManager:setupGameplay] Weapon ID em finalStats para PlayerState:new:",
-                finalStats.equippedItems.weapon)                                                           -- MANTIDO
-        else
-            print("    [PlayerManager:setupGameplay] Weapon ID em finalStats é nil para PlayerState:new.") -- MANTIDO
-        end
-        -- print("  > Tem archetypeIds?", finalStats.archetypeIds ~= nil and #finalStats.archetypeIds > 0) -- COMENTADO
-    else
-        print("[PlayerManager:setupGameplay DEBUG] finalStats é NULO ou VAZIO ANTES de PlayerState:new.")
-    end
 
     -- 3. Inicializa PlayerState com os stats finais
-    self.state = PlayerState:new(finalStats)
+    self.state = PlayerState:new(finalStats) ---@class PlayerState
     if not self.state then
         error(string.format("ERRO CRÍTICO [PlayerManager:setupGameplay]: Falha ao criar PlayerState para hunter ID: %s",
             hunterId))
     end
-    print(string.format("  - PlayerState initialized. HP: %d/%d, Speed: %.2f",
-        self.state.currentHealth, self.state:getTotalHealth(), self.state:getTotalMoveSpeed()))
 
     -- 4. Cria a instância do Sprite do Jogador
-    local finalSpeed = self.state:getTotalMoveSpeed()                                       -- ATUALIZADO para getTotalMoveSpeed
-    print(string.format("  - Player final speed for sprite: %.2f", finalSpeed))             -- DEBUG
+    local finalSpeed = finalStats.moveSpeed
+    print(string.format("  - Player final speed for sprite: %.2f", finalSpeed))
     self.player = SpritePlayer.newConfig({
-        position = { x = love.graphics.getWidth() / 2, y = love.graphics.getHeight() / 2 }, -- Posição inicial padrão
+        position = { x = love.graphics.getWidth() / 2, y = love.graphics.getHeight() / 2 },
         scale = 0.8,
-        speed =
-            finalSpeed                                                                                     -- Usa a velocidade calculada pelo PlayerState
+        speed = finalSpeed -- Usa a velocidade calculada
     })
-    print(string.format("  - Player Sprite instance created. Type of self.player: %s", type(self.player))) -- DEBUG
-    print("  - Player Sprite instance created.")
+    print(string.format("  - Player Sprite instance created. Type of self.player: %s", type(self.player)))
 
     -- 5. Equipa a Arma
     local weaponItem = equippedItems[Constants.SLOT_IDS.WEAPON]
@@ -208,14 +205,11 @@ function PlayerManager:setupGameplay(registry, hunterId)
     if weaponItem then
         -- Constrói o caminho para a CLASSE da arma (ex: src.items.weapons.dual_daggers)
         local weaponClassPath = string.format("src.items.weapons.%s", weaponItem.itemBaseId)
-        print(string.format("  - Attempting to load weapon class: %s", weaponClassPath))
 
         -- Tenta carregar a classe da arma
         local success, WeaponClass = pcall(require, weaponClassPath)
 
         if success and WeaponClass then
-            print(string.format("  - Weapon class '%s' loaded successfully.", weaponClassPath))
-            -- Cria uma instância da classe da arma, passando o itemBaseId
             -- OBS: Assumindo que a classe da arma tem um método :new(config) que aceita itemBaseId
             local weaponInstance = WeaponClass:new({ itemBaseId = weaponItem.itemBaseId })
 
@@ -224,30 +218,17 @@ function PlayerManager:setupGameplay(registry, hunterId)
                 -- Armazena a instância da arma
                 self.equippedWeapon = weaponInstance
 
-                -- Chama o método :equip DA INSTÂNCIA da arma
-                -- Passa o PlayerManager (self) e os dados do item específico (weaponItem)
-                print(string.format("    -> Calling :equip on weapon instance (Type: %s)",
-                    type(self.equippedWeapon.attackInstance)))
                 if self.equippedWeapon.equip then -- Verifica se o método existe
                     self.equippedWeapon:equip(self, weaponItem)
-                    print(string.format("    -> :equip called. Type of attackInstance inside weapon: %s",
-                        type(self.equippedWeapon.attackInstance))) -- Verifica se attackInstance foi criado
-                    print(string.format("    - Weapon '%s' equipped and configured via its class.", weaponItem
-                        .itemBaseId))
-
-                    -- REMOVIDO: A atualização dos stats agora é responsabilidade do método :equip da arma.
-                    -- self.state:updateWeaponStats(self.equippedWeapon)
                 else
-                    print(string.format("    - ERRO CRÍTICO: O método :equip não foi encontrado na classe da arma '%s'!",
+                    error(string.format("ERRO CRÍTICO: O método :equip não foi encontrado na classe da arma '%s'!",
                         weaponClassPath))
-                    self.equippedWeapon = nil -- Desequipa se :equip falhar ou não existir
                 end
             else
-                print(string.format("    - ERRO: Falha ao criar a instância da arma '%s' usando :new().", weaponClassPath))
-                self.equippedWeapon = nil
+                error(string.format("ERRO: Falha ao criar a instância da arma '%s' usando :new().", weaponClassPath))
             end
         else
-            print(string.format("    - ERRO CRÍTICO: Não foi possível carregar a classe da arma: %s. Detalhe: %s",
+            error(string.format("ERRO CRÍTICO: Não foi possível carregar a classe da arma: %s. Detalhe: %s",
                 weaponClassPath, tostring(WeaponClass))) -- WeaponClass aqui conterá a mensagem de erro do pcall
             self.equippedWeapon = nil
         end
@@ -275,12 +256,12 @@ function PlayerManager:setupGameplay(registry, hunterId)
                     -- Cria a instância da habilidade e armazena por slotId
                     self.activeRuneAbilities[slotId] = AbilityClass:new(self, runeItem)
                 else
-                    print(string.format("      - ERRO: Não foi possível carregar a classe da habilidade: %s",
+                    error(string.format("ERRO: Não foi possível carregar a classe da habilidade: %s",
                         runeBaseData.abilityClass))
                 end
             else
                 -- Avisa se falta abilityClass, mas o item está equipado
-                print(string.format("    - AVISO: Runa '%s' no slot %d não possui 'abilityClass' ou dados base.",
+                error(string.format("AVISO: Runa '%s' no slot %d não possui 'abilityClass' ou dados base.",
                     runeItem.itemBaseId or 'ID Desconhecido', i))
             end
         end
@@ -288,11 +269,16 @@ function PlayerManager:setupGameplay(registry, hunterId)
     print(string.format("  - Rune activation complete. %d active rune abilities.", getTableSize(self.activeRuneAbilities)))
 
     -- 7. Inicializa outros componentes que dependem do PlayerManager
-    -- Camera:init() -- Câmera é inicializada pela GameplayScene agora
     LevelUpModal:init(self, self.inputManager)
-    print("  - LevelUpModal initialized.")
 
     print(string.format("[PlayerManager] Gameplay setup for hunter '%s' complete.", hunterData.name))
+
+    -- Preeche a vida do player com o valor final de health
+    local currentFinalStats = self:getCurrentFinalStats()
+    self.state.currentHealth = currentFinalStats.health
+
+    -- Invalida o cache de stats
+    self:invalidateStatsCache()
 end
 
 -- Atualiza o estado do player e da câmera
@@ -383,8 +369,6 @@ function PlayerManager:update(dt)
     -- Atualiza a câmera
     if self.player and self.player.position then
         Camera:follow(self.player.position, dt)
-    else
-        -- print("PlayerManager Update: SKIPPING Camera:follow (Player or position is nil)") -- DEBUG (Mantido por segurança)
     end
 end
 
@@ -409,6 +393,22 @@ function PlayerManager:draw()
     -- Restaura o estado de transformação
     love.graphics.pop()
 
+    -- Desenha a barra de vida em cima do player caso a vida nao esteja cheia
+    local finalStats = self:getCurrentFinalStats()
+    if self.state and self.state.currentHealth < finalStats.health then
+        elements.drawResourceBar({
+            x = self.player.position.x - 25,
+            y = self.player.position.y - 40,
+            width = 50,
+            height = 6,
+            value = self.state.currentHealth,
+            maxValue = finalStats.health,
+            showText = false,
+            cacheEnabled = true,
+            entityId = "player"
+        })
+    end
+
     -- Desenha a animação de level up se estiver ativa
     if self.isLevelingUp then
         self.levelUpAnimation:draw(self.player.position.x, self.player.position.y)
@@ -432,9 +432,6 @@ function PlayerManager:draw()
     if self.equippedWeapon and self.equippedWeapon.attackInstance then
         self.equippedWeapon.attackInstance:draw()
     end
-
-    -- REMOVIDO: Libera a transformação da câmera (já feita pela GameplayScene)
-    -- Camera:detach()
 end
 
 --[[-
@@ -443,31 +440,38 @@ end
     @param dt (number): Delta time
 ]]
 function PlayerManager:updateHealthRecovery(dt)
-    if not self.state then return end -- <<< ADICIONADO: Verifica se state existe
-    -- Verifica se já passou o cooldown após o último dano
-    if self.gameTime >= self.lastDamageTime + self.damageCooldown then
+    if not self.state then return end
+
+    -- Obtém os stats finais UMA VEZ para usar nos cálculos de recuperação
+    local finalStats = self:getCurrentFinalStats()
+    local finalMaxHealth = finalStats.health
+    local finalHealthRegenPerSecond = finalStats.healthPerTick -- Assumindo que healthPerTick é o regen/s final
+    local finalHealingBonusMultiplier = finalStats
+        .healingBonus                                          -- Assumindo que healingBonus é o multiplicador final (já calculado em getCurrentFinalStats)
+    -- A lógica de delay já está sendo tratada pelo gameTime vs lastDamageTime
+
+    if self.gameTime >= self.lastDamageTime + finalStats.healthRegenDelay then -- Usa delay dos stats
         self.lastRegenTime = self.lastRegenTime + dt
-
-        -- Se passou o intervalo de regeneração
         if self.lastRegenTime >= self.regenInterval then
-            self.lastRegenTime = self.lastRegenTime - self.regenInterval -- Subtrai o intervalo, mantendo o resto
+            self.lastRegenTime = self.lastRegenTime - self.regenInterval
 
-            -- Calcula a regeneração baseada nos stats usando o método correto
-            local effectiveRegen = self.state:getTotalHealthRegen() -- CORRIGIDO: Usar getTotalHealthRegen()
-            self.accumulatedRegen = self.accumulatedRegen + effectiveRegen
-
-            -- Se a regeneração acumulada for >= 1, cura o jogador
+            -- A regeneração agora usa o valor final calculado
+            self.accumulatedRegen = self.accumulatedRegen + finalHealthRegenPerSecond
             local healAmount = math.floor(self.accumulatedRegen)
-            if healAmount >= 1 and self.state.currentHealth < self.state:getTotalHealth() then
-                self.state:heal(healAmount)
-                self.accumulatedRegen = self.accumulatedRegen - healAmount
-                -- Mostra texto flutuante de cura (opcional)
-                self.floatingTextManager:addText(self.player.position.x, self.player.position.y - 50,
-                    "+" .. healAmount .. " HP", false, nil, { 0, 1, 0 })
+
+            -- Verifica se precisa curar (usa finalMaxHealth)
+            if healAmount >= 1 and self.state.currentHealth < finalMaxHealth then
+                -- Chama heal passando os valores finais necessários
+                local healedAmount = self.state:heal(healAmount, finalMaxHealth, finalHealingBonusMultiplier)
+                self.accumulatedRegen = self.accumulatedRegen - healedAmount -- Reduz apenas o que foi curado
+
+                if healedAmount > 0 and self.floatingTextManager then
+                    self.floatingTextManager:addText(self.player.position.x, self.player.position.y - 50,
+                        "+" .. healedAmount .. " HP", false, nil, { 0, 1, 0 })
+                end
             end
         end
     else
-        -- Se estiver em cooldown de dano, reseta o timer de regeneração
         self.lastRegenTime = 0
         self.accumulatedRegen = 0
     end
@@ -484,7 +488,7 @@ function PlayerManager:updateAutoAttack(currentAngle)
         -- Chama cast com a tabela de argumentos
         self.equippedWeapon.attackInstance:cast(args)
     elseif self.autoAttack then
-        print(string.format(
+        error(string.format(
             "  [DEBUG PM:updateAutoAttack] AutoAttack ON but weapon/instance missing. Weapon: %s, Instance: %s",
             tostring(self.equippedWeapon), tostring(self.equippedWeapon and self.equippedWeapon.attackInstance))) -- DEBUG (Temporarily Disabled)
     end
@@ -496,48 +500,82 @@ function PlayerManager:isAlive()
 end
 
 function PlayerManager:takeDamage(amount, source)
-    if not self.state then return end -- <<< ADICIONADO: Verifica se state existe
-    local damageTaken = self.state:takeDamage(amount)
+    if not self.state or not self.state.isAlive then return end
+
+    -- 1. Calcula os stats finais para obter a defesa e calcular a redução
+    local finalStats = self:getCurrentFinalStats()
+    local finalDefense = finalStats.defense
+
+    -- 2. Calcula a redução de dano usando a defesa final
+    local K = Constants and Constants.DEFENSE_DAMAGE_REDUCTION_K
+    local finalDamageReduction = finalDefense / (finalDefense + K)
+    finalDamageReduction = math.min(Constants and Constants.MAX_DAMAGE_REDUCTION, finalDamageReduction)
+
+    -- 3. Chama PlayerState:takeDamage passando a redução calculada
+    local damageTaken = self.state:takeDamage(amount, finalDamageReduction)
+
     if damageTaken > 0 then
-        self.lastDamageTime = self.gameTime -- Atualiza o tempo do último dano
-        self.lastRegenTime = 0              -- Reseta o timer de regeneração
+        self.lastDamageTime = self.gameTime
+        self.lastRegenTime = 0
         self.accumulatedRegen = 0
 
-        -- Mostra texto flutuante de dano
-        if self.floatingTextManager then -- <<< ADICIONADO: Verifica se floatingTextManager existe
+        if self.floatingTextManager then
             self.floatingTextManager:addText(
                 self.player.position.x,
-                self.player.position.y - 40, -- Posição do texto de dano
+                self.player.position.y - 50,
                 "-" .. damageTaken,
                 false,
-                nil,
-                { 1, 0, 0 } -- Cor vermelha para dano
+                {
+                    x = self.player.position.x,
+                    y = self.player.position.y - 50
+                },
+                { 1, 0, 0 }
             )
         end
-        print(string.format("Player levou %d de dano de %s. HP restante: %d/%d", damageTaken, source or "Desconhecido",
-            self.state.currentHealth, self.state:getTotalHealth()))
     end
 
     if not self.state.isAlive then
         print("Player Morreu!")
-        -- TODO: Implementar lógica de morte (ex: tela de game over)
+        -- TODO: Lógica de morte
     end
 end
 
--- Funções de experiência e level
+---Funções de experiência e level
 function PlayerManager:addExperience(amount)
-    if not self.state then return end -- <<< ADICIONADO: Verifica se state existe
-    local leveledUp = self.state:addExperience(amount)
+    if not self.state then return end
+
+    -- Calcula o ganho de EXP efetivo
+    local totalStats = self:getCurrentFinalStats()
+    local leveledUp = self.state:addExperience(amount, totalStats.expBonus)
+
     if leveledUp then
+        print(string.format("[PlayerManager] Level up para %d! Próximo nível em %d XP.",
+            self.state.level, self.state.experienceToNextLevel))
+
+        -- Cura ao subir de nível
+        local finalStats = self:getCurrentFinalStats()           -- Pega stats finais ATUALIZADOS
+        local healOnLevelUp = finalStats.health * 0.25           -- Cura 25% da vida MÁXIMA FINAL
+        local finalHealingBonus = finalStats.healingBonus or 1.0 -- Multiplicador final de cura
+
+        print(string.format("  >> Curando %.2f (25%% de %.2f Max HP) com Multiplicador de Cura %.2fx",
+            healOnLevelUp, finalStats.health, finalHealingBonus))
+
+        self.state:heal(healOnLevelUp, finalStats.health, finalHealingBonus)
+
+        -- Chama a função que lida com efeitos visuais e modal
         self:onLevelUp()
     end
+    -- Retorna se houve level up (pode ser útil para outros sistemas)
+    return leveledUp
 end
 
---[[ Função chamada quando o PlayerState indica um level up ]]
+--[[ Função chamada QUANDO o jogador sobe de nível (após addExperience) ]]
+-- APENAS lida com efeitos e modal, NÃO mais com a cura.
 function PlayerManager:onLevelUp()
-    if not self.state then return end -- <<< ADICIONADO: Verifica se state existe
+    if not self.state then return end
+
     -- Efeitos visuais e sonoros de level up
-    if self.floatingTextManager then  -- <<< ADICIONADO: Verifica se floatingTextManager existe
+    if self.floatingTextManager then
         self.floatingTextManager:addText(
             self.player.position.x,
             self.player.position.y - self.radius - 30,
@@ -550,22 +588,19 @@ function PlayerManager:onLevelUp()
 
     -- Inicia a animação de level up (que então mostrará o modal)
     self.isLevelingUp = true
-    if self.levelUpAnimation then -- <<< ADICIONADO: Verifica se levelUpAnimation existe
+    if self.levelUpAnimation then
         self.levelUpAnimation:start(self.player.position)
     end
-
-    -- Log para debug
-    print(string.format("[PlayerManager] Level up para %d! Próximo nível em %d XP.", self.state.level,
-        self.state.experienceToNextLevel))
 end
 
--- Funções de controle
-function PlayerManager:toggleAbilityAutoCast()
+--- Função para ativar/desativar o auto attack
+function PlayerManager:toggleAbilityAutoAttack()
     self.autoAttackEnabled = not self.autoAttackEnabled
     self.autoAttack = self.autoAttackEnabled
 end
 
-function PlayerManager:toggleAbilityVisual()
+--- Função para ativar/desativar o visual do auto attack
+function PlayerManager:toggleAttackPreview()
     if self.equippedWeapon and self.equippedWeapon.attackInstance then
         self.equippedWeapon.attackInstance:togglePreview()
     end
@@ -576,13 +611,10 @@ function PlayerManager:toggleAutoAim()
     self.autoAim = self.autoAimEnabled
 end
 
---[[
-    Função para obter a posição do alvo
-    Se o auto aim estiver ativado, procura o inimigo mais próximo
-    Se não estiver ativado, usa a posição do mouse
-]]
+--- Função para obter a posição do alvo
+--- Se o auto aim estiver ativado, procura o inimigo mais próximo
+--- Se não estiver ativado, usa a posição do mouse
 function PlayerManager:getTargetPosition()
-    -- <<< ADICIONADO: Verificações de existência para managers >>>
     if self.autoAim and self.enemyManager and self.player and self.player.position then
         local closestEnemy = self:findClosestEnemy(self.player.position, self.enemyManager.enemies)
         if closestEnemy then
@@ -594,7 +626,7 @@ function PlayerManager:getTargetPosition()
         return self.inputManager:getMouseWorldPosition()
     else
         -- Fallback muito básico se InputManager não estiver pronto
-        error("AVISO [getTargetPosition]: InputManager não disponível, usando posição padrão (0,0).")
+        error("Error [getTargetPosition]: InputManager não disponível, usando posição padrão (0,0).")
     end
 end
 
@@ -718,105 +750,144 @@ end
 
 --- Retorna uma tabela contendo os valores finais dos atributos do jogador,
 --- incluindo bônus de nível e fixos calculados pelo PlayerState.
+--- Utiliza um cache para evitar recálculos desnecessários.
+---@return FinalStats
 function PlayerManager:getCurrentFinalStats()
-    if not self.state then
-        print("AVISO [PlayerManager:getCurrentFinalStats]: PlayerState não inicializado. Retornando tabela vazia.")
-        return {}
+    -- Retorna o cache se ele for válido
+    if not self.statsNeedRecalculation and self.finalStatsCache then
+        return self.finalStatsCache
     end
 
-    -- Inicializa finalStats com os totais básicos dos atributos
-    local finalStats = {
-        health = self.state:getTotalHealth(),
-        defense = self.state:getTotalDefense(),
-        moveSpeed = self.state:getTotalMoveSpeed(),
-        critChance = self.state:getTotalCritChance(),
-        critDamage = self.state:getTotalCritDamage(),
-        healthPerTick = self.state:getTotalHealthPerTick(),
-        healthRegenDelay = self.state:getTotalHealthRegenDelay(),
-        multiAttackChance = self.state:getTotalMultiAttackChance(),
-        attackSpeed = self.state:getTotalAttackSpeed(),
-        expBonus = self.state:getTotalExpBonus(),
-        cooldownReduction = self.state:getTotalCooldownReduction(),
-        range = self.state:getTotalRange(),
-        attackArea = self.state:getTotalArea(),
-        healingBonus = self.state:getTotalHealingBonus(),
-        luck = self.state:getTotalLuck() or 0,
-        runeSlots = self.state:getTotalRuneSlots(),
+    print("[PlayerManager] Recalculating final stats...") -- Log para saber quando o cálculo real ocorre
 
-        -- Inicializa campos para cálculo de dano e detalhamento de bônus
-        _baseWeaponDamage = 0,
-        _playerDamageMultiplier = 1.0, -- Começa com multiplicador base de 100%
+    if not self.state then
+        error("Error [PlayerManager:getCurrentFinalStats]: PlayerState não inicializado.")
+    end
+    if not self.hunterManager then
+        error("Error [PlayerManager:getCurrentFinalStats]: HunterManager não inicializado.")
+    end
+    if not self.archetypeManager then
+        error("Error [PlayerManager:getCurrentFinalStats]: ArchetypeManager não inicializado.")
+    end
 
-        -- Atribui corretamente as tabelas de bônus do PlayerState
-        -- Nota: PlayerState.addAttributeBonus modifica self.levelBonus e self.fixedBonus (sem underscore)
-        _levelBonus = self.state.levelBonus,
-        _fixedBonus = self.state.fixedBonus,
-        _archetypeBonus = self.state._archetypeBonus, -- Presumindo que PlayerState._archetypeBonus é preenchido em outro lugar
-        _learnedLevelUpBonuses = self.state.learnedLevelUpBonuses or {},
-        equippedItems = self.state.equippedItems or {},
-        archetypeIds = self.state.archetypeIds or {}
-    }
+    -- 1. Pega os stats BASE do PlayerState (que vieram dos defaults + arquétipos INICIAIS)
+    local baseStats = {}
+    local defaultStats = Constants.HUNTER_DEFAULT_STATS
+    for key, _ in pairs(defaultStats) do
+        baseStats[key] = self.state[key] or defaultStats[key]
+    end
 
-    -- Obter _baseWeaponDamage corretamente
+    -- 2. Agrega BÔNUS (Level Up + Arquétipos)
+    local totalFixedBonuses = {}
+    local totalFixedFractionBonuses = {}
+    local totalPercentageBonuses = {}
+
+    -- 2a. Bônus de Level Up (já agregados no PlayerState)
+    for statKey, value in pairs(self.state.fixedBonus or {}) do
+        -- Precisa determinar se o valor em fixedBonus é Fixo ou Fração Fixa
+        -- Vamos assumir uma convenção ou verificar o tipo do stat base?
+        -- Por simplicidade, vamos assumir que fixedBonus para stats que usam fração (critChance, critDamage) já armazena a fração,
+        -- e para os outros, armazena o valor fixo. Precisamos separar.
+        if statKey == "critChance" or statKey == "critDamage" or statKey == "attackSpeed" or statKey == "multiAttackChance" or statKey == "range" or statKey == "attackArea" or statKey == "luck" or statKey == "expBonus" or statKey == "healingBonus" or statKey == "cooldownReduction" then
+            totalFixedFractionBonuses[statKey] = (totalFixedFractionBonuses[statKey] or 0) + value
+        else -- health, defense, moveSpeed, healthRegen, pickupRadius, healthRegenDelay, healthPerTick, runeSlots
+            totalFixedBonuses[statKey] = (totalFixedBonuses[statKey] or 0) + value
+        end
+    end
+    for statKey, value in pairs(self.state.levelBonus or {}) do
+        totalPercentageBonuses[statKey] = (totalPercentageBonuses[statKey] or 0) + value
+    end
+    -- 2b. Bônus de Arquétipos
+    local hunterArchetypeIds = self.state.archetypeIds or {}
+    if self.hunterManager and self.hunterManager.archetypeManager then
+        for _, archIdInfo in ipairs(hunterArchetypeIds) do
+            local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
+            local archetypeData = self.hunterManager.archetypeManager:getArchetypeData(finalArchId)
+            if archetypeData and archetypeData.modifiers then
+                for _, mod in ipairs(archetypeData.modifiers) do
+                    local statName = mod.stat
+                    local modValue = mod.value or 0
+                    if mod.type == "fixed" then
+                        totalFixedBonuses[statName] = (totalFixedBonuses[statName] or 0) + modValue
+                    elseif mod.type == "fixed_percentage_as_fraction" then
+                        totalFixedFractionBonuses[statName] = (totalFixedFractionBonuses[statName] or 0) + modValue
+                    elseif mod.type == "percentage" then
+                        totalPercentageBonuses[statName] = (totalPercentageBonuses[statName] or 0) + modValue
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. Calcula os Stats FINAIS aplicando bônus na NOVA ORDEM
+    local calculatedStats = {} -- Usar tabela temporária para o cálculo
+    for statKey, baseValue in pairs(baseStats) do
+        if statKey ~= "weaponDamage" then
+            local currentValue = baseValue
+
+            -- Aplica Fixed
+            currentValue = currentValue + (totalFixedBonuses[statKey] or 0)
+
+            -- Aplica Fixed Fraction (Aditivo)
+            currentValue = currentValue + (totalFixedFractionBonuses[statKey] or 0)
+
+            -- Aplica Percentage
+            currentValue = currentValue * (1 + (totalPercentageBonuses[statKey] or 0) / 100)
+            calculatedStats[statKey] = currentValue
+        end
+    end
+
+    -- 4. Calcula weaponDamage separadamente
+    local baseWeaponDamage = 0
     local weaponBaseId = nil
     if self.currentHunterId and self.hunterManager and self.state and self.state.equippedItems then
-        -- self.state.equippedItems.weapon contém o ID da INSTÂNCIA da arma equipada (se houver)
-        -- Para obter o itemBaseId, precisamos da instância completa do item.
         local equippedHunterItems = self.hunterManager:getEquippedItems(self.currentHunterId)
         if equippedHunterItems then
-            local weaponInstance = equippedHunterItems[Constants.SLOT_IDS.WEAPON] -- Usar Constants.SLOT_IDS
-            if weaponInstance and weaponInstance.itemBaseId then
-                weaponBaseId = weaponInstance.itemBaseId
-            end
+            local weaponInstance = equippedHunterItems[Constants.SLOT_IDS.WEAPON]
+            if weaponInstance and weaponInstance.itemBaseId then weaponBaseId = weaponInstance.itemBaseId end
         end
     end
-
     if weaponBaseId and self.itemDataManager then
-        local weaponData = self.itemDataManager:getBaseItemData(weaponBaseId) -- Usar getBaseItemData
-        print(string.format("  [PM:getCurrentFinalStats DEBUG] Weapon Base ID: %s, WeaponData exists: %s",
-            tostring(weaponBaseId), tostring(weaponData ~= nil)))
-
-        -- <<< CORREÇÃO: Lógica para ler dano base (prioriza weaponData.damage) >>>
+        local weaponData = self.itemDataManager:getBaseItemData(weaponBaseId)
         if weaponData then
-            local foundDamage = false
-            finalStats._baseWeaponDamage = weaponData.damage
-            foundDamage = true
-            print(string.format(
-                "    [PM:getCurrentFinalStats DEBUG] Found damage directly in weaponData.damage: %.2f", weaponData
-                .damage))
-
-            if not foundDamage then
-                print(
-                    "    [PM:getCurrentFinalStats DEBUG] WARNING: Could not determine base weapon damage from weaponData.")
-            end
+            baseWeaponDamage = weaponData.damage
         end
-        -- <<< FIM CORREÇÃO >>>
     end
+    calculatedStats._baseWeaponDamage = baseWeaponDamage -- Salva para tooltip
 
-    -- Calcular _playerDamageMultiplier corretamente
-    local totalPercentageDamageBonus = 0
-    if self.state and self.state.levelBonus and self.state.levelBonus.damageMultiplier then
-        totalPercentageDamageBonus = totalPercentageDamageBonus + self.state.levelBonus.damageMultiplier
-    end
-    if self.state and self.state.fixedBonus and self.state.fixedBonus.damageMultiplier then
-        -- Assumindo que fixedBonus.damageMultiplier também é um percentual direto (ex: 10 para 10%)
-        totalPercentageDamageBonus = totalPercentageDamageBonus + self.state.fixedBonus.damageMultiplier
-    end
+    -- Calcula o multiplicador de dano final (usando os bônus agregados)
+    local damageMultiplierBase = 1.0
+    local damageMultiplierFixed = totalFixedBonuses["damageMultiplier"] or 0
+    local damageMultiplierFixedFraction = totalFixedFractionBonuses["damageMultiplier"] or 0
+    local damageMultiplierPercentage = totalPercentageBonuses["damageMultiplier"] or 0
+    local finalDamageMultiplier = (damageMultiplierBase + damageMultiplierFixed + damageMultiplierFixedFraction) *
+        (1 + damageMultiplierPercentage / 100)
+    calculatedStats._playerDamageMultiplier = finalDamageMultiplier
+    calculatedStats.weaponDamage = math.floor(baseWeaponDamage * finalDamageMultiplier)
 
-    finalStats._playerDamageMultiplier = 1 + (totalPercentageDamageBonus / 100)
+    -- 5. Adiciona informações restantes para a UI / Tooltips
+    calculatedStats._levelBonus = self.state.levelBonus
+    calculatedStats._fixedBonus = self.state.fixedBonus
+    calculatedStats._learnedLevelUpBonuses = self.state.learnedLevelUpBonuses or {}
+    calculatedStats.equippedItems = self.state.equippedItems or {}
+    calculatedStats.archetypeIds = self.state.archetypeIds or {}
 
-    -- Calcular o dano final da arma
-    finalStats.weaponDamage = math.floor((finalStats._baseWeaponDamage or 0) * (finalStats._playerDamageMultiplier or 1))
+    -- 6. Aplica clamps finais
+    calculatedStats.runeSlots = math.max(0, math.floor(calculatedStats.runeSlots or 0))
+    calculatedStats.luck = math.max(0, calculatedStats.luck or 0)
+    -- <<< FIM: Lógica de cálculo >>>
 
-    print(string.format(
-        "  [PM:getCurrentFinalStats DEBUG] BaseWeaponDmg: %.2f, TotalPercBonus: %.2f, PlayerDmgMultiplier: %.2f, Final WeaponDmg: %.2f",
-        finalStats._baseWeaponDamage or 0,
-        totalPercentageDamageBonus or 0,
-        finalStats._playerDamageMultiplier or 0,
-        finalStats.weaponDamage or 0
-    ))
+    -- Armazena no cache e marca como atualizado
+    self.finalStatsCache = calculatedStats
+    self.statsNeedRecalculation = false
 
-    return finalStats
+    return self.finalStatsCache
+end
+
+--- ADICIONADO: Invalida o cache de stats, forçando recálculo na próxima chamada de getCurrentFinalStats.
+function PlayerManager:invalidateStatsCache()
+    print("[PlayerManager] Invalidating stats cache.")
+    self.statsNeedRecalculation = true
 end
 
 --- Retorna o ID do caçador atualmente configurado para o gameplay.
@@ -854,25 +925,21 @@ function PlayerManager:setActiveWeapon(weaponInstance)
                     print(string.format(
                         "    -> Calling :equip on weapon CLASS instance (AttackInstance Type BEFORE: %s)",
                         type(self.equippedWeapon.attackInstance)))
-                    self.equippedWeapon:equip(self, weaponInstance) -- Passa os DADOS (weaponInstance)
-                    print(string.format("    -> :equip called. Attack instance type AFTER: %s",
-                        type(self.equippedWeapon.attackInstance)))
+                    self.equippedWeapon:equip(self, weaponInstance)
                 else
                     error(string.format("    - ERRO CRÍTICO: O método :equip não foi encontrado na classe da arma '%s'!",
                         weaponClassPath))
-                    self.equippedWeapon = nil -- Desequipa se :equip falhar
                 end
             else
                 error(string.format("    - ERRO: Falha ao criar a instância da CLASSE da arma '%s' usando :new().",
                     weaponClassPath))
-                self.equippedWeapon = nil
             end
         else
             error(string.format("    - ERRO CRÍTICO: Não foi possível carregar a classe da arma: %s. Detalhe: %s",
                 weaponClassPath, tostring(WeaponClass)))
-            self.equippedWeapon = nil
         end
     end
+    self:invalidateStatsCache()
 end
 
 return PlayerManager

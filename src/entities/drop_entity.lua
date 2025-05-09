@@ -5,6 +5,7 @@
 
 local runeAnimation = require("src.animations.rune_animation")
 
+---@class DropEntity
 local DropEntity = {
     position = {
         x = 0,
@@ -29,6 +30,13 @@ local DropEntity = {
     animation = nil
 }
 
+---@param position table Posição inicial do drop
+---@param config table Configuração do drop
+---@param beamColor table Cor do feixe
+---@param beamHeight number Altura do feixe
+---@param glowScale number Escala do efeito de brilho
+---@param beamCount number Número de feixes
+---@return DropEntity
 function DropEntity:new(position, config, beamColor, beamHeight, glowScale, beamCount)
     local drop = setmetatable({}, { __index = self })
     drop.initialPosition = { x = position.x, y = position.y }
@@ -50,6 +58,9 @@ function DropEntity:new(position, config, beamColor, beamHeight, glowScale, beam
     return drop
 end
 
+---@param dt number Delta time
+---@param playerManager PlayerManager Instância do PlayerManager
+---@return boolean True se a coleta foi concluída, false caso contrário
 function DropEntity:update(dt, playerManager)
     if self.collected then return true end
 
@@ -63,7 +74,8 @@ function DropEntity:update(dt, playerManager)
     local dy = playerManager.player.position.y - self.position.y
     local distance = math.sqrt(dx * dx + dy * dy)
 
-    if distance <= playerManager.collectionRadius then
+    local currentFinalStats = playerManager:getCurrentFinalStats()
+    if distance <= currentFinalStats.pickupRadius then
         self.collectionProgress = self.collectionProgress + dt * self.collectionSpeed
 
         local t = math.min(self.collectionProgress, 1)
@@ -83,9 +95,10 @@ function DropEntity:update(dt, playerManager)
     return false
 end
 
---[[--------------------------------------------------------------------------
-  Função auxiliar para desenhar a onda de choque na base do drop (Isométrica)
-----------------------------------------------------------------------------]]
+---@param color table Cor do efeito
+---@param glowTimer number Tempo de efeito
+---@param baseRadius number Raio base
+---@param glowScale number Escala do efeito
 function DropEntity:_drawShockwave(color, glowTimer, baseRadius, glowScale)
     local shockwaveDuration = 1.5   -- Duração da animação da onda (segundos)
     local progress = math.fmod(glowTimer, shockwaveDuration) / shockwaveDuration
@@ -108,9 +121,6 @@ function DropEntity:_drawShockwave(color, glowTimer, baseRadius, glowScale)
     end
 end
 
---[[--------------------------------------------------------------------------
-  Função auxiliar para desenhar o efeito durante a coleta (Esfera + Rastro)
-----------------------------------------------------------------------------]]
 function DropEntity:_drawCollectionEffect()
     local x, y = self.position.x, self.position.y
     local initialX, initialY = self.initialPosition.x, self.initialPosition.y
@@ -140,9 +150,6 @@ function DropEntity:_drawCollectionEffect()
     love.graphics.circle("fill", x, y, sphereRadius * 0.6)
 end
 
---[[--------------------------------------------------------------------------
-  Função de desenho principal - Refatorada para novos efeitos de feixe
-----------------------------------------------------------------------------]]
 function DropEntity:draw()
     if self.collected then return end
 

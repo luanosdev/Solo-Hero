@@ -1,5 +1,6 @@
 local FloatingText = require("src.entities.floating_text")
 
+---@class FloatingTextManager
 local FloatingTextManager = {
     texts = {}
 }

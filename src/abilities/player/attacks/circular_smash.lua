@@ -1,8 +1,8 @@
---[[----------------------------------------------------------------------------
-    Circular Smash Ability
-    Um ataque que causa dano em uma área circular ao redor de um ponto de impacto.
-    Refatorado para receber weaponInstance e buscar stats dinamicamente.
-----------------------------------------------------------------------------]] --
+---------------------------------------------------------------------------
+--- Circular Smash Ability
+--- Um ataque que causa dano em uma área circular ao redor de um ponto de impacto.
+--- Refatorado para receber weaponInstance e buscar stats dinamicamente.
+----------------------------------------------------------------------------
 
 local CircularSmash = {}
 CircularSmash.__index = CircularSmash -- Para permitir :new
@@ -49,17 +49,24 @@ function CircularSmash:new(playerManager, weaponInstance)
     o.visual.attack.color = weaponInstance.attackColor or o.visual.attack.color
     print("  - Preview/Attack colors set.")
 
-    -- Área de efeito será calculada dinamicamente no update/cast
-    o.area = {
-        position = { x = 0, y = 0 }, -- Posição do jogador
-        angle = 0,                   -- Ângulo da mira
-        radius = 0,                  -- Raio base do ataque (será atualizado)
-    }
-    if o.playerManager.player then
-        o.area.position = o.playerManager.player.position -- Pega posição inicial
-    end
+    -- As áreas de efeito são calculadas dinamicamente.
+    -- Estes são os raios *base* definidos pela arma/habilidade.
+    -- Os bônus do jogador (range, attackArea) os modificarão.
+    local baseData = o.weaponInstance:getBaseData()
+    o.baseAreaEffectRadius = baseData and baseData.baseAreaEffectRadius
 
-    print("[CircularSmash:new] Instance created successfully.")
+    -- Estes serão os raios FINAIS calculados em update
+    o.finalImpactDistance = o.baseAreaEffectRadius
+    o.finalExplosionRadius = o.baseAreaEffectRadius
+
+    if o.playerManager.player then
+        o.currentPosition = o.playerManager.player.position -- Pega posição inicial para referência
+    else
+        o.currentPosition = { x = 0, y = 0 }
+    end
+    o.currentAngle = 0
+
+    print("[CircularSmash:new] Instance created successfully. BaseAreaEffectRadius: " .. o.baseAreaEffectRadius)
     return o
 end
 
@@ -72,22 +79,21 @@ function CircularSmash:update(dt, angle)
         self.cooldownRemaining = self.cooldownRemaining - dt
     end
 
-    -- Atualiza posição e ângulo base para seguir o jogador e a mira
-    if self.area and self.playerManager.player then
-        self.area.position = self.playerManager.player.position
-        self.area.angle = angle
+    local finalStats = self.playerManager:getCurrentFinalStats()
 
-        -- CALCULA RAIO BASE AQUI (afetado por bônus de Range, não Area)
-        local baseData = self.weaponInstance:getBaseData()
-        local weaponBaseRange = (baseData and baseData.range) or 50        -- Range da arma define o raio base
-        local rangeBonusPercent = self.playerManager.state:getTotalRange() -- Bônus de range aumenta o raio
-        local newRadius = weaponBaseRange * (1 + rangeBonusPercent)
-
-        if newRadius ~= self.area.radius then
-            self.area.radius = newRadius
-            print(string.format("  [CircularSmash UPDATE] Base Radius Recalculated: %.1f", self.area.radius))
-        end
+    if self.playerManager.player then
+        self.currentPosition = self.playerManager.player.position
     end
+    self.currentAngle = angle
+
+    -- Calcula finalImpactDistance (afetado por finalStats.range)
+    -- finalStats.range é um multiplicador (ex: 1.0 = base, 1.1 = +10%)
+    local finalAttackAreaMultiplier = finalStats.attackArea or 1.0
+    self.finalImpactDistance = self.baseAreaEffectRadius * finalAttackAreaMultiplier
+
+    -- Calcula finalExplosionRadius (afetado por finalStats.attackArea)
+    -- finalStats.attackArea é um multiplicador (ex: 1.0 = base, 1.1 = +10%)
+    self.finalExplosionRadius = self.baseAreaEffectRadius * finalAttackAreaMultiplier
 
     -- Atualiza animação do ataque
     if self.isAttacking then
@@ -106,89 +112,94 @@ end
 ---@return boolean True se o ataque foi iniciado, False se estava em cooldown.
 function CircularSmash:cast(args)
     args = args or {}
-    local angle = args.angle -- Espera receber o ângulo da mira
+    local angle = args.angle
 
     if not angle then
-        print("[CircularSmash:cast] WARN: Angle not provided in args, using 0.")
-        angle = 0
+        print("[CircularSmash:cast] WARN: Angle not provided in args, using current angle.")
+        angle = self.currentAngle
     end
 
     if self.cooldownRemaining > 0 then
-        return false -- Em cooldown
+        return false
     end
     print("[CircularSmash:cast] Casting attack.")
 
-    -- Calcula a posição do impacto (usando o raio BASE calculado em update)
-    -- O raio da arma define a *distância* do impacto, não só o raio da explosão.
-    local impactDist = self.area.radius
-    self.targetPos.x = self.area.position.x + math.cos(angle) * impactDist
-    self.targetPos.y = self.area.position.y + math.sin(angle) * impactDist
-    print(string.format("  - Impact target set at (%.1f, %.1f), dist: %.1f", self.targetPos.x, self.targetPos.y,
-        impactDist))
+    local finalStats = self.playerManager:getCurrentFinalStats()
+
+    -- Calcula a posição do impacto usando a distância de impacto FINAL
+    self.targetPos.x = self.currentPosition.x + math.cos(angle) * self.finalImpactDistance
+    self.targetPos.y = self.currentPosition.y + math.sin(angle) * self.finalImpactDistance
+    print(string.format("  - Impact target at (%.1f, %.1f), dist: %.1f, explosion_radius: %.1f", self.targetPos.x,
+        self.targetPos.y,
+        self.finalImpactDistance, self.finalExplosionRadius))
 
     -- Inicia a animação
     self.isAttacking = true
     self.attackProgress = 0
 
-    -- Aplica cooldown
-    local totalAttackSpeed = self.playerManager.state:getTotalAttackSpeed()
+    -- Aplica cooldown usando finalStats.attackSpeed
+    -- attackSpeed é um multiplicador (ex: 1.0 = base, 1.2 = 20% mais rápido)
     local baseData = self.weaponInstance:getBaseData()
-    local baseCooldown = (baseData and baseData.cooldown) or 1.0 -- Padrão 1s
-    if totalAttackSpeed <= 0 then totalAttackSpeed = 1 end
-    self.cooldownRemaining = baseCooldown / totalAttackSpeed
-    print(string.format("  - Cooldown set to %.2fs (Base: %.2f / TotalAS: %.2f)", self.cooldownRemaining, baseCooldown,
-        totalAttackSpeed))
+    local baseCooldown = baseData and baseData.cooldown
+    local finalAttackSpeedMultiplier = finalStats.attackSpeed
+    if not finalAttackSpeedMultiplier or finalAttackSpeedMultiplier <= 0 then finalAttackSpeedMultiplier = 0.01 end
 
-    -- Calcula ataques extras
-    local multiAttackChance = self.playerManager.state:getTotalMultiAttackChance()
-    local extraAttacks = math.floor(multiAttackChance)
-    local decimalChance = multiAttackChance - extraAttacks
-    print(string.format("  - Multi-Attack Chance: %.2f (Extra: %d + %.2f%%)", multiAttackChance, extraAttacks,
-        decimalChance * 100))
+    self.cooldownRemaining = baseCooldown / finalAttackSpeedMultiplier
 
-    -- Raio inicial para este cast é o raio base
-    local currentRadiusMultiplier = 1.0
-    self.currentAttackRadius = self.area.radius * currentRadiusMultiplier -- Raio para o primeiro golpe
+    -- Calcula ataques extras usando finalStats.multiAttackChance
+    -- multiAttackChance é uma fração (ex: 0.0 para 0%, 0.5 para 50%, 1.0 para 1 golpe extra garantido)
+    local finalMultiAttackChance = finalStats.multiAttackChance
+    if finalMultiAttackChance == nil then finalMultiAttackChance = 0 end
+    local extraAttacks = math.floor(finalMultiAttackChance)
+    local decimalChance = finalMultiAttackChance - extraAttacks
 
-    -- Executa o ataque principal
-    local success = self:executeAttack()
+    -- Multiplicador de range do jogador para os ataques extras
+    local playerRangeMultiplierForExtraHits = finalStats.range or 1.0
 
-    -- Ataques extras aumentam o raio para os golpes subsequentes DESTE cast
+    -- Ataque principal usa o raio de explosão final sem o multiplicador progressivo ou de range para extras
+    self.currentAttackRadius = self.finalExplosionRadius
+    local success = self:executeAttack(finalStats)
+
+    -- Multiplicador progressivo para o raio dos ataques extras
+    local progressiveMultiplierForExtraRadius = 1.0
+
     for i = 1, extraAttacks do
         if success then
-            currentRadiusMultiplier = currentRadiusMultiplier +
-            0.20                                                     -- Aumenta raio em 20% por golpe extra (ajustável)
-            self.currentAttackRadius = self.area.radius *
-                currentRadiusMultiplier                              -- Atualiza raio para o próximo executeAttack
-            print(string.format("    - Executing extra attack #%d with radius %.1f (Multiplier: %.2f)", i,
-                self.currentAttackRadius, currentRadiusMultiplier))
-            success = self:executeAttack() -- Ataque extra ainda centrado no mesmo targetPos
+            progressiveMultiplierForExtraRadius = progressiveMultiplierForExtraRadius + 0.20
+            -- Aplica o range do jogador AO MULTIPLICADOR PROGRESSIVO
+            local combinedMultiplier = progressiveMultiplierForExtraRadius * playerRangeMultiplierForExtraHits
+            self.currentAttackRadius = self.finalExplosionRadius * combinedMultiplier
+            print(string.format("    - Extra attack #%d, radius %.1f (ProgMult: %.2f, RangeMult: %.2f)", i,
+                self.currentAttackRadius, progressiveMultiplierForExtraRadius, playerRangeMultiplierForExtraHits))
+            success = self:executeAttack(finalStats)
         else
             break
         end
     end
 
     if success and decimalChance > 0 and math.random() < decimalChance then
-        currentRadiusMultiplier = currentRadiusMultiplier + 0.20
-        self.currentAttackRadius = self.area.radius * currentRadiusMultiplier
-        print(string.format("    - Executing decimal chance extra attack with radius %.1f (Multiplier: %.2f)",
-            self.currentAttackRadius, currentRadiusMultiplier))
-        self:executeAttack()
+        progressiveMultiplierForExtraRadius = progressiveMultiplierForExtraRadius + 0.20
+        local combinedMultiplier = progressiveMultiplierForExtraRadius * playerRangeMultiplierForExtraHits
+        self.currentAttackRadius = self.finalExplosionRadius * combinedMultiplier
+        print(string.format("    - Decimal chance extra attack, radius %.1f (ProgMult: %.2f, RangeMult: %.2f)",
+            self.currentAttackRadius, progressiveMultiplierForExtraRadius, playerRangeMultiplierForExtraHits))
+        self:executeAttack(finalStats)
     end
 
-    -- O raio base (self.area.radius) não é modificado permanentemente aqui.
-    -- self.currentAttackRadius será resetado em update quando isAttacking se tornar false.
-
-    return true -- Cast iniciado
+    return true
 end
 
 --- Executa um único pulso de ataque circular.
 --- Usa self.currentAttackRadius para determinar a área deste pulso.
+---@param finalStats table A tabela de stats finais do jogador.
 ---@return boolean Sempre retorna true.
-function CircularSmash:executeAttack()
+function CircularSmash:executeAttack(finalStats)
     local enemies = self.playerManager.enemyManager:getEnemies()
     local enemiesHitCount = 0
     local attackRadiusSq = self.currentAttackRadius * self.currentAttackRadius -- Usa o raio do golpe atual
+    local finalCritChance = finalStats.critChance
+    if finalCritChance == nil then finalCritChance = 0 end
+    local isCritical = math.random() <= finalCritChance
 
     -- print(string.format("    [executeAttack] Checking enemies in radius %.1f at (%.1f, %.1f)", math.sqrt(attackRadiusSq), self.targetPos.x, self.targetPos.y))
 
@@ -197,7 +208,7 @@ function CircularSmash:executeAttack()
             -- Verifica se o inimigo está dentro do raio do golpe atual
             if self:isPointInArea(enemy.position, self.targetPos, attackRadiusSq) then
                 enemiesHitCount = enemiesHitCount + 1
-                self:applyDamage(enemy)
+                self:applyDamage(enemy, isCritical, finalStats)
             end
         end
     end
@@ -223,37 +234,34 @@ end
 
 --- Aplica dano a um alvo.
 ---@param target BaseEnemy Instância do inimigo a ser atingido.
+---@param isCritical boolean Se o ataque foi critico
+---@param finalStats table A tabela de stats finais do jogador.
 ---@return boolean Resultado de target:takeDamage.
-function CircularSmash:applyDamage(target)
-    -- Busca o dano base da arma
-    local baseData = self.weaponInstance:getBaseData()
-    local weaponBaseDamage = (baseData and baseData.damage) or 0
+function CircularSmash:applyDamage(target, isCritical, finalStats)
+    -- Usa o dano final da arma já calculado em finalStats
+    local totalDamage = finalStats.weaponDamage or 0
 
-    -- Calcula o dano total
-    local totalDamage = self.playerManager.state:getTotalDamage(weaponBaseDamage)
-
-    -- Calcula crítico
-    local isCritical = math.random() <= self.playerManager.state:getTotalCritChance()
+    -- Calcula crítico usando finalStats
+    local finalCritDamageMultiplier = finalStats.critDamage
+    if finalCritDamageMultiplier == nil then finalCritDamageMultiplier = 1.0 end
     if isCritical then
-        totalDamage = math.floor(totalDamage * self.playerManager.state:getTotalCritDamage())
+        totalDamage = math.floor(totalDamage * finalCritDamageMultiplier)
     end
 
-    -- Aplica o dano
     return target:takeDamage(totalDamage, isCritical)
 end
 
 --- Desenha os elementos visuais da habilidade.
 function CircularSmash:draw()
-    if not self.area then return end
+    if not self.currentPosition then return end
 
     -- Desenha preview (círculo no ponto de impacto futuro)
     if self.visual.preview.active then
-        -- Calcula onde o centro do preview estaria usando o raio BASE
-        local previewImpactDist = self.area.radius
-        local previewCenterX = self.area.position.x + math.cos(self.area.angle) * previewImpactDist
-        local previewCenterY = self.area.position.y + math.sin(self.area.angle) * previewImpactDist
-        -- Desenha o círculo de preview com o raio BASE
-        self:drawPreviewCircleAt(self.visual.preview.color, previewCenterX, previewCenterY, self.area.radius)
+        -- Calcula onde o centro do preview estaria usando o raio FINAL
+        local previewImpactX = self.currentPosition.x + math.cos(self.currentAngle) * self.finalImpactDistance
+        local previewImpactY = self.currentPosition.y + math.sin(self.currentAngle) * self.finalImpactDistance
+        -- Desenha o círculo de preview com o raio FINAL
+        self:drawPreviewCircleAt(self.visual.preview.color, previewImpactX, previewImpactY, self.finalExplosionRadius)
     end
 
     -- Desenha animação do ataque (onda de choque no ponto de impacto)

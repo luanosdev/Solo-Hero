@@ -1,5 +1,4 @@
 local BaseWeapon = require("src.items.weapons.base_weapon")
-local ArrowProjectile = require("src.abilities.player.attacks.arrow_projectile") -- Vamos criar este arquivo a seguir
 
 ---@class Bow : BaseWeapon
 local Bow = setmetatable({}, { __index = BaseWeapon })

@@ -5,6 +5,7 @@
 
 local Constants = require("src.config.constants") -- Usado para valores padrão se necessário
 
+---@class PlayerState
 local PlayerState = {
     currentHealth = 0,
     maxHealth = 0,
@@ -96,10 +97,8 @@ local PlayerState = {
 
 PlayerState.__index = PlayerState
 
---[[
-    Initialize player state
-    @param baseStats Table containing base stats
-]]
+--- Initialize player state
+---@param baseStats table Containing base stats
 function PlayerState:init(baseStats)
     -- Inicializa atributos base usando baseStats ou os padrões da classe
     self.health = baseStats.health or PlayerState.health
@@ -138,7 +137,7 @@ function PlayerState:init(baseStats)
     self.gold = 0
 
     -- Inicializa vida atual e máxima
-    self.maxHealth = self:getTotalHealth()
+    self.maxHealth = self.health
     self.currentHealth = self.maxHealth
     self.isAlive = true
 
@@ -146,154 +145,75 @@ function PlayerState:init(baseStats)
     print(string.format("  [DEBUG] PlayerState:new - Final health: %.1f/%.1f", self.currentHealth, self.maxHealth))
 end
 
---[[
-    Get total health (base + bonus)
-    @return number Total health
-]]
-function PlayerState:getTotalHealth()
-    -- Base * (1 + %LevelBonus) + FixedBonus (Aditivo)
-    return (self.health * (1 + self.levelBonus.health / 100)) + self.fixedBonus.health
-end
 
---[[
-    Get total damage multiplier from player stats.
-    Este método NÃO inclui o dano base da arma. Ele retorna o multiplicador total
-    que deve ser aplicado ao dano base da arma.
-    @return number Total damage multiplier (ex: 1.3 para +30%)
-]]
-function PlayerState:getTotalDamageMultiplier()
-    -- 1 (base) + %LevelBonus + FixedBonus%
-    return 1 + (self.levelBonus.damageMultiplier / 100) + self.fixedBonus.damageMultiplier
-end
+--- Construtor: Cria e inicializa uma nova instância de PlayerState.
+---@param initialStats table Tabela contendo os atributos base (geralmente de HunterManager).
+---@return table A nova instância de PlayerState.
+function PlayerState:new(initialStats)
+    local state = setmetatable({}, PlayerState)
 
---[[
-    Calcula o dano final, aplicando o multiplicador total do jogador ao dano base fornecido.
-    @param baseDamage number Dano base (geralmente da arma).
-    @return number Dano total calculado.
-]]
-function PlayerState:getTotalDamage(baseDamage)
-    if type(baseDamage) ~= "number" then
-        print(string.format("[PlayerState:getTotalDamage] Aviso: baseDamage inválido (%.2f), usando 0.", baseDamage or -1))
-        baseDamage = 0
+    -- 1. Copia valores padrão da CLASSE (incluindo tabelas de bônus vazias)
+    for key, value in pairs(PlayerState) do
+        if type(value) ~= 'function' and key ~= '__index' then
+            if type(value) == 'table' then
+                state[key] = {} -- Cria CÓPIA RASA
+                for k, v in pairs(value) do state[key][k] = v end
+            else
+                state[key] = value
+            end
+        end
     end
-    local multiplier = self:getTotalDamageMultiplier()
-    return math.floor(baseDamage * multiplier)
+
+    -- Garante que tabelas de bônus comecem vazias
+    state.levelBonus = {}
+    state.fixedBonus = {}
+    state.learnedLevelUpBonuses = {}
+    state._archetypeBonus = {} -- Limpa também (se usado)
+    state.equippedItems = {}   -- Limpa também
+    state.archetypeIds = {}    -- Limpa também
+
+    -- 2. Sobrescreve com initialStats (que contém stats base JÁ CALCULADOS com arquétipos iniciais)
+    if initialStats and next(initialStats) then
+        for key, value in pairs(initialStats) do
+            -- Apenas atualiza atributos base e listas conhecidas
+            if state[key] ~= nil and type(state[key]) == type(value) then
+                state[key] = value
+                -- Não copiar tabelas internas como _levelBonus, _fixedBonus de initialStats, pois elas são do Manager
+                -- Copia apenas IDs de arquétipos e itens equipados (se vierem)
+            elseif key == "archetypeIds" then
+                state.archetypeIds = value
+            elseif key == "equippedItems" then
+                state.equippedItems = value -- Deveria conter IDs de instância
+            end
+        end
+    end
+
+    -- 3. Define estado inicial de gameplay
+    state.level = 1 -- Começa sempre no nível 1 no gameplay
+    state.experience = 0
+    state.experienceToNextLevel = Constants and Constants.INITIAL_XP_TO_LEVEL or 100
+    state.kills = 0
+    state.gold = 0
+    state.isAlive = true
+    -- Calcula a vida inicial baseada nos stats que vieram (que já incluem bônus base + arquétipo)
+    state.maxHealth = state.health -- 'maxHealth' agora é apenas o BASE (+ arq inicial)
+    state.currentHealth = state.health
+    state.statusModifiers = {}
+
+    print(string.format("  [PlayerState:new] Estado inicializado. HP Base(com arq): %.1f", state.health))
+
+    return state
 end
 
---[[
-    Get total defense (base + bonus)
-    @return number Total defense
-]]
-function PlayerState:getTotalDefense()
-    -- Base * (1 + %LevelBonus) + FixedBonus (Aditivo)
-    return math.floor((self.defense * (1 + self.levelBonus.defense / 100)) + self.fixedBonus.defense)
-end
+--- Take damage
+---@param damage number Quantidade de dano bruto a ser aplicado.
+---@param finalDamageReduction number The calculated final damage reduction.
+---@return number O dano real sofrido após a redução.
+function PlayerState:takeDamage(damage, finalDamageReduction)
+    if not self.isAlive then return 0 end
 
---[[
-    Get damage reduction percentage
-    @return number Damage reduction percentage (0 to 0.8)
-]]
-function PlayerState:getDamageReduction()
-    local defense = self:getTotalDefense()
-    local K = Constants and Constants.DEFENSE_DAMAGE_REDUCTION_K or
-        100                                                                         -- Valor padrão se constante não existir
-    local reduction = defense / (defense + K)
-    return math.min(Constants and Constants.MAX_DAMAGE_REDUCTION or 0.8, reduction) -- Limita a redução
-end
-
---[[
-    Get total move speed (base + bonus)
-    @return number Total move speed
-]]
-function PlayerState:getTotalMoveSpeed()
-    -- Base * (1 + %LevelBonus) + FixedBonus (Aditivo)
-    return (self.moveSpeed * (1 + self.levelBonus.moveSpeed / 100)) + self.fixedBonus.moveSpeed
-end
-
---[[
-    Get total attack speed (base + bonus)
-    @return number Total attack speed multiplier (ex: 1.2 = 20% mais rápido)
-]]
-function PlayerState:getTotalAttackSpeed()
-    -- BaseMultiplier * (1 + %LevelBonus + FixedBonus%)
-    -- Nota: O base self.attackSpeed já é um multiplicador (1.0 = 100%)
-    return self.attackSpeed * (1 + self.levelBonus.attackSpeed / 100 + self.fixedBonus.attackSpeed)
-end
-
---[[
-    Get total critical chance (base + bonus)
-    @return number Total critical chance (fraction, e.g., 0.15 for 15%)
-]]
-function PlayerState:getTotalCritChance()
-    -- (Base * (1 + %LevelBonus)) + FixedBonus%
-    -- Nota: Base e FixedBonus são frações (0.1 = 10%)
-    return (self.critChance * (1 + self.levelBonus.critChance / 100)) + self.fixedBonus.critChance
-end
-
---[[
-    Get total critical multiplier (base + bonus)
-    @return number Total critical multiplier (e.g., 1.75 for +75% crit damage)
-]]
-function PlayerState:getTotalCritDamage() -- RENOMEADO DE getTotalCritDamage
-    -- BaseMultiplier + (%LevelBonus / 100) + FixedBonus%
-    -- Nota: Base e FixedBonus são multiplicadores/percentuais (1.5 = +50%, 0.25 = +25%)
-    return self.critDamage + (self.levelBonus.critDamage / 100) + self.fixedBonus.critDamage
-end
-
---[[
-    Get total health regeneration (base + bonus)
-    @return number Quantidade de HP recuperado por segundo
-]]
-function PlayerState:getTotalHealthRegen()
-    -- Base * (1 + %LevelBonus) + FixedBonus (Aditivo)
-    return (self.healthRegen * (1 + self.levelBonus.healthRegen / 100)) + self.fixedBonus.healthRegen
-end
-
---[[
-    Get total multi attack chance (base + bonus)
-    @return number Total multi attack chance (fraction, e.g., 0.2 for 20%)
-]]
-function PlayerState:getTotalMultiAttackChance()
-    -- (Base * (1 + %LevelBonus)) + FixedBonus%
-    -- Nota: Base e FixedBonus são frações (0.1 = 10%)
-    return (self.multiAttackChance * (1 + self.levelBonus.multiAttackChance / 100)) + self.fixedBonus.multiAttackChance
-end
-
---[[
-    Get total range bonus percentage (as fraction).
-    Retorna o bônus total que deve ser adicionado ao range base da arma/habilidade.
-    Ex: Retorna 0.3 para um bônus total de +30%.
-    @return number Total range bonus percentage (fraction).
-]]
-function PlayerState:getTotalRange()
-    -- %Base + %LevelBonus + FixedBonus%
-    return self.range + (self.levelBonus.range / 100) + self.fixedBonus.range
-end
-
---[[
-    Get total attack area bonus percentage (as fraction).
-    Retorna o bônus total que deve ser adicionado à área base da arma/habilidade.
-    Ex: Retorna 0.15 para um bônus total de +15%.
-    @return number Total attack area bonus percentage (fraction).
-]]
-function PlayerState:getTotalArea() -- Mantendo nome por compatibilidade com AlternatingConeStrike
-    -- %Base + %LevelBonus + FixedBonus%
-    return self.attackArea + (self.levelBonus.attackArea / 100) + self.fixedBonus.attackArea
-end
-
---[[
-    Take damage
-    Calcula o dano real sofrido após a redução pela defesa e atualiza a vida.
-    Marca o jogador como não-vivo se a vida chegar a zero ou menos.
-    @param damage (number): Quantidade de dano bruto a ser aplicado.
-    @return number: O dano real sofrido após a redução.
-]]
-function PlayerState:takeDamage(damage)
-    if not self.isAlive then return 0 end -- Retorna 0 dano se já estiver morto
-
-    -- Calcula a redução de dano
-    local reduction = self:getDamageReduction()
-    local actualDamage = math.max(1, math.floor(damage * (1 - reduction)))
+    -- Calcula o dano real usando a redução fornecida
+    local actualDamage = math.max(1, math.floor(damage * (1 - finalDamageReduction)))
 
     self.currentHealth = math.max(0, self.currentHealth - actualDamage)
 
@@ -301,43 +221,31 @@ function PlayerState:takeDamage(damage)
         self.isAlive = false
     end
 
-    return actualDamage -- Retorna o dano real sofrido
+    return actualDamage
 end
 
 --- Heal player
----@param amount number Amount of health to restore
+---@param amount number Amount of health to restore (before healing bonuses)
+---@param finalMaxHealth number The calculated maximum health of the player.
+---@param finalHealingBonusMultiplier number The calculated final healing bonus multiplier.
 ---@return number Amount of health actually restored
-function PlayerState:heal(amount)
+function PlayerState:heal(amount, finalMaxHealth, finalHealingBonusMultiplier)
     if not self.isAlive then return 0 end
 
-    -- MultiplicadorBase * (1 + %LevelBonus + FixedBonus%)
-    local effectiveMultiplier = self.healingBonus *
-        (1 + self.levelBonus.healingBonus / 100 + self.fixedBonus.healingBonus)
-    local effectiveAmount = amount * effectiveMultiplier
+    -- Aplica bônus de cura
+    local effectiveAmount = amount * finalHealingBonusMultiplier
     local oldHealth = self.currentHealth
-    self.currentHealth = math.min(self.currentHealth + effectiveAmount, self:getTotalHealth())
+    -- Limita a cura pela vida máxima final
+    self.currentHealth = math.min(self.currentHealth + effectiveAmount, finalMaxHealth)
 
-    return self.currentHealth - oldHealth -- Retorna quanto curou de fato
+    return self.currentHealth - oldHealth
 end
 
---[[
-    Get current health percentage
-    @return number Health percentage (0 to 1)
-]]
-function PlayerState:getHealthPercentage()
-    local totalHealth = self:getTotalHealth()
-    if totalHealth <= 0 then return 0 end -- Evita divisão por zero
-    return self.currentHealth / totalHealth
-end
-
---[[
-    Add bonus to an attribute
-    @param attribute Name of the attribute to add bonus
-    @param percentage Percentage of bonus to add (for level bonus)
-    @param fixed Fixed value to add (for fixed bonus)
-]]
+--- Add bonus to an attribute
+---@param attribute string Name of the attribute to add bonus
+---@param percentage number Percentage of bonus to add (for level bonus)
+---@param fixed number Fixed value to add (for fixed bonus)
 function PlayerState:addAttributeBonus(attribute, percentage, fixed)
-    -- print(string.format("[PlayerState:addAttributeBonus DEBUG] Called with: attribute=%s, percentage=%s, fixed=%s", tostring(attribute), tostring(percentage), tostring(fixed))) -- COMENTADO
     percentage = percentage or 0
     fixed = fixed or 0
 
@@ -345,233 +253,48 @@ function PlayerState:addAttributeBonus(attribute, percentage, fixed)
 
     -- Verifica se é bônus de Nível (geralmente percentual)
     if self.levelBonus[attribute] ~= nil then
-        local oldBonus = self.levelBonus[attribute]
-        -- Assumindo que levelBonus sempre recebe o valor percentual
         self.levelBonus[attribute] = self.levelBonus[attribute] + percentage
-        -- print(string.format(
-        --     "[PlayerState] Bônus de Level %s adicionado: +%.1f%% (Antigo: %.1f%%, Novo: %.1f%%)",
-        --     attribute, percentage, oldBonus, self.levelBonus[attribute]))
         bonusApplied = true
     end
 
-    -- Verifica se é bônus Fixo (pode ser aditivo ou percentual fixo)
-    -- Usamos 'fixed' como o valor a ser adicionado ao bônus fixo existente.
+    -- Verifica se é bônus Fixo
     if self.fixedBonus[attribute] ~= nil then
-        local oldValue = self.fixedBonus[attribute]
         self.fixedBonus[attribute] = self.fixedBonus[attribute] + fixed
-        -- print(string.format(
-        --     "[PlayerState] Bônus Fixo %s adicionado: +%.2f (Antigo: %.2f, Novo: %.2f)",
-        --     attribute, fixed, oldValue, self.fixedBonus[attribute]))
         bonusApplied = true
     end
 
     if not bonusApplied then
-        -- print(string.format("[PlayerState] ERRO: Atributo '%s' não encontrado para adicionar bônus.", attribute))
-        return
+        error(string.format("[PlayerState] ERRO: Atributo '%s' não encontrado para adicionar bônus.", attribute))
     end
-
-    -- Atualiza valores derivados APENAS se for health
-    if attribute == "health" then
-        local oldMaxHealth = self.maxHealth
-        self.maxHealth = self:getTotalHealth()
-        -- Cura o valor aumentado da vida máxima
-        local healthIncrease = self.maxHealth - oldMaxHealth
-        if healthIncrease > 0 then
-            self:heal(healthIncrease) -- Usa o heal para aplicar bônus de cura
-        end
-        -- print(string.format("[PlayerState] Vida Máxima atualizada: %.1f -> %.1f. Vida Atual: %.1f", oldMaxHealth,
-        --     self.maxHealth, self.currentHealth))
-    end
-
-    -- Adiciona logs para outros atributos se necessário (getTotal... já calcula o valor final)
-    -- Ex: if attribute == "moveSpeed" then print(...) end
 end
 
---[[
-    Adiciona experiência ao jogador e verifica se houve level up.
-    @param amount Quantidade de experiência a adicionar.
-    @return boolean True se o jogador subiu de nível, false caso contrário.
-]]
-function PlayerState:addExperience(amount)
+--- Adiciona experiência ao jogador e verifica se houve level up.
+--- NÃO realiza mais a cura ao subir de nível.
+---@param amount number Quantidade de experiência a adicionar.
+---@param finalExpBonus number O multiplicador final de experiência.
+---@return boolean True se o jogador subiu de nível, false caso contrário.
+function PlayerState:addExperience(amount, finalExpBonus)
     if not self.isAlive then return false end
-    -- MultiplicadorBase * (1 + %LevelBonus + FixedBonus%)
-    local effectiveMultiplier = self.expBonus * (1 + self.levelBonus.expBonus / 100 + self.fixedBonus.expBonus)
-    local effectiveAmount = amount * effectiveMultiplier
+
+    local effectiveAmount = amount * finalExpBonus
+
     self.experience = self.experience + effectiveAmount
     local leveledUp = false
+
     while self.experience >= self.experienceToNextLevel do
         self.level = self.level + 1
         local previousRequired = self.experienceToNextLevel
         self.experience = self.experience - previousRequired
-        -- Recalcula XP para o próximo nível (ex: usando constante ou fórmula)
         local xpFactor = Constants and Constants.XP_LEVEL_FACTOR or 1.15
         self.experienceToNextLevel = math.floor(self.experienceToNextLevel * xpFactor)
         leveledUp = true
-        self:heal(self:getTotalHealth() * 0.25) -- Cura 25% ao subir de nível
     end
+
     return leveledUp
 end
 
---[[
-    Adiciona ouro ao jogador.
-    @param amount Quantidade de ouro a adicionar.
-]]
-function PlayerState:addGold(amount)
-    if not self.isAlive then return end
-    -- Aplicar bônus de sorte/gold find aqui?
-    -- local effectiveAmount = amount * (self:getTotalLuck() * ??) -- Assumindo getTotalLuck retorna multiplicador
-    -- self.gold = self.gold + effectiveAmount
-    self.gold = self.gold + amount -- Sem bônus de luck aplicado por enquanto
-end
-
---[[
-    Incrementa a contagem de abates do jogador.
-]]
-function PlayerState:addKill()
-    if not self.isAlive then return end
-    self.kills = self.kills + 1
-end
-
---[[
-    Construtor: Cria e inicializa uma nova instância de PlayerState.
-    @param initialStats (table): Tabela contendo os atributos base.
-    @return table: A nova instância de PlayerState.
-]]
-function PlayerState:new(initialStats)
-    print("--- PlayerState:new --- ") -- DEBUG
-    local state = setmetatable({}, PlayerState)
-
-    -- 1. Copia valores padrão da CLASSE (incluindo tabelas de bônus)
-    for key, value in pairs(PlayerState) do
-        if type(value) ~= 'function' and key ~= '__index' then -- Copia apenas dados, não métodos
-            if type(value) == 'table' then
-                state[key] = {}                                -- Cria uma CÓPIA RASA da tabela de bônus
-                for k, v in pairs(value) do
-                    state[key][k] = v
-                end
-            else
-                state[key] = value
-            end
-        end
-    end
-
-    -- 2. Sobrescreve com initialStats, se fornecido
-    print("  [DEBUG] Applying initialStats:") -- DEBUG
-    if initialStats and next(initialStats) then
-        for key, value in pairs(initialStats) do
-            -- Só sobrescreve se o atributo existir no PlayerState e o tipo for compatível
-            if state[key] ~= nil and type(state[key]) == type(value) then
-                state[key] = value
-                -- print(string.format("    - Applied: state.%s = %s", key, tostring(value)))                        -- DEBUG
-            elseif state[key] == nil then
-                -- print(string.format("    - WARNING: initialStat '%s' not defined in PlayerState. Ignored.", key)) -- DEBUG
-            else -- Tipo incompatível
-                -- print(string.format("    - WARNING: initialStat '%s' type mismatch (Expected %s, got %s). Ignored.", key,
-                --     type(state[key]), type(value)))                                                               -- DEBUG
-            end
-        end
-    else
-        -- print("    - WARNING: No initialStats provided! Using PlayerState class defaults.") -- DEBUG
-    end
-
-    -- 3. Define estado inicial (já feito ao copiar defaults e aplicar initialStats, mas garante reset)
-    state.level = 1
-    state.experience = 0
-    state.experienceToNextLevel = Constants and Constants.INITIAL_XP_TO_LEVEL or 100
-    state.kills = 0
-    state.gold = 0
-    state.isAlive = true
-    state.maxHealth = state:getTotalHealth() -- Calcula maxHealth com base nos stats aplicados
-    state.currentHealth = state.maxHealth    -- Começa com vida cheia
-    state.statusModifiers = {}               -- Limpa modificadores
-    state.learnedLevelUpBonuses = {}         -- <<< GARANTE INICIALIZAÇÃO CORRETA >>>
-    state.equippedItems = {}                 -- <<< ADICIONADO PARA RESET CORRETO >>>
-    state.archetypeIds = {}                  -- <<< ADICIONADO PARA RESET CORRETO >>>
-
-    -- Log final de verificação
-    -- print(string.format("  [DEBUG] PlayerState:new - Final health: %.1f/%.1f", state.currentHealth, state.maxHealth)) -- DEBUG
-
-    return state
-end
-
---[[
-    Get total rune slots
-    @return number Total rune slots
-]]
-function PlayerState:getTotalRuneSlots()
-    -- Por enquanto, runas não são afetadas por bônus
-    return self.runeSlots
-end
-
---[[ Get total luck ]] -- NOVO
-function PlayerState:getTotalLuck()
-    local base = self.luck or 0
-    local fixed = (self._fixedBonus and self._fixedBonus.luck) or 0
-    local levelPct = (self._levelBonus and self._levelBonus.luck) or
-        0 -- Em PlayerState, _levelBonus é direto (ex: 5 para 5%)
-
-    -- Se luck for um stat que NÃO se beneficia de _levelBonus como multiplicador direto do base,
-    -- mas sim como um adicional percentual que o PlayerManager/StatsSection interpreta,
-    -- então o cálculo aqui pode ser mais simples, apenas somando fixed.
-    -- O _levelBonus.luck seria usado na camada de apresentação ou no cálculo final de PlayerManager.
-
-    -- Assumindo que _levelBonus.luck é um BÔNUS ADICIONAL (ex: +5% sorte), e não um multiplicador do base.
-    -- O valor final que PlayerManager:getCurrentFinalStats() pegaria seria base + fixed.
-    -- O _levelBonus.luck seria pego separadamente.
-    -- No entanto, para consistência com outros "getTotal" que aplicam _levelBonus como multiplicador:
-    -- return (base + fixed) * (1 + levelPct / 100)
-    -- Se Luck for um stat que não é multiplicado pelo levelBonus dessa forma (ex: já é um percentual final):
-    return base + fixed + (levelPct / 100) -- Se luck base já é 0-1 e levelPct é 5 para 5%
-end
-
---[[ Get total pickupRadius ]] -- NOVO
-function PlayerState:getTotalPickupRadius()
-    -- Base * (1 + %LevelBonus) + FixedBonus (Aditivo)
-    return (self.pickupRadius * (1 + self.levelBonus.pickupRadius / 100)) + self.fixedBonus.pickupRadius
-end
-
---[[ Get total expBonus ]] -- NOVO
-function PlayerState:getTotalExpBonus()
-    -- BaseMultiplier * (1 + %LevelBonus + FixedBonus%)
-    return self.expBonus * (1 + self.levelBonus.expBonus / 100 + self.fixedBonus.expBonus)
-end
-
---[[ Get total healingBonus ]] -- NOVO
-function PlayerState:getTotalHealingBonus()
-    -- BaseMultiplier * (1 + %LevelBonus + FixedBonus%)
-    return self.healingBonus * (1 + self.levelBonus.healingBonus / 100 + self.fixedBonus.healingBonus)
-end
-
---[[ Get total healthRegenDelay ]] -- NOVO
-function PlayerState:getTotalHealthRegenDelay()
-    -- Base - (%LevelBonus / 100 * Base) - FixedBonus (Assumindo que bônus REDUZEM o delay)
-    -- Cuidado para não ficar negativo
-    local baseDelay = self.healthRegenDelay
-    local levelReduction = baseDelay * (self.levelBonus.healthRegenDelay / 100)
-    local fixedReduction = self.fixedBonus.healthRegenDelay
-    return math.max(0.1, baseDelay - levelReduction - fixedReduction) -- Garante um delay mínimo
-end
-
---[[ Get total healthPerTick ]] -- NOVO
-function PlayerState:getTotalHealthPerTick()
-    -- Base * (1 + %LevelBonus) + FixedBonus (Aditivo)
-    return (self.healthPerTick * (1 + self.levelBonus.healthPerTick / 100)) + self.fixedBonus.healthPerTick
-end
-
---[[ Get total cooldownReduction ]] -- NOVO
-function PlayerState:getTotalCooldownReduction()
-    -- Retorna um multiplicador (ex: 0.8 para 20% de redução)
-    -- BaseMultiplier * (1 - %LevelBonus - FixedBonus%)
-    -- Cuidado para não ficar negativo ou zero
-    local levelReductionPercent = self.levelBonus.cooldownReduction / 100
-    local fixedReductionPercent = self.fixedBonus.cooldownReduction
-    local totalReductionPercent = levelReductionPercent + fixedReductionPercent
-    -- Limita a redução máxima (ex: 80%) para evitar cooldown zero ou negativo
-    totalReductionPercent = math.min(totalReductionPercent, Constants.MAX_COOLDOWN_REDUCTION or 0.8)
-    return self.cooldownReduction * (1 - totalReductionPercent)
-end
-
--- Retorna todos os bônus de level up aprendidos (ID do bônus -> nível aprendido)
+--- Retorna todos os bônus de level up aprendidos (ID do bônus -> nível aprendido)
+---@return table<string, number>
 function PlayerState:getLearnedLevelUpBonuses()
     return self.learnedLevelUpBonuses or {}
 end
