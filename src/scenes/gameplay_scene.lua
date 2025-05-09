@@ -161,6 +161,11 @@ function GameplayScene:update(dt)
     -- 1. Atualiza UIs que SEMPRE devem funcionar (mesmo pausado)
     local mx, my = love.mouse.getPosition() -- <<< OBTÉM COORDENADAS UMA VEZ >>>
     InventoryScreen.update(dt, mx, my)      -- <<< PASSA COORDENADAS >>>
+
+    if LevelUpModal.visible then
+        LevelUpModal:update(dt)
+    end
+
     -- ItemDetailsModal precisa ser atualizado se estiver visível, mesmo pausado?
     -- Se sim, adicione aqui: ItemDetailsModal:update(dt, mx, my)
     -- Se não, pode ficar dentro do if not self.isPaused ou ser chamado pelo InputManager.
