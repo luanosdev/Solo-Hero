@@ -61,6 +61,7 @@ function elements.drawWindowFrame(x, y, w, h, title)
     end
 end
 
+--- Desenha uma barra de recurso com efeito de cache.
 function elements.drawResourceBar(config)
     -- Valores padrão
     local defaults = {
