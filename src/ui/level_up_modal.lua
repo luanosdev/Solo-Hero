@@ -169,11 +169,11 @@ function LevelUpModal:draw()
             elements.drawRarityBorderAndGlow('S', optionX, optionY, optionWidth, optionHeight) -- Usar rank/tier do bônus?
             bgColor = { colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.3 }
             textColor = colors.text_highlight
-            nameColor = colors.text_selected -- Nome mais destacado se selecionado
+            nameColor = colors.text_highlight -- Nome mais destacado se selecionado
         elseif isHoveredByMouse then
             bgColor = { colors.slot_hover_bg[1], colors.slot_hover_bg[2], colors.slot_hover_bg[3], 0.5 }
             textColor = colors.text_highlight
-            nameColor = colors.text_hover -- Nome destacado no hover
+            nameColor = colors.text_highlight -- Nome destacado no hover
         end
 
         if bgColor then

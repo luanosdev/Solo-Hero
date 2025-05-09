@@ -1,4 +1,5 @@
 -- Módulo de gerenciamento de input do jogador
+---@class InputManager
 local InputManager = {}
 local ManagerRegistry = require("src.managers.manager_registry")
 local Camera = require("src.config.camera") -- Adicionado para conversão de coordenadas

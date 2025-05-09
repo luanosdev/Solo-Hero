@@ -1,6 +1,23 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
 
+---@class EnemyManager
+---@field enemies table<number, BaseEnemy>
+---@field maxEnemies number
+---@field nextEnemyId number
+---@field worldConfig table
+---@field currentCycleIndex number
+---@field gameTimer number
+---@field timeInCurrentCycle number
+---@field nextMajorSpawnTime number
+---@field nextMinorSpawnTime number
+---@field nextMVPSpawnTime number
+---@field nextBossIndex number
+---@field bossDeathTimer number
+---@field bossDeathDuration number
+---@field lastBossDeathTime number
+---@field playerManager PlayerManager
+---@field dropManager DropManager
 local EnemyManager = {
     enemies = {},     -- Tabela contendo todas as instâncias de inimigos ativos
     maxEnemies = 400, -- Número máximo de inimigos permitidos na tela simultaneamente

@@ -1,3 +1,4 @@
+---@class HordeConfigManager
 local HordeConfigManager = {}
 
 -- Cache para evitar recarregar arquivos desnecessariamente

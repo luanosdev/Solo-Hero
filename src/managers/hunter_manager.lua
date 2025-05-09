@@ -1,4 +1,10 @@
 ---@class HunterManager
+---@field loadoutManager LoadoutManager
+---@field itemDataManager ItemDataManager
+---@field archetypeManager ArchetypeManager
+---@field activeHunterId string | nil
+---@field hunters table<string, table>
+---@field nextHunterId number
 local HunterManager = {
     loadoutManager = nil, ---@type LoadoutManager
     itemDataManager = nil, ---@type ItemDataManager

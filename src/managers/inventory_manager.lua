@@ -7,6 +7,13 @@ local ItemGridLogic = require("src.core.item_grid_logic")
 -- <<< ADICIONADO: Requer Constants >>>
 local Constants = require("src.config.constants")
 
+---@class InventoryManager
+---@field rows number
+---@field cols number
+---@field itemDataManager ItemDataManager
+---@field grid table<number, table<number, number>>
+---@field placedItems table<number, table>
+---@field nextInstanceId number
 local InventoryManager = {}
 InventoryManager.__index = InventoryManager
 

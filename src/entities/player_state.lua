@@ -145,7 +145,6 @@ function PlayerState:init(baseStats)
     print(string.format("  [DEBUG] PlayerState:new - Final health: %.1f/%.1f", self.currentHealth, self.maxHealth))
 end
 
-
 --- Construtor: Cria e inicializa uma nova instância de PlayerState.
 ---@param initialStats table Tabela contendo os atributos base (geralmente de HunterManager).
 ---@return table A nova instância de PlayerState.
@@ -165,8 +164,6 @@ function PlayerState:new(initialStats)
     end
 
     -- Garante que tabelas de bônus comecem vazias
-    state.levelBonus = {}
-    state.fixedBonus = {}
     state.learnedLevelUpBonuses = {}
     state._archetypeBonus = {} -- Limpa também (se usado)
     state.equippedItems = {}   -- Limpa também
@@ -272,14 +269,14 @@ end
 --- NÃO realiza mais a cura ao subir de nível.
 ---@param amount number Quantidade de experiência a adicionar.
 ---@param finalExpBonus number O multiplicador final de experiência.
----@return boolean True se o jogador subiu de nível, false caso contrário.
+---@return number levelsGained O número de níveis que o jogador ganhou (0 se nenhum).
 function PlayerState:addExperience(amount, finalExpBonus)
-    if not self.isAlive then return false end
+    if not self.isAlive then return 0 end
 
     local effectiveAmount = amount * finalExpBonus
-
     self.experience = self.experience + effectiveAmount
-    local leveledUp = false
+
+    local levelsGained = 0 -- Modificado para contar os níveis
 
     while self.experience >= self.experienceToNextLevel do
         self.level = self.level + 1
@@ -287,10 +284,10 @@ function PlayerState:addExperience(amount, finalExpBonus)
         self.experience = self.experience - previousRequired
         local xpFactor = Constants and Constants.XP_LEVEL_FACTOR or 1.15
         self.experienceToNextLevel = math.floor(self.experienceToNextLevel * xpFactor)
-        leveledUp = true
+        levelsGained = levelsGained + 1 -- Incrementa o contador
     end
 
-    return leveledUp
+    return levelsGained -- Retorna o número de níveis ganhos
 end
 
 --- Retorna todos os bônus de level up aprendidos (ID do bônus -> nível aprendido)

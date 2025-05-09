@@ -85,12 +85,16 @@ local PlayerManager = {
     isLevelingUp = false,
     levelUpAnimation = nil,
 
+    -- Level Up Modal Management
+    pendingLevelUps = 0, -- << NOVO: Contador para level ups pendentes
+
     inputManager = nil, ---@class InputManager
     enemyManager = nil, ---@class EnemyManager
     floatingTextManager = nil, ---@class FloatingTextManager
     inventoryManager = nil, ---@class InventoryManager
     hunterManager = nil, ---@class HunterManager
     itemDataManager = nil, ---@class ItemDataManager
+    archetypeManager = nil, ---@class ArchetypeManager
 
     currentHunterId = nil,            -- <<< ADICIONADO: Para armazenar o ID do caçador ativo
 
@@ -139,9 +143,11 @@ function PlayerManager:new()
     instance.inventoryManager = nil
     instance.hunterManager = nil
     instance.itemDataManager = nil
+    instance.archetypeManager = nil
 
     instance.finalStatsCache = nil
     instance.statsNeedRecalculation = true
+    instance.pendingLevelUps = 0 -- Inicializa contador
 
     print("[PlayerManager] Instance created (awaiting setupGameplay).")
     return instance
@@ -155,16 +161,16 @@ function PlayerManager:setupGameplay(registry, hunterId)
     print(string.format("[PlayerManager] Setting up gameplay for hunter ID: %s", hunterId))
 
     -- Armazena o ID do caçador atual
-    self.currentHunterId = hunterId -- <<<< ADICIONADO
+    self.currentHunterId = hunterId
 
     -- 1. Obtém os managers necessários do Registry
-    self.inputManager = registry:get("inputManager")
-    self.enemyManager = registry:get("enemyManager")
-    self.floatingTextManager = registry:get("floatingTextManager")
-    self.inventoryManager = registry:get("inventoryManager") -- Mantém se necessário para outras funções
-    self.hunterManager = registry:get("hunterManager")
-    self.itemDataManager = registry:get("itemDataManager")
-    self.archetypeManager = registry:get("archetypeManager")
+    self.inputManager = registry:get("inputManager") ---@class InputManager
+    self.enemyManager = registry:get("enemyManager") ---@class EnemyManager
+    self.floatingTextManager = registry:get("floatingTextManager") ---@class FloatingTextManager
+    self.inventoryManager = registry:get("inventoryManager") ---@class InventoryManager
+    self.hunterManager = registry:get("hunterManager") ---@class HunterManager
+    self.itemDataManager = registry:get("itemDataManager") ---@class ItemDataManager
+    self.archetypeManager = registry:get("archetypeManager") ---@class ArchetypeManager
 
     -- Validação crucial das dependências
     if not self.inputManager or not self.enemyManager or not self.floatingTextManager or
@@ -283,7 +289,13 @@ end
 
 -- Atualiza o estado do player e da câmera
 function PlayerManager:update(dt)
-    if not self.state.isAlive then return end
+    if not self.state or not self.state.isAlive then
+        return
+    end
+    self.gameTime = self.gameTime + dt
+
+    -- Tenta mostrar o modal de level up se houver pendências e o modal não estiver visível
+    self:tryShowLevelUpModal() -- << NOVO: Chamada para gerenciar a fila de modais
 
     -- Gerenciamento do estado do botão esquerdo do mouse
     local currentLeftButtonState = self.inputManager.mouse.isLeftButtonDown
@@ -400,7 +412,7 @@ function PlayerManager:draw()
             x = self.player.position.x - 25,
             y = self.player.position.y - 40,
             width = 50,
-            height = 6,
+            height = 8,
             value = self.state.currentHealth,
             maxValue = finalStats.health,
             showText = false,
@@ -536,50 +548,35 @@ function PlayerManager:addExperience(amount)
 
     -- Calcula o ganho de EXP efetivo
     local totalStats = self:getCurrentFinalStats()
-    local leveledUp = self.state:addExperience(amount, totalStats.expBonus)
+    local levelsGained = self.state:addExperience(amount, totalStats.expBonus) -- << MODIFICADO: Captura levelsGained
 
-    if leveledUp then
-        print(string.format("[PlayerManager] Level up para %d! Próximo nível em %d XP.",
-            self.state.level, self.state.experienceToNextLevel))
+    if levelsGained > 0 then                                                   -- << MODIFICADO: Verifica se levelsGained > 0
+        print(string.format("[PlayerManager] Gained %d level(s)! Now level %d. Next level at %d XP.",
+            levelsGained, self.state.level, self.state.experienceToNextLevel))
 
-        -- Cura ao subir de nível
-        local finalStats = self:getCurrentFinalStats()           -- Pega stats finais ATUALIZADOS
-        local healOnLevelUp = finalStats.health * 0.25           -- Cura 25% da vida MÁXIMA FINAL
-        local finalHealingBonus = finalStats.healingBonus or 1.0 -- Multiplicador final de cura
+        self.pendingLevelUps = self.pendingLevelUps + levelsGained -- << NOVO: Adiciona à fila
+        self:invalidateStatsCache()                                -- Invalida o cache pois o nível mudou (e bônus podem ter mudado)
 
-        print(string.format("  >> Curando %.2f (25%% de %.2f Max HP) com Multiplicador de Cura %.2fx",
-            healOnLevelUp, finalStats.health, finalHealingBonus))
+        for i = 1, levelsGained do
+            if self.floatingTextManager and self.player then
+                self.floatingTextManager:addCustomText(self.player.position, "LEVEL UP!", self.player,
+                    { color = { 1, 1, 1 } })
+            end
+        end
 
-        self.state:heal(healOnLevelUp, finalStats.health, finalHealingBonus)
-
-        -- Chama a função que lida com efeitos visuais e modal
-        self:onLevelUp()
+        self:tryShowLevelUpModal() -- Tenta abrir o modal imediatamente
     end
-    -- Retorna se houve level up (pode ser útil para outros sistemas)
-    return leveledUp
 end
 
---[[ Função chamada QUANDO o jogador sobe de nível (após addExperience) ]]
--- APENAS lida com efeitos e modal, NÃO mais com a cura.
-function PlayerManager:onLevelUp()
-    if not self.state then return end
-
-    -- Efeitos visuais e sonoros de level up
-    if self.floatingTextManager then
-        self.floatingTextManager:addText(
-            self.player.position.x,
-            self.player.position.y - self.radius - 30,
-            "LEVEL UP!",
-            true,
-            self.player.position,
-            { 1, 1, 0 }
-        )
-    end
-
-    -- Inicia a animação de level up (que então mostrará o modal)
-    self.isLevelingUp = true
-    if self.levelUpAnimation then
-        self.levelUpAnimation:start(self.player.position)
+--- Tenta mostrar o modal de level up se houver níveis pendentes e o modal não estiver visível.
+function PlayerManager:tryShowLevelUpModal()
+    if self.pendingLevelUps > 0 and LevelUpModal and not LevelUpModal.visible then
+        self.pendingLevelUps = self.pendingLevelUps - 1
+        LevelUpModal:show()
+        print(string.format("[PlayerManager] Showing Level Up Modal. Pending levels: %d", self.pendingLevelUps))
+        -- Pausa o jogo ou reduz a velocidade enquanto o modal está aberto
+        -- Exemplo: self.uiManager:setGamePaused(true, "level_up")
+        -- OU Gameloop.timeScale = 0.1
     end
 end
 
