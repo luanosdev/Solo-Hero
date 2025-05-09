@@ -3,10 +3,15 @@
     Gerencia os drops de bosses e outros inimigos
 ]]
 
-local ManagerRegistry = require("src.managers.manager_registry")
 local DropEntity = require("src.entities.drop_entity")
-local Jewel = require("src.items.jewel")
 
+---@class DropManager
+---@field activeDrops table[] Lista de drops ativos no mundo
+---@field playerManager PlayerManager Gerenciador do jogador
+---@field enemyManager EnemyManager Gerenciador de inimigos
+---@field runeManager RuneManager Gerenciador de runas
+---@field floatingTextManager FloatingTextManager Gerenciador de textos flutuantes
+---@field itemDataManager ItemDataManager Gerenciador de dados de itens
 local DropManager = {
     activeDrops = {}, -- Lista de drops ativos no mundo
 }
@@ -235,14 +240,18 @@ function DropManager:applyDrop(dropConfig)
             if addedQuantity > 0 then
                 local baseData = self.itemDataManager:getBaseItemData(itemBaseId)
                 local itemName = baseData and baseData.name or itemBaseId
-                local itemColor = baseData and baseData.color or { 1, 1, 1 }
-                self.floatingTextManager:addText(
-                    self.playerManager.player.position.x,
-                    self.playerManager.player.position.y - self.playerManager.radius - 30,
-                    string.format("+%d %s", addedQuantity, itemName),
-                    true,
-                    self.playerManager.player.position,
-                    itemColor
+                -- A cor do item não é mais passada diretamente, a raridade controlará a cor no FloatingTextManager
+                local itemRarity = baseData and baseData.rarity or "E" -- Fallback para raridade comum "E"
+
+                -- Posição inicial do texto flutuante (o Y será ajustado pelo baseOffsetY em FloatingText)
+                local textPosition = self.playerManager.player.position
+                local displayText = string.format("+%d %s", addedQuantity, itemName)
+
+                self.floatingTextManager:addItemCollectedText(
+                    textPosition,
+                    displayText,
+                    itemRarity,
+                    self.playerManager.player -- O alvo para o texto seguir
                 )
             else
                 print(string.format("Falha ao coletar %s (Inventário cheio?).", itemBaseId))

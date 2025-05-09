@@ -5,6 +5,18 @@
 
 local ManagerRegistry = require("src.managers.manager_registry")
 
+---@class BaseEnemy
+---@field position {x: number, y: number} Posição do inimigo
+---@field radius number Raio do inimigo
+---@field speed number Velocidade de movimento do inimigo
+---@field maxHealth number Vida máxima do inimigo
+---@field currentHealth number Vida atual do inimigo
+---@field isAlive boolean Se o inimigo está vivo
+---@field damage number Dano base do inimigo
+---@field lastDamageTime number Tempo do último dano causado
+---@field damageCooldown number Cooldown entre danos em segundos
+---@field attackSpeed number Velocidade de ataque do inimigo
+
 local BaseEnemy = {
     position = {
         x = 0,
@@ -176,13 +188,8 @@ function BaseEnemy:takeDamage(damage, isCritical)
     self.currentHealth = self.currentHealth - damage
     print(string.format("Inimigo ID: %d, Dano: %d, Vida: %d", self.id, damage, self.currentHealth))
     -- Mostra o número de dano
-    local floatingTextManager = ManagerRegistry:get("floatingTextManager")
-    floatingTextManager:addText(
-        self.position.x,
-        self.position.y - self.radius - 10,
-        tostring(damage),
-        isCritical
-    )
+    local floatingTextManager = ManagerRegistry:get("floatingTextManager") ---@type FloatingTextManager
+    floatingTextManager:addEnemyDamageText(self.position, tostring(damage), isCritical, self)
 
     if self.currentHealth <= 0 then
         self.currentHealth = 0
@@ -191,7 +198,7 @@ function BaseEnemy:takeDamage(damage, isCritical)
         self.isAlive = false
 
         -- Dropa o orbe de experiência
-        local experienceOrbManager = ManagerRegistry:get("experienceOrbManager")
+        local experienceOrbManager = ManagerRegistry:get("experienceOrbManager") ---@type ExperienceOrbManager
         experienceOrbManager:addOrb(self.position.x, self.position.y, self.experienceValue)
 
         return true -- Retorna true se o inimigo morreu

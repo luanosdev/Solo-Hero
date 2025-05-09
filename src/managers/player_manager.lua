@@ -520,17 +520,7 @@ function PlayerManager:takeDamage(amount, source)
         self.accumulatedRegen = 0
 
         if self.floatingTextManager then
-            self.floatingTextManager:addText(
-                self.player.position.x,
-                self.player.position.y - 50,
-                "-" .. damageTaken,
-                false,
-                {
-                    x = self.player.position.x,
-                    y = self.player.position.y - 50
-                },
-                { 1, 0, 0 }
-            )
+            self.floatingTextManager:addPlayerDamageText(self.player.position, "-" .. damageTaken, self.player)
         end
     end
 

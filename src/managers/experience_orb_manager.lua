@@ -6,6 +6,8 @@ local ManagerRegistry = require("src.managers.manager_registry")
     Gerencia os orbes de experiência que podem ser coletados pelo jogador
 ]]
 
+---@class ExperienceOrbManager
+---@field orbs table Lista de orbes de experiência ativos
 local ExperienceOrbManager = {
     orbs = {} -- Lista de orbes de experiência ativos
 }
