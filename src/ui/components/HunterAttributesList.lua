@@ -13,24 +13,23 @@ local HunterAttributesList = setmetatable({}, { __index = Component }) -- Define
 HunterAttributesList.__index = HunterAttributesList
 
 --- Estrutura definindo quais atributos mostrar e como formatá-los (AINDA USADO para tooltip)
-local attributesToShow = {
-    { label = "Vida",            key = "health",            format = "%d" },
-    { label = "Defesa",          key = "defense",           format = "%d" },
-    { label = "Velocidade",      key = "moveSpeed",         format = "%.1f",   suffix = " m/s" },
-    { label = "Chance Crítico",  key = "critChance",        format = "%.1f%%", multiplier = 100 },
-    { label = "Dano Crítico",    key = "critDamage",        format = "%.0fx",  multiplier = 100 },
-    { label = "Regen. Vida/s",   key = "healthPerTick",     format = "%.1f/s" },
-    { label = "Delay Regen.",    key = "healthRegenDelay",  format = "%.1fs" },
-    { label = "Atq. Múltiplo",   key = "multiAttackChance", format = "%.1f%%", multiplier = 100 },
-    { label = "Vel. Ataque",     key = "attackSpeed",       format = "%.2f/s" },
-    { label = "Bônus Exp",       key = "expBonus",          format = "%.0f%%", multiplier = 100 },
-    { label = "Redução Recarga", key = "cooldownReduction", format = "%.0f%%", isReduction = true },
-    { label = "Alcance",         key = "range",             format = "x%.1f" },
-    { label = "Área Ataque",     key = "attackArea",        format = "x%.1f" },
-    { label = "Raio Coleta",     key = "pickupRadius",      format = "%d" },
-    { label = "Bônus Cura",      key = "healingBonus",      format = "%.0f%%", multiplier = 100 },
-    { label = "Slots Runa",      key = "runeSlots",         format = "%d" },
-    { label = "Sorte",           key = "luck",              format = "%.1f%%", multiplier = 100 },
+local ATTRIBUTES_DISPLAY_ORDER = {
+    { label = "HP Máximo",      key = "health",            format = "%d" },
+    { label = "Defesa",         key = "defense",           format = "%d" },
+    { label = "Vel. Movimento", key = "moveSpeed",         format = "%.2f" },
+    { label = "Chance Crítico", key = "critChance",        format = "%.1f%%",  multiplier = 100 },
+    { label = "Dano Crítico",   key = "critDamage",        format = "+%.0f%%", multiplier = 100 },
+    { label = "Regen. Vida",    key = "healthPerTick",     format = "%.2f/s" },
+    { label = "Vel. Ataque",    key = "attackSpeed",       format = "%.2f/s" },
+    { label = "Multi-Ataque",   key = "multiAttackChance", format = "%.1f%%",  multiplier = 100 },
+    { label = "Red. Recarga",   key = "cooldownReduction", format = "%.0f%%",  multiplier = 100 },
+    { label = "Alcance",        key = "range",             format = "+%.0f%%", multiplier = 100 },
+    { label = "Área de Efeito", key = "attackArea",        format = "+%.0f%%", multiplier = 100 },
+    { label = "Bônus EXP",      key = "expBonus",          format = "+%.0f%%", multiplier = 100 },
+    { label = "Área de Coleta", key = "pickupRadius",      format = "%d" },
+    { label = "Bônus Cura",     key = "healingBonus",      format = "%.0f%%",  multiplier = 100 },
+    { label = "Slots Runa",     key = "runeSlots",         format = "%d" },
+    { label = "Sorte",          key = "luck",              format = "%.1f%%",  multiplier = 100 },
 }
 
 --- Cria uma nova instância da lista de atributos.
@@ -87,7 +86,7 @@ function HunterAttributesList:_buildLayout()
         (self.mainYStack.padding.left + self.mainYStack.padding.right)
     if innerWidth < 0 then innerWidth = 0 end
 
-    for _, attrDef in ipairs(attributesToShow) do
+    for _, attrDef in ipairs(ATTRIBUTES_DISPLAY_ORDER) do
         local finalValue = finalStats[attrDef.key]
         local defaultValue = baseStats[attrDef.key]
 
@@ -213,7 +212,7 @@ function HunterAttributesList:_prepareTooltip()
     if not hoveredKey then return end
 
     local attrDefinition = nil
-    for _, ad in ipairs(attributesToShow) do
+    for _, ad in ipairs(ATTRIBUTES_DISPLAY_ORDER) do
         if ad.key == hoveredKey then
             attrDefinition = ad
             break

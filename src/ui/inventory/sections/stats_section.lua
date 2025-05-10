@@ -532,30 +532,32 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
     love.graphics.printf("ATRIBUTOS DO CAÇADOR", x, currentY, w, "left")
     currentY = currentY + hudLineHeight
 
-    local attributesToShow = {
-        { label = "Dano",            key = "weaponDamage",      format = "%d",     noDirectBase = true },
-        { label = "Vida",            key = "health",            format = "%d" },
-        { label = "Defesa",          key = "defense",           format = "%d" },
-        { label = "Velocidade",      key = "moveSpeed",         format = "%.1f",   suffix = " m/s" },
-        { label = "Vel. Ataque",     key = "attackSpeed",       format = "%.2f/s" },
-        { label = "Chance Crítico",  key = "critChance",        format = "%.1f%%", multiplier = 100 },
-        { label = "Dano Crítico",    key = "critDamage",        format = "%.0fx",  multiplier = 100 },
-        { label = "Regen. Vida/s",   key = "healthPerTick",     format = "%.1f/s" },
-        { label = "Delay Regen.",    key = "healthRegenDelay",  format = "%.1fs" },
-        { label = "Atq. Múltiplo",   key = "multiAttackChance", format = "%.1f%%", multiplier = 100 },
-        { label = "Alcance",         key = "range",             format = "x%.1f" },
-        { label = "Área Ataque",     key = "attackArea",        format = "x%.1f" },
-        { label = "Bônus Cura",      key = "healingBonus",      format = "%.0f%%", multiplier = 100 },
-        { label = "Redução Recarga", key = "cooldownReduction", format = "%.0f%%", isReduction = true },
-        { label = "Slots Runa",      key = "runeSlots",         format = "%d" },
-        { label = "Sorte",           key = "luck",              format = "%.0f%%", multiplier = 100 },
-        { label = "Bônus Exp",       key = "expBonus",          format = "%.0f%%", multiplier = 100 },
-        { label = "Raio Coleta",     key = "pickupRadius",      format = "%d" },
+    local ATTRIBUTES_DISPLAY_ORDER = {
+
+        { label = "Dano",           key = "weaponDamage",      format = "%d",      noDirectBase = true },
+        { label = "HP Máximo",      key = "health",            format = "%d",      showTooltip = true },
+        { label = "Armadura",       key = "defense",           format = "%d",      showTooltip = true },
+        { label = "Vel. Movimento", key = "moveSpeed",         format = "%.2f",    showTooltip = true }, -- Não é %, é valor direto
+        { label = "Chance Crítico", key = "critChance",        format = "%.1f%%",  multiplier = 100,   showTooltip = true },
+        { label = "Dano Crítico",   key = "critDamage",        format = "+%.0f%%", multiplier = 100,   showTooltip = true },
+        { label = "Regen. Vida",    key = "healthPerTick",     format = "%.2f/s",  showTooltip = true },
+        { label = "Atraso Regen.",  key = "healthRegenDelay",  format = "%.1fs",   showTooltip = true }, -- Opcional, pode poluir
+        { label = "Vel. Ataque",    key = "attackSpeed",       format = "%.2f/s",  showTooltip = true }, -- Representa ataques por segundo
+        { label = "Multi-Ataque",   key = "multiAttackChance", format = "%.1f%%",  multiplier = 100,   showTooltip = true, formatter = Formatters.formatMultiAttackValue },
+        { label = "Red. Recarga",   key = "cooldownReduction", format = "%.0f%%",  multiplier = 100,   showTooltip = true },
+        { label = "Alcance",        key = "range",             format = "+%.0f%%", multiplier = 100,   showTooltip = true }, -- Ajustado para multiplicador
+        { label = "Área de Efeito", key = "attackArea",        format = "+%.0f%%", multiplier = 100,   showTooltip = true }, -- Ajustado para multiplicador
+        { label = "Bônus EXP",      key = "expBonus",          format = "+%.0f%%", multiplier = 100,   showTooltip = true },
+        { label = "Área de Coleta", key = "pickupRadius",      format = "%d",      showTooltip = true },
+        { label = "Bônus Cura",     key = "healingBonus",      format = "%.0f%%",  multiplier = 100,   showTooltip = true },
+        { label = "Slots Runa",     key = "runeSlots",         format = "%d",      showTooltip = true },
+        { label = "Sorte",          key = "luck",              format = "%.1f%%",  multiplier = 100,   showTooltip = true },
+        -- Adicionar novos atributos aqui para que apareçam na lista e no tooltip
     }
 
     love.graphics.setFont(fonts.main)
 
-    for _, attr in ipairs(attributesToShow) do
+    for _, attr in ipairs(ATTRIBUTES_DISPLAY_ORDER) do
         local finalValue = finalStats[attr.key]
         local defaultValue = baseStats[attr.key] -- Pode ser nil para stats como weaponDamage
 
@@ -760,7 +762,7 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                             {
                                 text = "  Mult. Jogador: " ..
                                     Formatters.formatStatValue("damageMultiplier",
-                                    finalStats._playerDamageMultiplier or 1,
+                                        finalStats._playerDamageMultiplier or 1,
                                         nil),
                                 color =
                                     baseColor
