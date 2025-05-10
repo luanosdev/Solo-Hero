@@ -52,6 +52,7 @@ local colors = {
     },
 
     -- Mapeamento de Rank para Cor (Cores Vibrantes Estilo Solo Leveling)
+    --- @deprecated Usar colors.rankDetails para novas implementações.
     rank = {
         SS = { 1.0, 0.9, 0.2, 1.0 }, -- Dourado Vibrante
         S  = { 0.7, 0.2, 0.9, 1.0 }, -- Roxo Vibrante
@@ -60,6 +61,66 @@ local colors = {
         C  = { 0.1, 0.8, 0.1, 1.0 }, -- Verde Brilhante
         D  = { 0.9, 0.5, 0.1, 1.0 }, -- Laranja
         E  = { 0.6, 0.6, 0.6, 1.0 }  -- Cinza
+    },
+
+    -- Novas definições de cores para Ranks com gradientes
+    rankDetails = {
+        -- Ranking E
+        -- Gradiente: #2F2F2F → #4C4C4C
+        -- Texto: #D6D6D6
+        E = {
+            text = { 0.839, 0.839, 0.839, 1.0 },          -- #D6D6D6
+            gradientStart = { 0.184, 0.184, 0.184, 1.0 }, -- #2F2F2F
+            gradientEnd = { 0.298, 0.298, 0.298, 1.0 }    -- #4C4C4C
+        },
+        -- Ranking D
+        -- Gradiente: #2F8A78 → #58CBA8
+        -- Texto: #8BFCD4
+        D = {
+            text = { 0.545, 0.988, 0.831, 1.0 },          -- #8BFCD4
+            gradientStart = { 0.184, 0.541, 0.471, 1.0 }, -- #2F8A78
+            gradientEnd = { 0.345, 0.796, 0.659, 1.0 }    -- #58CBA8
+        },
+        -- Ranking C
+        -- Gradiente: #247BA0 → #5AC8E0
+        -- Texto: #A4F4FF
+        C = {
+            text = { 0.643, 0.957, 1.0, 1.0 },            -- #A4F4FF
+            gradientStart = { 0.141, 0.482, 0.627, 1.0 }, -- #247BA0
+            gradientEnd = { 0.353, 0.784, 0.878, 1.0 }    -- #5AC8E0
+        },
+        -- Ranking B
+        -- Gradiente: #692D84 → #A04DD1
+        -- Texto: #F291FF
+        B = {
+            text = { 0.949, 0.569, 1.0, 1.0 },            -- #F291FF
+            gradientStart = { 0.412, 0.176, 0.518, 1.0 }, -- #692D84
+            gradientEnd = { 0.627, 0.302, 0.82, 1.0 }     -- #A04DD1
+        },
+        -- Ranking A
+        -- Gradiente: #B3832C → #E5B84A
+        -- Texto: #FFE28D
+        A = {
+            text = { 1.0, 0.886, 0.553, 1.0 },            -- #FFE28D
+            gradientStart = { 0.702, 0.514, 0.173, 1.0 }, -- #B3832C
+            gradientEnd = { 0.898, 0.722, 0.29, 1.0 }     -- #E5B84A
+        },
+        -- Ranking S
+        -- Gradiente: #061821 → #00F0FF
+        -- Texto: #00F0FF
+        S = {
+            text = { 0.0, 0.941, 1.0, 1.0 },              -- #00F0FF
+            gradientStart = { 0.024, 0.094, 0.129, 1.0 }, -- #061821
+            gradientEnd = { 0.0, 0.941, 1.0, 1.0 }        -- #00F0FF
+        },
+        -- Ranking SS
+        -- Gradiente: #8B1A1A → #FF4A4A
+        -- Texto: #FFD6D6
+        SS = {
+            text = { 1.0, 0.839, 0.839, 1.0 },            -- #FFD6D6
+            gradientStart = { 0.545, 0.102, 0.102, 1.0 }, -- #8B1A1A
+            gradientEnd = { 1.0, 0.29, 0.29, 1.0 }        -- #FF4A4A
+        }
     },
 
     -- Cores para feedback de drag-and-drop

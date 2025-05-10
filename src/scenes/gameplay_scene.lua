@@ -136,11 +136,11 @@ function GameplayScene:load(args)
     local function createTestDrop()
         if dropMgr and playerMgr and playerMgr.player and itemDataMgr then
             local playerPos = playerMgr.player.position
-            local testWeaponId = "hammer" -- <<< CONFIRME ID VÁLIDO!
+            local testWeaponId = "dual_daggers" -- <<< CONFIRME ID VÁLIDO!
 
             if itemDataMgr:getBaseItemData(testWeaponId) then
                 local dropConfig = { type = "item", itemId = testWeaponId, quantity = 1 }
-                local dropPosition = { x = playerPos.x + 250, y = playerPos.y }
+                local dropPosition = { x = playerPos.x + 650, y = playerPos.y }
                 print(string.format("[TESTE GameplayScene] Criando drop de '%s' perto do jogador.", testWeaponId))
                 dropMgr:createDrop(dropConfig, dropPosition)
             else

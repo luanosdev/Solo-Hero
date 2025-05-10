@@ -16,13 +16,13 @@
 
 [ ] - ConeSlash: No ataque multiplo, adicioar animação de slash com delay para cada ataque extra
 
-[ ] - FloatingNumber - Ver como pode stackar os numeros para em danos multiplos um nao sobrescrever o outro
+[x] - FloatingNumber - Ver como pode stackar os numeros para em danos multiplos um nao sobrescrever o outro
 
-[ ] - Criar no playermanager uma funcao para adicionar o texto em cima do jogador e criar um padrao
+[x] - Criar no playermanager uma funcao para adicionar o texto em cima do jogador e criar um padrao
 
 [ ] - Desativar os colisores ou fazer com que os inimigos se desviem de si mesmos
 
-[ ] - Fazer um loop para rodar o level up sempre que o tiver ja XP para o proximo nivel
+[x] - Fazer um loop para rodar o level up sempre que o tiver ja XP para o proximo nivel
 
 [ ] - Fazer uma fila para a exibição de modais
 

@@ -95,17 +95,18 @@ function ArchetypeDetails:_buildLayoutInternal()
 
     -- 1. Cabeçalho (Nome, Rank)
     local headerText = data.name or "Arquétipo Desconhecido"
-    if data.rank then
-        headerText = headerText .. string.format(" (%s)", data.rank)
-    end
 
-    self.internalStack:addChild(Text:new({
+    -- Adiciona o card estilizado de título
+    local RankedCardTitle = require("src.ui.components.RankedCardTitle")
+    self.internalStack:addChild(RankedCardTitle:new({
         text = headerText,
-        width = 0,                               -- Stack interna definirá a largura
-        size = "h3",
-        variant = "rank_" .. (data.rank or 'E'), -- Garante fallback se rank for nil
-        fontWeight = "bold",
-        align = "left"
+        rank = data.rank or 'E',
+        width = self.rect.w > 0 and self.rect.w or 220, -- A YStack pai ajustará esta largura
+        height = 40,                                    -- Altura fixa para o card do título
+        config = {
+            padding = 8,                                -- Ajuste o padding conforme necessário para a nova altura
+            -- font = fonts.title -- Removido, pois RankedCardTitle agora usa dynamicFont
+        }
     }))
 
     -- print(string.format("[ArchetypeDetails:_buildLayoutInternal] Added Header Text: '%s', Font Size: h3, Variant: %s", -- COMENTADO
@@ -199,6 +200,26 @@ function ArchetypeDetails:_updateLayout()
 
     -- Marca o layout como concluído para este componente
     self.needsLayout = false
+
+    -- ... no início de _updateLayout ...
+    print(string.format("[ArchetypeDetails:%s] _updateLayout START - self.rect: w=%s, h=%s", self.archetypeData.id,
+        self.rect.w, self.rect.h))
+
+    -- ... antes de definir self.internalStack.rect.w ...
+    local innerWidth = self.rect.w - self.padding.left - self.padding.right
+    print(string.format("[ArchetypeDetails:%s] innerWidth para stack: %s", self.archetypeData.id, innerWidth))
+    if innerWidth <= 0 then
+        print(string.format("AVISO [ArchetypeDetails:%s] innerWidth é %s, stack interna pode ter problemas!",
+            self.archetypeData.id, innerWidth))
+    end
+    self.internalStack.rect.w = innerWidth
+    -- ...
+    -- ... após self.internalStack:_updateLayout() ...
+    print(string.format("[ArchetypeDetails:%s] internalStack.rect DEPOIS layout: w=%s, h=%s", self.archetypeData.id,
+        self.internalStack.rect.w, self.internalStack.rect.h))
+    -- ... no final, após calcular self.rect.h ...
+    print(string.format("[ArchetypeDetails:%s] _updateLayout END - self.rect.h FINAL: %s", self.archetypeData.id,
+        self.rect.h))
 end
 
 --- Sobrescreve draw de Component

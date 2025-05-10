@@ -494,4 +494,228 @@ function elements.drawTooltipBox(x, y, lines)
     love.graphics.setColor(1, 1, 1, 1) -- Reset
 end
 
+--- Desenha um card de rank estilizado com gradiente, texto e brilho opcional.
+--- Utiliza as cores definidas em `colors.rankDetails`.
+---@param x number Posição X do canto superior esquerdo do card.
+---@param y number Posição Y do canto superior esquerdo do card.
+---@param w number Largura do card.
+---@param h number Altura do card.
+---@param rankLetter string A letra do rank a ser exibida (ex: "S", "A", "E").
+---@param config table|nil Tabela de configuração opcional com os seguintes campos:
+---   font (Font|nil): Fonte para a letra do rank (padrão: `fonts.title`).
+---   cornerRadius (number|nil): Raio dos cantos arredondados (padrão: 8).
+---   showGlow (boolean|nil): Controla a exibição do brilho. Padrão é `true` para "S" e "SS", `false` para outros.
+---   glowColor (table|nil): Cor do brilho {r,g,b,a} (padrão: cor do texto do rank com alfa).
+---   glowRadius (number|nil): Raio do brilho (padrão: 6.0).
+---   textScaleFactor (number|nil): Fator de escala para o tamanho do texto relativo à altura do card (padrão: 0.6).
+function elements.drawRankCard(x, y, w, h, rankLetter, config)
+    config = config or {}
+
+    local rankData = colors.rankDetails[rankLetter]
+    if not rankData then
+        rankData = colors.rankDetails["E"] -- Fallback para Rank E
+        -- Considerar logar um aviso: print(("Aviso: Rank '%s' não encontrado em colors.rankDetails. Usando Rank E."):format(rankLetter))
+    end
+
+    local font = config.font or fonts.title
+    local cornerRadius = config.cornerRadius or 8
+    local textScaleFactor = config.textScaleFactor or 0.6
+
+    -- Determina se o brilho deve ser mostrado
+    local showGlow = config.showGlow
+    if showGlow == nil then
+        showGlow = (rankLetter == "S" or rankLetter == "SS")
+    end
+    local glowRadius = config.glowRadius or 6.0
+
+    -- 1. Desenhar fundo com gradiente usando stencil para cantos arredondados
+    local stencilFunction = function()
+        love.graphics.rectangle("fill", x, y, w, h, cornerRadius)
+    end
+
+    love.graphics.stencil(stencilFunction, "replace", 1)
+    love.graphics.setStencilTest("equal", 1)
+
+    -- Desenha as duas metades do gradiente
+    local gradStartColor = rankData.gradientStart
+    local gradEndColor = rankData.gradientEnd
+    love.graphics.setColor(gradStartColor)
+    love.graphics.rectangle("fill", x, y, w, h / 2)         -- Metade superior
+    love.graphics.setColor(gradEndColor)
+    love.graphics.rectangle("fill", x, y + h / 2, w, h / 2) -- Metade inferior
+
+    love.graphics.setStencilTest()                          -- Limpa o teste de stencil
+
+    -- 2. Desenhar brilho se habilitado e shader disponível
+    if showGlow and glowShader then
+        love.graphics.setShader(glowShader)
+        local glowCol = config.glowColor or { rankData.text[1], rankData.text[2], rankData.text[3], 0.7 }
+        glowShader:send("glowColor", glowCol)
+        glowShader:send("glowRadius", glowRadius)
+        love.graphics.setLineWidth(2) -- Linha do brilho
+        love.graphics.rectangle("line", x, y, w, h, cornerRadius)
+        love.graphics.setShader()
+        love.graphics.setLineWidth(1) -- Reseta largura da linha
+    end
+
+    -- 3. Desenhar a letra do rank
+    if font then
+        love.graphics.setFont(font)
+        love.graphics.setColor(rankData.text)
+
+        local targetTextHeight = h * textScaleFactor
+        local originalTextHeight = font:getHeight()
+        local scale = targetTextHeight / originalTextHeight
+
+        if scale > 0 then -- Evita divisão por zero ou escala negativa
+            local originalTextWidth = font:getWidth(rankLetter)
+            local scaledTextWidth = originalTextWidth * scale
+
+            local textX = x + (w - scaledTextWidth) / 2
+            local textY = y + (h - targetTextHeight) / 2
+
+            love.graphics.push()
+            love.graphics.translate(textX, textY)
+            love.graphics.scale(scale, scale)
+            love.graphics.print(rankLetter, 0, 0)
+            love.graphics.pop()
+        else
+            -- Fallback: Desenha pequeno e centralizado se a escala for problemática
+            love.graphics.printf(rankLetter, x, y + (h - originalTextHeight) / 2, w, "center")
+        end
+    end
+
+    -- Resetar cor padrão
+    love.graphics.setColor(colors.white)
+end
+
+--- Desenha um retângulo com gradiente vertical suave usando mesh.
+---@param x number
+---@param y number
+---@param w number
+---@param h number
+---@param colorTop table Cor RGBA do topo
+---@param colorBottom table Cor RGBA da base
+---@param cornerRadius number|nil Raio dos cantos arredondados
+local function drawVerticalGradientRect(x, y, w, h, colorTop, colorBottom, cornerRadius)
+    local mesh = love.graphics.newMesh({
+        { 0, 0, 0, 0, colorTop[1],    colorTop[2],    colorTop[3],    colorTop[4] or 1 },
+        { w, 0, 1, 0, colorTop[1],    colorTop[2],    colorTop[3],    colorTop[4] or 1 },
+        { w, h, 1, 1, colorBottom[1], colorBottom[2], colorBottom[3], colorBottom[4] or 1 },
+        { 0, h, 0, 1, colorBottom[1], colorBottom[2], colorBottom[3], colorBottom[4] or 1 },
+    }, "fan")
+    love.graphics.push("all")
+    if cornerRadius and cornerRadius > 0 then
+        love.graphics.stencil(function()
+            love.graphics.rectangle("fill", x, y, w, h, cornerRadius)
+        end, "replace", 1)
+        love.graphics.setStencilTest("equal", 1)
+    end
+    love.graphics.draw(mesh, x, y)
+    if cornerRadius and cornerRadius > 0 then
+        love.graphics.setStencilTest()
+    end
+    love.graphics.pop()
+end
+
+--- Desenha um card estilizado para exibir texto, com gradiente, cantos arredondados e brilho opcional.
+---@param x number Posição X do canto superior esquerdo do card.
+---@param y number Posição Y do canto superior esquerdo do card.
+---@param w number Largura do card.
+---@param h number Altura do card.
+---@param text string O texto a ser exibido no card.
+---@param config table|nil Tabela de configuração opcional com os seguintes campos:
+---   font (Font|nil): Fonte para o texto (padrão: `fonts.main`).
+---   textColor (table|nil): Cor do texto {r,g,b,a} (padrão: `colors.text_main`).
+---   rankLetterForStyle (string|nil): Letra de rank ("S", "A", etc.) para usar seu estilo de cores (gradiente, brilho).
+---                                    Se definido, sobrescreve gradientStartColor, gradientEndColor, e cor base para brilho.
+---   gradientStartColor (table|nil): Cor inicial do gradiente de fundo.
+---   gradientEndColor (table|nil): Cor final do gradiente de fundo.
+---   cornerRadius (number|nil): Raio dos cantos arredondados (padrão: 8).
+---   h_align ('left'|'center'|'right'|'justify'|nil): Alinhamento horizontal do texto (padrão: 'left').
+---   v_align ('top'|'middle'|'bottom'|nil): Alinhamento vertical do texto (padrão: 'top').
+---   padding (number|nil): Preenchimento interno para o texto (padrão: 10).
+---   showGlow (boolean|nil): Controla a exibição do brilho (padrão: `false`).
+---   glowColor (table|nil): Cor do brilho {r,g,b,a}.
+---   glowRadius (number|nil): Raio do brilho (padrão: 6.0).
+function elements.drawTextCard(x, y, w, h, text, config)
+    config = config or {}
+    text = text or ""
+
+    -- Configurações de estilo e cores
+    local rankStyleData
+    if config.rankLetterForStyle and colors.rankDetails[config.rankLetterForStyle] then
+        rankStyleData = colors.rankDetails[config.rankLetterForStyle]
+    end
+
+    local font = config.font or fonts.main
+    local textColor = config.textColor or (rankStyleData and rankStyleData.text) or colors.text_main
+    local cornerRadius = config.cornerRadius or 8
+    local padding = config.padding or 10
+
+    local gradStartColor = config.gradientStartColor or (rankStyleData and rankStyleData.gradientStart) or
+        colors.window_border
+    local gradEndColor = config.gradientEndColor or (rankStyleData and rankStyleData.gradientEnd) or colors.window_bg
+
+    -- Configurações de alinhamento do texto
+    local h_align = config.h_align or 'left'
+    local v_align = config.v_align or 'top'
+
+    -- Configurações de brilho
+    local showGlow = config.showGlow
+    if showGlow == nil and rankStyleData then -- Se usando rank style, herda comportamento de brilho de rank S/SS
+        showGlow = (config.rankLetterForStyle == "S" or config.rankLetterForStyle == "SS")
+    elseif showGlow == nil then
+        showGlow = false
+    end
+    local glowRadius = config.glowRadius or 6.0
+    local defaultGlowColorText = (rankStyleData and rankStyleData.text) or textColor
+    local glowColor = config.glowColor or
+        { defaultGlowColorText[1], defaultGlowColorText[2], defaultGlowColorText[3], 0.7 }
+
+    -- 1. Desenhar fundo com gradiente usando mesh e stencil para cantos arredondados
+    drawVerticalGradientRect(x, y, w, h, gradStartColor, gradEndColor, cornerRadius)
+
+    -- 2. Desenhar brilho se habilitado e shader disponível
+    if showGlow and glowShader then
+        love.graphics.setShader(glowShader)
+        glowShader:send("glowColor", glowColor)
+        glowShader:send("glowRadius", glowRadius)
+        love.graphics.setLineWidth(2) -- Linha do brilho
+        love.graphics.rectangle("line", x, y, w, h, cornerRadius)
+        love.graphics.setShader()
+        love.graphics.setLineWidth(1) -- Reseta largura da linha
+    end
+
+    -- 3. Desenhar o texto
+    if font and text ~= "" then
+        love.graphics.setFont(font)
+        love.graphics.setColor(textColor)
+
+        local textDrawAreaX = x + padding
+        local textDrawAreaY = y + padding
+        local textDrawAreaW = w - (padding * 2)
+        local textDrawAreaH = h - (padding * 2)
+
+        if textDrawAreaW > 0 and textDrawAreaH > 0 then
+            -- Para alinhamento vertical 'middle' ou 'bottom', precisamos da altura do texto formatado
+            local wrappedText, lines = font:getWrap(text, textDrawAreaW)
+            local textHeight = #lines * font:getHeight() * font:getLineHeight()
+
+            if v_align == 'middle' then
+                textDrawAreaY = textDrawAreaY + (textDrawAreaH - textHeight) / 2
+            elseif v_align == 'bottom' then
+                textDrawAreaY = textDrawAreaY + textDrawAreaH - textHeight
+            end
+            -- Garante que o texto não comece acima da área de padding superior devido ao cálculo
+            textDrawAreaY = math.max(y + padding, textDrawAreaY)
+
+            love.graphics.printf(text, textDrawAreaX, textDrawAreaY, textDrawAreaW, h_align)
+        end
+    end
+
+    -- Resetar cor padrão
+    love.graphics.setColor(colors.white)
+end
+
 return elements
