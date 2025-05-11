@@ -598,6 +598,7 @@ end
 ---@param colorBottom table Cor RGBA da base
 ---@param cornerRadius number|nil Raio dos cantos arredondados
 local function drawVerticalGradientRect(x, y, w, h, colorTop, colorBottom, cornerRadius)
+    love.graphics.setShader() -- Garante que nenhum shader afete o gradiente
     local mesh = love.graphics.newMesh({
         { 0, 0, 0, 0, colorTop[1],    colorTop[2],    colorTop[3],    colorTop[4] or 1 },
         { w, 0, 1, 0, colorTop[1],    colorTop[2],    colorTop[3],    colorTop[4] or 1 },
@@ -639,6 +640,7 @@ end
 ---   glowColor (table|nil): Cor do brilho {r,g,b,a}.
 ---   glowRadius (number|nil): Raio do brilho (padrão: 6.0).
 function elements.drawTextCard(x, y, w, h, text, config)
+    love.graphics.setColor(colors.white) -- Reseta a cor global no início
     config = config or {}
     text = text or ""
 
@@ -649,7 +651,7 @@ function elements.drawTextCard(x, y, w, h, text, config)
     end
 
     local font = config.font or fonts.main
-    local textColor = config.textColor or (rankStyleData and rankStyleData.text) or colors.text_main
+    local textColor = (rankStyleData and rankStyleData.text) or config.textColor or colors.text_main
     local cornerRadius = config.cornerRadius or 8
     local padding = config.padding or 10
 
@@ -690,7 +692,6 @@ function elements.drawTextCard(x, y, w, h, text, config)
     -- 3. Desenhar o texto
     if font and text ~= "" then
         love.graphics.setFont(font)
-        love.graphics.setColor(textColor)
 
         local textDrawAreaX = x + padding
         local textDrawAreaY = y + padding
@@ -698,18 +699,30 @@ function elements.drawTextCard(x, y, w, h, text, config)
         local textDrawAreaH = h - (padding * 2)
 
         if textDrawAreaW > 0 and textDrawAreaH > 0 then
-            -- Para alinhamento vertical 'middle' ou 'bottom', precisamos da altura do texto formatado
             local wrappedText, lines = font:getWrap(text, textDrawAreaW)
             local textHeight = #lines * font:getHeight() * font:getLineHeight()
+            local originalTextDrawY = textDrawAreaY -- Salva o Y original para a sombra
 
             if v_align == 'middle' then
                 textDrawAreaY = textDrawAreaY + (textDrawAreaH - textHeight) / 2
             elseif v_align == 'bottom' then
                 textDrawAreaY = textDrawAreaY + textDrawAreaH - textHeight
             end
-            -- Garante que o texto não comece acima da área de padding superior devido ao cálculo
             textDrawAreaY = math.max(y + padding, textDrawAreaY)
 
+            -- Desenha a "sombra" ou "borda" do texto
+            local shadowColor = colors.black_transparent_more or { 0, 0, 0, 0.7 } -- Usa cor definida ou fallback
+            love.graphics.setColor(shadowColor)
+            local offsetX = 1
+            local offsetY = 1
+            love.graphics.printf(text, textDrawAreaX + offsetX, textDrawAreaY + offsetY, textDrawAreaW, h_align)
+            -- Pode adicionar mais chamadas para uma borda mais grossa se desejar, ex:
+            -- love.graphics.printf(text, textDrawAreaX - offsetX, textDrawAreaY + offsetY, textDrawAreaW, h_align)
+            -- love.graphics.printf(text, textDrawAreaX + offsetX, textDrawAreaY - offsetY, textDrawAreaW, h_align)
+            -- love.graphics.printf(text, textDrawAreaX - offsetX, textDrawAreaY - offsetY, textDrawAreaW, h_align)
+
+            -- Desenha o texto principal
+            love.graphics.setColor(textColor)
             love.graphics.printf(text, textDrawAreaX, textDrawAreaY, textDrawAreaW, h_align)
         end
     end

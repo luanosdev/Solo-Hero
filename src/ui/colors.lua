@@ -111,7 +111,7 @@ local colors = {
         S = {
             text = { 0.0, 0.941, 1.0, 1.0 },              -- #00F0FF
             gradientStart = { 0.024, 0.094, 0.129, 1.0 }, -- #061821
-            gradientEnd = { 0.0, 0.941, 1.0, 1.0 }        -- #00F0FF
+            gradientEnd = { 0.0, 0.1175, 0.147, 1.0 }     -- #001E25 (Azul extremamente escuro)
         },
         -- Ranking SS
         -- Gradiente: #8B1A1A → #FF4A4A

@@ -100,7 +100,7 @@ function ArchetypeDetails:_buildLayoutInternal()
     local RankedCardTitle = require("src.ui.components.RankedCardTitle")
     self.internalStack:addChild(RankedCardTitle:new({
         text = headerText,
-        rank = data.rank or 'E',
+        rank = data.rank,
         width = self.rect.w > 0 and self.rect.w or 220, -- A YStack pai ajustará esta largura
         height = 40,                                    -- Altura fixa para o card do título
         config = {

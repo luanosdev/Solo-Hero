@@ -85,9 +85,6 @@ function RankedCardTitle:_updateLayout()
     if self.dynamicFont then
     else
         self.dynamicFont = fonts.main_small or fonts.main or love.graphics.newFont("verdana", 8)
-        if self.dynamicFont then
-        else
-        end
     end
     self.needsLayout = false
 end
