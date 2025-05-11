@@ -424,11 +424,6 @@ function EnemyManager:spawnMVP()
 end
 
 function EnemyManager:spawnBoss(bossClass, powerLevel)
-    if #self.enemies >= self.maxEnemies then
-        print("Limite máximo de inimigos atingido, não é possível spawnar boss.")
-        return
-    end
-
     -- Calcula posição de spawn (fora da tela)
     local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
     local angle = math.random() * 2 * math.pi

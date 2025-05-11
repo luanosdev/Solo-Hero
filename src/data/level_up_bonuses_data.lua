@@ -282,7 +282,77 @@ LevelUpBonusesData.Bonuses = {
             { stat = "attackSpeed", type = "percentage", value = -1.5 }
         },
         tags = { "utilidade", "experiencia", "risco", "negativo" }
-    }
+    },
+
+    --- Area e alcance
+    area_1_percent = {
+        id = "area_1_percent",
+        name = "Área Menor (%)",
+        description_template = "Aumenta a Área de Ataque em {value}%.",
+        icon = "A%",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "area", type = "percentage", value = 10 }
+        },
+        tags = { "utilidade", "alcance", "percentual" }
+    },
+    area_2_fixed = {
+        id = "area_2_fixed",
+        name = "Área Menor (Fixa)",
+        description_template = "Aumenta a Área de Ataque em {value} unidades.",
+        icon = "A+",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "area", type = "fixed", value = 10 }
+        },
+        tags = { "utilidade", "alcance", "fixo" }
+    },
+    area_3_combo = {
+        id = "area_3_combo",
+        name = "Área Híbrida",
+        description_template = "Aumenta Alcance em {value1}% e Dano em {value2}%.",
+        icon = "A*",
+        max_level = 5,
+        modifiers_per_level = {
+            { stat = "area",             type = "percentage", value = 10 },
+            { stat = "damageMultiplier", type = "percentage", value = 5 }
+        },
+        tags = { "utilidade", "alcance", "dano", "combo" }
+    },
+    range_1_percent = {
+        id = "range_1_percent",
+        name = "Alcance Menor (%)",
+        description_template = "Aumenta o Alcance em {value}%.",
+        icon = "A%",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "range", type = "percentage", value = 10 }
+        },
+        tags = { "utilidade", "alcance", "percentual" }
+    },
+    range_2_fixed = {
+        id = "range_2_fixed",
+        name = "Alcance Menor (Fixa)",
+        description_template = "Aumenta o Alcance em {value} unidades.",
+        icon = "A+",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "range", type = "fixed", value = 10 }
+        },
+        tags = { "utilidade", "alcance", "fixo" }
+    },
+    range_3_combo = {
+        id = "range_3_combo",
+        name = "Alcance Híbrido",
+        description_template = "Aumenta Alcance em {value1}% e Dano em {value2}%.",
+        icon = "A*",
+        max_level = 5,
+        modifiers_per_level = {
+            { stat = "range",            type = "percentage", value = 10 },
+            { stat = "damageMultiplier", type = "percentage", value = 5 }
+        },
+        tags = { "utilidade", "alcance", "dano", "combo" }
+    },
 }
 
 

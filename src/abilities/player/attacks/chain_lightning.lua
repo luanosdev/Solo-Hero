@@ -73,21 +73,26 @@ function ChainLightning:update(dt, angle)
         self.cooldownRemaining = self.cooldownRemaining - dt
     end
 
-    -- Atualiza posição e ângulo (pode não ser necessário para mira, mas útil ter)
-    self.currentPosition = self.playerManager.player.position
+    -- Atualiza posição e ângulo
+    if self.playerManager and self.playerManager.player and self.playerManager.player.position then
+        self.currentPosition = self.playerManager.player.position
+    else
+        error("[ChainLightning:update] ERRO: Posição do jogador não disponível.")
+    end
     self.currentAngle = angle
 
-    -- Obtem bônus do jogador (Range e Area podem afetar o raio inicial e o salto?)
-    local state = self.playerManager.state
-    local rangeBonus = state:getTotalRange()
-    local areaBonus = state:getTotalArea() -- Poderia aumentar o jumpRange?
+    -- Obtem stats finais do jogador
+    local finalStats = self.playerManager:getCurrentFinalStats()
 
     -- Calcula valores FINAIS para este frame
-    self.currentRange = self.baseRange * (1 + rangeBonus)
-    -- Decisão: O bônus de área aumenta o alcance do salto? Vamos assumir que sim por enquanto.
-    -- self.currentJumpRange = self.baseJumpRange * (1 + areaBonus) -- REMOVIDO daqui
-    -- Calcula a espessura atual do laser
-    self.currentThickness = self.baseThickness * (1 + areaBonus)
+    -- self.baseRange e self.baseThickness são definidos em :new
+    -- finalStats.range e finalStats.attackArea são os multiplicadores totais
+    self.currentRange = self.baseRange and finalStats.range and (self.baseRange * finalStats.range)
+    self.currentThickness = self.baseThickness and finalStats.attackArea and (self.baseThickness * finalStats.attackArea)
+
+    -- Log para verificar os valores calculados
+    -- print(string.format("[ChainLightning:update] currentRange: %s, currentThickness: %s (BaseRange: %s, BaseThick: %s, FS.range: %s, FS.area: %s)",
+    --     tostring(self.currentRange), tostring(self.currentThickness), tostring(self.baseRange), tostring(self.baseThickness), tostring(finalStats.range), tostring(finalStats.attackArea)))
 
     -- Atualiza a duração dos raios visíveis
     for i = #self.activeChains, 1, -1 do
@@ -120,7 +125,7 @@ function ChainLightning:findClosestEnemy(centerX, centerY, radius, excludedIDs)
 
     for id, enemy in pairs(enemies) do
         -- Verifica se o inimigo está vivo e não está na lista de exclusão
-        if enemy.isAlive and (not excludedIDs or not excludedIDs[id]) then
+        if enemy.isAlive and (not excludedIDs or not excludedIDs[enemy.id]) then
             local dx = enemy.position.x - centerX
             local dy = enemy.position.y - centerY
             local distSq = dx * dx + dy * dy
@@ -212,111 +217,166 @@ end
 
 function ChainLightning:cast(args)
     args = args or {}
-    -- O ângulo da mira agora é crucial
-    local aimAngle = self.currentAngle
+    local aimAngle = self.currentAngle -- Usa o ângulo atualizado em :update
 
     if self.cooldownRemaining > 0 then
         return false
     end
 
-    local state = self.playerManager.state
+    local finalStats = self.playerManager:getCurrentFinalStats()
 
     -- Aplica o cooldown
-    local attackSpeed = state:getTotalAttackSpeed()
-    self.cooldownRemaining = self.baseCooldown / attackSpeed
+    local totalAttackSpeed = finalStats.attackSpeed
+    if not totalAttackSpeed or totalAttackSpeed <= 0 then totalAttackSpeed = 0.01 end -- Exceção
+
+    if self.baseCooldown and totalAttackSpeed then
+        self.cooldownRemaining = self.baseCooldown / totalAttackSpeed
+    else
+        error(string.format(
+            "[ChainLightning:cast] ERRO: baseCooldown (%s) ou totalAttackSpeed (%s) é nil/inválido. Cooldown não aplicado.",
+            tostring(self.baseCooldown), tostring(finalStats.attackSpeed)))
+        -- Não definir cooldown ou definir um de fallback pode ser problemático, melhor falhar ou ter um cooldown padrão alto
+        self.cooldownRemaining = 2 -- Cooldown de emergência para evitar spam
+    end
 
     -- Calcula stats no momento do disparo
-    local damagePerHit = state:getTotalDamage(self.baseDamage)
-    local criticalChance = state:getTotalCritChance()
-    local criticalMultiplier = state:getTotalCritDamage()
-    local rangeBonus = state:getTotalRange() -- Obter bonus de range
-    local areaBonus = state:getTotalArea()   -- Obter bonus de area
+    local damagePerHit = finalStats.weaponDamage
+    local criticalChance = finalStats.critChance
+    local criticalMultiplier = finalStats.critDamage
 
-    -- Calcula o número total de saltos permitidos baseado no range bonus
-    local totalAllowedJumps = math.floor(self.baseChainCount * (1 + rangeBonus))
+    if damagePerHit == nil then
+        error("[ChainLightning:cast] ERRO: finalStats.weaponDamage é nil. Não é possível calcular o dano.")
+        return false -- Não dispara se o dano não puder ser calculado
+    end
+
+    -- Calcula o número total de saltos permitidos
+    -- Usa finalStats.range como multiplicador para o baseChainCount
+    local totalAllowedJumps = self.baseChainCount and finalStats.range and
+        math.floor(self.baseChainCount * finalStats.range)
+    if totalAllowedJumps == nil then
+        error(string.format(
+            "[ChainLightning:cast] ERRO: Não foi possível calcular totalAllowedJumps. BaseChainCount: %s, FS.range: %s",
+            tostring(self.baseChainCount), tostring(finalStats.range)))
+        totalAllowedJumps = 0 -- Evita erro, mas o raio não saltará
+    end
+    print(string.format(
+        "[ChainLightning:cast] Calculated totalAllowedJumps: %s (baseChainCount: %s, finalStats.range: %s)",
+        tostring(totalAllowedJumps), tostring(self.baseChainCount), tostring(finalStats.range)))
 
     -- Busca todos os inimigos uma vez
     local allEnemies = self.playerManager.enemyManager:getEnemies()
 
-    -- Lógica do Chain Lightning Refatorada
-    local targetsHit = {}   -- Guarda os inimigos atingidos nesta corrente { [id] = enemyInstance }
-    local hitPositions = {} -- Guarda as posições dos alvos para desenhar a linha
-    local excludedIDs = {}  -- Guarda IDs dos inimigos já atingidos para não saltar para o mesmo
+    local targetsHit = {}
+    local hitPositions = {}
+    local excludedIDs = {}
 
-    -- 1. Segmento Inicial (Direcional)
     local startPos = self.currentPosition
-    local endX = startPos.x + math.cos(aimAngle) * self.currentRange
-    local endY = startPos.y + math.sin(aimAngle) * self.currentRange
-    table.insert(hitPositions, { x = startPos.x, y = startPos.y }) -- Adiciona posição inicial
-
-    -- Verifica colisão no primeiro segmento
-    local firstHitEnemy = self:findCollisionOnSegment(startPos.x, startPos.y, endX, endY, self.currentThickness,
-        allEnemies)
-
-    local startChainingFrom = nil -- Ponto de onde a corrente vai começar a saltar (se houver)
-
-    if firstHitEnemy then
-        -- Acertou um inimigo no primeiro segmento!
-        print("ChainLightning: First segment hit enemy ID: " .. tostring(firstHitEnemy.id))
-        table.insert(hitPositions, { x = firstHitEnemy.position.x, y = firstHitEnemy.position.y }) -- Adiciona posição do inimigo atingido
-        targetsHit[firstHitEnemy.id] = firstHitEnemy
-        excludedIDs[firstHitEnemy.id] = true
-        startChainingFrom = firstHitEnemy -- Começa a corrente a partir deste inimigo
-    else
-        -- Não acertou ninguém no primeiro segmento
-        print("ChainLightning: First segment missed.")
-        table.insert(hitPositions, { x = endX, y = endY }) -- Adiciona ponto final do segmento que errou
-        -- startChainingFrom continua nil, então o loop de saltos não vai rodar
+    if not startPos then
+        error("[ChainLightning:cast] ERRO: startPos (currentPosition) é nil.")
+        return false
     end
 
-    -- 2. Encontra alvos subsequentes (saltos), SE o primeiro segmento acertou algo
+    -- Verifica se self.currentRange (calculado no update) é válido
+    if not self.currentRange or self.currentRange <= 0 then
+        error(string.format("[ChainLightning:cast] ERRO: self.currentRange inválido (%s) para o primeiro segmento.",
+            tostring(self.currentRange)))
+        return false
+    end
+    local endX = startPos.x + math.cos(aimAngle) * self.currentRange
+    local endY = startPos.y + math.sin(aimAngle) * self.currentRange
+    table.insert(hitPositions, { x = startPos.x, y = startPos.y })
+    print(string.format(
+        "[ChainLightning:cast] Aiming first segment: start=(%.1f,%.1f), end=(%.1f,%.1f), range=%s, angle=%.2f",
+        startPos.x,
+        startPos.y, endX, endY, tostring(self.currentRange), aimAngle))
+
+    -- Verifica se self.currentThickness (calculado no update) é válido
+    local segmentThickness = self.currentThickness
+    if not segmentThickness or segmentThickness <= 0 then
+        error(string.format("[ChainLightning:cast] ERRO: segmentThickness inválido (%s) para o primeiro segmento.",
+            tostring(segmentThickness)))
+        segmentThickness = self.baseThickness or 1 -- Fallback mínimo para evitar mais erros
+    end
+
+    local firstHitEnemy = self:findCollisionOnSegment(startPos.x, startPos.y, endX, endY, segmentThickness, allEnemies)
+    local startChainingFrom = nil
+
+    if firstHitEnemy then
+        print("[ChainLightning:cast] First segment HIT enemy ID: " .. tostring(firstHitEnemy.id) .. " at (%.1f, %.1f)",
+            firstHitEnemy.position.x, firstHitEnemy.position.y)
+        table.insert(hitPositions, { x = firstHitEnemy.position.x, y = firstHitEnemy.position.y })
+        targetsHit[firstHitEnemy.id] = firstHitEnemy
+        excludedIDs[firstHitEnemy.id] = true
+        startChainingFrom = firstHitEnemy
+    else
+        print("[ChainLightning:cast] First segment MISSED. Endpoint: (%.1f, %.1f)", endX, endY)
+        table.insert(hitPositions, { x = endX, y = endY })
+    end
+
     local currentTarget = startChainingFrom
     local successfulJumps = 0
-    while currentTarget and successfulJumps < totalAllowedJumps do -- Só entra se currentTarget não for nil
+    print(string.format("[ChainLightning:cast] Starting chain loop. StartChainingFrom is %s. TotalAllowedJumps: %d",
+        tostring(startChainingFrom and startChainingFrom.id), totalAllowedJumps))
+
+    while currentTarget and successfulJumps < totalAllowedJumps do
         local lastHitPosition = currentTarget.position
+        print(string.format("[ChainLightning:cast] Attempting Jump #%d from enemy %s at (%.1f, %.1f)",
+            successfulJumps + 1, currentTarget.id, lastHitPosition.x, lastHitPosition.y))
 
-        -- Calcula o raio de busca para ESTE salto específico
-        local decayedJumpRange = self.baseJumpRange * (ChainLightning.JUMP_RANGE_DECAY ^ successfulJumps)
-        local currentJumpSearchRadius = decayedJumpRange * (1 + areaBonus)
+        local decayedJumpRangeBase = self.baseJumpRange and
+            (self.baseJumpRange * (ChainLightning.JUMP_RANGE_DECAY ^ successfulJumps))
+        local currentJumpSearchRadius = decayedJumpRangeBase and finalStats.attackArea and
+            (decayedJumpRangeBase * finalStats.attackArea)
+        print(string.format(
+            "  - Jump params: decayedBaseJumpRange=%s, finalStats.attackArea=%s, currentJumpSearchRadius=%s",
+            tostring(decayedJumpRangeBase), tostring(finalStats.attackArea), tostring(currentJumpSearchRadius)))
 
-        -- Busca o próximo alvo usando o raio calculado e a lista completa de inimigos
+        if not currentJumpSearchRadius or currentJumpSearchRadius <= 0 then
+            print(string.format(
+                "[ChainLightning:cast] AVISO: Raio de salto inválido (%s) para o salto %d. Interrompendo corrente.",
+                tostring(currentJumpSearchRadius), successfulJumps + 1))
+            break -- Interrompe se o raio de salto for inválido
+        end
+
         local nextTarget = self:findClosestEnemy(lastHitPosition.x, lastHitPosition.y, currentJumpSearchRadius,
             excludedIDs)
 
         if nextTarget then
-            -- Encontrou o próximo alvo
+            print(string.format("  - Jump SUCCESS to enemy %s at (%.1f, %.1f)", nextTarget.id, nextTarget.position.x,
+                nextTarget.position.y))
             currentTarget = nextTarget
             table.insert(hitPositions, { x = currentTarget.position.x, y = currentTarget.position.y })
             targetsHit[currentTarget.id] = currentTarget
             excludedIDs[currentTarget.id] = true
-            successfulJumps = successfulJumps + 1 -- Incrementa saltos bem sucedidos
+            successfulJumps = successfulJumps + 1
         else
-            -- Não encontrou mais alvos no alcance do salto
-            break -- Interrompe a corrente
+            print("  - Jump FAILED: No next target found within jump radius or not excluded.")
+            break
         end
     end
 
-    -- 3. Aplica o dano a todos os alvos atingidos
     for id, enemy in pairs(targetsHit) do
-        local isCritical = math.random() * 100 <= criticalChance
+        local isCritical = criticalChance and (math.random() <= criticalChance)
         local finalDamage = damagePerHit
         if isCritical then
-            finalDamage = math.floor(finalDamage * criticalMultiplier)
+            if criticalMultiplier then
+                finalDamage = math.floor(finalDamage * criticalMultiplier)
+            else
+                print("[ChainLightning:cast] AVISO: Acerto crítico, mas finalStats.critMultiplier é nil.")
+            end
         end
         enemy:takeDamage(finalDamage, isCritical)
     end
 
-    -- 4. Adiciona a informação da corrente para desenho
-    if #hitPositions > 1 then -- Só adiciona se atingiu pelo menos um inimigo
+    if #hitPositions > 1 then
         table.insert(self.activeChains, {
             points = hitPositions,
             duration = self.visual.attack.segmentDuration,
             color = self.visual.attack.color,
-            thickness = self.currentThickness -- Usa a espessura atual calculada
+            thickness = segmentThickness -- Usa a espessura do segmento (que pode ter tido fallback)
         })
     end
 
-    -- print(string.format("ChainLightning: Atingiu %d alvos.", #hitPositions - 1))
     return true
 end
 
