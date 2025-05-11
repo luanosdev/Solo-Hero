@@ -117,7 +117,7 @@ local weapons = {
         damage = 33,
         cooldown = 1.5,                                                -- Cooldown base em segundos (era attackSpeed = 1.25)
         range = 150,                                                   -- Alcance máximo das flechas
-        angle = math.pi / 6,                                           -- Ângulo do cone de disparo (30 graus)
+        angle = math.pi / 4,                                           -- Ângulo do cone de disparo (30 graus)
         projectiles = 1,                                               -- Número base de flechas
         attackClass = "src.abilities.player.attacks.arrow_projectile", -- Classe de ataque
     },

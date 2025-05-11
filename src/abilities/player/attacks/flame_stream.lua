@@ -38,9 +38,9 @@ function FlameStream:new(playerManager, weaponInstance)
     if not baseData then
         error(string.format("FlameStream:new - Falha ao obter dados base para %s",
             o.weaponInstance.itemBaseId or "arma desconhecida"))
-        return nil -- Retorna nil em caso de erro
+        return nil                 -- Retorna nil em caso de erro
     end
-    o.baseDamage = baseData.damage
+    o.baseDamage = baseData.damage -- Mantido, mas o dano final virá de finalStats.weaponDamage
     o.baseCooldown = baseData.cooldown
     o.baseRange = baseData.range
     o.baseAngleWidth = baseData.angle -- Armazena o ângulo base
@@ -54,7 +54,7 @@ function FlameStream:new(playerManager, weaponInstance)
     o.currentAngle = 0
     o.currentRange = o.baseRange
     o.currentAngleWidth = o.baseAngleWidth
-    o.currentLifetime = o.currentRange / o.visual.attack.particleSpeed
+    -- currentLifetime será calculado no primeiro update
 
     print("[FlameStream:new] Instância criada.")
     return o
@@ -67,21 +67,49 @@ function FlameStream:update(dt, angle)
     end
 
     -- Atualiza valores dinâmicos baseados no estado atual do jogador e da arma
+    if not self.playerManager or not self.playerManager.player or not self.playerManager.player.position then
+        error("[FlameStream:update] ERRO: Posição do jogador não disponível.")
+    end
     self.currentPosition = self.playerManager.player.position
     self.currentAngle = angle -- Ângulo da mira
 
-    -- Busca dados base novamente? Ou confiar nos armazenados?
-    -- Por ora, vamos recalcular com base nos armazenados + bônus.
-    -- Se os stats BASE da arma pudessem mudar, precisaríamos buscar self.weaponInstance:getBaseData() aqui.
-    local state = self.playerManager.state
-    local areaBonus = state:getTotalArea()
-    local rangeBonus = state:getTotalRange() -- Supondo que getTotalRange retorna bônus percentual
+    local finalStats = self.playerManager:getCurrentFinalStats()
+    if not finalStats then
+        error("[FlameStream:update] ERRO: finalStats não disponíveis do PlayerManager.")
+    end
 
     -- Calcula valores FINAIS para este frame
-    self.currentRange = self.baseRange * (1 + rangeBonus)
-    self.currentAngleWidth = self.baseAngleWidth *
-    (1 + areaBonus)                                                             -- Correção: Aplica bônus como multiplicador
-    self.currentLifetime = self.currentRange / self.visual.attack.particleSpeed -- Recalcula lifetime com range final
+    local calculatedRange = self.baseRange and finalStats.range and (self.baseRange * finalStats.range)
+    local calculatedAngleWidth = self.baseAngleWidth and finalStats.attackArea and
+        (self.baseAngleWidth * finalStats.attackArea)
+
+    if calculatedRange == nil or calculatedRange <= 0 then
+        -- print(string.format(
+        --    "[FlameStream:update] AVISO: currentRange inválido (%s). Base: %s, FS.range: %s. Usando baseRange.",
+        --    tostring(calculatedRange), tostring(self.baseRange), tostring(finalStats.range)))
+        self.currentRange = self.baseRange -- Fallback para o valor base, mas logado como aviso
+    else
+        self.currentRange = calculatedRange
+    end
+
+    if calculatedAngleWidth == nil or calculatedAngleWidth <= 0 then
+        -- print(string.format(
+        --    "[FlameStream:update] AVISO: currentAngleWidth inválido (%s). Base: %s, FS.area: %s. Usando baseAngleWidth.",
+        --    tostring(calculatedAngleWidth), tostring(self.baseAngleWidth), tostring(finalStats.attackArea)))
+        self.currentAngleWidth = self.baseAngleWidth -- Fallback para o valor base
+    else
+        self.currentAngleWidth = calculatedAngleWidth
+    end
+
+    if not self.visual.attack.particleSpeed or self.visual.attack.particleSpeed <= 0 then
+        error("[FlameStream:update] ERRO: particleSpeed inválido ou zero.")
+        self.currentLifetime = 1 -- Fallback de lifetime
+    elseif self.currentRange and self.currentRange > 0 then
+        self.currentLifetime = self.currentRange / self.visual.attack.particleSpeed
+    else
+        -- print("[FlameStream:update] AVISO: currentRange inválido para cálculo de lifetime. Usando lifetime de 1s.")
+        self.currentLifetime = 1 -- Fallback de lifetime
+    end
 
     -- Atualiza as partículas ativas
     for i = #self.activeParticles, 1, -1 do
@@ -101,58 +129,98 @@ function FlameStream:cast(args)                            -- Cast é chamado mu
         return false
     end
 
-    -- Aplica cooldown (já é muito baixo)
-    local attackSpeed = self.playerManager.state:getTotalAttackSpeed()
-    self.cooldownRemaining = self.baseCooldown / attackSpeed
+    local finalStats = self.playerManager:getCurrentFinalStats()
+    if not finalStats then
+        error("[FlameStream:cast] ERRO: finalStats não disponíveis do PlayerManager. Não é possível disparar.")
+        return false
+    end
+
+    -- Aplica cooldown
+    local totalAttackSpeed = finalStats.attackSpeed
+    if not totalAttackSpeed or totalAttackSpeed <= 0 then
+        print(string.format(
+            "[FlameStream:cast] AVISO: totalAttackSpeed inválido (%s). Usando fallback de 0.01.",
+            tostring(totalAttackSpeed)))
+        totalAttackSpeed = 0.01 -- Evita divisão por zero, mas é um erro de stat
+    end
+    if self.baseCooldown and totalAttackSpeed then
+        self.cooldownRemaining = self.baseCooldown / totalAttackSpeed
+    else
+        error(string.format(
+            "[FlameStream:cast] ERRO: baseCooldown (%s) ou totalAttackSpeed processado (%s) é nil/inválido. Cooldown não aplicado.",
+            tostring(self.baseCooldown), tostring(totalAttackSpeed)))
+        self.cooldownRemaining = 2 -- Cooldown de emergência
+    end
 
     -- Calcula atributos no momento do disparo
-    local damagePerParticle = self.playerManager.state:getTotalDamage(self.baseDamage)
-    local criticalChance = self.playerManager.state:getTotalCritChance()
-    local criticalMultiplier = self.playerManager.state:getTotalDamageMultiplier()
+    local damagePerParticle = finalStats.weaponDamage
+    local criticalChance = finalStats.critChance
+    local criticalMultiplier = finalStats.critDamage
+
+    if damagePerParticle == nil then
+        error("[FlameStream:cast] ERRO: finalStats.weaponDamage é nil. Não é possível calcular o dano da partícula.")
+        return false -- Não dispara se o dano não puder ser calculado
+    end
+    if criticalChance == nil then
+        print("[FlameStream:cast] AVISO: finalStats.critChance é nil. Chance de crítico será 0.")
+        criticalChance = 0
+    end
+    if criticalMultiplier == nil then
+        print("[FlameStream:cast] AVISO: finalStats.critDamage é nil. Multiplicador de crítico será 1.")
+        criticalMultiplier = 1 -- Dano crítico não terá efeito
+    end
 
     -- Calcula o ângulo da partícula com uma pequena dispersão aleatória dentro de currentAngleWidth
-    local halfWidth = self.currentAngleWidth / 2 -- Usa o valor atualizado
-    local particleAngle = baseAngle + math.random() * halfWidth -
-        math.random() * halfWidth                -- Renomeado para evitar confusão
+    local halfWidth = (self.currentAngleWidth or self.baseAngleWidth or 0) / 2 -- Usa o valor atualizado ou fallback
+    local particleAngleOffset = math.random() * halfWidth - math.random() * halfWidth
+    local particleAngle = baseAngle + particleAngleOffset
 
     -- Calcula se é crítico (por partícula)
-    local isCritical = math.random() * 100 <= criticalChance
-    local damage = damagePerParticle
+    local isCritical = criticalChance > 0 and (math.random() <= criticalChance) -- Ajustado para usar fração
+    local finalDamage = damagePerParticle
     if isCritical then
-        damage = math.floor(damage * criticalMultiplier)
+        finalDamage = math.floor(finalDamage * criticalMultiplier)
     end
 
     -- Calcula a posição inicial da partícula (à frente do jogador, na borda do raio)
-    local startDist = self.playerManager.radius * 1.2
-    local startX = self.currentPosition.x + math.cos(particleAngle) * startDist -- Usa a posição e angulo atualizados
-    local startY = self.currentPosition.y + math.sin(particleAngle) * startDist -- Usa a posição e angulo atualizados
+    -- self.playerManager.radius é o raio de colisão do player, não um stat de alcance.
+    local startDist = (self.playerManager.radius or 10) * 1.2 -- Fallback para radius se não existir
+    local startX = self.currentPosition.x + math.cos(particleAngle) * startDist
+    local startY = self.currentPosition.y + math.sin(particleAngle) * startDist
+
+    -- Verifica se currentLifetime é válido antes de criar a partícula
+    if not self.currentLifetime or self.currentLifetime <= 0 then
+        error(string.format("[FlameStream:cast] ERRO: currentLifetime inválido (%s). Não é possível criar partícula.",
+            tostring(self.currentLifetime)))
+        return false
+    end
 
     -- Cria a partícula de fogo a partir da posição inicial calculada
     local particle = FireParticle:new(
-        startX, startY,       -- Usa as coordenadas iniciais calculadas
-        particleAngle,        -- Usa o ângulo disperso calculado
-        self.visual.attack.particleSpeed,
-        self.currentLifetime, -- Usa o lifetime atualizado
-        damage,
+        startX, startY,                   -- Usa as coordenadas iniciais calculadas
+        particleAngle,                    -- Usa o ângulo disperso calculado
+        self.visual.attack.particleSpeed, -- particleSpeed é da config da habilidade, não um stat do jogador
+        self.currentLifetime,             -- Usa o lifetime atualizado
+        finalDamage,                      -- Dano final calculado
         isCritical,
         self.playerManager.enemyManager,
         self.visual.attack.color
-    -- Poderíamos adicionar pierce count aqui se quiséssemos
     )
     table.insert(self.activeParticles, particle)
 
-    -- Multi-ataque para lança-chamas? Poderia disparar 2 partículas de uma vez?
-    -- Por simplicidade, vamos ignorar multi-ataque por enquanto, a alta cadência já faz o trabalho.
+    -- Multi-ataque não implementado para lança-chamas, a alta cadência faz o trabalho.
 
     return true
 end
 
 function FlameStream:draw()
-    -- Não precisa mais checar self.area
-
     -- Desenha a prévia (um cone estreito)
     if self.visual.preview.active then
-        self:drawPreviewCone(self.visual.preview.color) -- Passa a cor correta
+        if self.currentPosition and self.currentRange and self.currentAngle and self.currentAngleWidth then
+            self:drawPreviewCone(self.visual.preview.color) -- Passa a cor correta
+        else
+            -- print("[FlameStream:draw] AVISO: Não é possível desenhar preview, dados de posição/dimensão ausentes.")
+        end
     end
 
     -- Desenha as partículas ativas
@@ -162,17 +230,19 @@ function FlameStream:draw()
 end
 
 function FlameStream:drawPreviewCone(color)
-    local segments = 16
+    -- local segments = 16 -- Não usado para linhas
     love.graphics.setColor(color)
     -- Usa os valores atuais calculados em update
     local cx, cy = self.currentPosition.x, self.currentPosition.y
     local range = self.currentRange
-    local startAngle = self.currentAngle - self.currentAngleWidth / 2
-    local endAngle = self.currentAngle + self.currentAngleWidth / 2
+    local angle = self.currentAngle
+    local halfAngleWidth = self.currentAngleWidth / 2
 
-    -- love.graphics.arc("line", "open", cx, cy, range, startAngle, endAngle, segments) -- Comentado para remover o arco
-    love.graphics.line(cx, cy, cx + range * math.cos(startAngle), cy + range * math.sin(startAngle))
-    love.graphics.line(cx, cy, cx + range * math.cos(endAngle), cy + range * math.sin(endAngle))
+    local startAnglePreview = angle - halfAngleWidth
+    local endAnglePreview = angle + halfAngleWidth
+
+    love.graphics.line(cx, cy, cx + range * math.cos(startAnglePreview), cy + range * math.sin(startAnglePreview))
+    love.graphics.line(cx, cy, cx + range * math.cos(endAnglePreview), cy + range * math.sin(endAnglePreview))
 end
 
 function FlameStream:getCooldownRemaining()
