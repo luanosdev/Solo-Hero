@@ -136,18 +136,23 @@ function ArrowProjectile:cast(args)
     end
 
     -- Calcula o número total de flechas
-    local multiAttackChance = finalStats.multiAttackChance
-    local extraArrows = 0
-    if multiAttackChance then
-        extraArrows = math.floor(multiAttackChance)
-    else
-        error("[ArrowProjectile:cast] ERROR: multiAttackChance é nil. Considerando 0 ataques extras.")
+    local baseProjectilesActual = self.baseProjectiles or
+    1                                                                  -- Garante pelo menos 1 projétil base se não definido na arma
+    local currentMultiAttackChance = finalStats.multiAttackChance or 0 -- Trata nil como 0 para evitar erro
+
+    local extraArrowsInteger = math.floor(currentMultiAttackChance)
+    local decimalChanceForExtra = currentMultiAttackChance - extraArrowsInteger
+
+    local totalArrows = baseProjectilesActual + extraArrowsInteger
+    if decimalChanceForExtra > 0 and math.random() < decimalChanceForExtra then
+        totalArrows = totalArrows + 1
     end
 
-    local decimalChance = multiAttackChance and (multiAttackChance - extraArrows) or 0
-    local totalArrows = self.baseProjectiles
-    if decimalChance > 0 and math.random() < decimalChance then
-        totalArrows = totalArrows + 1
+    if totalArrows == nil or totalArrows <= 0 then
+        error(string.format(
+            "[ArrowProjectile:cast] ERRO: totalArrows calculado é inválido (%s). Base: %s, MultiAttack: %s",
+            tostring(totalArrows), tostring(self.baseProjectiles), tostring(finalStats.multiAttackChance)))
+        return false -- Não dispara flechas se o cálculo falhar
     end
 
     -- Dano por flecha e stats de crítico dos finalStats

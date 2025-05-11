@@ -118,7 +118,7 @@ local weapons = {
         cooldown = 1.5,                                                -- Cooldown base em segundos (era attackSpeed = 1.25)
         range = 150,                                                   -- Alcance máximo das flechas
         angle = math.pi / 6,                                           -- Ângulo do cone de disparo (30 graus)
-        projectiles = 3,                                               -- Número base de flechas
+        projectiles = 1,                                               -- Número base de flechas
         attackClass = "src.abilities.player.attacks.arrow_projectile", -- Classe de ataque
     },
     chain_laser = {

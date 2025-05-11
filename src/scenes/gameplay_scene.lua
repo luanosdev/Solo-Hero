@@ -136,7 +136,7 @@ function GameplayScene:load(args)
     local function createTestDrop()
         if dropMgr and playerMgr and playerMgr.player and itemDataMgr then
             local playerPos = playerMgr.player.position
-            local testWeaponId = "dual_daggers"
+            local testWeaponId = "chain_laser"
 
             if itemDataMgr:getBaseItemData(testWeaponId) then
                 local dropConfig = { type = "item", itemId = testWeaponId, quantity = 1 }
