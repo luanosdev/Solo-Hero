@@ -16,6 +16,8 @@
 
 [ ] - ConeSlash: No ataque multiplo, adicioar animação de slash com delay para cada ataque extra
 
+[ ] - Animação de Ataques: Todos os ataques (incluindo multi-ataques) devem exibir animação. Requer sistema de fila ou Múltiplas animações simultâneas.
+
 [x] - FloatingNumber - Ver como pode stackar os numeros para em danos multiplos um nao sobrescrever o outro
 
 [x] - Criar no playermanager uma funcao para adicionar o texto em cima do jogador e criar um padrao
