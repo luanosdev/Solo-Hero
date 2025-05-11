@@ -88,12 +88,14 @@ function CircularSmash:update(dt, angle)
 
     -- Calcula finalImpactDistance (afetado por finalStats.range)
     -- finalStats.range é um multiplicador (ex: 1.0 = base, 1.1 = +10%)
-    local finalAttackAreaMultiplier = finalStats.attackArea or 1.0
-    self.finalImpactDistance = self.baseAreaEffectRadius * finalAttackAreaMultiplier
+    -- Se finalStats.attackArea for nil, os valores finais podem ser nil, o que é intencional.
+    local finalAttackAreaMultiplier = finalStats.attackArea -- Sem fallback
 
-    -- Calcula finalExplosionRadius (afetado por finalStats.attackArea)
-    -- finalStats.attackArea é um multiplicador (ex: 1.0 = base, 1.1 = +10%)
-    self.finalExplosionRadius = self.baseAreaEffectRadius * finalAttackAreaMultiplier
+    -- Se self.baseAreaEffectRadius ou finalAttackAreaMultiplier for nil, o resultado será nil.
+    self.finalImpactDistance = self.baseAreaEffectRadius and finalAttackAreaMultiplier and
+        (self.baseAreaEffectRadius * finalAttackAreaMultiplier)
+    self.finalExplosionRadius = self.baseAreaEffectRadius and finalAttackAreaMultiplier and
+        (self.baseAreaEffectRadius * finalAttackAreaMultiplier)
 
     -- Atualiza animação do ataque
     if self.isAttacking then
@@ -127,34 +129,48 @@ function CircularSmash:cast(args)
     local finalStats = self.playerManager:getCurrentFinalStats()
 
     -- Calcula a posição do impacto usando a distância de impacto FINAL
+    -- Se self.finalImpactDistance for nil, a operação de multiplicação causará erro (intencional)
     self.targetPos.x = self.currentPosition.x + math.cos(angle) * self.finalImpactDistance
     self.targetPos.y = self.currentPosition.y + math.sin(angle) * self.finalImpactDistance
-    print(string.format("  - Impact target at (%.1f, %.1f), dist: %.1f, explosion_radius: %.1f", self.targetPos.x,
+    print(string.format("  - Impact target at (%.1f, %.1f), dist: %s, explosion_radius: %s", self.targetPos.x,
         self.targetPos.y,
-        self.finalImpactDistance, self.finalExplosionRadius))
+        tostring(self.finalImpactDistance), tostring(self.finalExplosionRadius)))
 
     -- Inicia a animação
     self.isAttacking = true
     self.attackProgress = 0
 
     -- Aplica cooldown usando finalStats.attackSpeed
-    -- attackSpeed é um multiplicador (ex: 1.0 = base, 1.2 = 20% mais rápido)
     local baseData = self.weaponInstance:getBaseData()
-    local baseCooldown = baseData and baseData.cooldown
-    local finalAttackSpeedMultiplier = finalStats.attackSpeed
+    local baseCooldown = baseData and baseData.cooldown       -- Sem fallback para baseCooldown
+    local finalAttackSpeedMultiplier = finalStats.attackSpeed -- Sem fallback inicial
+    -- Exceção: Evitar divisão por zero ou cooldown inválido
     if not finalAttackSpeedMultiplier or finalAttackSpeedMultiplier <= 0 then finalAttackSpeedMultiplier = 0.01 end
 
-    self.cooldownRemaining = baseCooldown / finalAttackSpeedMultiplier
+    if baseCooldown and finalAttackSpeedMultiplier then
+        self.cooldownRemaining = baseCooldown / finalAttackSpeedMultiplier
+    else
+        print(
+            "[CircularSmash:cast] ERRO: baseCooldown ou finalAttackSpeedMultiplier é nil. Não é possível calcular cooldown.")
+        -- Decide como lidar: talvez retornar false ou não setar cooldown, o que pode levar a spam de ataques.
+        -- Por ora, apenas loga e continua, o que pode significar cooldown não aplicado.
+        self.cooldownRemaining = 1 -- Cooldown de fallback em caso de erro de dados
+    end
 
     -- Calcula ataques extras usando finalStats.multiAttackChance
-    -- multiAttackChance é uma fração (ex: 0.0 para 0%, 0.5 para 50%, 1.0 para 1 golpe extra garantido)
-    local finalMultiAttackChance = finalStats.multiAttackChance
-    if finalMultiAttackChance == nil then finalMultiAttackChance = 0 end
-    local extraAttacks = math.floor(finalMultiAttackChance)
-    local decimalChance = finalMultiAttackChance - extraAttacks
+    local finalMultiAttackChance = finalStats.multiAttackChance -- Sem fallback
+    local extraAttacks = 0
+    local decimalChance = 0
+
+    if finalMultiAttackChance then
+        extraAttacks = math.floor(finalMultiAttackChance)
+        decimalChance = finalMultiAttackChance - extraAttacks
+    else
+        print("[CircularSmash:cast] AVISO: finalMultiAttackChance é nil. Nenhum ataque extra será calculado.")
+    end
 
     -- Multiplicador de range do jogador para os ataques extras
-    local playerRangeMultiplierForExtraHits = finalStats.range or 1.0
+    local playerRangeMultiplierForExtraHits = finalStats.range -- Sem fallback
 
     -- Ataque principal usa o raio de explosão final sem o multiplicador progressivo ou de range para extras
     self.currentAttackRadius = self.finalExplosionRadius
@@ -167,11 +183,21 @@ function CircularSmash:cast(args)
         if success then
             progressiveMultiplierForExtraRadius = progressiveMultiplierForExtraRadius + 0.20
             -- Aplica o range do jogador AO MULTIPLICADOR PROGRESSIVO
-            local combinedMultiplier = progressiveMultiplierForExtraRadius * playerRangeMultiplierForExtraHits
-            self.currentAttackRadius = self.finalExplosionRadius * combinedMultiplier
-            print(string.format("    - Extra attack #%d, radius %.1f (ProgMult: %.2f, RangeMult: %.2f)", i,
-                self.currentAttackRadius, progressiveMultiplierForExtraRadius, playerRangeMultiplierForExtraHits))
-            success = self:executeAttack(finalStats)
+            -- Se playerRangeMultiplierForExtraHits for nil, combinedMultiplier pode ser nil.
+            local combinedMultiplier = playerRangeMultiplierForExtraHits and
+                (progressiveMultiplierForExtraRadius * playerRangeMultiplierForExtraHits) or
+                progressiveMultiplierForExtraRadius
+            self.currentAttackRadius = self.finalExplosionRadius and combinedMultiplier and
+                (self.finalExplosionRadius * combinedMultiplier)
+            print(string.format("    - Extra attack #%d, radius %s (ProgMult: %.2f, RangeMult: %s)", i,
+                tostring(self.currentAttackRadius), progressiveMultiplierForExtraRadius,
+                tostring(playerRangeMultiplierForExtraHits)))
+            if self.currentAttackRadius then
+                success = self:executeAttack(finalStats)
+            else
+                print("    - AVISO: currentAttackRadius para ataque extra é nil. Pulando ataque extra.")
+                success = false -- Considera falha para não continuar com mais extras baseados em nil
+            end
         else
             break
         end
@@ -179,11 +205,19 @@ function CircularSmash:cast(args)
 
     if success and decimalChance > 0 and math.random() < decimalChance then
         progressiveMultiplierForExtraRadius = progressiveMultiplierForExtraRadius + 0.20
-        local combinedMultiplier = progressiveMultiplierForExtraRadius * playerRangeMultiplierForExtraHits
-        self.currentAttackRadius = self.finalExplosionRadius * combinedMultiplier
-        print(string.format("    - Decimal chance extra attack, radius %.1f (ProgMult: %.2f, RangeMult: %.2f)",
-            self.currentAttackRadius, progressiveMultiplierForExtraRadius, playerRangeMultiplierForExtraHits))
-        self:executeAttack(finalStats)
+        local combinedMultiplier = playerRangeMultiplierForExtraHits and
+            (progressiveMultiplierForExtraRadius * playerRangeMultiplierForExtraHits) or
+            progressiveMultiplierForExtraRadius
+        self.currentAttackRadius = self.finalExplosionRadius and combinedMultiplier and
+            (self.finalExplosionRadius * combinedMultiplier)
+        print(string.format("    - Decimal chance extra attack, radius %s (ProgMult: %.2f, RangeMult: %s)",
+            tostring(self.currentAttackRadius), progressiveMultiplierForExtraRadius,
+            tostring(playerRangeMultiplierForExtraHits)))
+        if self.currentAttackRadius then
+            self:executeAttack(finalStats)
+        else
+            print("    - AVISO: currentAttackRadius para ataque extra decimal é nil. Pulando ataque.")
+        end
     end
 
     return true
@@ -196,10 +230,17 @@ end
 function CircularSmash:executeAttack(finalStats)
     local enemies = self.playerManager.enemyManager:getEnemies()
     local enemiesHitCount = 0
-    local attackRadiusSq = self.currentAttackRadius * self.currentAttackRadius -- Usa o raio do golpe atual
-    local finalCritChance = finalStats.critChance
-    if finalCritChance == nil then finalCritChance = 0 end
-    local isCritical = math.random() <= finalCritChance
+
+    if not self.currentAttackRadius or self.currentAttackRadius <= 0 then
+        print(string.format("    [executeAttack] AVISO: Raio de ataque inválido (%s). Nenhum inimigo será atingido.",
+            tostring(self.currentAttackRadius)))
+        return true -- Retorna true, mas não faz nada
+    end
+    local attackRadiusSq = self.currentAttackRadius * self.currentAttackRadius
+
+    local finalCritChance = finalStats.critChance -- Sem fallback
+    -- Se finalCritChance for nil, isCritical será false. Isso é aceitável aqui.
+    local isCritical = finalCritChance and (math.random() <= finalCritChance)
 
     -- print(string.format("    [executeAttack] Checking enemies in radius %.1f at (%.1f, %.1f)", math.sqrt(attackRadiusSq), self.targetPos.x, self.targetPos.y))
 
@@ -214,7 +255,7 @@ function CircularSmash:executeAttack(finalStats)
     end
     if enemiesHitCount > 0 then
         print(string.format("    [executeAttack] Hit %d enemies with radius %.1f.", enemiesHitCount,
-            math.sqrt(attackRadiusSq)))
+            self.currentAttackRadius))
     end
     return true
 end
@@ -239,13 +280,20 @@ end
 ---@return boolean Resultado de target:takeDamage.
 function CircularSmash:applyDamage(target, isCritical, finalStats)
     -- Usa o dano final da arma já calculado em finalStats
-    local totalDamage = finalStats.weaponDamage or 0
+    -- Se finalStats.weaponDamage for nil, totalDamage será nil.
+    local totalDamage = finalStats.weaponDamage
 
     -- Calcula crítico usando finalStats
-    local finalCritDamageMultiplier = finalStats.critDamage
-    if finalCritDamageMultiplier == nil then finalCritDamageMultiplier = 1.0 end
     if isCritical then
-        totalDamage = math.floor(totalDamage * finalCritDamageMultiplier)
+        -- Se finalStats.critDamage for nil, a multiplicação resultará em nil.
+        totalDamage = totalDamage and finalStats.critDamage and math.floor(totalDamage * finalStats.critDamage)
+    end
+
+    if totalDamage == nil then
+        print(string.format("    [applyDamage] ERRO: totalDamage é nil. Arma: %s, Crit: %s, Stats: %s",
+            tostring(self.weaponInstance and self.weaponInstance.itemBaseId), tostring(isCritical),
+            serpent.block(finalStats)))
+        return false -- Não aplica dano se o dano final for nil
     end
 
     return target:takeDamage(totalDamage, isCritical)
@@ -278,7 +326,7 @@ end
 ---@param centerY number Coordenada Y do centro.
 ---@param radius number Raio do círculo.
 function CircularSmash:drawPreviewCircleAt(color, centerX, centerY, radius)
-    if radius <= 0 then return end
+    if not radius or radius <= 0 then return end
     love.graphics.setColor(color)
     love.graphics.circle("line", centerX, centerY, radius, 32)
     love.graphics.setColor(1, 1, 1, 1)
@@ -291,7 +339,7 @@ end
 ---@param centerY number Coordenada Y do centro do impacto.
 ---@param attackRadius number O raio máximo para este pulso de ataque.
 function CircularSmash:drawAttackCircle(color, progress, centerX, centerY, attackRadius)
-    if attackRadius <= 0 then return end
+    if not attackRadius or attackRadius <= 0 then return end
     local segments = 48
     local currentRadius = attackRadius * progress   -- Círculo expande com o progresso até o attackRadius
     local alpha = color[4] or 0.8

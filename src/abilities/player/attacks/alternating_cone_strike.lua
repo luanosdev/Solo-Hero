@@ -95,22 +95,30 @@ function AlternatingConeStrike:update(dt, angle)
         self.area.position = self.playerManager.player.position
         self.area.angle = angle -- Ângulo central da mira
 
-        -- !!! CALCULA PARÂMETROS DA ÁREA AQUI, UMA VEZ POR FRAME !!!
+        -- Obtém os stats finais do jogador UMA VEZ
+        local finalStats = self.playerManager:getCurrentFinalStats()
+
         local baseData = self.weaponInstance:getBaseData()
-        local weaponBaseRange = (baseData and baseData.range) or 50
-        local weaponBaseAngle = (baseData and baseData.angle) or (math.pi / 3)
-        local rangeBonusPercent = self.playerManager.state:getTotalRange()
-        local areaBonusPercent = self.playerManager.state:getTotalArea()
-        local newRange = weaponBaseRange * (1 + rangeBonusPercent)
-        local newAngleWidth = weaponBaseAngle * (1 + areaBonusPercent)
+        local weaponBaseRange = (baseData and baseData.range)
+        local weaponBaseAngle = (baseData and baseData.angle)
+
+        -- Usa os multiplicadores de range e area dos stats finais
+        -- Assumindo que finalStats.range e finalStats.attackArea são multiplicadores diretos (ex: 1.1 para +10%)
+        -- Se weaponBaseRange, finalStats.range ou finalStats.attackArea forem nil, o resultado será nil, o que pode causar erro adiante.
+        -- Isso é intencional para detectar problemas de dados.
+        local newRange = weaponBaseRange and finalStats.range and (weaponBaseRange * finalStats.range)
+        local newAngleWidth = weaponBaseAngle and finalStats.attackArea and (weaponBaseAngle * finalStats.attackArea)
 
         -- Atualiza apenas se mudou (otimização)
         if newRange ~= self.area.range or newAngleWidth ~= self.area.angleWidth then
             self.area.range = newRange
             self.area.angleWidth = newAngleWidth
-            self.area.halfWidth = self.area.angleWidth / 2
-            print(string.format("  [UPDATE] Area Recalculated. Range: %.1f | AngleWidth: %.2f", self.area.range,
-                self.area.angleWidth)) -- Log na atualização
+            self.area.halfWidth = newAngleWidth and
+                (newAngleWidth / 2) -- Protege contra nil
+            print(string.format(
+                "  [UPDATE] Area Recalculated. Range: %s | AngleWidth: %s (BaseRange: %s, BaseAngle: %.2f, PlayerRangeMult: %s, PlayerAreaMult: %s)",
+                tostring(self.area.range), tostring(self.area.angleWidth), tostring(weaponBaseRange), weaponBaseAngle,
+                tostring(finalStats.range), tostring(finalStats.attackArea))) -- Log na atualização
         end
     end
 
@@ -144,32 +152,36 @@ function AlternatingConeStrike:cast(args)
     self.lastAttackWasLeft = attackLeftThisCast -- Para o draw
     print(string.format("  - Attacking %s side first.", attackLeftThisCast and "LEFT" or "RIGHT"))
 
+    -- Obtém os stats finais do jogador UMA VEZ
+    local finalStats = self.playerManager:getCurrentFinalStats()
+
     -- Aplica o cooldown baseado no attackSpeed TOTAL do jogador
-    local totalAttackSpeed = self.playerManager.state:getTotalAttackSpeed()
     local baseData = self.weaponInstance:getBaseData()
     local baseCooldown = (baseData and baseData.cooldown) or 1.0 -- Padrão 1s
-    if totalAttackSpeed <= 0 then totalAttackSpeed = 1 end       -- Evita divisão por zero
+    local totalAttackSpeed = finalStats.attackSpeed              -- Usa attackSpeed dos stats finais
+    if totalAttackSpeed <= 0 then totalAttackSpeed = 0.01 end    -- Evita divisão por zero ou cooldown infinito
     self.cooldownRemaining = baseCooldown / totalAttackSpeed
-    print(string.format("  - Cooldown set to %.2fs (Base: %.2f / TotalAS: %.2f)", self.cooldownRemaining, baseCooldown,
+    print(string.format("  - Cooldown set to %.2fs (Base: %.2f / FinalASMult: %.2f)", self.cooldownRemaining,
+        baseCooldown,
         totalAttackSpeed))
 
-    -- Calcula ataques extras
-    local multiAttackChance = self.playerManager.state:getTotalMultiAttackChance()
+    -- Calcula ataques extras usando multiAttackChance dos stats finais
+    local multiAttackChance = finalStats.multiAttackChance
     local extraAttacks = math.floor(multiAttackChance)
     local decimalChance = multiAttackChance - extraAttacks
     print(string.format("  - Multi-Attack Chance: %.2f (Extra: %d + %.2f%%)", multiAttackChance, extraAttacks,
         decimalChance * 100))
 
     -- Executa o PRIMEIRO ataque
-    local success = self:executeAttack(attackLeftThisCast)
-    local currentHitIsLeft = attackLeftThisCast -- Variável para alternar nos extras
+    local success = self:executeAttack(attackLeftThisCast, finalStats) -- Passa finalStats
+    local currentHitIsLeft = attackLeftThisCast                        -- Variável para alternar nos extras
 
     -- Executa ataques extras inteiros, alternando a CADA extra
     for i = 1, extraAttacks do
-        if success then                             -- Só continua se o anterior (hipoteticamente) teve sucesso
-            currentHitIsLeft = not currentHitIsLeft -- Alterna para o próximo extra
+        if success then                                                -- Só continua se o anterior (hipoteticamente) teve sucesso
+            currentHitIsLeft = not currentHitIsLeft                    -- Alterna para o próximo extra
             print(string.format("    - Executing extra attack #%d (%s side)", i, currentHitIsLeft and "LEFT" or "RIGHT"))
-            success = self:executeAttack(currentHitIsLeft)
+            success = self:executeAttack(currentHitIsLeft, finalStats) -- Passa finalStats
         else
             print("    - Stopping extra attacks due to previous failure.")
             break
@@ -181,7 +193,7 @@ function AlternatingConeStrike:cast(args)
         currentHitIsLeft = not currentHitIsLeft -- Alterna para este extra
         print(string.format("    - Executing decimal chance extra attack (%s side)",
             currentHitIsLeft and "LEFT" or "RIGHT"))
-        self:executeAttack(currentHitIsLeft)
+        self:executeAttack(currentHitIsLeft, finalStats) -- Passa finalStats
     end
 
     -- IMPORTANTE: Alterna o estado APENAS UMA VEZ no final, preparando o PRÓXIMO cast
@@ -193,8 +205,9 @@ end
 
 --- Executa a lógica de um único golpe em uma metade específica.
 ---@param hitLeft boolean True para atacar a metade esquerda, False para a direita.
+---@param finalStats table Stats finais do jogador.
 ---@return boolean Sempre retorna true (indica que a tentativa de ataque foi feita).
-function AlternatingConeStrike:executeAttack(hitLeft)
+function AlternatingConeStrike:executeAttack(hitLeft, finalStats)
     local enemies = self.playerManager.enemyManager:getEnemies()
     local enemiesHitCount = 0
     local side = hitLeft and "LEFT" or "RIGHT"
@@ -205,15 +218,9 @@ function AlternatingConeStrike:executeAttack(hitLeft)
             -- Verifica se o inimigo está na metade correta do cone
             if self:isPointInCorrectHalf(enemy.position, hitLeft) then
                 enemiesHitCount = enemiesHitCount + 1
-                -- print(string.format("      - Hitting enemy #%d at (%.1f, %.1f) on %s side.", i, enemy.position.x, enemy.position.y, side))
-                self:applyDamage(enemy) -- Aplica o dano (a checagem de área já foi feita)
-                -- else
-                -- local dx = enemy.position.x - self.area.position.x
-                -- local dy = enemy.position.y - self.area.position.y
-                -- local dist = math.sqrt(dx*dx+dy*dy)
-                -- local pAng = math.atan2(dy, dx)
-                -- local relAng = normalizeAngle(pAng - self.area.angle)
-                -- print(string.format("      - Enemy #%d MISSED %s side. Dist: %.1f, RelAngle: %.2f (Limit: %.2f)", i, side, dist, relAng, self.area.halfWidth))
+
+                local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
+                self:applyDamage(enemy, finalStats, isCritical) -- Passa finalStats para applyDamage
             end
         end
     end
@@ -229,7 +236,6 @@ end
 ---@return boolean True se o ponto está na área total.
 function AlternatingConeStrike:isPointInArea(position)
     if not self.area then return false end
-    -- REMOVIDO: self:updateAreaIfNeeded() -- Usa valores já calculados em update
 
     local dx = position.x - self.area.position.x
     local dy = position.y - self.area.position.y
@@ -273,23 +279,21 @@ end
 
 --- Aplica dano a um alvo.
 ---@param target BaseEnemy Instância do inimigo a ser atingido.
+---@param finalStats table Stats finais do jogador.
+---@param isCritical boolean True se o ataque é crítico, False caso contrário.
 ---@return boolean Resultado de target:takeDamage.
-function AlternatingConeStrike:applyDamage(target)
-    -- Busca o dano base da arma ATUALMENTE
-    local baseData = self.weaponInstance:getBaseData()
-    local weaponBaseDamage = (baseData and baseData.damage) or 0
+function AlternatingConeStrike:applyDamage(target, finalStats, isCritical)
+    -- Usa o dano da arma já calculado nos stats finais
+    -- Se finalStats.weaponDamage for nil, totalDamage será nil, causando erro em takeDamage se não tratado lá.
+    local totalDamage = finalStats.weaponDamage
 
-    -- Calcula o dano total usando o estado ATUAL do jogador
-    local totalDamage = self.playerManager.state:getTotalDamage(weaponBaseDamage) -- Passa o base da arma
-
-    -- Calcula se o dano é crítico
-    local isCritical = math.random() <= self.playerManager.state:getTotalCritChance() / 100
     if isCritical then
-        totalDamage = math.floor(totalDamage * self.playerManager.state:getTotalCritDamage())
+        -- Se finalStats.critDamage for nil, a multiplicação resultará em nil.
+        totalDamage = totalDamage and finalStats.critDamage and math.floor(totalDamage * finalStats.critDamage)
     end
 
     -- Aplica o dano
-    -- print(string.format("      Applying %d damage (%s) to target.", totalDamage, isCritical and "CRIT" or "normal"))
+    -- print(string.format("      Applying %s damage (%s) to target.", tostring(totalDamage), isCritical and "CRIT" or "normal"))
     return target:takeDamage(totalDamage, isCritical)
 end
 

@@ -89,21 +89,26 @@ function ConeSlash:update(dt, angle)
         self.area.position = self.playerManager.player.position
         self.area.angle = angle -- Ângulo central da mira
 
-        -- CALCULA PARÂMETROS DA ÁREA AQUI
+        -- Obtém os stats finais do jogador UMA VEZ
+        local finalStats = self.playerManager:getCurrentFinalStats()
+
         local baseData = self.weaponInstance:getBaseData()
-        local weaponBaseRange = (baseData and baseData.range) or 50            -- Padrão range 50
-        local weaponBaseAngle = (baseData and baseData.angle) or (math.pi / 3) -- Padrão 60 graus
-        local rangeBonusPercent = self.playerManager.state:getTotalRange()
-        local areaBonusPercent = self.playerManager.state:getTotalArea()
-        local newRange = weaponBaseRange * (1 + rangeBonusPercent)
-        local newAngleWidth = weaponBaseAngle * (1 + areaBonusPercent)
+        local weaponBaseRange = baseData and baseData.range
+        local weaponBaseAngle = baseData and baseData.angle
+
+        -- Usa os multiplicadores de range e area dos stats finais
+        -- Se weaponBaseRange/Angle ou finalStats.range/attackArea forem nil, o resultado será nil.
+        local newRange = weaponBaseRange and finalStats.range and (weaponBaseRange * finalStats.range)
+        local newAngleWidth = weaponBaseAngle and finalStats.attackArea and (weaponBaseAngle * finalStats.attackArea)
 
         if newRange ~= self.area.range or newAngleWidth ~= self.area.angleWidth then
             self.area.range = newRange
             self.area.angleWidth = newAngleWidth
-            self.area.halfWidth = self.area.angleWidth / 2 -- Calcula halfWidth aqui
-            print(string.format("  [ConeSlash UPDATE] Area Recalculated. Range: %.1f | AngleWidth: %.2f", self.area
-                .range, self.area.angleWidth))
+            self.area.halfWidth = newAngleWidth and (newAngleWidth / 2)
+            print(string.format(
+                "  [ConeSlash UPDATE] Area Recalculated. Range: %s | AngleWidth: %s (BaseRange: %s, BaseAngle: %s, PlayerRangeMult: %s, PlayerAreaMult: %s)",
+                tostring(self.area.range), tostring(self.area.angleWidth), tostring(weaponBaseRange),
+                tostring(weaponBaseAngle), tostring(finalStats.range), tostring(finalStats.attackArea)))
         end
     end
 
@@ -128,34 +133,51 @@ function ConeSlash:cast(args)
     end
     print("[ConeSlash:cast] Casting attack.")
 
+    local finalStats = self.playerManager:getCurrentFinalStats()
+
     -- Inicia a animação do ataque
     self.isAttacking = true
     self.attackProgress = 0
 
     -- Aplica o cooldown
-    local totalAttackSpeed = self.playerManager.state:getTotalAttackSpeed()
     local baseData = self.weaponInstance:getBaseData()
-    local baseCooldown = (baseData and baseData.cooldown) or 1.0 -- Padrão 1s
-    if totalAttackSpeed <= 0 then totalAttackSpeed = 1 end
-    self.cooldownRemaining = baseCooldown / totalAttackSpeed
-    print(string.format("  - Cooldown set to %.2fs (Base: %.2f / TotalAS: %.2f)", self.cooldownRemaining, baseCooldown,
-        totalAttackSpeed))
+    local baseCooldown = baseData and baseData.cooldown -- Sem fallback
+    local totalAttackSpeed = finalStats.attackSpeed     -- Sem fallback inicial
+    -- Exceção: Evitar divisão por zero ou cooldown inválido
+    if not totalAttackSpeed or totalAttackSpeed <= 0 then totalAttackSpeed = 0.01 end
+
+    if baseCooldown and totalAttackSpeed then
+        self.cooldownRemaining = baseCooldown / totalAttackSpeed
+        print(string.format("  - Cooldown set to %.2fs (Base: %s / FinalASMult: %.2f)", self.cooldownRemaining,
+            tostring(baseCooldown), totalAttackSpeed))
+    else
+        error(
+            "[ConeSlash:cast] ERRO: baseCooldown ou totalAttackSpeed é nil/inválido. Não é possível calcular cooldown.")
+        self.cooldownRemaining = 1 -- Cooldown de fallback em caso de erro de dados
+    end
 
     -- Calcula ataques extras (multiAttackChance)
-    local multiAttackChance = self.playerManager.state:getTotalMultiAttackChance()
-    local extraAttacks = math.floor(multiAttackChance)
-    local decimalChance = multiAttackChance - extraAttacks
-    print(string.format("  - Multi-Attack Chance: %.2f (Extra: %d + %.2f%%)", multiAttackChance, extraAttacks,
-        decimalChance * 100))
+    local multiAttackChance = finalStats.multiAttackChance -- Sem fallback
+    local extraAttacks = 0
+    local decimalChance = 0
+
+    if multiAttackChance then
+        extraAttacks = math.floor(multiAttackChance)
+        decimalChance = multiAttackChance - extraAttacks
+        print(string.format("  - Multi-Attack Chance: %s (Extra: %d + %.2f%%)", tostring(multiAttackChance), extraAttacks,
+            decimalChance * 100))
+    else
+        error("[ConeSlash:cast] AVISO: multiAttackChance é nil. Nenhum ataque extra será calculado.")
+    end
 
     -- Primeiro ataque sempre ocorre
-    local success = self:executeAttack()
+    local success = self:executeAttack(finalStats)
 
     -- Executa ataques extras inteiros
     for i = 1, extraAttacks do
-        if success then -- Só continua se o anterior teve sucesso
+        if success then
             print(string.format("    - Executing extra attack #%d", i))
-            success = self:executeAttack()
+            success = self:executeAttack(finalStats)
         else
             print("    - Stopping extra attacks due to previous failure.")
             break
@@ -165,25 +187,34 @@ function ConeSlash:cast(args)
     -- Chance de ataque extra decimal
     if success and decimalChance > 0 and math.random() < decimalChance then
         print("    - Executing decimal chance extra attack")
-        self:executeAttack()
+        self:executeAttack(finalStats)
     end
 
     return true -- Retorna true porque o cast foi iniciado
 end
 
 --- Executa a lógica de um único golpe do ConeSlash.
+---@param finalStats table Os stats finais do jogador.
 ---@return boolean Sempre retorna true (indica que a tentativa de ataque foi feita).
-function ConeSlash:executeAttack()
+function ConeSlash:executeAttack(finalStats)
     local enemies = self.playerManager.enemyManager:getEnemies()
     local enemiesHitCount = 0
     -- Não precisa chamar updateAreaIfNeeded() pois a área é atualizada em :update
+
+    -- Verifica se a área de ataque é válida antes de prosseguir
+    if not self.area or not self.area.range or self.area.range <= 0 or not self.area.halfWidth or self.area.halfWidth <= 0 then
+        error(string.format(
+            "[ConeSlash:executeAttack] AVISO: Área de ataque inválida. Range: %s, HalfWidth: %s. Nenhum inimigo será atingido.",
+            tostring(self.area.range), tostring(self.area.halfWidth)))
+    end
 
     for i, enemy in ipairs(enemies) do
         if enemy.isAlive then
             -- Verifica se o inimigo está dentro da área de ataque
             if self:isPointInArea(enemy.position) then
+                local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
                 enemiesHitCount = enemiesHitCount + 1
-                self:applyDamage(enemy) -- Aplica o dano
+                self:applyDamage(enemy, finalStats)
             end
         end
     end
@@ -198,8 +229,7 @@ end
 ---@param position table Posição {x, y} a verificar.
 ---@return boolean True se o ponto está na área total.
 function ConeSlash:isPointInArea(position)
-    if not self.area then return false end
-    -- Não chama updateAreaIfNeeded()
+    if not self.area or not self.area.range or not self.area.halfWidth then return false end
 
     local dx = position.x - self.area.position.x
     local dy = position.y - self.area.position.y
@@ -216,22 +246,23 @@ end
 
 --- Aplica dano a um alvo.
 ---@param target BaseEnemy Instância do inimigo a ser atingido.
+---@param finalStats table Os stats finais do jogador.
+---@param isCritical boolean True se o ataque é crítico, False caso contrário.
 ---@return boolean Resultado de target:takeDamage ou false se fora da área.
-function ConeSlash:applyDamage(target)
-    -- A verificação de área já foi feita em executeAttack, mas podemos manter por segurança
-    -- if not self:isPointInArea(target.position) then return false end
+function ConeSlash:applyDamage(target, finalStats, isCritical)
+    -- A verificação de área já foi feita em executeAttack
 
-    -- Busca o dano base da arma
-    local baseData = self.weaponInstance:getBaseData()
-    local weaponBaseDamage = (baseData and baseData.damage) or 0
+    -- Usa o dano da arma já calculado nos stats finais
+    local totalDamage = finalStats.weaponDamage
 
-    -- Calcula o dano total usando o estado do jogador
-    local totalDamage = self.playerManager.state:getTotalDamage(weaponBaseDamage)
-
-    -- Calcula crítico
-    local isCritical = math.random() <= self.playerManager.state:getTotalCritChance() -- getTotalCritChance já é fração
     if isCritical then
-        totalDamage = math.floor(totalDamage * self.playerManager.state:getTotalCritDamage())
+        totalDamage = totalDamage and finalStats.critDamage and
+            math.floor(totalDamage * finalStats.critDamage)
+    end
+
+    if totalDamage == nil then
+        error(string.format("    [ConeSlash:applyDamage] ERRO: totalDamage é nil. Arma: %s, Crit: %s",
+            tostring(self.weaponInstance and self.weaponInstance.itemBaseId), tostring(isCritical)))
     end
 
     -- Aplica o dano
@@ -256,7 +287,9 @@ end
 --- Desenha o CONTORNO do cone (para preview).
 ---@param color table Cor RGBA.
 function ConeSlash:drawConeOutline(color)
-    if not self.area or self.area.range <= 0 then return end
+    if not self.area or not self.area.range or self.area.range <= 0 or not self.area.halfWidth or self.area.halfWidth <= 0 then
+        error("[ConeSlash:drawConeOutline] AVISO: Área inválida para desenho.")
+    end
     local segments = 32
     love.graphics.setColor(color)
     local cx, cy = self.area.position.x, self.area.position.y
@@ -285,7 +318,10 @@ end
 ---@param color table Cor RGBA.
 ---@param progress number Progresso da animação (0 a 1).
 function ConeSlash:drawConeFill(color, progress)
-    if not self.area or self.area.range <= 0 then return end
+    if not self.area or not self.area.range or self.area.range <= 0 or not self.area.angleWidth or self.area.angleWidth <= 0 then
+        error("[ConeSlash:drawConeFill] AVISO: Área base inválida para animação.")
+    end
+
     local segments = self.visual.attack.segments or 20
     local innerRange = (self.playerManager.player and self.playerManager.player.radius or 10) * 1.5
 
@@ -293,6 +329,11 @@ function ConeSlash:drawConeFill(color, progress)
     -- Animação: O cone "cresce" com o progresso
     local currentRange = self.area.range * progress
     local currentAngleWidth = self.area.angleWidth * progress -- O ângulo também pode crescer
+
+    if not currentRange or currentRange <= 0 or not currentAngleWidth or currentAngleWidth <= 0 then
+        error("[ConeSlash:drawConeFill] AVISO: Área animada inválida (currentRange ou currentAngleWidth <= 0).")
+    end
+
     local currentHalfWidth = currentAngleWidth / 2
 
     love.graphics.setColor(color[1], color[2], color[3], alpha * (1 - progress ^ 2)) -- Fade out mais rápido

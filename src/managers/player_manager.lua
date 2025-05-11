@@ -500,9 +500,11 @@ function PlayerManager:updateAutoAttack(currentAngle)
         -- Chama cast com a tabela de argumentos
         self.equippedWeapon.attackInstance:cast(args)
     elseif self.autoAttack then
-        error(string.format(
-            "  [DEBUG PM:updateAutoAttack] AutoAttack ON but weapon/instance missing. Weapon: %s, Instance: %s",
-            tostring(self.equippedWeapon), tostring(self.equippedWeapon and self.equippedWeapon.attackInstance))) -- DEBUG (Temporarily Disabled)
+        if (self.equippedWeapon and not self.equippedWeapon.attackInstance) then
+            error(string.format(
+                "  [DEBUG PM:updateAutoAttack] AutoAttack ON but weapon/instance missing. Weapon: %s, Instance: %s",
+                tostring(self.equippedWeapon), tostring(self.equippedWeapon and self.equippedWeapon.attackInstance))) -- DEBUG (Temporarily Disabled)
+        end
     end
 end
 

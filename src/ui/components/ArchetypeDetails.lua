@@ -201,25 +201,8 @@ function ArchetypeDetails:_updateLayout()
     -- Marca o layout como concluído para este componente
     self.needsLayout = false
 
-    -- ... no início de _updateLayout ...
-    print(string.format("[ArchetypeDetails:%s] _updateLayout START - self.rect: w=%s, h=%s", self.archetypeData.id,
-        self.rect.w, self.rect.h))
-
-    -- ... antes de definir self.internalStack.rect.w ...
     local innerWidth = self.rect.w - self.padding.left - self.padding.right
-    print(string.format("[ArchetypeDetails:%s] innerWidth para stack: %s", self.archetypeData.id, innerWidth))
-    if innerWidth <= 0 then
-        print(string.format("AVISO [ArchetypeDetails:%s] innerWidth é %s, stack interna pode ter problemas!",
-            self.archetypeData.id, innerWidth))
-    end
     self.internalStack.rect.w = innerWidth
-    -- ...
-    -- ... após self.internalStack:_updateLayout() ...
-    print(string.format("[ArchetypeDetails:%s] internalStack.rect DEPOIS layout: w=%s, h=%s", self.archetypeData.id,
-        self.internalStack.rect.w, self.internalStack.rect.h))
-    -- ... no final, após calcular self.rect.h ...
-    print(string.format("[ArchetypeDetails:%s] _updateLayout END - self.rect.h FINAL: %s", self.archetypeData.id,
-        self.rect.h))
 end
 
 --- Sobrescreve draw de Component
