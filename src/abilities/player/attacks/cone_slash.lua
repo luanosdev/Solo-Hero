@@ -1,12 +1,19 @@
-local EnemyManager = require("src.managers.enemy_manager")
+-------------------------------------------------------
+-- Cone Slash Ability
+-- A habilidade ConeSlash é uma habilidade de ataque em cone que causa dano a todos os inimigos na área.
+-------------------------------------------------------
 
---[[
-    Cone Slash Ability
-    A cone-shaped area of effect attack that serves as the character's primary attack method
-]]
-
-local Camera = require("src.config.camera")
-
+---@class ConeSlash
+---@field name string
+---@field description string
+---@field damageType string
+---@field visual table
+---@field cooldownRemaining number
+---@field isAttacking boolean
+---@field attackProgress number
+---@field area table
+---@field playerManager PlayerManager
+---@field weaponInstance BaseWeapon
 local ConeSlash = {}
 ConeSlash.__index = ConeSlash -- Para permitir :new
 
@@ -214,7 +221,7 @@ function ConeSlash:executeAttack(finalStats)
             if self:isPointInArea(enemy.position) then
                 local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
                 enemiesHitCount = enemiesHitCount + 1
-                self:applyDamage(enemy, finalStats)
+                self:applyDamage(enemy, finalStats, isCritical)
             end
         end
     end
@@ -326,36 +333,49 @@ function ConeSlash:drawConeFill(color, progress)
     local innerRange = (self.playerManager.player and self.playerManager.player.radius or 10) * 1.5
 
     local alpha = color[4] or 1.0
-    -- Animação: O cone "cresce" com o progresso
-    local currentRange = self.area.range * progress
-    local currentAngleWidth = self.area.angleWidth * progress -- O ângulo também pode crescer
 
-    if not currentRange or currentRange <= 0 or not currentAngleWidth or currentAngleWidth <= 0 then
-        error("[ConeSlash:drawConeFill] AVISO: Área animada inválida (currentRange ou currentAngleWidth <= 0).")
-    end
+    -- Animação: O cone é "varrido" angularmente com o progresso.
+    -- O range total do cone permanece constante.
+    local fullRange = self.area.range
+    if not fullRange or fullRange <= 0 then return end          -- Garante que o range base é válido
 
-    local currentHalfWidth = currentAngleWidth / 2
-
-    love.graphics.setColor(color[1], color[2], color[3], alpha * (1 - progress ^ 2)) -- Fade out mais rápido
+    love.graphics.setColor(color[1], color[2], color[3], alpha) -- Alpha pode ser constante ou variar com progress também, e.g., fade in/out rápido
 
     local cx, cy = self.area.position.x, self.area.position.y
 
-    local startAngle = self.area.angle - currentHalfWidth
-    local endAngle = self.area.angle + currentHalfWidth
+    -- Define o ângulo inicial do cone (borda esquerda)
+    local coneBaseStartAngle = self.area.angle - self.area.halfWidth
+    -- O ângulo da animação varre da borda esquerda até a borda direita
+    local animatedEndAngle = coneBaseStartAngle + (self.area.angleWidth * progress)
 
-    -- Desenha como anel de setor usando o range/ângulo atuais da animação
+    -- Garante que o animatedEndAngle não exceda a borda direita do cone total
+    local coneBaseEndAngle = self.area.angle + self.area.halfWidth
+    animatedEndAngle = math.min(animatedEndAngle, coneBaseEndAngle)
+
+    -- Para a animação de varredura, o startAngle da porção desenhada é sempre o início do cone.
+    -- O endAngle da porção desenhada é o animatedEndAngle.
+    local currentDrawStartAngle = coneBaseStartAngle
+    local currentDrawEndAngle = animatedEndAngle
+
+    -- Se o progresso for muito pequeno, não desenha nada ou desenha uma linha fina
+    if progress < 0.01 or currentDrawEndAngle <= currentDrawStartAngle then
+        return
+    end
+
     local vertices = {}
     -- Arco externo
     for i = 0, segments do
-        local angle = startAngle + (endAngle - startAngle) * (i / segments)
-        table.insert(vertices, cx + currentRange * math.cos(angle))
-        table.insert(vertices, cy + currentRange * math.sin(angle))
+        local angle = currentDrawStartAngle + (currentDrawEndAngle - currentDrawStartAngle) * (i / segments)
+        table.insert(vertices, cx + fullRange * math.cos(angle))
+        table.insert(vertices, cy + fullRange * math.sin(angle))
     end
     -- Arco interno
     for i = segments, 0, -1 do
-        local angle = startAngle + (endAngle - startAngle) * (i / segments)
-        -- Garante que innerRange não seja maior que currentRange
-        local actualInnerRange = math.min(innerRange, currentRange * 0.9)
+        local angle = currentDrawStartAngle + (currentDrawEndAngle - currentDrawStartAngle) * (i / segments)
+        local actualInnerRange = math.min(innerRange, fullRange * 0.9)
+        if actualInnerRange < 0 then actualInnerRange = 0 end
+        if actualInnerRange >= fullRange and fullRange > 0 then actualInnerRange = fullRange * 0.95 end
+
         table.insert(vertices, cx + actualInnerRange * math.cos(angle))
         table.insert(vertices, cy + actualInnerRange * math.sin(angle))
     end

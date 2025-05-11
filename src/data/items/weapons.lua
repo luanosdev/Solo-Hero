@@ -12,7 +12,7 @@ local weapons = {
         maxStack = 1,
         damage = 180,
         cooldown = 1.2,                                              -- Cooldown base em segundos (era attackSpeed = 0.83)
-        baseAreaEffectRadius = 30,                                       -- Raio da área de impacto
+        baseAreaEffectRadius = 30,                                   -- Raio da área de impacto
         attackClass = "src.abilities.player.attacks.circular_smash", -- Classe de ataque
     },
     wooden_sword = {
@@ -28,7 +28,7 @@ local weapons = {
         maxStack = 1,
         damage = 100,
         cooldown = 1.4,                                          -- Cooldown base em segundos (AJUSTE SE NECESSÁRIO)
-        range = 60,                                              -- Alcance do cone (AJUSTE SE NECESSÁRIO)
+        range = 150,                                             -- Alcance do cone (AJUSTE SE NECESSÁRIO)
         angle = math.pi / 10,                                    -- Ângulo do cone (60 graus) (AJUSTE SE NECESSÁRIO)
         attackClass = "src.abilities.player.attacks.cone_slash", -- Classe de ataque associada
     },
@@ -36,7 +36,7 @@ local weapons = {
         id = "iron_sword",
         name = "Espada de Ferro",
         type = "weapon",
-        rarity = "D",                           -- "uncommon"
+        rarity = "D",                         -- "uncommon"
         description = "Uma espada de ferro pesada e resistente.",
         icon = "assets/items/iron_sword.png", -- Assumido
         gridWidth = 1,
@@ -45,7 +45,7 @@ local weapons = {
         maxStack = 1,
         damage = 200,
         cooldown = 1.2,
-        range = 90,
+        range = 200,
         angle = math.pi / 8,
         attackClass = "src.abilities.player.attacks.cone_slash",
     },
