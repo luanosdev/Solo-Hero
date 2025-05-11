@@ -348,45 +348,59 @@ end
 ---@param progress number Progresso da animação (0 a 1), pode ser usado para fade in/out.
 ---@param drawLeft boolean True para desenhar a metade esquerda, False para a direita.
 function AlternatingConeStrike:drawHalfConeFill(color, progress, drawLeft)
-    if not self.area or self.area.range <= 0 then return end
-    -- Não chama mais updateAreaIfNeeded()
+    if not self.area or not self.area.range or self.area.range <= 0 or not self.area.halfWidth or self.area.halfWidth <= 0 then
+        error("[AlternatingConeStrike:drawHalfConeFill] AVISO: Área inválida para desenho.")
+        return
+    end
+
     local segments = 16
-    -- RESTAURADO: Define o raio interno para desenhar um anel de setor
     local innerRange = (self.playerManager.player and self.playerManager.player.radius or 10) * 1.5
+    local fullRange = self.area.range
 
     local alpha = color[4] or 1.0
-    local currentAlpha = alpha * (1 - progress)
-    love.graphics.setColor(color[1], color[2], color[3], currentAlpha)
+    love.graphics.setColor(color[1], color[2], color[3], alpha) -- Alpha pode ser constante ou variar
 
     local cx, cy = self.area.position.x, self.area.position.y
-    local range = self.area.range
+    local baseAngle = self.area.angle
+    local halfWidth = self.area.halfWidth
 
-    local startAngle, endAngle
+    local currentDrawStartAngle, currentDrawEndAngle
+
     if drawLeft then
-        startAngle = self.area.angle - self.area.halfWidth
-        endAngle = self.area.angle
+        -- Metade Esquerda: Slash da borda esquerda (-halfWidth) para o centro (0)
+        currentDrawStartAngle = baseAngle - halfWidth
+        currentDrawEndAngle = (baseAngle - halfWidth) + (halfWidth * progress)
     else
-        startAngle = self.area.angle
-        endAngle = self.area.angle + self.area.halfWidth
+        -- Metade Direita: Slash da borda direita (+halfWidth) para o centro (0)
+        -- Para animar da direita para a esquerda com progress de 0 a 1:
+        -- O startAngle se move da direita (baseAngle + halfWidth) para o centro (baseAngle)
+        currentDrawStartAngle = baseAngle + halfWidth - (halfWidth * progress)
+        currentDrawEndAngle = baseAngle + halfWidth
     end
 
-    -- Cria os vértices para o polígono preenchido (formato de ANEL DE SETOR)
+    -- Garante que os ângulos não se cruzem de forma inválida e que haja algo para desenhar
+    if progress < 0.01 or currentDrawEndAngle <= currentDrawStartAngle then
+        return
+    end
+
     local vertices = {}
-
-    -- Vértices do arco externo (do início ao fim)
+    -- Arco externo
     for i = 0, segments do
-        local angle = startAngle + (endAngle - startAngle) * (i / segments)
-        table.insert(vertices, cx + range * math.cos(angle)) -- Insere X externo
-        table.insert(vertices, cy + range * math.sin(angle)) -- Insere Y externo
+        local angle = currentDrawStartAngle + (currentDrawEndAngle - currentDrawStartAngle) * (i / segments)
+        table.insert(vertices, cx + fullRange * math.cos(angle))
+        table.insert(vertices, cy + fullRange * math.sin(angle))
     end
-    -- Vértices do arco interno (do fim para o início)
+    -- Arco interno
     for i = segments, 0, -1 do
-        local angle = startAngle + (endAngle - startAngle) * (i / segments)
-        table.insert(vertices, cx + innerRange * math.cos(angle)) -- Insere X interno
-        table.insert(vertices, cy + innerRange * math.sin(angle)) -- Insere Y interno
+        local angle = currentDrawStartAngle + (currentDrawEndAngle - currentDrawStartAngle) * (i / segments)
+        local actualInnerRange = math.min(innerRange, fullRange * 0.9)
+        if actualInnerRange < 0 then actualInnerRange = 0 end
+        if actualInnerRange >= fullRange and fullRange > 0 then actualInnerRange = fullRange * 0.95 end
+
+        table.insert(vertices, cx + actualInnerRange * math.cos(angle))
+        table.insert(vertices, cy + actualInnerRange * math.sin(angle))
     end
 
-    -- Desenha o polígono preenchido se tivermos pelo menos 3 pontos (6 coordenadas)
     if #vertices >= 6 then
         love.graphics.polygon("fill", unpack(vertices))
     end

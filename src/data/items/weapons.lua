@@ -62,7 +62,7 @@ local weapons = {
         maxStack = 1,
         damage = 40,
         cooldown = 1,
-        range = 40,
+        range = 100,
         angle = math.pi / 3,
         attackClass = "src.abilities.player.attacks.alternating_cone_strike",
     },
