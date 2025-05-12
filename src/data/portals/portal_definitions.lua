@@ -10,9 +10,9 @@ local SpiderBoss = require("src.classes.bosses.spider")
 local portalDefinitions = {
     -- Exemplo de um portal inicial: Floresta Assombrada
     floresta_assombrada = {
-        name = "Floresta Assombrada", -- Nome exibido para o jogador
-        theme = "Floresta",           -- Temática (influencia visual, eventos, etc.)
-        rank = "E",                   -- Ranking de dificuldade base do portal
+        name = "Basic Forest", -- ATUALIZADO
+        theme = "BasicForest", -- ATUALIZADO
+        rank = "E",            -- Ranking de dificuldade base do portal
 
         -- Configuração específica das hordas para este portal
         hordeConfig = {
@@ -97,10 +97,30 @@ local portalDefinitions = {
             }
         },
 
+        -- NOVA SEÇÃO mapDefinition
+        mapDefinition = {
+            themeName = "BasicForest",
+            noiseParameters = {
+                scale = 0.07,          -- Ajuste este valor para mudar o "zoom" do noise. Menor = feições maiores.
+                waterThreshold = -0.3, -- Valores de noise abaixo disso serão água
+                sandThreshold = 0.0,   -- Valores de noise entre waterThreshold e sandThreshold serão areia
+                -- Valores acima de sandThreshold serão grama (o padrão)
+                -- octaves = 3,        -- Exemplo: se sua lib de noise usar oitavas
+                -- persistence = 0.5,
+                -- lacunarity = 2.0
+            },
+            tileAssets = {
+                grass = "assets/tiles/basic_forest/grass/grass_base.png",
+                sand  = "assets/tiles/basic_forest/sand/sand_base.png",
+                water = "assets/tiles/basic_forest/water/water_base.png"
+            },
+            objectSpawnRules = {},
+            eventSpawnRules = {}
+        },
+
         -- Futuras configurações (placeholder)
-        randomEvents = {},   -- Tabela para definir eventos aleatórios que podem ocorrer
-        mapDefinition = nil, -- Referência para a definição do mapa (tiles, layout)
-        assetPack = nil      -- Referência para assets específicos do tema (sprites, sons)
+        randomEvents = {}, -- Tabela para definir eventos aleatórios que podem ocorrer
+        assetPack = nil    -- Referência para assets específicos do tema (sprites, sons)
     },
 
     -- Adicione outras definições de portais aqui...

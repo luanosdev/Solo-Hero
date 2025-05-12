@@ -1,7 +1,7 @@
 local Camera = {
     x = 0,
     y = 0,
-    scale = 1,
+    scale = 1.5,
     rotation = 0,
     smoothness = 5, -- Suavidade da câmera (maior = mais suave)
     screenWidth = 0,
@@ -33,12 +33,15 @@ end
 
 function Camera:attach()
     love.graphics.push()
-    love.graphics.translate(
-        -math.floor(self.x + 0.5),
-        -math.floor(self.y + 0.5)
-    )
+    -- Centraliza o ponto de origem do zoom/rotação no centro da tela
+    love.graphics.translate(self.screenWidth / 2, self.screenHeight / 2)
     love.graphics.scale(self.scale, self.scale)
     love.graphics.rotate(self.rotation)
+    -- Move o mundo de volta para a posição correta
+    love.graphics.translate(
+        -math.floor(self.x + 0.5) - self.screenWidth / 2,
+        -math.floor(self.y + 0.5) - self.screenHeight / 2
+    )
 end
 
 function Camera:detach()
