@@ -1,49 +1,35 @@
 local SceneManager = require("src.core.scene_manager")
+local Camera = require("src.config.camera")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
+local Constants = require("src.config.constants")
+local ManagerRegistry = require("src.managers.manager_registry")
 local LobbyPortalManager = require("src.managers.lobby_portal_manager")
-local Formatters = require("src.utils.formatters")
+local EquipmentScreen = require("src.ui.screens.equipment_screen")
+local PortalScreen = require("src.ui.screens.portal_screen")
+local GuildScreen = require("src.ui.screens.guild_screen")
+
+local TabIds = Constants.TabIds
 
 --- Cena principal do Lobby.
--- Exibe o mapa de fundo quando "Portais" está ativo e a barra de navegação inferior.
+---Exibe o mapa de fundo quando "Portais" está ativo e a barra de navegação inferior.
+---@class LobbyScene
+---@field portalScreen PortalScreen
+---@field equipmentScreen EquipmentScreen
 local LobbyScene = {}
 
 -- Estado da cena
-LobbyScene.mapImage = nil ---@type love.Image|nil
-LobbyScene.mapImagePath = "assets/images/map.png"
-LobbyScene.mapOriginalWidth = 0  -- Largura original da imagem do mapa
-LobbyScene.mapOriginalHeight = 0 -- Altura original da imagem do mapa
-LobbyScene.fogShader = nil ---@type love.Shader|nil
-LobbyScene.fogShaderPath = "assets/shaders/fog_noise.fs"
-LobbyScene.noiseTime = 0 ---@type number Contador de tempo para animar o ruído
 LobbyScene.activeTabIndex = 0 ---@type integer
 LobbyScene.portalManager = nil ---@type LobbyPortalManager|nil Instância do gerenciador de portais
-
--- Estado de Zoom/Pan e Seleção de Portal
-LobbyScene.selectedPortal = nil ---@type PortalData|nil Portal atualmente selecionado.
-LobbyScene.isZoomedIn = false     -- Estamos no modo de detalhe/zoom?
-LobbyScene.mapTargetZoom = 3.0    -- Nível de zoom ao selecionar um portal
-LobbyScene.mapCurrentZoom = 1.0   -- Nível de zoom atual (para animação)
-LobbyScene.mapTargetPanX = 0      -- Coordenada X do MAPA para centralizar
-LobbyScene.mapTargetPanY = 0      -- Coordenada Y do MAPA para centralizar
-LobbyScene.mapCurrentPanX = 0     -- Coordenada X do MAPA no centro atual da tela
-LobbyScene.mapCurrentPanY = 0     -- Coordenada Y do MAPA no centro atual da tela
-LobbyScene.zoomSmoothFactor = 5.0 -- Fator de suavização para animação de zoom/pan
-
--- Estado do Modal de Detalhes
-local screenW = love.graphics.getWidth() -- Obtém largura para cálculo
-local screenH = love.graphics.getHeight()
-local modalW = 350                       -- Largura do modal
-local modalMarginX = 20
-local modalMarginY = 20
-local tabBarHeight = 50                                                                                  -- Altura da barra de tabs inferior (ajustar se mudar)
-local modalH = screenH - (modalMarginY * 2) - tabBarHeight
-LobbyScene.modalRect = { x = screenW - modalW - modalMarginX, y = modalMarginY, w = modalW, h = modalH } -- Posição DIREITA e altura ajustada
-LobbyScene.modalBtnEnterRect = { x = 0, y = 0, w = 120, h = 40 }
-LobbyScene.modalBtnCancelRect = { x = 0, y = 0, w = 120, h = 40 }
-LobbyScene.modalButtonEnterHover = false
-LobbyScene.modalButtonCancelHover = false
+LobbyScene.itemDataManager = nil ---@type ItemDataManager|nil Instância do gerenciador de dados de itens
+LobbyScene.lobbyStorageManager = nil ---@type LobbyStorageManager|nil Instância do gerenciador de armazenamento do lobby
+LobbyScene.loadoutManager = nil ---@type LoadoutManager|nil Instância do gerenciador de loadout
+LobbyScene.archetypeManager = nil ---@type ArchetypeManager|nil Instância do gerenciador de archetype
+LobbyScene.hunterManager = nil ---@type HunterManager|nil Instância do gerenciador de caçadores
+LobbyScene.equipmentScreen = nil ---@type EquipmentScreen|nil Instância da tela de equipamento
+LobbyScene.portalScreen = nil ---@type PortalScreen|nil Instância da tela de portal
+LobbyScene.guildScreen = nil ---@type GuildScreen|nil Instância da tela da Guilda
 
 -- Configs da névoa
 LobbyScene.fogNoiseScale = 4.0 ---@type number Escala do ruído (valores menores = "zoom maior")
@@ -53,13 +39,13 @@ LobbyScene.fogBaseColor = { 0.3, 0.4, 0.6, 1.0 } ---@type table Cor base da név
 
 -- Configuração dos botões/tabs inferiores
 local tabs = {
-    { text = "Vendedor" },
-    { text = "Criação" },
-    { text = "Equipamento" },
-    { text = "Portais" }, -- Será definido como ativo no :load
-    { text = "Herois" },
-    { text = "Configurações" },
-    { text = "Sair" },
+    { id = TabIds.VENDOR,    text = "Vendedor" },
+    { id = TabIds.CRAFTING,  text = "Criação" },
+    { id = TabIds.EQUIPMENT, text = "Equipamento" },
+    { id = TabIds.PORTALS,   text = "Portais" },
+    { id = TabIds.GUILD,     text = "Guilda" },
+    { id = TabIds.SETTINGS,  text = "Configurações" },
+    { id = TabIds.QUIT,      text = "Sair" },
 }
 
 local tabSettings = {
@@ -76,6 +62,20 @@ local tabSettings = {
     }
 }
 
+LobbyScene.isDragging = false ---@type boolean Se um item está sendo arrastado.
+LobbyScene.draggedItem = nil ---@type table|nil A instância do item sendo arrastado.
+LobbyScene.draggedItemOffsetX = 0 ---@type number Offset X do clique no item.
+LobbyScene.draggedItemOffsetY = 0 ---@type number Offset Y do clique no item.
+LobbyScene.sourceGridId = nil ---@type string|nil ID da grade de origem ("storage" ou "loadout").
+LobbyScene.draggedItemIsRotated = false ---@type boolean Se a *visualização* do item está rotada.
+LobbyScene.targetGridId = nil ---@type string|nil ID da grade de destino (calculado no update).
+LobbyScene.targetSlotCoords = nil ---@type table|nil Coordenadas {row, col} do slot alvo (calculado no update).
+LobbyScene.isDropValid = false ---@type boolean Se a posição atual do drop é válida (calculado no update).
+-- As áreas agora são gerenciadas/retornadas pelo EquipmentScreen
+LobbyScene.storageGridArea = {} ---@type table Retângulo da área da grade de storage {x,y,w,h} (atualizado pelo EquipmentScreen)
+LobbyScene.loadoutGridArea = {} ---@type table Retângulo da área da grade de loadout {x,y,w,h} (atualizado pelo EquipmentScreen)
+LobbyScene.equipmentSlotAreas = {} ---@type table<string, table> { [slotId] = {x,y,w,h} } (atualizado pelo EquipmentScreen)
+
 --- Chamado quando a cena é carregada.
 -- Calcula layout dos tabs, carrega imagem do mapa e define tab inicial.
 ---@param args table|nil
@@ -83,45 +83,77 @@ function LobbyScene:load(args)
     print("LobbyScene:load")
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
-    self.noiseTime = 0                            -- Reseta o tempo do ruído
-    self.portalManager = LobbyPortalManager:new() -- <<< CRIA INSTÂNCIA
+
+    -- Configurações básicas da cena
+    self.camera = Camera:new()
+    self.camera:init()
+    self.activeTab = args and args.startTab or TabIds.PORTALS -- Começa nos portais ou conforme argumento
+
+    -- Inicializar Gerenciadores de UI/Componentes da Cena
+    -- (Obtém managers persistentes do Registry em vez de criá-los)
+    print("[LobbyScene] Obtendo managers persistentes do Registry...")
+    LobbyScene.itemDataManager = ManagerRegistry:get("itemDataManager")
+    LobbyScene.lobbyStorageManager = ManagerRegistry:get("lobbyStorageManager")
+    LobbyScene.loadoutManager = ManagerRegistry:get("loadoutManager")
+    LobbyScene.archetypeManager = ManagerRegistry:get("archetypeManager")
+    LobbyScene.hunterManager = ManagerRegistry:get("hunterManager")
+    LobbyScene.portalManager = LobbyPortalManager:new()
+
+    self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
+        self.loadoutManager)
+    self.portalScreen = PortalScreen:new(self.portalManager, self.hunterManager)
+    self.guildScreen = GuildScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
+        self.loadoutManager)
+
+
+    -- Validação básica se os managers foram carregados corretamente em main.lua
+    if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager then
+        error(
+            "ERRO CRÍTICO [LobbyScene:load]: Falha ao obter um ou mais managers persistentes do Registry! Eles foram inicializados em main.lua?")
+    end
+    print("[LobbyScene] Managers persistentes obtidos com sucesso.")
 
     -- Reseta estado de zoom/seleção
-    self.selectedPortal = nil
-    self.isZoomedIn = false
-    self.mapCurrentZoom = 1.0
-    self.modalButtonEnterHover = false
-    self.modalButtonCancelHover = false
+    self.portalScreen.isZoomedIn = false
+    self.portalScreen.selectedPortal = nil
 
     -- Carrega a imagem do mapa
     local mapSuccess, mapErr = pcall(function()
-        self.mapImage = love.graphics.newImage(self.mapImagePath)
+        self.portalScreen.mapImage = love.graphics.newImage(self.portalScreen.mapImagePath)
     end)
-    if not mapSuccess or not self.mapImage then
-        print(string.format("Erro ao carregar imagem do mapa '%s': %s", self.mapImagePath,
+    if not mapSuccess or not self.portalScreen.mapImage then
+        print(string.format("Erro ao carregar imagem do mapa '%s': %s", self.portalScreen.mapImagePath,
             tostring(mapErr or "not found")))
-        self.mapImage = nil
-        self.mapOriginalWidth = 0
-        self.mapOriginalHeight = 0
+        self.portalScreen.mapImage = nil
+        self.portalScreen.mapOriginalWidth = 0
+        self.portalScreen.mapOriginalHeight = 0
     else
         -- Armazena dimensões originais e inicializa pan/zoom
-        self.mapOriginalWidth = self.mapImage:getWidth()
-        self.mapOriginalHeight = self.mapImage:getHeight()
-        self.mapTargetPanX = self.mapOriginalWidth / 2 -- Começa centrado
-        self.mapTargetPanY = self.mapOriginalHeight / 2
-        self.mapCurrentPanX = self.mapTargetPanX
-        self.mapCurrentPanY = self.mapTargetPanY
-        self.portalManager:initialize(self.mapOriginalWidth, self.mapOriginalHeight) -- <<< INICIALIZA PORTAIS
+        self.portalScreen.mapOriginalWidth = self.portalScreen.mapImage:getWidth()
+        self.portalScreen.mapOriginalHeight = self.portalScreen.mapImage:getHeight()
+
+        -- >>> Inicializa o PortalManager <<< (Não pega mais posição inicial)
+        self.portalManager:initialize(self.portalScreen.mapOriginalWidth, self.portalScreen.mapOriginalHeight)
+
+        -- >>> Define o Pan inicial da Câmera PARA O CENTRO DO MAPA <<< --
+        self.portalScreen.mapTargetPanX = self.portalScreen.mapOriginalWidth / 2
+        self.portalScreen.mapTargetPanY = self.portalScreen.mapOriginalHeight / 2
+        -- print(string.format("LobbyScene: Câmera inicial focada no CENTRO do mapa (%.0f, %.0f)", self.portalScreen.mapTargetPanX, self.portalScreen.mapTargetPanY))
+
+        -- Define a posição atual para ser igual ao alvo inicial (sem animação)
+        self.portalScreen.mapCurrentPanX = self.portalScreen.mapTargetPanX
+        self.portalScreen.mapCurrentPanY = self.portalScreen.mapTargetPanY
     end
 
     -- Carrega o shader de névoa
     local shaderSuccess, shaderErr = pcall(function()
-        self.fogShader = love.graphics.newShader(self.fogShaderPath)
+        self.portalScreen.fogShader = love.graphics.newShader(self.portalScreen.fogShaderPath)
     end)
-    if not shaderSuccess or not self.fogShader then
-        print(string.format("Erro ao carregar shader de névoa '%s': %s - EFEITO DESABILITADO", self.fogShaderPath,
+    if not shaderSuccess or not self.portalScreen.fogShader then
+        print(string.format("Erro ao carregar shader de névoa '%s': %s - EFEITO DESABILITADO",
+            self.portalScreen.fogShaderPath,
             tostring(shaderErr or "error")))
-        self.fogShader = nil
+        self.portalScreen.fogShader = nil
     else
         print("Shader de névoa carregado com sucesso.")
     end
@@ -143,8 +175,8 @@ function LobbyScene:load(args)
         tab.h = tabSettings.height
         tab.isHovering = false
         currentX = currentX + tabWidth + tabSettings.padding
-        -- Define o tab "Portais" como ativo inicialmente
-        if tab.text == "Portais" then
+        -- Define o tab "Portais" como ativo inicialmente (usando ID)
+        if tab.id == TabIds.PORTALS then
             self.activeTabIndex = i
         end
     end
@@ -154,98 +186,89 @@ function LobbyScene:load(args)
         self.activeTabIndex = 1
     end
 
-    -- Calcula posições dos botões do modal
-    local modal = self.modalRect
-    local btnW, btnH = self.modalBtnEnterRect.w, self.modalBtnEnterRect.h
-    local btnPadding = 20
-    self.modalBtnEnterRect.x = modal.x + (modal.w / 2) - btnW - (btnPadding / 2)
-    self.modalBtnEnterRect.y = modal.y + modal.h - btnH - btnPadding
-    self.modalBtnCancelRect.x = modal.x + (modal.w / 2) + (btnPadding / 2)
-    self.modalBtnCancelRect.y = modal.y + modal.h - btnH - btnPadding
-
     print("LobbyScene: Tab ativo inicial:", self.activeTabIndex, tabs[self.activeTabIndex].text)
-end
-
---- Função auxiliar para interpolação linear (Lerp)
-local function lerp(a, b, t)
-    return a + (b - a) * t
 end
 
 --- Atualiza a lógica da cena (verificação de hover, animação de zoom/pan).
 ---@param dt number
 function LobbyScene:update(dt)
     local mx, my = love.mouse.getPosition()
+    local activeTab = tabs[self.activeTabIndex]
+    local isPortalScreenActive = activeTab and activeTab.id == TabIds.PORTALS
+    local isPortalScreenZoomed = self.portalScreen and
+        self.portalScreen
+        .isZoomedIn -- Verifica estado interno da tela de portal
 
-    -- 1. Animação de Zoom e Pan
-    local targetZoom = self.isZoomedIn and self.mapTargetZoom or 1.0
-    local targetPanX = self.isZoomedIn and self.mapTargetPanX or (self.mapOriginalWidth / 2)
-    local targetPanY = self.isZoomedIn and self.mapTargetPanY or (self.mapOriginalHeight / 2)
-    local factor = math.min(1, dt * self.zoomSmoothFactor) -- Limita o fator para não ultrapassar o alvo
-
-    self.mapCurrentZoom = lerp(self.mapCurrentZoom, targetZoom, factor)
-    self.mapCurrentPanX = lerp(self.mapCurrentPanX, targetPanX, factor)
-    self.mapCurrentPanY = lerp(self.mapCurrentPanY, targetPanY, factor)
-
-    -- 2. Hover dos botões das Tabs inferiores
+    -- 1. Hover das Tabs inferiores (só se portal screen NÃO estiver com zoom)
     local tabHoverHandled = false
-    if not self.isZoomedIn then -- Só verifica hover das tabs se não estiver com zoom/modal
+    if not isPortalScreenZoomed then
         for i, tab in ipairs(tabs) do
             tab.isHovering = (mx >= tab.x and mx <= tab.x + tab.w and my >= tab.y and my <= tab.y + tab.h)
-            if tab.isHovering then tabHoverHandled = true end -- Marca se o mouse está sobre alguma tab
+            if tab.isHovering then tabHoverHandled = true end
         end
     else
-        for i, tab in ipairs(tabs) do tab.isHovering = false end -- Garante que não haja hover nas tabs se zoom ativo
+        for i, tab in ipairs(tabs) do tab.isHovering = false end
     end
 
-    -- 3. Hover dos botões do Modal (se visível)
-    self.modalButtonEnterHover = false
-    self.modalButtonCancelHover = false
-    local modalHoverHandled = false
-    if self.selectedPortal then -- Modal está visível
-        -- Decrementa o timer do portal selecionado
-        self.selectedPortal.timer = self.selectedPortal.timer - dt
+    -- 2. Atualiza a Tela de Portais (se ativa ou com zoom)
+    if self.portalScreen and (isPortalScreenActive or isPortalScreenZoomed) then
+        -- Determina se hover é permitido dentro da tela de portal
+        -- Hover é permitido se o mouse não estiver sobre uma tab (e o zoom não estiver ativo, o que já filtramos)
+        local allowPortalScreenHover = not tabHoverHandled
+        self.portalScreen:update(dt, mx, my, allowPortalScreenHover)
+    elseif activeTab and activeTab.id == TabIds.EQUIPMENT then
+        -- A EquipmentScreen não tem :update por enquanto, mas a lógica de drag está aqui
+        if self.isDragging then
+            self.targetGridId = nil
+            self.targetSlotCoords = nil
+            self.isDropValid = false
 
-        -- <<< NOVO: Verifica se o portal expirou enquanto selecionado >>>
-        if self.selectedPortal.timer <= 0 then
-            print(string.format("LobbyScene: Portal selecionado '%s' expirou! Cancelando seleção.",
-                self.selectedPortal.name))
-            self.selectedPortal.timer = 0 -- Garante que não fique negativo
-            self.selectedPortal = nil
-            self.isZoomedIn = false
-            -- A animação de zoom out começará no próximo frame devido ao reset do isZoomedIn
-            -- Não precisa mais processar hover dos botões deste modal
-            return -- Sai do bloco de update para o modal
+            -- Calcula dimensões visuais baseadas na rotação
+            local visualW = self.draggedItem.gridWidth or 1
+            local visualH = self.draggedItem.gridHeight or 1
+            if self.draggedItemIsRotated then
+                visualW = self.draggedItem.gridHeight or 1
+                visualH = self.draggedItem.gridWidth or 1
+            end
+
+            -- Verifica hover sobre Storage/Loadout (usa áreas atualizadas no draw anterior)
+            local isMouseOverStorage = mx >= self.storageGridArea.x and
+                mx < self.storageGridArea.x + self.storageGridArea.w and my >= self.storageGridArea.y and
+                my < self.storageGridArea.y + self.storageGridArea.h
+            local isMouseOverLoadout = mx >= self.loadoutGridArea.x and
+                mx < self.loadoutGridArea.x + self.loadoutGridArea.w and my >= self.loadoutGridArea.y and
+                my < self.loadoutGridArea.y + self.loadoutGridArea.h
+
+            if isMouseOverStorage then
+                self.targetGridId = "storage"
+                local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
+                local ItemGridUI = require("src.ui.item_grid_ui")
+                self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, storageRows, storageCols,
+                    self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h)
+                if self.targetSlotCoords then
+                    self.isDropValid = self.lobbyStorageManager:canPlaceItemAt(
+                        self.draggedItem, self.targetSlotCoords.row, self.targetSlotCoords.col, visualW, visualH)
+                end
+            elseif isMouseOverLoadout then
+                self.targetGridId = "loadout"
+                local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
+                local ItemGridUI = require("src.ui.item_grid_ui")
+                self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, loadoutRows, loadoutCols,
+                    self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h)
+                if self.targetSlotCoords then
+                    self.isDropValid = self.loadoutManager:canPlaceItemAt(self.draggedItem,
+                        self.targetSlotCoords.row, self.targetSlotCoords.col, visualW, visualH)
+                end
+            end
+            -- TODO: Adicionar verificação de hover sobre os slots de equipamento (usando self.equipmentSlotAreas)
         end
-
-        -- Garante que o timer não fique negativo (apenas para exibição) - Movido para após a verificação de expiração
-        -- if self.selectedPortal.timer < 0 then self.selectedPortal.timer = 0 end
-
-        local mrE = self.modalBtnEnterRect
-        local mrC = self.modalBtnCancelRect
-        self.modalButtonEnterHover = (mx >= mrE.x and mx <= mrE.x + mrE.w and my >= mrE.y and my <= mrE.y + mrE.h)
-        self.modalButtonCancelHover = (mx >= mrC.x and mx <= mrC.x + mrC.w and my >= mrC.y and my <= mrC.y + mrC.h)
-        -- Marca se o mouse está sobre o modal ou seus botões
-        local m = self.modalRect
-        if (mx >= m.x and mx <= m.x + m.w and my >= m.y and my <= m.y + m.h) or self.modalButtonEnterHover or self.modalButtonCancelHover then
-            modalHoverHandled = true
+    elseif activeTab and activeTab.id == TabIds.GUILD then
+        -- Chama update da GuildScreen se existir
+        if self.guildScreen and self.guildScreen.update then
+            local allowGuildScreenHover = not tabHoverHandled
+            self.guildScreen:update(dt, mx, my, allowGuildScreenHover)
         end
     end
-
-    -- Atualiza o tempo para animar o ruído do shader
-    self.noiseTime = self.noiseTime + dt
-
-    -- 4. Atualiza o Portal Manager
-    local isMapActive = tabs[self.activeTabIndex] and tabs[self.activeTabIndex].text == "Portais"
-    -- Calcula transformação ATUAL do mapa para passar ao manager
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
-    local currentMapScale = self.mapCurrentZoom -- Escala é o zoom atual
-    local currentMapDrawX = screenW / 2 - self.mapCurrentPanX * currentMapScale
-    local currentMapDrawY = screenH / 2 - self.mapCurrentPanY * currentMapScale
-
-    -- Só permite hover nos portais se a tab Portais estiver ativa E não houver zoom/modal ativo
-    local allowPortalHover = isMapActive and not self.isZoomedIn and not tabHoverHandled and not modalHoverHandled
-    self.portalManager:update(dt, mx, my, allowPortalHover, currentMapScale, currentMapDrawX, currentMapDrawY)
 end
 
 --- Desenha os elementos da cena.
@@ -253,125 +276,68 @@ end
 function LobbyScene:draw()
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
-
-    -- Calcula a transformação atual do mapa (baseado nos valores interpolados de update)
-    local currentMapScale = self.mapCurrentZoom
-    local currentMapDrawX = screenW / 2 - self.mapCurrentPanX * currentMapScale
-    local currentMapDrawY = screenH / 2 - self.mapCurrentPanY * currentMapScale
-
-    -- Desenha o fundo (mapa ou cor sólida)
+    local mx, my = love.mouse.getPosition() -- <<< Pega mouse coords aqui para passar
     local activeTab = tabs[self.activeTabIndex]
-    local drawMapCondition = (activeTab and activeTab.text == "Portais") or
-        self
-        .isZoomedIn -- Desenha mapa se tab Portais OU se zoom ativo
+    local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
 
-    if drawMapCondition and self.mapImage then
-        -- Desenha o mapa tingido com a transformação atual
-        love.graphics.setColor(colors.map_tint)
-        love.graphics.draw(self.mapImage, currentMapDrawX, currentMapDrawY, 0, currentMapScale, currentMapScale)
-        love.graphics.setColor(colors.white) -- Reseta cor
-
-        -- Desenha a névoa com shader POR CIMA do mapa
-        if self.fogShader then
-            love.graphics.setShader(self.fogShader)
-            self.fogShader:send("time", self.noiseTime * self.fogNoiseSpeed)
-            self.fogShader:send("noiseScale", self.fogNoiseScale / self.mapCurrentZoom) -- Ajusta escala da névoa com zoom
-            self.fogShader:send("densityPower", self.fogDensityPower)
-            self.fogShader:send("fogColor", self.fogBaseColor)
-            love.graphics.rectangle("fill", 0, 0, screenW, screenH)
-            love.graphics.setShader()
+    -- 1. Desenha Fundo/Tela Principal da Aba Ativa
+    if activeTab and activeTab.id == TabIds.PORTALS or isPortalScreenZoomed then
+        -- <<< CHAMA O DRAW DO PORTAL SCREEN >>>
+        if self.portalScreen then
+            self.portalScreen:draw(screenW, screenH)
+        else -- Fallback se portalScreen for nil
+            love.graphics.setColor(colors.red)
+            love.graphics.printf("Erro: PortalScreen não inicializado!", screenW / 2, screenH / 2, 0, "center")
         end
-        love.graphics.setColor(colors.white)
-
-        -- Desenha os portais usando o manager com a transformação atual
-        self.portalManager:draw(currentMapScale, currentMapDrawX, currentMapDrawY, self.selectedPortal)
-        love.graphics.setColor(colors.white)
     else
-        -- Desenha fundo padrão se não for para desenhar o mapa
+        -- Desenha fundo padrão para outras abas
         love.graphics.setColor(colors.lobby_background)
         love.graphics.rectangle("fill", 0, 0, screenW, screenH)
         love.graphics.setColor(colors.white)
+
+        -- Desenha conteúdo específico da aba (exceto Portais)
+        if activeTab then
+            if activeTab.id == TabIds.EQUIPMENT then
+                -- <<< CHAMA O DRAW DO EQUIPMENT SCREEN >>>
+                local dragState = {
+                    isDragging = self.isDragging,
+                    draggedItem = self.draggedItem,
+                    draggedItemOffsetX =
+                        self.draggedItemOffsetX,
+                    draggedItemOffsetY = self.draggedItemOffsetY,
+                    draggedItemIsRotated = self.draggedItemIsRotated,
+                    targetGridId = self.targetGridId,
+                    targetSlotCoords =
+                        self.targetSlotCoords,
+                    isDropValid = self.isDropValid,
+                    equipmentSlotAreas = self.equipmentSlotAreas
+                }
+                self.storageGridArea, self.loadoutGridArea, self.equipmentSlotAreas = self.equipmentScreen:draw(screenW,
+                    screenH, tabSettings, dragState, mx, my)
+            elseif activeTab.id == TabIds.GUILD then
+                if self.guildScreen then
+                    -- Define área de desenho (toda a área acima das tabs)
+                    local areaX, areaY, areaW, areaH = 0, 0, screenW, screenH - tabSettings.height
+                    self.guildScreen:draw(areaX, areaY, areaW, areaH, mx, my)
+                else
+                    love.graphics.setColor(colors.red)
+                    love.graphics.printf("Erro: GuildScreen não inicializado!", screenW / 2, screenH / 2, 0, "center")
+                end
+            elseif activeTab.id == TabIds.VENDOR then
+                -- Espaço para desenhar a UI do Vendedor
+                love.graphics.printf("VENDEDOR", screenW / 2, screenH / 2, 0, "center")
+            elseif activeTab.id == TabIds.CRAFTING then
+                -- Espaço para desenhar a UI de Criação
+                love.graphics.printf("CRIAÇÃO", screenW / 2, screenH / 2, 0, "center")
+            elseif activeTab.id == TabIds.SETTINGS then
+                -- Espaço para desenhar a UI de Configurações
+                love.graphics.printf("CONFIGURAÇÕES", screenW / 2, screenH / 2, 0, "center")
+            end
+        end
     end
 
-    -- Desenha o Modal de Detalhes (se um portal estiver selecionado)
-    if self.selectedPortal then
-        local modal = self.modalRect
-        local portal = self.selectedPortal
-        local modalFont = fonts.main_small or fonts.main
-        local modalFontLarge = fonts.main or fonts.main
-
-        -- Fundo do modal
-        love.graphics.setColor(colors.modal_bg[1], colors.modal_bg[2], colors.modal_bg[3], 0.9)
-        love.graphics.rectangle("fill", modal.x, modal.y, modal.w, modal.h)
-        love.graphics.setColor(colors.modal_border)
-        love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", modal.x, modal.y, modal.w, modal.h)
-        love.graphics.setLineWidth(1)
-
-        -- Conteúdo do modal
-        love.graphics.setFont(modalFontLarge)
-        love.graphics.setColor(portal.color or colors.white) -- Cor do rank/nome
-        love.graphics.printf(portal.name, modal.x + 10, modal.y + 15, modal.w - 20, "center")
-        love.graphics.setFont(modalFont)
-        love.graphics.setColor(colors.white)
-
-        -- Informações
-        local lineH = modalFont:getHeight() * 1.3 -- Espaçamento entre linhas
-        local currentY = modal.y + 55
-        love.graphics.printf("Rank: " .. portal.rank, modal.x + 15, currentY, modal.w - 30, "left")
-        currentY = currentY + lineH
-        love.graphics.printf("Tempo Restante: " .. Formatters.formatTime(portal.timer), modal.x + 15, currentY,
-            modal.w - 30, "left")
-        currentY = currentY + lineH * 1.5 -- Espaço maior antes da descrição
-
-        -- Descrição Mockada
-        love.graphics.printf("Bioma: Floresta Sombria", modal.x + 15, currentY, modal.w - 30, "left")
-        currentY = currentY + lineH
-        love.graphics.printf("Inimigos Comuns: Goblins da Noite, Lobos Espectrais", modal.x + 15, currentY, modal.w - 30,
-            "left")
-        currentY = currentY + lineH
-        love.graphics.printf("Chefe: Rei Goblin Ancião", modal.x + 15, currentY, modal.w - 30, "left")
-        currentY = currentY + lineH * 1.5
-
-        love.graphics.printf(
-            "História: Ecos de batalhas antigas ressoam nesta floresta corrompida. Dizem que o Rei Goblin detém um fragmento de poder capaz de distorcer a própria realidade. Apenas os mais bravos se atrevem a entrar...",
-            modal.x + 15, currentY, modal.w - 30, "left")
-        -- Adicionar mais detalhes mockados aqui...
-
-        -- Botões do Modal (posição é calculada em load)
-        local btnFont = fonts.main_small or fonts.main
-        -- Botão Entrar
-        elements.drawButton({
-            rect = self.modalBtnEnterRect,
-            text = "Entrar",
-            isHovering = self.modalButtonEnterHover,
-            font = btnFont,
-            colors = { -- Cores podem ser customizadas
-                bgColor = colors.button_primary_bg,
-                hoverColor = colors.button_primary_hover,
-                textColor = colors.button_primary_text,
-                borderColor = colors.button_border
-            }
-        })
-        -- Botão Cancelar
-        elements.drawButton({
-            rect = self.modalBtnCancelRect,
-            text = "Cancelar",
-            isHovering = self.modalButtonCancelHover,
-            font = btnFont,
-            colors = { -- Cores podem ser customizadas
-                bgColor = colors.button_secondary_bg,
-                hoverColor = colors.button_secondary_hover,
-                textColor = colors.button_secondary_text,
-                borderColor = colors.button_border
-            }
-        })
-    end
-
-    -- Define a fonte para os tabs
+    -- 2. Desenha Tabs (sempre por cima)
     local tabFont = fonts.main or love.graphics.getFont()
-
-    -- Desenha cada tab por cima de tudo
     for i, tab in ipairs(tabs) do
         elements.drawTabButton({
             x = tab.x,
@@ -380,17 +346,15 @@ function LobbyScene:draw()
             h = tab.h,
             text = tab.text,
             isHovering = tab.isHovering,
-            highlighted = (i == self.activeTabIndex), -- Destaque baseado no índice ativo
+            highlighted = (i == self.activeTabIndex),
             font = tabFont,
             colors = tabSettings.colors
         })
     end
 
-    -- Reset color e fonte final (garantia extra)
+    -- Reset final
     love.graphics.setColor(colors.white)
-    if fonts.main then
-        love.graphics.setFont(fonts.main)
-    end
+    if fonts.main then love.graphics.setFont(fonts.main) end
 end
 
 --- Processa cliques do mouse.
@@ -401,84 +365,208 @@ end
 ---@param istouch boolean
 ---@param presses number
 function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
-    if buttonIdx == 1 then -- Botão esquerdo
-        -- 1. Se JÁ ESTÁ com zoom/modal ativo
-        if self.isZoomedIn and self.selectedPortal then
-            local modalClicked = false
-            -- Verifica clique no botão Entrar
-            if self.modalButtonEnterHover then
-                modalClicked = true
-                print(string.format(
-                    "LobbyScene: Botão 'Entrar' clicado para portal '%s'. Trocando para GameLoadingScene...",
-                    self.selectedPortal.name))
-                -- TODO: Trocar para cena de loading <<< REMOVER TODO
-                -- SceneManager.switchScene("loading_scene", { portalData = self.selectedPortal })
-                -- print("-> Transição para loading (simulada)...") -- <<< REMOVER PRINT SIMULADO
-                SceneManager.switchScene("game_loading_scene", { portalData = self.selectedPortal }) -- <<< CHAMADA REAL
-                -- Resetar estado para voltar ao normal (não é mais necessário aqui, a cena será descarregada)
-                -- self.selectedPortal = nil
-                -- self.isZoomedIn = false
-            elseif self.modalButtonCancelHover then
-                modalClicked = true
-                print("LobbyScene: Botão 'Cancelar' clicado.")
-                -- Resetar estado para voltar ao normal
-                self.selectedPortal = nil
-                self.isZoomedIn = false
-                -- Verifica clique FORA do modal (também cancela)
-            else
-                local m = self.modalRect
-                if not (x >= m.x and x <= m.x + m.w and y >= m.y and y <= m.y + m.h) then
-                    modalClicked = true -- Considera clique fora como ação no modal (cancelar)
-                    print("LobbyScene: Clique fora do modal detectado, cancelando zoom.")
-                    self.selectedPortal = nil
-                    self.isZoomedIn = false
-                end
-            end
-            -- Se clicou em algo relacionado ao modal, não processa mais nada
-            if modalClicked then return end
+    -- print("LobbyScene:mousepressed ENTERED") -- LOG 1
+    if buttonIdx == 1 then
+        local activeTab = tabs[self.activeTabIndex]
+        local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
+
+        -- 1. Se a tela de Portal está com zoom, TENTA delegar o clique para ela PRIMEIRO
+        if isPortalScreenZoomed and self.portalScreen then
+            local consumed = self.portalScreen:handleMousePress(x, y, buttonIdx)
+            if consumed then return end -- Se o portal screen consumiu, termina aqui
         end
 
-        -- 2. Se NÃO está com zoom/modal ativo
-        -- Verifica clique nos TABS inferiores PRIMEIRO
+        -- 2. Se não estava com zoom no portal (ou o clique não foi consumido lá),
+        --    verifica clique nas TABS inferiores
         local tabClicked = false
         for i, tab in ipairs(tabs) do
-            if tab.isHovering then -- O estado de hover é atualizado no :update
+            if tab.isHovering then
                 tabClicked = true
-                print(string.format("LobbyScene: Tab '%s' clicado!", tab.text))
-                if tab.text == "Sair" then
-                    print("LobbyScene: Solicitando encerramento do jogo via SceneManager...")
-                    SceneManager.requestQuit() -- Pede ao manager para encerrar
+                -- print(string.format("LobbyScene:mousepressed - Tab %s HOVERED", tab.text)) -- LOG 2
+                -- print(string.format("LobbyScene: Tab '%s' clicado!", tab.text))
+                if tab.id == TabIds.QUIT then
+                    love.event.quit()
                 else
-                    self.activeTabIndex = i    -- Define o tab clicado como ativo
-                    -- Garante que o zoom seja cancelado se mudar de tab
-                    if self.isZoomedIn then
-                        print("LobbyScene: Mudança de tab cancelando zoom.")
-                        self.selectedPortal = nil
-                        self.isZoomedIn = false
+                    if i ~= self.activeTabIndex then -- Só ignora se realmente trocou de tab
+                        self.activeTabIndex = i
+                        -- print("LobbyScene: Tab changed")
+                        -- <<< SET GUILD SCREEN FLAG >>>
+                        if tab.id == TabIds.GUILD and self.guildScreen then
+                            -- if self.guildScreen.onActivate then self.guildScreen:onActivate() end -- REMOVED
+                            self.guildScreen.isActiveFrame = true
+                            -- print("LobbyScene: Set guildScreen.isActiveFrame = true")
+                        end
+                    end
+                    -- Se estava com zoom no portal, mudar de tab cancela
+                    if isPortalScreenZoomed and self.portalScreen then
+                        -- print("LobbyScene: Mudança de tab cancelando zoom do portal.")
+                        self.portalScreen.isZoomedIn = false
+                        self.portalScreen.selectedPortal = nil
                     end
                 end
-                break -- Sai do loop de tabs
+                break
             end
         end
-        -- Se clicou em uma tab, não processa mais nada
-        if tabClicked then return end
+        -- print(string.format("LobbyScene:mousepressed - tabClicked=%s. Returning?", tostring(tabClicked))) -- LOG 3
+        if tabClicked then return end -- Se clicou na tab, termina aqui
 
-        -- 3. Se não clicou em tab E a tab "Portais" está ativa
-        local isMapActive = tabs[self.activeTabIndex] and tabs[self.activeTabIndex].text == "Portais"
-        if isMapActive then
-            -- Verifica clique nos PORTAIS via Manager
-            local clickedPortalData = self.portalManager:handleMouseClick(x, y)
-            if clickedPortalData then
-                print(string.format("LobbyScene: Portal '%s' selecionado! Ativando zoom.", clickedPortalData.name))
-                -- Define o portal selecionado e ativa o modo de zoom
-                self.selectedPortal = clickedPortalData
-                self.isZoomedIn = true
-                -- Define o alvo do pan para as coordenadas do portal no MAPA
-                self.mapTargetPanX = clickedPortalData.mapX
-                self.mapTargetPanY = clickedPortalData.mapY
-                -- A animação de zoom/pan começará no próximo update
+        -- 3. Se não clicou em tab, delega para a TELA da aba ativa
+        if activeTab and activeTab.id == TabIds.EQUIPMENT then
+            -- Delega para EquipmentScreen
+            if self.equipmentScreen then
+                local consumed, dragStartData = self.equipmentScreen:handleMousePress(x, y, buttonIdx)
+                if consumed and dragStartData then
+                    self.isDragging = true
+                    self.draggedItem = dragStartData.item
+                    self.sourceGridId = dragStartData.sourceGridId
+                    self.draggedItemOffsetX = dragStartData.offsetX
+                    self.draggedItemOffsetY = dragStartData.offsetY
+                    self.draggedItemIsRotated = dragStartData.isRotated or false
+                    if self.sourceGridId == "equipment" then
+                        self.sourceSlotId = dragStartData.sourceSlotId
+                    else
+                        self.sourceSlotId = nil
+                    end
+                    -- print(string.format("LobbyScene: Drag iniciado: Item %d (%s) from %s%s. Estava rotacionado: %s", self.draggedItem.instanceId, self.draggedItem.itemBaseId, self.sourceGridId, self.sourceSlotId and ("[" .. self.sourceSlotId .. "]") or "", tostring(self.draggedItemIsRotated)))
+                    return
+                elseif consumed then
+                    return -- Consumiu sem iniciar drag (ex: tab storage)
+                end
+            end
+        elseif activeTab and activeTab.id == TabIds.PORTALS then
+            -- Delega para PortalScreen (somente se não estava com zoom, pois isso foi tratado no passo 1)
+            if self.portalScreen and not isPortalScreenZoomed then
+                -- DEBUG:
+                -- print(">>> LobbyScene:mousepressed - Delegating click to PortalScreen (not zoomed)")
+                local consumed = self.portalScreen:handleMousePress(x, y, buttonIdx)
+                if consumed then
+                    -- print(">>> LobbyScene:mousepressed - PortalScreen consumed the click.")
+                    return
+                end
+            end
+        elseif activeTab and activeTab.id == TabIds.GUILD then
+            if self.guildScreen then
+                -- print("LobbyScene:mousepressed - DELEGATING click to GuildScreen") -- LOG 4
+                local consumed = self.guildScreen:handleMousePress(x, y, buttonIdx)
+                if consumed then return end -- Se a guild screen consumiu, termina aqui
             end
         end
+
+        -- DEBUG: Se chegou aqui, o clique não foi consumido por nenhuma tela delegada
+        -- print(">>> LobbyScene:mousepressed - Click was not consumed by any delegated screen.")
+    end
+end
+
+--- Processa o soltar do mouse, finalizando o drag-and-drop.
+---@param x number
+---@param y number
+---@param buttonIdx number
+---@param istouch boolean
+---@param presses number
+function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
+    local activeTab = tabs[self.activeTabIndex]
+
+    if buttonIdx == 1 then
+        -- Primeiro, verifica se a tela da aba ativa quer tratar o release
+        local screenConsumedRelease = false
+        if activeTab and activeTab.id == TabIds.GUILD then -- <<< VERIFICA ABA GUILDA
+            if self.guildScreen and self.guildScreen.handleMouseRelease then
+                screenConsumedRelease = self.guildScreen:handleMouseRelease(x, y, buttonIdx)
+            end
+            -- Adicionar outros `elseif` para outras telas que tratam release (ex: EquipmentScreen se não for drag/drop)
+        end
+
+        -- Se a tela ativa consumiu o release (ex: clicou num botão dela), termina aqui
+        if screenConsumedRelease then
+            print("LobbyScene: Mouse release consumed by active screen.")
+            return
+        end
+
+        -- Se não foi consumido pela tela e estávamos arrastando um item (lógica do EquipmentScreen)
+        if self.isDragging then
+            print("LobbyScene: Drag finalizado.")
+            local dragConsumed = false
+            -- Só trata drop na aba de equipamento por enquanto
+            if activeTab and activeTab.id == TabIds.EQUIPMENT then
+                local dragState = {
+                    isDragging = self.isDragging,
+                    draggedItem = self.draggedItem,
+                    sourceGridId = self.sourceGridId,
+                    sourceSlotId = self.sourceSlotId,
+                    draggedItemIsRotated = self.draggedItemIsRotated,
+                    targetGridId = self.targetGridId,
+                    targetSlotCoords = self.targetSlotCoords,
+                    isDropValid = self.isDropValid,
+                    equipmentSlotAreas = self.equipmentSlotAreas
+                }
+                dragConsumed = self.equipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
+            end
+
+            if dragConsumed then
+                print("LobbyScene: Drop consumido pelo EquipmentScreen.")
+            else
+                print("LobbyScene: Drop NÃO consumido (ou ocorreu fora de área válida). Retornando item...")
+                -- Idealmente, aqui você chamaria um método para retornar o item à origem
+                -- Ex: self.equipmentScreen:returnDraggedItem(...) ou similar
+            end
+
+            -- Limpa o estado de drag da cena principal SEMPRE que soltar o mouse após um drag
+            self.isDragging = false
+            self.draggedItem = nil
+            self.sourceGridId = nil
+            self.sourceSlotId = nil
+            self.targetGridId = nil
+            self.targetSlotCoords = nil
+            self.isDropValid = false
+            self.draggedItemOffsetX = 0
+            self.draggedItemOffsetY = 0
+            self.draggedItemIsRotated = false
+        end -- Fim do if self.isDragging
+    end     -- Fim do if buttonIdx == 1
+end
+
+--- NOVO: Processa pressionamento de teclas.
+--- Delega para a tela ativa se necessário (ex: rotação de item no EquipmentScreen).
+---@param key string A tecla pressionada (love.keyboard.keys).
+---@param scancode love.Scancode O scancode da tecla.
+---@param isrepeat boolean Se o evento é uma repetição.
+function LobbyScene:keypressed(key, scancode, isrepeat)
+    -- Ignora repetições para evitar rotações múltiplas rápidas
+    if isrepeat then return end
+
+    local activeTab = tabs[self.activeTabIndex]
+
+    -- Verifica se estamos arrastando um item na aba de Equipamento
+    if self.isDragging and activeTab and activeTab.id == TabIds.EQUIPMENT and self.equipmentScreen then
+        -- Delega para a keypressed da EquipmentScreen
+        local wantsToRotate = self.equipmentScreen:keypressed(key)
+
+        if wantsToRotate and self.draggedItem then
+            -- Alterna o estado de rotação VISUAL
+            self.draggedItemIsRotated = not self.draggedItemIsRotated
+            print(string.format("LobbyScene: Rotação visual alternada para: %s", tostring(self.draggedItemIsRotated)))
+            -- NÃO modifica self.draggedItem aqui
+        end
+    end
+
+    -- TODO: Adicionar delegação para outras telas/abas se necessário
+end
+
+--- NOVO: Processa scroll do mouse.
+-- Delega para a tela ativa se ela tiver o handler `handleMouseScroll`.
+---@param x number Posição X do mouse (relativa à janela).
+---@param y number Posição Y do mouse (relativa à janela).
+function LobbyScene:wheelmoved(x, y)
+    local activeTab = tabs[self.activeTabIndex]
+    if activeTab and activeTab.id == TabIds.HEROES then -- <<< DELEGA SCROLL PARA GUILD SCREEN
+        if self.guildScreen and self.guildScreen.handleMouseScroll then
+            self.guildScreen:handleMouseScroll(x, y)    -- LÖVE passa dx, dy como x, y aqui
+        end
+        -- Adicionar delegação para outras telas que precisem de scroll
+        -- elseif activeTab.id == TabIds.EQUIPMENT then
+        --     if self.equipmentScreen and self.equipmentScreen.handleMouseScroll then
+        --         self.equipmentScreen:handleMouseScroll(x, y)
+        --     end
     end
 end
 
@@ -486,20 +574,28 @@ end
 -- Libera a imagem do mapa da memória e limpa referência do manager.
 function LobbyScene:unload()
     print("LobbyScene:unload")
-    if self.mapImage then
-        self.mapImage:release() -- Libera a memória da imagem
-        self.mapImage = nil
+    -- Libera recursos das telas filhas
+    if self.portalScreen then
+        self.portalScreen:unload()
+        self.portalScreen = nil
     end
-    -- Shader não precisa de release explícito
-    self.fogShader = nil
+    self.equipmentScreen = nil
+    self.guildScreen = nil
 
-    -- <<< NOVO: Salva os portais ao descarregar a cena >>>
-    if self.portalManager then
-        self.portalManager:saveState() -- <<< NOVO
+    -- Salva estado dos managers
+    if self.portalManager then self.portalManager:saveState() end
+    if self.lobbyStorageManager then self.lobbyStorageManager:saveStorage() end
+    if self.loadoutManager then self.loadoutManager:saveState() end
+    if self.hunterManager then
+        self.hunterManager:saveState()
     end
 
-    -- Não precisamos chamar cleanup no manager, ele será coletado pelo GC
+    -- Limpa referências dos managers
     self.portalManager = nil
+    self.itemDataManager = nil
+    self.lobbyStorageManager = nil
+    self.loadoutManager = nil
+    self.hunterManager = nil
 end
 
 return LobbyScene

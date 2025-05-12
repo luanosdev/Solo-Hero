@@ -10,17 +10,41 @@ Zombie.speed = 20  -- Usará a speed da config de animação
 Zombie.maxHealth = 500
 Zombie.damage = 50
 Zombie.experienceValue = 12
-Zombie.color = {0.2, 0.6, 0.2} -- Cor verde musgo para o zumbi
+Zombie.color = { 0.2, 0.6, 0.2 } -- Cor verde musgo para o zumbi
+
+-- Tabela de Drops do Zumbi
+Zombie.dropTable = {
+    normal = {
+        guaranteed = {},
+        chance = {
+            { type = "item", itemId = "tattered_cloth", chance = 30 }, -- 30% chance de Pano Rasgado (1x1)
+        }
+    },
+    mvp = {
+        guaranteed = {
+            -- Nenhum drop garantido
+        },
+        chance = {
+            { type = "item", itemId = "intact_skull", chance = 12 }, -- 12% chance Crânio Intacto (2x2)
+            {
+                type = "item_pool",
+                chance = 5, -- 5% de chance de dropar UMA runa do pool
+                itemIds = { "rune_orbital_e", "rune_thunder_e", "rune_aura_e" }
+            },
+            -- { type = "item", itemId = "minor_heal_orb", chance = 5 }
+        }
+    }
+}
 
 -- Configuração do Desvio Aleatório
-Zombie.deviationMagnitudeMax = 90 -- Quão longe o zumbi pode desviar lateralmente
+Zombie.deviationMagnitudeMax = 90     -- Quão longe o zumbi pode desviar lateralmente
 Zombie.deviationChangeFrequency = 0.8 -- Com que frequência (em segundos) o desvio pode mudar
 
 -- CONFIGURAÇÃO DE ANIMAÇÃO PARA AnimatedCharacter
 -- Esta tabela será usada na chamada AnimatedCharacter.load("Zombie", Zombie.animationConfig)
 -- Essa chamada deve ocorrer uma vez no início do jogo (ex: main.lua)
 Zombie.animationConfig = {
-    angles = {0, 45, 90, 135, 180, 225, 270, 315},
+    angles = { 0, 45, 90, 135, 180, 225, 270, 315 },
     assetPaths = {
         walk = {
             body = "assets/enemies/zombie/walk/Walk_Body_%s.png",
@@ -38,21 +62,21 @@ Zombie.animationConfig = {
         }
     },
     grid = {
-        walk = { cols = 4, rows = 5 }, -- 20 frames
+        walk = { cols = 4, rows = 5 },     -- 20 frames
         death = {
             die1 = { cols = 6, rows = 4 }, -- 24 frames
             die2 = { cols = 6, rows = 4 }  -- 24 frames
         }
     },
     origin = { x = 128, y = 128 }, -- Ponto de origem (centro para 256x256)
-    angleOffset = 90,          -- Ajuste para alinhar 0 graus do sprite com a matemática
+    angleOffset = 90,              -- Ajuste para alinhar 0 graus do sprite com a matemática
     drawShadow = true,
     resetFrameOnStop = false,
     instanceDefaults = { -- Valores padrão para cada instância Zumbi
         scale = 0.4,
         speed = Zombie.speed,
         animation = {
-            frameTime = 0.05, -- Tempo entre frames de walk
+            frameTime = 0.05,     -- Tempo entre frames de walk
             deathFrameTime = 0.12 -- Tempo entre frames de death
         }
     }
@@ -70,8 +94,8 @@ function Zombie:new(position, id)
     enemy.speed = enemy.sprite.speed -- Garante que a speed da classe e do sprite sejam a mesma
 
     -- Estado para desvio aleatório
-    enemy.deviationAngle = 0 -- Ângulo atual do desvio (será +/- 90 graus da direção principal)
-    enemy.deviationMagnitude = 0 -- Magnitude atual do desvio
+    enemy.deviationAngle = 0                                                  -- Ângulo atual do desvio (será +/- 90 graus da direção principal)
+    enemy.deviationMagnitude = 0                                              -- Magnitude atual do desvio
     enemy.deviationTimer = love.math.random() * self.deviationChangeFrequency -- Inicia com timer aleatório
 
     -- Estado de morte (similar ao Skeleton)
@@ -130,20 +154,22 @@ function Zombie:update(dt, playerManager, enemies)
     -- 1. Atualizar Timer de Desvio e Recalcular Desvio se necessário
     self.deviationTimer = self.deviationTimer + dt
     if self.deviationTimer >= self.deviationChangeFrequency then
-        self.deviationTimer = self.deviationTimer - self.deviationChangeFrequency -- Subtrai para acumular excesso
+        -- Subtrai para acumular excesso
+        self.deviationTimer = self.deviationTimer - self.deviationChangeFrequency
         -- Sorteia uma nova magnitude de desvio (pode ser 0 para andar reto)
-        self.deviationMagnitude = love.math.random() * self.deviationMagnitudeMax * (love.math.random(2) == 1 and 1 or -1) -- Magnitude aleatória positiva ou negativa
+        self.deviationMagnitude = love.math.random() * self.deviationMagnitudeMax *
+            (love.math.random(2) == 1 and 1 or -1) -- Magnitude aleatória positiva ou negativa
         -- print(string.format("Zombie %s new deviation: %.1f", self.id, self.deviationMagnitude))
     end
 
     -- 2. Calcular Vetor Direto para o Jogador
     local dx = playerPos.x - self.sprite.position.x
     local dy = playerPos.y - self.sprite.position.y
-    local distToPlayer = math.sqrt(dx*dx + dy*dy)
+    local distToPlayer = math.sqrt(dx * dx + dy * dy)
 
     local targetForAnimation = playerPos -- Ponto de referência inicial
 
-    if distToPlayer > 0 then -- Evita divisão por zero se estiver exatamente na posição do jogador
+    if distToPlayer > 0 then             -- Evita divisão por zero se estiver exatamente na posição do jogador
         local dirX = dx / distToPlayer
         local dirY = dy / distToPlayer
 
@@ -192,4 +218,4 @@ function Zombie:draw()
     end
 end
 
-return Zombie 
+return Zombie

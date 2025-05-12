@@ -4,68 +4,68 @@ local SpritePlayer = {}
 -- Configuração padrão
 SpritePlayer.defaultConfig = {
     position = {
-        x = 0,              -- Posição X
-        y = 0,              -- Posição Y
+        x = 0,   -- Posição X
+        y = 0,   -- Posição Y
     },
-    scale = 1,          -- Fator de escala
-    speed = 150,        -- Velocidade de movimento
+    scale = 1,   -- Fator de escala
+    speed = 150, -- Velocidade de movimento
     -- Configurações de animação
     animation = {
-        currentFrame = 1,    -- Frame atual
+        currentFrame = 1,         -- Frame atual
         timer = 0,
-        frameTime = {        -- Tempo entre frames para cada estado
-            walk = 0.05,     -- Walk mais rápido
-            idle = 0.1,      -- Idle mais lento
-            attack = 0.03,   -- Attack mais rápido ainda
-            attack_walk = 0.03 -- Attack andando
+        frameTime = {             -- Tempo entre frames para cada estado
+            walk = 0.05,          -- Walk mais rápido
+            idle = 0.1,           -- Idle mais lento
+            attack = 0.03,        -- Attack mais rápido ainda
+            attack_walk = 0.03    -- Attack andando
         },
-        direction = 'E',     -- Direção atual (baseada no mouse)
-        state = 'idle',      -- Estado atual (idle, walk, attack ou attack_walk)
-        isMovingBackward = false,  -- Indicador de movimento para trás
-        isAttacking = false,       -- Indicador de ataque
+        direction = 'E',          -- Direção atual (baseada no mouse)
+        state = 'idle',           -- Estado atual (idle, walk, attack ou attack_walk)
+        isMovingBackward = false, -- Indicador de movimento para trás
+        isAttacking = false,      -- Indicador de ataque
         -- Configurações do sprite sheet
-        frameWidth = 128,     -- Largura de cada frame
-        frameHeight = 128,    -- Altura de cada frame
+        frameWidth = 128,         -- Largura de cada frame
+        frameHeight = 128,        -- Altura de cada frame
         frames = {
             walk = {
-                E = {row = 1, frames = 15},   -- Direita
-                NE = {row = 2, frames = 15},  -- Direita-Cima
-                N = {row = 3, frames = 15},   -- Cima
-                NW = {row = 4, frames = 15},  -- Esquerda-Cima
-                W = {row = 5, frames = 15},   -- Esquerda
-                SW = {row = 6, frames = 15},  -- Esquerda-Baixo
-                S = {row = 7, frames = 15},   -- Baixo
-                SE = {row = 8, frames = 15}   -- Direita-Baixo
+                E = { row = 1, frames = 15 },  -- Direita
+                NE = { row = 2, frames = 15 }, -- Direita-Cima
+                N = { row = 3, frames = 15 },  -- Cima
+                NW = { row = 4, frames = 15 }, -- Esquerda-Cima
+                W = { row = 5, frames = 15 },  -- Esquerda
+                SW = { row = 6, frames = 15 }, -- Esquerda-Baixo
+                S = { row = 7, frames = 15 },  -- Baixo
+                SE = { row = 8, frames = 15 }  -- Direita-Baixo
             },
             idle = {
-                E = {row = 1, frames = 15},   -- Direita
-                NE = {row = 2, frames = 15},  -- Direita-Cima
-                N = {row = 3, frames = 15},   -- Cima
-                NW = {row = 4, frames = 15},  -- Esquerda-Cima
-                W = {row = 5, frames = 15},   -- Esquerda
-                SW = {row = 6, frames = 15},  -- Esquerda-Baixo
-                S = {row = 7, frames = 15},   -- Baixo
-                SE = {row = 8, frames = 15}   -- Direita-Baixo
+                E = { row = 1, frames = 15 },  -- Direita
+                NE = { row = 2, frames = 15 }, -- Direita-Cima
+                N = { row = 3, frames = 15 },  -- Cima
+                NW = { row = 4, frames = 15 }, -- Esquerda-Cima
+                W = { row = 5, frames = 15 },  -- Esquerda
+                SW = { row = 6, frames = 15 }, -- Esquerda-Baixo
+                S = { row = 7, frames = 15 },  -- Baixo
+                SE = { row = 8, frames = 15 }  -- Direita-Baixo
             },
             attack = {
-                E = {row = 1, frames = 15},   -- Direita
-                NE = {row = 2, frames = 15},  -- Direita-Cima
-                N = {row = 3, frames = 15},   -- Cima
-                NW = {row = 4, frames = 15},  -- Esquerda-Cima
-                W = {row = 5, frames = 15},   -- Esquerda
-                SW = {row = 6, frames = 15},  -- Esquerda-Baixo
-                S = {row = 7, frames = 15},   -- Baixo
-                SE = {row = 8, frames = 15}   -- Direita-Baixo
+                E = { row = 1, frames = 15 },  -- Direita
+                NE = { row = 2, frames = 15 }, -- Direita-Cima
+                N = { row = 3, frames = 15 },  -- Cima
+                NW = { row = 4, frames = 15 }, -- Esquerda-Cima
+                W = { row = 5, frames = 15 },  -- Esquerda
+                SW = { row = 6, frames = 15 }, -- Esquerda-Baixo
+                S = { row = 7, frames = 15 },  -- Baixo
+                SE = { row = 8, frames = 15 }  -- Direita-Baixo
             },
             attack_walk = {
-                E = {row = 1, frames = 15},   -- Direita
-                NE = {row = 2, frames = 15},  -- Direita-Cima
-                N = {row = 3, frames = 15},   -- Cima
-                NW = {row = 4, frames = 15},  -- Esquerda-Cima
-                W = {row = 5, frames = 15},   -- Esquerda
-                SW = {row = 6, frames = 15},  -- Esquerda-Baixo
-                S = {row = 7, frames = 15},   -- Baixo
-                SE = {row = 8, frames = 15}   -- Direita-Baixo
+                E = { row = 1, frames = 15 },  -- Direita
+                NE = { row = 2, frames = 15 }, -- Direita-Cima
+                N = { row = 3, frames = 15 },  -- Cima
+                NW = { row = 4, frames = 15 }, -- Esquerda-Cima
+                W = { row = 5, frames = 15 },  -- Esquerda
+                SW = { row = 6, frames = 15 }, -- Esquerda-Baixo
+                S = { row = 7, frames = 15 },  -- Baixo
+                SE = { row = 8, frames = 15 }  -- Direita-Baixo
             }
         }
     }
@@ -81,12 +81,12 @@ function SpritePlayer.load()
         attack = {},
         attack_walk = {}
     }
-    
+
     -- Carrega sprite sheet de caminhada
     local success, walkSheet = pcall(function()
         return love.graphics.newImage("assets/characters/warrior/walk.png")
     end)
-    
+
     if success then
         SpritePlayer.spriteSheets.walk = walkSheet
         -- Cria os quads para cada frame de animação de caminhada
@@ -95,7 +95,7 @@ function SpritePlayer.load()
             for frame = 1, info.frames do
                 local x = (frame - 1) * SpritePlayer.defaultConfig.animation.frameWidth
                 local y = (info.row - 1) * SpritePlayer.defaultConfig.animation.frameHeight
-                
+
                 SpritePlayer.quads.walk[direction][frame] = love.graphics.newQuad(
                     x, y,
                     SpritePlayer.defaultConfig.animation.frameWidth,
@@ -107,12 +107,12 @@ function SpritePlayer.load()
     else
         print("Erro ao carregar sprite sheet de caminhada:", walkSheet)
     end
-    
+
     -- Carrega sprite sheet de idle
     local success, idleSheet = pcall(function()
         return love.graphics.newImage("assets/characters/warrior/idle.png")
     end)
-    
+
     if success then
         SpritePlayer.spriteSheets.idle = idleSheet
         -- Cria os quads para cada frame de animação idle
@@ -121,7 +121,7 @@ function SpritePlayer.load()
             for frame = 1, info.frames do
                 local x = (frame - 1) * SpritePlayer.defaultConfig.animation.frameWidth
                 local y = (info.row - 1) * SpritePlayer.defaultConfig.animation.frameHeight
-                
+
                 SpritePlayer.quads.idle[direction][frame] = love.graphics.newQuad(
                     x, y,
                     SpritePlayer.defaultConfig.animation.frameWidth,
@@ -138,7 +138,7 @@ function SpritePlayer.load()
     local success, attackSheet = pcall(function()
         return love.graphics.newImage("assets/characters/warrior/attack.png")
     end)
-    
+
     if success then
         SpritePlayer.spriteSheets.attack = attackSheet
         -- Cria os quads para cada frame de animação de ataque
@@ -147,7 +147,7 @@ function SpritePlayer.load()
             for frame = 1, info.frames do
                 local x = (frame - 1) * SpritePlayer.defaultConfig.animation.frameWidth
                 local y = (info.row - 1) * SpritePlayer.defaultConfig.animation.frameHeight
-                
+
                 SpritePlayer.quads.attack[direction][frame] = love.graphics.newQuad(
                     x, y,
                     SpritePlayer.defaultConfig.animation.frameWidth,
@@ -164,7 +164,7 @@ function SpritePlayer.load()
     local success, attackWalkSheet = pcall(function()
         return love.graphics.newImage("assets/characters/warrior/attack_walk.png")
     end)
-    
+
     if success then
         SpritePlayer.spriteSheets.attack_walk = attackWalkSheet
         -- Cria os quads para cada frame de animação de ataque andando
@@ -173,7 +173,7 @@ function SpritePlayer.load()
             for frame = 1, info.frames do
                 local x = (frame - 1) * SpritePlayer.defaultConfig.animation.frameWidth
                 local y = (info.row - 1) * SpritePlayer.defaultConfig.animation.frameHeight
-                
+
                 SpritePlayer.quads.attack_walk[direction][frame] = love.graphics.newQuad(
                     x, y,
                     SpritePlayer.defaultConfig.animation.frameWidth,
@@ -189,40 +189,34 @@ end
 
 -- Função auxiliar para determinar direção baseada no ângulo
 function SpritePlayer.getDirectionFromAngle(angle)
-    -- Normaliza o ângulo para 0-360
-    while angle < 0 do
-        angle = angle + 360
+    -- Normaliza o ângulo para 0 a 2pi
+    angle = angle % (2 * math.pi)
+    if angle < 0 then
+        angle = angle + 2 * math.pi
     end
-    while angle >= 360 do
-        angle = angle - 360
-    end
-    
-    -- Converte ângulo para sistema de 8 direções
-    -- Ajustado para corresponder à ordem do sprite sheet em sentido anti-horário:
-    -- Row 1: Direita (E)
-    -- Row 2: Direita-Cima (NE)
-    -- Row 3: Cima (N)
-    -- Row 4: Esquerda-Cima (NW)
-    -- Row 5: Esquerda (W)
-    -- Row 6: Esquerda-Baixo (SW)
-    -- Row 7: Baixo (S)
-    -- Row 8: Direita-Baixo (SE)
-    if angle >= 337.5 or angle < 22.5 then
-        return "E"  -- Direita (row 1)
-    elseif angle >= 22.5 and angle < 67.5 then
-        return "NE" -- Direita-Cima (row 2)
-    elseif angle >= 67.5 and angle < 112.5 then
-        return "N"  -- Cima (row 3)
-    elseif angle >= 112.5 and angle < 157.5 then
-        return "NW" -- Esquerda-Cima (row 4)
-    elseif angle >= 157.5 and angle < 202.5 then
-        return "W"  -- Esquerda (row 5)
-    elseif angle >= 202.5 and angle < 247.5 then
-        return "SW" -- Esquerda-Baixo (row 6)
-    elseif angle >= 247.5 and angle < 292.5 then
-        return "S"  -- Baixo (row 7)
-    else
-        return "SE" -- Direita-Baixo (row 8)
+
+    -- Converte radianos para graus (0-360)
+    local degrees = math.deg(angle)
+
+    -- Define as fatias para 8 direções
+    local slice = 360 / 8 -- 45 graus por fatia
+
+    if degrees >= (slice * 7.5) or degrees < (slice * 0.5) then
+        return "E"
+    elseif degrees >= (slice * 0.5) and degrees < (slice * 1.5) then
+        return "NE"
+    elseif degrees >= (slice * 1.5) and degrees < (slice * 2.5) then
+        return "N"
+    elseif degrees >= (slice * 2.5) and degrees < (slice * 3.5) then
+        return "NW"
+    elseif degrees >= (slice * 3.5) and degrees < (slice * 4.5) then
+        return "W"
+    elseif degrees >= (slice * 4.5) and degrees < (slice * 5.5) then
+        return "SW"
+    elseif degrees >= (slice * 5.5) and degrees < (slice * 6.5) then
+        return "S"
+    else -- degrees >= (slice * 6.5) and degrees < (slice * 7.5)
+        return "SE"
     end
 end
 
@@ -238,108 +232,153 @@ end
 -- Atualiza o estado da animação
 function SpritePlayer.update(config, dt, targetPosition)
     local dx, dy = 0, 0
-    
+    local isMoving = false -- Flag para indicar se houve input de movimento
+
     -- Processa entrada de movimento
     if love.keyboard.isDown('w') or love.keyboard.isDown('up') then
         dy = -1
+        isMoving = true
     end
     if love.keyboard.isDown('s') or love.keyboard.isDown('down') then
-        dy = 1
+        dy = dy + 1                      -- Usa += para permitir cancelamento (W+S = 0)
+        isMoving = isMoving or (dy ~= 0) -- Atualiza flag se houve mudança
     end
     if love.keyboard.isDown('a') or love.keyboard.isDown('left') then
         dx = -1
+        isMoving = true
     end
     if love.keyboard.isDown('d') or love.keyboard.isDown('right') then
-        dx = 1
-    end
-    
-    -- Normaliza movimento diagonal
-    if dx ~= 0 or dy ~= 0 then
-        local length = math.sqrt(dx * dx + dy * dy)
-        dx = dx / length
-        dy = dy / length
-    end
-    
-    -- Atualiza posição
-    config.position.x = config.position.x + dx * config.speed * dt
-    config.position.y = config.position.y + dy * config.speed * dt
-    
-    -- Calcula ângulo até o alvo (se a posição do alvo foi fornecida)
-    local angleToTarget = 0
-    if targetPosition then
-        angleToTarget = math.atan2(targetPosition.y - config.position.y, targetPosition.x - config.position.x)
-        angleToTarget = angleToTarget * (180 / math.pi)
-    else
-        -- Fallback: se não houver alvo, mantém a direção atual ou usa uma padrão
-        -- Poderia usar a última direção conhecida ou uma direção padrão como 'S'
-        -- Por simplicidade, vamos apenas evitar erro e usar 0 (Direita 'E') se necessário
-        -- O ideal seria o PlayerManager sempre fornecer um alvo (pelo menos a posição do mouse)
+        dx = dx + 1                      -- Usa += para permitir cancelamento (A+D = 0)
+        isMoving = isMoving or (dx ~= 0) -- Atualiza flag se houve mudança
     end
 
-    -- Calcula ângulo de movimento (se estiver movendo)
-    local isMoving = dx ~= 0 or dy ~= 0
-    if isMoving then
-        local moveAngle = math.atan2(dy, dx) * (180 / math.pi)
-        
-        -- Calcula diferença de ângulo entre movimento e direção do alvo
-        local angleDiff = SpritePlayer.getAngleDifference(angleToTarget, moveAngle)
-        
-        -- Se a diferença for maior que 90 graus, está movendo para trás
-        config.animation.isMovingBackward = angleDiff > 90
-    else
-        config.animation.isMovingBackward = false
-    end
-    
-    -- Atualiza direção baseada na posição do alvo
-    config.animation.direction = SpritePlayer.getDirectionFromAngle(angleToTarget)
-    
-    -- Atualiza estado da animação e frames
-    config.animation.timer = config.animation.timer + dt
-    local currentFrameTime = config.animation.frameTime[config.animation.state]
-    if config.animation.timer >= currentFrameTime then
-        config.animation.timer = config.animation.timer - currentFrameTime
-        
-        -- Se estiver atacando, prioriza a animação de ataque
-        if config.animation.isAttacking then
-            -- Escolhe entre ataque parado ou em movimento
-            config.animation.state = isMoving and 'attack_walk' or 'attack'
-            local maxFrames = config.animation.frames[config.animation.state][config.animation.direction].frames
-            config.animation.currentFrame = config.animation.currentFrame + 1
-            
-            -- Se chegou ao último frame do ataque, volta ao estado normal
-            if config.animation.currentFrame > maxFrames then
-                config.animation.currentFrame = 1
-                config.animation.isAttacking = false
-            end
-        elseif isMoving then
-            config.animation.state = 'walk'
-            local maxFrames = config.animation.frames.walk[config.animation.direction].frames
-            
-            if config.animation.isMovingBackward then
-                -- Movimento para trás: frames em ordem reversa
-                config.animation.currentFrame = config.animation.currentFrame - 1
-                if config.animation.currentFrame < 1 then
-                    config.animation.currentFrame = maxFrames
+    -- <<< INÍCIO: Lógica de Direção com Histerese >>>
+    local currentDirection = config.animation.direction
+    local targetDx = targetPosition.x - config.position.x
+    local targetDy = targetPosition.y - config.position.y
+
+    -- Evita erro com atan2(0,0) e adiciona zona morta MÍNIMA
+    if math.abs(targetDx) > 1 or math.abs(targetDy) > 1 then
+        local targetAngle = math.atan2(targetDy, targetDx)
+        local newDirection = SpritePlayer.getDirectionFromAngle(targetAngle)
+
+        -- Lógica de Histerese: Só muda de direção se a nova for diferente
+        -- E se o ângulo estiver um pouco além da fronteira.
+        if newDirection ~= currentDirection then
+            local angleDegrees = math.deg(targetAngle)
+            if angleDegrees < 0 then angleDegrees = angleDegrees + 360 end
+
+            local threshold = 10 -- Graus de tolerância para mudar
+            local lowerBound, upperBound = SpritePlayer.getAngleBoundsForDirection(newDirection, threshold)
+
+            -- Verifica se o ângulo está dentro dos limites da NOVA direção (com tolerância)
+            local changeDirection = false
+            if lowerBound > upperBound then -- Caso que cruza 0/360 graus (Direção E)
+                if angleDegrees >= lowerBound or angleDegrees < upperBound then
+                    changeDirection = true
                 end
-            else
-                -- Movimento para frente: frames em ordem normal
-                config.animation.currentFrame = config.animation.currentFrame + 1
-                if config.animation.currentFrame > maxFrames then
-                    config.animation.currentFrame = 1
+            else -- Caso normal
+                if angleDegrees >= lowerBound and angleDegrees < upperBound then
+                    changeDirection = true
                 end
             end
-        else
-            -- Estado parado (idle)
-            config.animation.state = 'idle'
-            local maxFrames = config.animation.frames.idle[config.animation.direction].frames
-            
-            -- Atualiza frame da animação idle (sempre para frente)
-            config.animation.currentFrame = config.animation.currentFrame + 1
-            if config.animation.currentFrame > maxFrames then
+
+            if changeDirection then
+                config.animation.direction = newDirection
+                -- Reinicia animação ao mudar de direção para evitar frames estranhos
                 config.animation.currentFrame = 1
+                config.animation.timer = 0
             end
         end
     end
+    -- <<< FIM: Lógica de Direção com Histerese >>>
+
+    -- Calcula o deslocamento
+    local moveX = dx * config.speed * dt
+    local moveY = dy * config.speed * dt
+
+    -- Atualiza a posição
+    config.position.x = config.position.x + moveX
+    config.position.y = config.position.y + moveY
+
+    -- Define o estado da animação
+    local newState
+    if config.animation.isAttacking then
+        newState = isMoving and 'attack_walk' or 'attack'
+    else
+        newState = isMoving and 'walk' or 'idle'
+    end
+
+    -- Reseta a animação se o estado mudou
+    if newState ~= config.animation.state then
+        config.animation.state = newState
+        config.animation.currentFrame = 1
+        config.animation.timer = 0
+    end
+
+    -- Atualiza o timer da animação
+    config.animation.timer = config.animation.timer + dt
+    local frameTime = config.animation.frameTime[config.animation.state]
+
+    -- Avança o frame se o tempo passou
+    if config.animation.timer >= frameTime then
+        config.animation.timer = config.animation.timer - frameTime
+        local animInfo = config.animation.frames[config.animation.state][config.animation.direction]
+        config.animation.currentFrame = (config.animation.currentFrame % animInfo.frames) + 1
+    end
+
+    -- Debug (opcional)
+    -- if isMoving then
+    --     print(string.format("SpritePlayer Update: Input detected dx=%d, dy=%d", dx*magnitude, dy*magnitude)) -- Mostra input original
+    --     print(string.format("  -> Calculated move: mx=%.2f, my=%.2f (Speed=%.1f, dt=%.4f)", moveX, moveY, config.speed, dt))
+    --     print(string.format("  -> New Position: x=%.1f, y=%.1f", config.position.x, config.position.y))
+    -- end
+end
+
+--[[ Função Auxiliar para Histerese: Retorna os limites de ângulo (em graus) para uma direção, COM TOLERÂNCIA ]]
+function SpritePlayer.getAngleBoundsForDirection(direction, threshold)
+    local slice = 45 -- 360 / 8
+    local centerAngle
+
+    if direction == "E" then
+        centerAngle = 0
+    elseif direction == "NE" then
+        centerAngle = slice * 1
+    elseif direction == "N" then
+        centerAngle = slice * 2
+    elseif direction == "NW" then
+        centerAngle = slice * 3
+    elseif direction == "W" then
+        centerAngle = slice * 4
+    elseif direction == "SW" then
+        centerAngle = slice * 5
+    elseif direction == "S" then
+        centerAngle = slice * 6
+    elseif direction == "SE" then
+        centerAngle = slice * 7
+    else
+        centerAngle = 0 -- Fallback
+    end
+
+    -- Calcula os limites exatos da fatia
+    local lowerExact = centerAngle - slice / 2
+    local upperExact = centerAngle + slice / 2
+
+    -- Aplica a tolerância (threshold) para "apertar" os limites
+    local lowerBound = (lowerExact + threshold) % 360
+    local upperBound = (upperExact - threshold) % 360
+
+    -- Ajusta para ângulos negativos que podem surgir do modulo
+    if lowerBound < 0 then lowerBound = lowerBound + 360 end
+    if upperBound < 0 then upperBound = upperBound + 360 end
+
+    -- Garante que upperBound seja "maior" que lowerBound, mesmo cruzando 0/360
+    -- Ex: Para E (centro 0), limites exatos -22.5 a 22.5.
+    -- Com threshold 10: limites com tolerância ficam -12.5 a 12.5.
+    -- Em graus 0-360: lowerBound=347.5, upperBound=12.5
+    -- Neste caso específico, a verificação precisa ser OR (>= lower OU < upper)
+
+    return lowerBound, upperBound
 end
 
 -- Desenha o jogador animado
@@ -347,17 +386,17 @@ function SpritePlayer.draw(config)
     -- Verifica se o sprite sheet atual existe
     local currentState = config.animation.state
     if not SpritePlayer.spriteSheets[currentState] then return end
-    
+
     love.graphics.push()
     love.graphics.translate(config.position.x, config.position.y)
-    
+
     -- Obtém o quad atual
     local currentQuad = SpritePlayer.quads[currentState][config.animation.direction][config.animation.currentFrame]
-    
+
     if currentQuad then
         -- Reseta cor para branco
         love.graphics.setColor(1, 1, 1, 1)
-        
+
         -- Desenha o frame atual
         love.graphics.draw(
             SpritePlayer.spriteSheets[currentState],
@@ -369,7 +408,7 @@ function SpritePlayer.draw(config)
             config.scale
         )
     end
-    
+
     love.graphics.pop()
 end
 
@@ -393,7 +432,7 @@ function SpritePlayer.newConfig(overrides)
             config[k] = v
         end
     end
-    
+
     if overrides then
         for k, v in pairs(overrides) do
             if type(v) == "table" then
@@ -405,7 +444,7 @@ function SpritePlayer.newConfig(overrides)
             end
         end
     end
-    
+
     return config
 end
 
@@ -419,4 +458,4 @@ function SpritePlayer.startAttackAnimation(config)
     end
 end
 
-return SpritePlayer 
+return SpritePlayer

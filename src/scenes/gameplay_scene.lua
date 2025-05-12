@@ -8,42 +8,61 @@ local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local HUD = require("src.ui.hud")
 local fonts = require("src.ui.fonts") -- Já era usado no loading, mas essencial aqui
 local elements = require("src.ui.ui_elements")
-local InventoryScreen = require("src.ui.inventory_screen")
+local InventoryScreen = require("src.ui.screens.inventory_screen")
 local ItemDetailsModal = require("src.ui.item_details_modal")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Bootstrap = require("src.core.bootstrap")
 
 local GameplayScene = {}
+GameplayScene.__index = GameplayScene -- <<< ADICIONADO __index >>>
 
 function GameplayScene:load(args)
     print("GameplayScene:load - Inicializando sistemas de gameplay...")
-    self.portalData = args and args.portalData or nil -- Guarda dados do portal, se houver
-    if self.portalData then
-        print(string.format("- Entrando via portal: %s [%s]", self.portalData.name, self.portalData.rank))
-    end
+    self.portalId = args and args.portalId or "unknown_portal"
+    self.hordeConfig = args and args.hordeConfig or nil
+    self.hunterId = args and args.hunterId or nil
 
-    -- Estado da cena
+    -- Validações iniciais
+    if not self.hordeConfig then
+        error(
+            "ERRO CRÍTICO [GameplayScene:load]: Nenhuma hordeConfig fornecida para iniciar a cena!")
+    end
+    if not self.hunterId then error("ERRO CRÍTICO [GameplayScene:load]: Nenhum hunterId fornecido para iniciar a cena!") end
+    print(string.format("  - Carregando portal ID: %s, Hunter ID: %s", self.portalId, self.hunterId))
+
+    -- 1. Carrega assets e configurações básicas da cena
     self.isPaused = false
     self.camera = nil
     self.groundTexture = nil
     self.grid = nil
-
-    -- Carrega as fontes (caso ainda não tenham sido carregadas ou precise de reload)
-    -- NOTA: Idealmente, fontes são carregadas uma vez globalmente, mas garantimos aqui.
     if not fonts.main then fonts.load() end
 
-    -- Carrega o shader de brilho (transferido de main.lua)
-    -- TODO: Considerar se o shader deve ser global ou gerenciado pela cena/renderer
+    -- <<< ADICIONADO: Estado de Drag do Inventário e Cache de Áreas >>>
+    self.inventoryDragState = {
+        isDragging = false,
+        draggedItem = nil,
+        draggedItemOffsetX = 0,
+        draggedItemOffsetY = 0,
+        sourceGridId = nil,
+        sourceSlotId = nil,
+        draggedItemIsRotated = false,
+        targetGridId = nil,
+        targetSlotCoords = nil,
+        isDropValid = false
+    }
+    self.inventoryEquipmentAreas = {} -- Cache das áreas retornadas pelo InventoryScreen.draw
+    self.inventoryGridArea = {}       -- Cache da área retornada pelo InventoryScreen.draw
+    -- <<< FIM ADIÇÃO >>>
+
     local success, shaderOrErr = pcall(love.graphics.newShader, "assets/shaders/glow.fs")
     if success then
         elements.setGlowShader(shaderOrErr)
-        InventoryScreen.setGlowShader(shaderOrErr) -- InventoryScreen precisa do shader
+        InventoryScreen.setGlowShader(shaderOrErr)
         print("GameplayScene: Glow shader carregado.")
     else
         print("GameplayScene: Aviso - Falha ao carregar glow shader.", shaderOrErr)
     end
 
-    -- Carrega a textura do terreno (transferido de main.lua)
     local texSuccess, texErr = pcall(function()
         self.groundTexture = love.graphics.newImage("assets/ground.png")
         self.groundTexture:setWrap("repeat", "repeat")
@@ -53,90 +72,266 @@ function GameplayScene:load(args)
         -- Tratar erro como apropriado (ex: usar cor sólida)
     end
 
-    -- Inicializa todos os managers e suas dependências (transferido de main.lua)
-    -- IMPORTANTE: Bootstrap provavelmente inicializa o ManagerRegistry globalmente.
-    -- Se Bootstrap criar instâncias *novas* a cada chamada, isso precisa ser ajustado.
-    -- Assumindo que Bootstrap configura um Registry singleton ou retorna as instâncias.
-    print("GameplayScene: Chamando Bootstrap.initialize()...")
-    Bootstrap.initialize()
-    print("GameplayScene: Bootstrap.initialize() concluído.")
-
-    -- Isometric grid configuration (transferido de main.lua)
-    self.grid = {
-        size = 128,
-        rows = 100, -- Tamanho do mundo (pode vir do portalData no futuro)
-        columns = 100,
-        color = { 0.3, 0.3, 0.3, 0.2 }
-    }
-
-    -- Inicializa a câmera (transferido de main.lua)
-    self.camera = Camera:new()
-    self.camera:init()
-
-    -- Carrega animações (transferido de main.lua)
-    -- NOTA: Isso também pode ser feito globalmente uma vez, mas garantimos aqui.
+    self.grid = { size = 128, rows = 100, columns = 100, color = { 0.3, 0.3, 0.3, 0.2 } }
+    Camera:init()
+    print("GameplayScene: Chamado Camera:init() no módulo global.")
     print("GameplayScene: Chamando AnimationLoader.loadAll()...")
     AnimationLoader.loadAll()
     print("GameplayScene: AnimationLoader.loadAll() concluído.")
 
-    -- Obtém referência ao player para posicionar câmera ou outras lógicas
+    -- 2. Chama Bootstrap para criar e registrar managers de GAMEPLAY
+    print("GameplayScene: Chamando Bootstrap.initialize() para criar managers de gameplay...")
+    Bootstrap.initialize()
+    print("GameplayScene: Bootstrap.initialize() concluído.")
+
+    -- 3. Obtém referências a TODOS os managers necessários do Registry
+    print("GameplayScene: Obtendo managers (gameplay e persistentes) do Registry...")
+    local enemyMgr = ManagerRegistry:get("enemyManager")
+    local dropMgr = ManagerRegistry:get("dropManager")
     local playerMgr = ManagerRegistry:get("playerManager")
-    if playerMgr and playerMgr.player then
-        print(string.format("GameplayScene: Jogador encontrado. Posição inicial: %.1f, %.1f",
-            playerMgr.player.position.x, playerMgr.player.position.y))
-        -- Ex: Centralizar câmera no jogador inicialmente
-        -- self.camera:setPosition(playerMgr.player.position.x, playerMgr.player.position.y)
-    else
-        print("GameplayScene: AVISO - PlayerManager ou player não encontrado após bootstrap!")
+    local itemDataMgr = ManagerRegistry:get("itemDataManager") -- Persistente
+    -- Adicionar outros managers necessários aqui (Input, Inventory, etc.)
+
+    -- Validação PÓS-Bootstrap
+    if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr then
+        -- Imprime quais falharam
+        local missing = {}
+        if not playerMgr then table.insert(missing, "PlayerManager") end
+        if not enemyMgr then table.insert(missing, "EnemyManager") end
+        if not dropMgr then table.insert(missing, "DropManager") end
+        if not itemDataMgr then table.insert(missing, "ItemDataManager") end
+        error("ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers essenciais do Registry após Bootstrap: " ..
+            table.concat(missing, ", "))
     end
+    print("GameplayScene: Managers obtidos com sucesso.")
+
+    -- 4. Configura managers com dados específicos da cena/jogo
+    print("GameplayScene: Configurando PlayerManager...")
+    playerMgr:setupGameplay(ManagerRegistry, self.hunterId) -- Passa o Registry inteiro para dependências internas
+
+    print("GameplayScene: Configurando EnemyManager...")
+    local enemyManagerConfig = {
+        hordeConfig = self.hordeConfig,
+        playerManager = playerMgr,
+        dropManager = dropMgr
+    }
+    enemyMgr:setupGameplay(enemyManagerConfig)
+
+    -- Posiciona a câmera após o jogador ser criado em setupGameplay
+    local playerInitialPos = playerMgr.player.position
+    if playerInitialPos then
+        local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)
+        local initialCamY = playerInitialPos.y - (Camera.screenHeight / 2)
+        Camera:setPosition(initialCamX, initialCamY)
+        print(string.format(
+            "GameplayScene: Câmera GLOBAL ajustada para jogador em (%.1f, %.1f). Cam pos: (%.1f, %.1f)",
+            playerInitialPos.x, playerInitialPos.y, Camera.x, Camera.y))
+    else
+        print("GameplayScene: AVISO - Posição inicial do jogador não encontrada após setup, câmera GLOBAL em (0,0).")
+        Camera:setPosition(0, 0)
+    end
+
+    -- 5. Executa código de início de cena (Ex: drop de teste)
+    -- [[ INÍCIO CÓDIGO DE TESTE TEMPORÁRIO ]]
+    local function createTestDrop()
+        if dropMgr and playerMgr and playerMgr.player and itemDataMgr then
+            local playerPos = playerMgr.player.position
+            local testWeaponId = "chain_laser"
+
+            if itemDataMgr:getBaseItemData(testWeaponId) then
+                local dropConfig = { type = "item", itemId = testWeaponId, quantity = 1 }
+                local dropPosition = { x = playerPos.x + 650, y = playerPos.y }
+                print(string.format("[TESTE GameplayScene] Criando drop de '%s' perto do jogador.", testWeaponId))
+                dropMgr:createDrop(dropConfig, dropPosition)
+            else
+                print(string.format("[TESTE GameplayScene] AVISO: Item de teste '%s' não encontrado.", testWeaponId))
+            end
+        else
+            print(
+                "[TESTE GameplayScene] AVISO: Dependências (DropMgr, Player, ItemDataMgr) não encontradas para criar drop.")
+        end
+    end
+    createTestDrop()
+    -- [[ FIM CÓDIGO DE TESTE TEMPORÁRIO ]]
 
     print("GameplayScene:load concluído.")
 end
 
 function GameplayScene:update(dt)
-    -- Permite atualizar UIs que funcionam mesmo pausadas (transferido de main.lua)
-    InventoryScreen.update(dt)
-    ItemDetailsModal:update(dt)
+    -- 1. Atualiza UIs que SEMPRE devem funcionar (mesmo pausado)
+    local mx, my = love.mouse.getPosition() -- <<< OBTÉM COORDENADAS UMA VEZ >>>
+    InventoryScreen.update(dt, mx, my)      -- <<< PASSA COORDENADAS >>>
 
-    -- Verifica se alguma UI principal (modal ou inventário) está ativa
-    local hasActiveModalOrInventory = LevelUpModal.visible or RuneChoiceModal.visible or InventoryScreen.isVisible or
+    if LevelUpModal.visible then
+        LevelUpModal:update(dt)
+    end
+
+    -- ItemDetailsModal precisa ser atualizado se estiver visível, mesmo pausado?
+    -- Se sim, adicione aqui: ItemDetailsModal:update(dt, mx, my)
+    -- Se não, pode ficar dentro do if not self.isPaused ou ser chamado pelo InputManager.
+
+    -- 2. <<< ATUALIZAÇÃO DA LÓGICA DE PAUSA >>>
+    -- Determina se o jogo DEVE estar pausado pela visibilidade de UIs bloqueantes
+    local shouldBePaused = LevelUpModal.visible or RuneChoiceModal.visible or InventoryScreen.isVisible or
         ItemDetailsModal.isVisible
+    self.isPaused = shouldBePaused -- Define o estado de pausa da cena
 
-    -- Atualiza o InputManager (lógica transferida)
-    -- Passamos o estado de pausa da cena e se UI está ativa
+    -- 3. <<< LÓGICA DE UPDATE DO DRAG DO INVENTÁRIO >>>
+    -- Deve rodar mesmo se pausado para o feedback visual do drag funcionar
+    if InventoryScreen.isVisible and self.inventoryDragState.isDragging and self.inventoryDragState.draggedItem then
+        -- Reseta informações do alvo no início do update
+        self.inventoryDragState.targetGridId = nil
+        self.inventoryDragState.targetSlotCoords = nil
+        self.inventoryDragState.isDropValid = false
+
+        -- Managers necessários (obter uma vez)
+        local hunterManager = ManagerRegistry:get("hunterManager")
+        local inventoryManager = ManagerRegistry:get("inventoryManager")
+        local itemDataManager = ManagerRegistry:get("itemDataManager")
+        local Constants = require("src.config.constants")
+
+        if not hunterManager or not inventoryManager or not itemDataManager or not Constants then
+            print("ERRO [GameplayScene.update - Drag]: Managers/Constants necessários não encontrados!")
+            -- Poderia resetar o drag aqui, mas talvez seja melhor só não validar
+        else
+            local draggedItem = self.inventoryDragState.draggedItem
+            local isRotated = self.inventoryDragState.draggedItemIsRotated
+
+            -- Calcula dimensões visuais
+            local visualW = draggedItem.gridWidth or 1
+            local visualH = draggedItem.gridHeight or 1
+            if isRotated then
+                visualW = draggedItem.gridHeight or 1
+                visualH = draggedItem.gridWidth or 1
+            end
+
+            -- Verifica hover sobre Slots de Equipamento (USA ÁREAS CACHEADAS DA CENA)
+            local hoverEquipmentSlot = false
+            for slotId, area in pairs(self.inventoryEquipmentAreas or {}) do
+                if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
+                    self.inventoryDragState.targetGridId = "equipment"
+                    self.inventoryDragState.targetSlotCoords = slotId
+                    hoverEquipmentSlot = true
+
+                    -- Verifica compatibilidade do item com o slot
+                    local baseData = itemDataManager:getBaseItemData(draggedItem.itemBaseId)
+                    local itemType = baseData and baseData.type
+                    if itemType then
+                        -- <<< CORRIGIDO: Determina o tipo esperado com base no slotId, como em EquipmentScreen >>>
+                        local expectedType = nil
+                        if slotId == Constants.SLOT_IDS.WEAPON then
+                            expectedType = "weapon"
+                        elseif slotId == Constants.SLOT_IDS.HELMET then
+                            expectedType = "helmet"
+                        elseif slotId == Constants.SLOT_IDS.CHEST then
+                            expectedType = "chest"
+                        elseif slotId == Constants.SLOT_IDS.GLOVES then
+                            expectedType = "gloves"
+                        elseif slotId == Constants.SLOT_IDS.BOOTS then
+                            expectedType = "boots"
+                        elseif slotId == Constants.SLOT_IDS.LEGS then
+                            expectedType = "legs"
+                            -- Adicione outros slots de equipamento aqui (ring, amulet, etc.) se necessário
+                        elseif string.sub(slotId, 1, #Constants.SLOT_IDS.RUNE) == Constants.SLOT_IDS.RUNE then -- Verifica prefixo 'rune_'
+                            expectedType = "rune"
+                        end
+
+                        if expectedType and expectedType == itemType then
+                            self.inventoryDragState.isDropValid = true
+                        else
+                            -- Tipos não batem, drop inválido
+                            self.inventoryDragState.isDropValid = false
+                        end
+                    else
+                        -- Item sem 'type', drop inválido
+                        self.inventoryDragState.isDropValid = false
+                    end
+                    break -- Sai do loop de slots
+                end
+            end
+
+            -- Verifica hover sobre Grade de Inventário (se não estiver sobre equipamento)
+            if not hoverEquipmentSlot then
+                local area = self.inventoryGridArea -- USA ÁREA CACHEADA DA CENA
+                if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
+                    self.inventoryDragState.targetGridId = "inventory"
+
+                    if not inventoryManager then
+                        print(
+                            "ERRO GRAVE [GameplayScene.update - Drag]: inventoryManager é NIL ao tentar obter dimensões!")
+                        self.inventoryDragState.isDropValid = false -- Impede drop se manager sumir
+                    else
+                        local gridDims = inventoryManager:getGridDimensions()
+                        local invRows = gridDims and gridDims.rows
+                        local invCols = gridDims and gridDims.cols
+
+                        if invRows and invCols then
+                            local ItemGridUI = require("src.ui.item_grid_ui")
+                            local internalGrid = inventoryManager:getInternalGrid()
+                            local ItemGridLogic = require("src.core.item_grid_logic")
+
+                            self.inventoryDragState.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, invRows,
+                                invCols, area.x, area.y, area.w, area.h)
+                            if self.inventoryDragState.targetSlotCoords then
+                                -- Verifica se pode colocar na grade (considera outros itens)
+                                self.inventoryDragState.isDropValid = ItemGridLogic.canPlaceItemAt(
+                                    internalGrid, -- Passa a grade interna
+                                    invRows,
+                                    invCols,
+                                    draggedItem.instanceId, -- Passa ID do item sendo arrastado (opcional)
+                                    self.inventoryDragState.targetSlotCoords.row,
+                                    self.inventoryDragState.targetSlotCoords.col,
+                                    visualW,
+                                    visualH
+                                )
+                            else
+                                self.inventoryDragState.isDropValid = false -- Fora da grade
+                            end
+                        else
+                            print(
+                                "AVISO [GameplayScene.update - Drag]: inventoryManager:getDimensions() retornou nil ou inválido.")
+                            self.inventoryDragState.isDropValid = false -- Impede drop se dimensões falharem
+                        end
+                    end
+                end
+            end
+        end
+    end
+    -- <<< FIM: Lógica de Update do Drag >>>
+
+    -- 4. Atualiza InputManager (passa se UI está ativa E se está pausado)
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
-        -- Nota: A pausa do InputManager pode precisar ser ajustada. A cena gerencia self.isPaused
-        -- mas talvez InputManager deva saber apenas se modais/inventário estão ativos.
-        inputMgr:update(dt, hasActiveModalOrInventory, self.isPaused)
+        -- Passa true para uiActive se QUALQUER modal/inventário estiver visível (shouldBePaused)
+        -- Passa o estado de pausa da cena (self.isPaused)
+        inputMgr:update(dt, shouldBePaused, self.isPaused)
     else
         print("GameplayScene: AVISO - InputManager não encontrado no Registry para update")
     end
 
-    -- Pula a lógica principal se a cena está pausada OU se alguma UI principal está visível
-    if self.isPaused or hasActiveModalOrInventory then
-        -- Permite que modais de Level Up/Rune se atualizem se visíveis
-        if LevelUpModal.visible then LevelUpModal:update() end
-        if RuneChoiceModal.visible then RuneChoiceModal:update() end
-        -- ItemDetailsModal já foi atualizado no início
-        return -- Interrompe aqui se pausado ou modal ativo
+    -- 5. <<< ATUALIZAÇÃO PRINCIPAL DO JOGO >>>
+    -- Só atualiza a lógica principal do jogo se NÃO estiver pausado
+    if not self.isPaused then
+        -- Atualiza todos os managers do jogo (movimento, inimigos, projéteis, player state, etc.)
+        ManagerRegistry:update(dt)
+        -- Outras lógicas de gameplay que devem pausar...
+        -- Ex: Timers específicos da cena, etc.
+    else
+        -- O jogo está pausado.
+        -- Lógica que pode rodar enquanto pausado (se houver, ex: animações de UI que não dependem do dt do jogo)
+        -- ...
     end
 
-    -- Atualiza todos os managers do jogo (lógica principal transferida)
-    ManagerRegistry:update(dt)
-
-    -- Exemplo: Voltar para o Lobby ao pressionar ESC (mantido)
-    if love.keyboard.isDown("escape") then
-        print("GameplayScene: ESC pressionado, voltando para LobbyScene")
-        SceneManager.switchScene("lobby_scene")
-    end
+    -- 6. Atualiza ItemDetailsModal se ele precisa de update mesmo pausado
+    -- (Movido para fora do if not self.isPaused, mas pode ir para seção 1 também)
+    ItemDetailsModal:update(dt, mx, my)
 end
 
 --- Desenha o grid isométrico com base na posição do jogador e câmera.
 -- (Função movida de main.lua e adaptada para ser método da cena)
 function GameplayScene:drawIsometricGrid()
-    if not self.grid or not self.groundTexture or not self.camera then
-        print("GameplayScene:drawIsometricGrid - Aviso: grid, groundTexture ou camera não inicializados.")
+    if not self.grid or not self.groundTexture then
+        print("GameplayScene:drawIsometricGrid - Aviso: grid ou groundTexture não inicializados.")
         return
     end
 
@@ -145,7 +340,6 @@ function GameplayScene:drawIsometricGrid()
     local screenHeight = love.graphics.getHeight()
     local grid = self.grid
     local groundTexture = self.groundTexture
-    local camera = self.camera
 
     -- Calcula o tamanho do chunk baseado no tamanho da tela
     local chunkSize = 32 -- número de células por chunk
@@ -155,19 +349,15 @@ function GameplayScene:drawIsometricGrid()
     local visibleChunksX = math.ceil(visibleCellsX / chunkSize) + 4 -- chunks visíveis + buffer
     local visibleChunksY = math.ceil(visibleCellsY / chunkSize) + 4
 
-    -- Obtém o PlayerManager do Registry
     local playerMgr = ManagerRegistry:get("playerManager")
-    local playerX, playerY = 0, 0
-    if playerMgr and playerMgr.player then
-        playerX = playerMgr.player.position.x
-        playerY = playerMgr.player.position.y
-    else
-        print("GameplayScene:drawIsometricGrid - AVISO: Player não encontrado, usando centro da câmera.")
+    local focusX, focusY = Camera.x + screenWidth / 2, Camera.y + screenHeight / 2 -- Usa centro da câmera como fallback
+    if playerMgr and playerMgr.player and playerMgr.player.position then
+        focusX = playerMgr.player.position.x
+        focusY = playerMgr.player.position.y
     end
 
-    -- Converte a posição central (jogador/câmera) para coordenadas do grid
-    local centerGridX = math.floor(playerX / (grid.size / 2))
-    local centerGridY = math.floor(playerY / (grid.size / 2 * iso_scale))
+    local centerGridX = math.floor(focusX / (grid.size / 2))
+    local centerGridY = math.floor(focusY / (grid.size / 2 * iso_scale))
 
     -- Calcula o chunk central
     local currentChunkX = math.floor(centerGridX / chunkSize)
@@ -219,27 +409,24 @@ function GameplayScene:drawIsometricGrid()
 end
 
 function GameplayScene:draw()
-    if not self.camera then
-        love.graphics.printf("ERRO: Câmera não inicializada!", 0, love.graphics.getHeight() / 2, love.graphics.getWidth(),
-            "center")
-        return
-    end
+    -- REMOVIDO: Checagem de self.camera não é mais necessária
+    -- if not self.camera then ... end
 
     -- Clear screen (opcional, pode sobrepor com fundo do grid)
-    love.graphics.setBackgroundColor(0.95, 0.95, 0.95)
-    love.graphics.clear()
+    love.graphics.setBackgroundColor(0.1, 0.1, 0.1) -- <<< MUDADO: Cor de fundo mais escura >>>
+    love.graphics.clear(0.1, 0.1, 0.1, 1)           -- <<< MUDADO: Limpa com a mesma cor >>>
 
-    -- Aplica transformação da câmera para o mundo
-    self.camera:attach()
+    -- Aplica transformação da câmera para o mundo (usando Camera global)
+    Camera:attach()
 
-    -- Desenha o grid isométrico e o chão
-    self:drawIsometricGrid()
+    -- Desenha o grid isométrico e o chão (Garantir que use Camera global internamente ou não precise)
+    self:drawIsometricGrid() -- Verificar se drawIsometricGrid usa self.camera
 
     -- Desenha elementos do jogo que ficam sob a câmera
     ManagerRegistry:CameraDraw() -- Assumindo que isso desenha player, inimigos, projéteis, etc.
 
-    -- Desfaz transformação da câmera
-    self.camera:detach()
+    -- Desfaz transformação da câmera (usando Camera global)
+    Camera:detach()
 
     -- Desenha elementos da UI que ficam por cima de tudo
     ManagerRegistry:draw() -- Assumindo que isso desenha UI como FloatingText
@@ -247,7 +434,15 @@ function GameplayScene:draw()
     -- Desenha Modais e Telas de UI
     LevelUpModal:draw()
     RuneChoiceModal:draw()
-    InventoryScreen.draw()  -- Assumindo que verifica internamente se está visível
+
+    -- <<< MODIFICADO: Passa dragState e armazena áreas retornadas >>>
+    if InventoryScreen.isVisible then -- Só chama se estiver visível
+        local eqAreas, invArea = InventoryScreen.draw(self.inventoryDragState)
+        self.inventoryEquipmentAreas = eqAreas or {}
+        self.inventoryGridArea = invArea or {}
+    end
+    -- <<< FIM MODIFICAÇÃO >>>
+
     ItemDetailsModal:draw() -- Assumindo que verifica internamente se está visível
     HUD:draw()
 
@@ -255,7 +450,7 @@ function GameplayScene:draw()
     local enemyMgr = ManagerRegistry:get("enemyManager")
     if enemyMgr then
         local enemies = enemyMgr:getEnemies()
-        if #enemies > 0 then
+        if enemies and #enemies > 0 then -- <<< ADICIONADO: Verifica se enemies existe
             -- Código de debug dos inimigos (transferido e adaptado)
             love.graphics.setColor(0, 0, 0, 0.7)
             love.graphics.rectangle('fill', love.graphics.getWidth() - 210, 5, 205, 150)
@@ -264,8 +459,8 @@ function GameplayScene:draw()
             local debugText = string.format(
                 "Enemy Info:\nTotal: %d | Ciclo: %d | Timer: %.1f",
                 #enemies,
-                enemyMgr.currentCycleIndex,
-                enemyMgr.gameTimer
+                enemyMgr.currentCycleIndex or 0, -- <<< ADICIONADO: Default 0 se nil
+                enemyMgr.gameTimer or 0          -- <<< ADICIONADO: Default 0 se nil
             )
             local bossCount = 0
             local bossLines = {}
@@ -290,20 +485,90 @@ end
 function GameplayScene:keypressed(key, scancode, isrepeat)
     -- print(string.format("GameplayScene: Tecla pressionada: %s", key))
 
-    -- Trata TAB para inventário ANTES de delegar para InputManager
-    if key == "tab" then
-        print("GameplayScene: TAB pressionado! Alternando inventário...")
-        self.isPaused = InventoryScreen.toggle() -- Alterna visibilidade e pausa da cena
-        print(string.format("GameplayScene: Estado de pausa: %s", tostring(self.isPaused)))
-        return                                   -- Input tratado aqui
+    -- <<< Primeiro, verifica input relacionado ao Inventário (se visível) >>>
+    if InventoryScreen.isVisible then
+        local consumed, wantsToRotate = InventoryScreen.keypressed(key) -- Chama a função atualizada
+
+        if consumed and wantsToRotate then
+            -- Verifica se estamos realmente arrastando
+            if self.inventoryDragState.isDragging then
+                self.inventoryDragState.draggedItemIsRotated = not self.inventoryDragState.draggedItemIsRotated
+                print(string.format("[GameplayScene] Rotação do item arrastado alternada para: %s",
+                    tostring(self.inventoryDragState.draggedItemIsRotated)))
+            else
+                print("[GameplayScene] Rotação solicitada, mas não aplicável (não arrastando?).")
+            end
+            return           -- Tecla consumida
+        elseif consumed then -- Tecla foi ESC ou I (ou outra consumida pelo InventoryScreen)
+            -- Consumida mas não para rotação (ex: fechar inventário com ESC/I)
+            -- Verifica se o inventário FOI fechado (isVisible agora é false)
+            if not InventoryScreen.isVisible then
+                print(string.format(
+                    "[GameplayScene] Inventário fechado (tecla: %s). Despausando e cancelando drag (se houver)...", key))
+                self.isPaused = false -- <<< DESPAUSA O JOGO >>>
+                -- Cancela drag se estava arrastando
+                if self.inventoryDragState.isDragging then
+                    -- Reseta o estado de drag
+                    self.inventoryDragState = {
+                        isDragging = false,
+                        draggedItem = nil,
+                        draggedItemOffsetX = 0,
+                        draggedItemOffsetY = 0,
+                        sourceGridId = nil,
+                        sourceSlotId = nil,
+                        draggedItemIsRotated = false,
+                        targetGridId = nil,
+                        targetSlotCoords = nil,
+                        isDropValid = false
+                    }
+                end
+            else
+                -- Se consumiu mas não fechou (caso raro, talvez outra tecla?), apenas retorna.
+            end
+            return -- Tecla consumida (ex: ESC/I para fechar)
+        end
+        -- Se não foi consumida pelo inventário, continua...
     end
 
-    -- Delega o restante para o InputManager (lógica transferida)
-    local inputMgr = ManagerRegistry:get("inputManager")
-    if inputMgr then
-        inputMgr:keypressed(key, self.isPaused) -- Passa o estado de pausa da cena
+    -- Trata TAB para inventário (funciona mesmo se inventário estiver fechado)
+    if key == "tab" and not isrepeat then -- Ignora repetição para TAB
+        print("GameplayScene: TAB pressionado! Alternando inventário e pausa...")
+        -- Chama toggle UMA VEZ e guarda o novo estado
+        local newVisibility = InventoryScreen.toggle()
+        self.isPaused = newVisibility -- Pausa/Despausa junto com a visibilidade
+        print(string.format("GameplayScene: Estado de pausa: %s", tostring(self.isPaused)))
+
+        -- Cancela drag se o inventário for fechado via TAB
+        if not newVisibility and self.inventoryDragState.isDragging then -- Usa o estado recém definido
+            print("[GameplayScene] Inventário fechado (TAB) durante drag. Cancelando drag...")
+            self.inventoryDragState = {
+                isDragging = false,
+                draggedItem = nil,
+                draggedItemOffsetX = 0,
+                draggedItemOffsetY = 0,
+                sourceGridId = nil,
+                sourceSlotId = nil,
+                draggedItemIsRotated = false,
+                targetGridId = nil,
+                targetSlotCoords = nil,
+                isDropValid = false
+            }
+        end
+
+        return -- Input tratado aqui
+    end
+
+    -- Delega o restante para o InputManager SE NÃO estiver pausado e Inventário fechado
+    if not self.isPaused and not InventoryScreen.isVisible then
+        local inputMgr = ManagerRegistry:get("inputManager")
+        if inputMgr then
+            inputMgr:keypressed(key, self.isPaused) -- Passa o estado de pausa da cena (que será false aqui)
+        else
+            print("GameplayScene: AVISO - InputManager não encontrado no Registry para keypressed")
+        end
     else
-        print("GameplayScene: AVISO - InputManager não encontrado no Registry para keypressed")
+        print(string.format("[GameplayScene] Keypress '%s' ignorado (Pausado: %s, Inv Visível: %s)", key,
+            tostring(self.isPaused), tostring(InventoryScreen.isVisible)))
     end
 end
 
@@ -317,13 +582,40 @@ function GameplayScene:keyreleased(key, scancode)
 end
 
 function GameplayScene:mousepressed(x, y, button, istouch, presses)
+    -- <<< Primeiro, verifica se o clique é para o inventário >>>
+    if InventoryScreen.isVisible then
+        local consumed, dragStartData = InventoryScreen.handleMousePress(x, y, button)
+        if consumed and dragStartData then
+            -- <<< ATUALIZA O DRAG STATE DA CENA >>>
+            self.inventoryDragState.isDragging = true
+            self.inventoryDragState.draggedItem = dragStartData.item
+            self.inventoryDragState.sourceGridId = dragStartData.sourceGridId
+            self.inventoryDragState.sourceSlotId = dragStartData.sourceSlotId -- Será nil se for da grade
+            self.inventoryDragState.draggedItemOffsetX = dragStartData.offsetX
+            self.inventoryDragState.draggedItemOffsetY = dragStartData.offsetY
+            self.inventoryDragState.draggedItemIsRotated = dragStartData.isRotated or false
+            -- Reseta o alvo ao iniciar
+            self.inventoryDragState.targetGridId = nil
+            self.inventoryDragState.targetSlotCoords = nil
+            self.inventoryDragState.isDropValid = false
+            print(string.format("[GameplayScene] Drag iniciado a partir do Inventário: Item %s, Origem: %s (%s)",
+                dragStartData.item.itemBaseId, dragStartData.sourceGridId, dragStartData.sourceSlotId or "grid"))
+            return -- Consumiu e iniciou drag, não passa para InputManager
+        elseif consumed then
+            print("[GameplayScene] Clique consumido pelo Inventário (sem iniciar drag). Nenhuma ação adicional.")
+            return -- Consumiu, mas não iniciou drag (ex: clique em slot vazio)
+        end
+        -- Se não consumiu, permite que o InputManager processe (útil para cliques fora do inventário?)
+    end
+
+    -- Se o clique não foi consumido pelo inventário, passa para o InputManager
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
         inputMgr:mousepressed(x, y, button, self.isPaused)
     else
         print("GameplayScene: AVISO - InputManager não encontrado no Registry para mousepressed")
     end
-    -- Nota: O InputManager deve internamente verificar cliques em Modais/Inventário primeiro
+    -- Nota: O InputManager deve internamente verificar cliques em Modais (LevelUp, RuneChoice)
 end
 
 function GameplayScene:mousemoved(x, y, dx, dy, istouch)
@@ -336,6 +628,57 @@ function GameplayScene:mousemoved(x, y, dx, dy, istouch)
 end
 
 function GameplayScene:mousereleased(x, y, button, istouch, presses)
+    -- <<< Verifica se estávamos arrastando um item do inventário >>>
+    if self.inventoryDragState.isDragging then
+        -- DEBUG: Imprime o estado COMPLETO do dragState ANTES de chamar o handler
+        print("--- [GameplayScene.mousereleased - Drop Detectado] ---")
+        print("Final dragState ANTES de chamar InventoryScreen.handleMouseRelease:")
+        if type(self.inventoryDragState) == "table" then
+            for k, v in pairs(self.inventoryDragState) do
+                if k == "draggedItem" and type(v) == "table" then
+                    print(string.format("  %s: { itemBaseId=%s, instanceId=%s, ... }", k, v.itemBaseId or "nil",
+                        v.instanceId or "nil"))
+                elseif k == "targetSlotCoords" and type(v) == "table" then
+                    print(string.format("  %s: { row=%s, col=%s, ... }", k, v.row or "nil", v.col or "nil"))
+                elseif type(v) == "table" then
+                    print(string.format("  %s: table", k))
+                else
+                    print(string.format("  %s: %s", tostring(k), tostring(v)))
+                end
+            end
+        else
+            print("  self.inventoryDragState não é uma tabela:", tostring(self.inventoryDragState))
+        end
+        print("-----------------------------------------------------")
+
+        -- Chama o handler do InventoryScreen para executar a ação
+        -- Passa o estado atual do drag da cena
+        local success = InventoryScreen.handleMouseRelease(self.inventoryDragState)
+
+        if success then
+            print("[GameplayScene] Ação de drop do inventário concluída com SUCESSO.")
+        else
+            print("[GameplayScene] Ação de drop do inventário FALHOU ou foi inválida.")
+        end
+
+        -- <<< SEMPRE reseta o estado de drag da cena após o release >>>
+        self.inventoryDragState = {
+            isDragging = false,
+            draggedItem = nil,
+            draggedItemOffsetX = 0,
+            draggedItemOffsetY = 0,
+            sourceGridId = nil,
+            sourceSlotId = nil,
+            draggedItemIsRotated = false,
+            targetGridId = nil,
+            targetSlotCoords = nil,
+            isDropValid = false
+        }
+        print("[GameplayScene] Estado de drag do inventário resetado.")
+        return -- Consumiu o evento de release
+    end
+
+    -- Se não estava arrastando no inventário, passa para InputManager
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
         inputMgr:mousereleased(x, y, button, self.isPaused)
@@ -349,6 +692,18 @@ end
 function GameplayScene:unload()
     print("GameplayScene:unload - Descarregando recursos do gameplay...")
     -- TODO: Limpar recursos específicos da cena de gameplay (inimigos, etc.)
+    -- <<< ADICIONADO: Resetar estados estáticos de UI/Modals >>>
+    LevelUpModal.visible = false
+    RuneChoiceModal.visible = false
+    InventoryScreen.isVisible = false
+    ItemDetailsModal.isVisible = false
+    if HUD.reset then HUD:reset() end -- Chama reset se existir
+
+    -- <<< ADICIONADO: Parar/Limpar managers se necessário >>>
+    -- Exemplo: Parar timers ou limpar listas
+    local enemyMgr = ManagerRegistry:get("enemyManager")
+    if enemyMgr and enemyMgr.reset then enemyMgr:reset() end
+    -- Limpar outros managers se relevante
 end
 
 return GameplayScene

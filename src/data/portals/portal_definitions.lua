@@ -1,0 +1,110 @@
+-- src/data/portals/portal_definitions.lua
+-- Este arquivo define as configurações para os diferentes portais do jogo.
+-- Cada portal tem sua própria temática, ranking, nome e configuração de hordas.
+
+-- Requer as classes de inimigos e bosses que podem aparecer nos portais.
+local Skeleton = require("src.classes.enemies.skeleton")
+local Zombie = require("src.classes.enemies.zombie")
+local SpiderBoss = require("src.classes.bosses.spider")
+
+local portalDefinitions = {
+    -- Exemplo de um portal inicial: Floresta Assombrada
+    floresta_assombrada = {
+        name = "Floresta Assombrada", -- Nome exibido para o jogador
+        theme = "Floresta",           -- Temática (influencia visual, eventos, etc.)
+        rank = "E",                   -- Ranking de dificuldade base do portal
+
+        -- Configuração específica das hordas para este portal
+        hordeConfig = {
+            mapRank = "E", -- Rank base do mapa para cálculo de drops e dificuldade (pode ser o mesmo do portal)
+
+            -- Configurações de MVPs neste portal
+            mvpConfig = {
+                spawnInterval = 120, -- MVPs aparecem a cada 2 minutos
+                statusMultiplier = 15,
+                speedMultiplier = 1.1,
+                sizeMultiplier = 1.2,
+                experienceMultiplier = 15
+            },
+
+            -- Configurações de Bosses neste portal
+            bossConfig = {
+                spawnTimes = {
+                    -- SpiderBoss aparece aos 3 minutos
+                    { time = 60 * 3, class = SpiderBoss }
+                }
+            },
+
+            -- Ciclos de spawn para este portal
+            cycles = {
+                -- Ciclo 1: Apenas Skeletons (Primeiros 60 segundos)
+                {
+                    duration = 60,
+                    allowedEnemies = {
+                        { class = Skeleton, weight = 1 },
+                    },
+                    majorSpawn = {
+                        interval = 15,
+                        baseCount = 15,
+                        countScalePerMin = 0.15
+                    },
+                    minorSpawn = {
+                        baseInterval = 2.5,
+                        intervalReductionPerMin = 0.30,
+                        minInterval = 1.0,
+                        count = 1
+                    }
+                },
+                -- Ciclo 2: Skeletons e Zombies (Próximos 120 segundos)
+                {
+                    duration = 120,
+                    allowedEnemies = {
+                        { class = Skeleton, weight = 2 }, -- Mais Skeletons
+                        { class = Zombie,   weight = 1 }
+                    },
+                    majorSpawn = {
+                        interval = 12,
+                        baseCount = 20,
+                        countScalePerMin = 0.20,
+                    },
+                    minorSpawn = {
+                        baseInterval = 2.0,
+                        intervalReductionPerMin = 0.40,
+                        minInterval = 0.75,
+                        count = 1
+                    }
+                },
+                -- Ciclo 3: Continuado com ambos (Restante do tempo)
+                {
+                    duration = 600, -- Dura 10 minutos ou até o fim
+                    allowedEnemies = {
+                        { class = Skeleton, weight = 1 },
+                        { class = Zombie,   weight = 1 }
+                    },
+                    majorSpawn = {
+                        interval = 10,
+                        baseCount = 25,
+                        countScalePerMin = 0.25,
+                    },
+                    minorSpawn = {
+                        baseInterval = 1.5,
+                        intervalReductionPerMin = 0.20, -- Escalonamento mais lento agora
+                        minInterval = 0.5,
+                        count = 1
+                    }
+                }
+                -- Adicione mais ciclos conforme necessário para este portal...
+            }
+        },
+
+        -- Futuras configurações (placeholder)
+        randomEvents = {},   -- Tabela para definir eventos aleatórios que podem ocorrer
+        mapDefinition = nil, -- Referência para a definição do mapa (tiles, layout)
+        assetPack = nil      -- Referência para assets específicos do tema (sprites, sons)
+    },
+
+    -- Adicione outras definições de portais aqui...
+    -- exemplo_portal_2 = { ... }
+}
+
+return portalDefinitions

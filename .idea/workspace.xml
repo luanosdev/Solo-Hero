@@ -1,10 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AIAssistantCustomInstructionsStorage">
+    <option name="instructions">
+      <map>
+        <entry key="AIAssistant.General.ProjectPrompt">
+          <value>
+            <AIAssistantStoredInstruction>
+              <option name="actionId" value="AIAssistant.General.ProjectPrompt" />
+              <option name="content" value="Always write in LDoc&#10;Dont write changes comentary&#10;Always respond in Brazilian Portuguease&#10;If use fonts, use src/ui/fonts.lua&#10;if use colors, use src/ui/color.lua&#10;Aways check src/ui/components for Ui desgin" />
+            </AIAssistantStoredInstruction>
+          </value>
+        </entry>
+        <entry key="AIAssistant.WriteDocumentation.JavaScript">
+          <value>
+            <AIAssistantStoredInstruction>
+              <option name="actionId" value="AIAssistant.WriteDocumentation.JavaScript" />
+              <option name="content" value="Allways write in LDoc" />
+            </AIAssistantStoredInstruction>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c803a71c-e0d7-4f5b-a11c-560217c4017a" name="Changes" comment="" />
+    <list default="true" id="c803a71c-e0d7-4f5b-a11c-560217c4017a" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/config/constants.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/constants.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data/archetypes_data.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/data/archetypes_data.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/managers/hunter_manager.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/managers/hunter_manager.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/managers/input_manager.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/managers/input_manager.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/scenes/gameplay_scene.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/scenes/gameplay_scene.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/scenes/lobby_scene.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/scenes/lobby_scene.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ui/colors.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/ui/colors.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ui/components/Text.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/ui/components/Text.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ui/equipment_screen.lua" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ui/guild_screen.lua" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ui/inventory_screen.lua" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ui/portal_screen.lua" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/formatters.lua" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/formatters.lua" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -12,6 +50,9 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="LLMProjectSettings">
+    <option name="guidelines_file_path" value="C:\Users\reyal\Work\FDK\Solo-Hero\.vscode\settings.json" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 8
@@ -21,23 +62,24 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;Shell Script.Run.executor&quot;: &quot;Run&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;isometric&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/reyal/Work/FDK/Solo-Hero&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "Shell Script.Run.executor": "Run",
+    "git-widget-placeholder": "scenes",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "C:/Users/reyal/Work/FDK/Solo-Hero",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "CustomColorsConfig"
   }
-}</component>
+}]]></component>
   <component name="RunManager">
     <configuration name="Run" type="ShConfigurationType">
       <option name="SCRIPT_TEXT" value="" />
@@ -47,7 +89,7 @@
       <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
       <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
       <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
-      <option name="INTERPRETER_PATH" value="powershell.exe" />
+      <option name="INTERPRETER_PATH" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="EXECUTE_IN_TERMINAL" value="true" />
       <option name="EXECUTE_SCRIPT_FILE" value="true" />
@@ -72,6 +114,10 @@
       <workItem from="1745074863877" duration="430000" />
       <workItem from="1745075308104" duration="191000" />
       <workItem from="1745075510264" duration="2704000" />
+      <workItem from="1745865865034" duration="39000" />
+      <workItem from="1745866212656" duration="1120000" />
+      <workItem from="1745867354792" duration="90000" />
+      <workItem from="1745867454023" duration="1552000" />
     </task>
     <servers />
   </component>

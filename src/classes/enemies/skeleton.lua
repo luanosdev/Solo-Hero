@@ -10,7 +10,32 @@ Skeleton.speed = 30
 Skeleton.maxHealth = 200
 Skeleton.damage = 30
 Skeleton.experienceValue = 10
-Skeleton.color = {0.7, 0.7, 0.7} -- Cor cinza para o esqueleto
+Skeleton.color = { 0.7, 0.7, 0.7 } -- Cor cinza para o esqueleto
+
+-- Tabela de Drops do Esqueleto
+Skeleton.dropTable = {
+    normal = {
+        guaranteed = {
+            -- Nenhum drop garantido
+        },
+        chance = {
+            { type = "item", itemId = "bone_fragment", chance = 25 }, -- 25% chance de Fragmento de Osso (1x1)
+        }
+    },
+    mvp = {
+        guaranteed = {
+            -- Nenhum drop garantido
+        },
+        chance = {
+            { type = "item", itemId = "intact_skull", chance = 10 }, -- 10% chance Crânio Intacto (2x2)
+            {
+                type = "item_pool",
+                chance = 5, -- 5% de chance de dropar UMA runa do pool
+                itemIds = { "rune_orbital_e", "rune_thunder_e", "rune_aura_e" }
+            },
+        }
+    }
+}
 
 -- Configurações de animação
 Skeleton.animationConfig = {
@@ -24,7 +49,7 @@ Skeleton.animationConfig = {
 function Skeleton:new(position, id)
     -- Cria uma nova instância do inimigo base
     local enemy = BaseEnemy.new(self, position, id)
-    
+
     -- Configura o sprite do esqueleto
     enemy.sprite = AnimatedSkeleton.newConfig({
         position = position,
@@ -35,13 +60,13 @@ function Skeleton:new(position, id)
             deathFrameTime = self.animationConfig.deathFrameTime
         }
     })
-    
+
     -- Inicializa o estado de morte
     enemy.isDying = false
     enemy.isDeathAnimationComplete = false
     enemy.deathTimer = 0
     enemy.deathDuration = 2.0 -- Tempo em segundos para remover após a animação
-    
+
     -- Sobrescreve a metatable para usar o __index desta classe
     return setmetatable(enemy, { __index = self })
 end
@@ -56,12 +81,12 @@ end
 function Skeleton:takeDamage(damage, isCritical)
     -- Chama a função original de BaseEnemy para aplicar dano, mostrar texto, etc.
     local died = BaseEnemy.takeDamage(self, damage, isCritical)
-    
+
     -- Se o inimigo morreu, inicia a animação de morte
     if died then
         AnimatedSkeleton.startDeath(self.sprite)
     end
-    
+
     return died
 end
 
@@ -70,18 +95,18 @@ function Skeleton:update(dt, playerManager, enemies)
     -- Se estiver morto, apenas atualiza a animação de morte
     if not self.isAlive then
         AnimatedSkeleton.update(self.sprite, dt, self.sprite.position)
-        
+
         -- Incrementa o timer de morte
         self.deathTimer = self.deathTimer + dt
-        
+
         -- Se o tempo de morte passou, marca para remoção
         if self.deathTimer >= self.deathDuration then
             self.shouldRemove = true
         end
-        
+
         return
     end
-    
+
     -- Atualiza a posição e animação do esqueleto
     AnimatedSkeleton.update(self.sprite, dt, playerManager.player.position)
 
@@ -98,19 +123,19 @@ function Skeleton:draw()
     if self.shouldRemove then
         return
     end
-    
+
     -- Se estiver morto, desenha apenas a animação de morte
     if not self.isAlive then
         AnimatedSkeleton.draw(self.sprite)
         return
     end
-    
+
     -- Chama a função original de BaseEnemy para desenhar a área de colisão e barra de vida
     BaseEnemy.draw(self)
-    
+
     -- Desenha o sprite do esqueleto
     love.graphics.setColor(1, 1, 1, 1)
     AnimatedSkeleton.draw(self.sprite)
 end
 
-return Skeleton 
+return Skeleton

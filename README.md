@@ -3,21 +3,42 @@
 ## Bugs rastreados: 
 
 [x] - Corrigir a mira automatica
-[x] - Coneslash: Aumentar por padrao a distancia do cone
-[x] - Diminuir o colisor dos esqueletos
-[x] - Verificar porque os esqueletos estao tao rapidos
-[x] - Adicionar valores inteiros para Velocidade, Recuperação de vida, Dano Critico, Defesa
-[ ] - Adicionar super critico
-[ ] - ConeSlash: No ataque multiplo, adicioar animação de slash com delay para cada ataque extra
-[ ] - FloatingNumber - Ver como pode stackar os numeros para em danos multiplos um nao sobrescrever o outro
-[ ] - Criar no playermanager uma funcao para adicionar o texto em cima do jogador e criar um padrao
-[ ] - Desativar os colisores ou fazer com que os inimigos se desviem de si mesmos
-[ ] - Fazer um loop para rodar o level up sempre que o tiver ja XP para o proximo nivel
-[ ] - Fazer uma fila para a exibição de modais
-[ ] - Adicionar um contador de nivel de upgrades vc ja conseguiu para limitar um valor maximo
-[x] - Constatado, no halls of torment os ataques ao tem nada de isometricos, somente o visual
-[ ] - Verificar bug onde se pega o XP e nao contabiliza na barra
 
+[x] - Coneslash: Aumentar por padrao a distancia do cone
+
+[x] - Diminuir o colisor dos esqueletos
+
+[x] - Verificar porque os esqueletos estao tao rapidos
+
+[x] - Adicionar valores inteiros para Velocidade, Recuperação de vida, Dano Critico, Defesa
+
+[ ] - Adicionar super critico
+
+[ ] - ConeSlash: No ataque multiplo, adicioar animação de slash com delay para cada ataque extra
+
+[ ] - Animação de Ataques: Todos os ataques (incluindo multi-ataques) devem exibir animação. Requer sistema de fila ou Múltiplas animações simultâneas.
+
+[x] - FloatingNumber - Ver como pode stackar os numeros para em danos multiplos um nao sobrescrever o outro
+
+[x] - Criar no playermanager uma funcao para adicionar o texto em cima do jogador e criar um padrao
+
+[ ] - Desativar os colisores ou fazer com que os inimigos se desviem de si mesmos
+
+[x] - Fazer um loop para rodar o level up sempre que o tiver ja XP para o proximo nivel
+
+[ ] - Fazer uma fila para a exibição de modais
+
+[x] - Adicionar um contador de nivel de upgrades vc ja conseguiu para limitar um valor maximo
+
+[x] - Constatado, no halls of torment os ataques ao tem nada de isometricos, somente o visual
+
+[x] - Verificar bug onde se pega o XP e nao contabiliza na barra
+
+[ ] - Redução de recarga, no modal de candidatos, nao tem a cor afetada.
+
+[ ] - Modal quebra em ranking S (muitos arquetipos)
+
+[ ] - Validar formatadores dos atributos
 ---
 
 ## Arquitetura do Jogo
@@ -85,6 +106,20 @@ Esta seção descreve alguns dos principais componentes e como eles interagem.
 *   **Unificação do Sistema de Pausa:** Atualmente, a pausa do jogo é tratada de duas formas: a tela de inventário (`InventoryScreen`) define explicitamente a flag global `game.isPaused`, enquanto os modais (`LevelUpModal`, `RuneChoiceModal`) dependem da verificação de `modal.visible` em `main.lua` para interromper a atualização do jogo. Embora funcional, isso representa uma inconsistência. 
     *   **Melhoria Futura:** Unificar a abordagem fazendo com que os modais `:show()` também definam `game.isPaused = true` e os métodos `:hide()` definam `game.isPaused = false`. Isso exigiria passar o controle do estado de pausa para os modais ou usar um sistema de eventos, mas resultaria em uma gestão de pausa mais consistente e centralizada. Considerar essa refatoração quando a gestão de múltiplos estados de pausa/UI se tornar mais complexa.
 
-*   **(Adicione outras ideias futuras aqui)**
-
 *   **Refatoração de Dependências (Service Locator vs. Injeção de Dependência):** Atualmente, a maioria dos managers obtém suas dependências usando `ManagerRegistry:get("...")` dentro de suas funções `init` (padrão Service Locator). O `InventoryManager`, por exemplo, depende do `ItemDataManager` e o busca através do Registry. Embora funcional e consistente com outros managers, uma abordagem alternativa seria usar Injeção de Dependência (DI), onde as dependências são passadas explicitamente durante a criação da instância (ex: `InventoryManager:new({ itemDataManager = itemDataMgr })`). A DI pode levar a um código mais explícito sobre as dependências e facilitar testes unitários. Considerar uma refatoração para DI no futuro se o gerenciamento de dependências se tornar mais complexo ou se a testabilidade se tornar uma prioridade maior.
+
+*   **Abordagem de Componentes de UI:** Adotar uma abordagem de componentes de UI reutilizáveis (como a classe `Button` em `src/ui/components/button.lua`) para construir telas futuras e refatorar as existentes. 
+    *   **Base Visual:** Utilizar as funções de desenho existentes em `src/ui/ui_elements.lua` como base para a lógica visual dentro dos métodos `draw()` dos novos componentes.
+    *   **Layout Automático (Visão Futura):** Evoluir para um sistema de layout mais automático (inspirado em conceitos como Flexbox/Grid) para reduzir cálculos manuais de posicionamento e padding, tornando a UI mais adaptável e fácil de manter.
+
+*   **Separação de Camadas na UI (View vs. Logic/State):** Separar a lógica de apresentação visual (View, responsável pelo desenho e layout usando `love.graphics` e componentes) da lógica de controle e estado da UI (Controller/ViewModel, responsável por gerenciar dados, interagir com managers e responder a eventos). 
+    *   **Benefícios:** Maior clareza, manutenibilidade, testabilidade e reutilização do código da UI.
+    *   **Exemplo:** Refatorar telas como `GuildScreen` para que a classe principal (`GuildScreen.lua`) foque na apresentação e delegue o estado e a lógica para uma classe complementar (`GuildScreenController.lua`).
+
+*   **Novas Ideias de Armas/Habilidades:**
+    *   **Lâmina Orbital (Orbital Blade):** Uma ou mais lâminas circundam o jogador, causando dano passivo a inimigos próximos. Stats: `damage`, `orbitalCount`, `orbitalRadius`, `rotationSpeed`. Bônus: Área (raio/tamanho), Projéteis (contagem).
+    *   **Besta Perfurante (Piercing Crossbow):** Dispara um virote lento que atravessa múltiplos inimigos. Stats: `damage`, `cooldown`, `range`, `pierceCount`, `projectileSpeed`. Bônus: Perfuração (contagem), Área (tamanho do projétil).
+    *   **Cajado Pestilento (Blight Staff):** Lança projétil que cria poça de dano contínuo no chão. Stats: `damage` (por tick), `cooldown`, `projectileRange`, `poolRadius`, `poolDuration`, `tickRate`. Bônus: Área (raio da poça), Duração (tempo da poça).
+    *   **Varinha de Mísseis Teleguiados (Homing Missile Wand):** Dispara projéteis que buscam inimigos próximos. Stats: `damage`, `cooldown`, `missileCount`, `missileSpeed`, `missileLifetime`, `turnRate`, `acquisitionRange`. Bônus: Projéteis (contagem).
+
+*   **(Adicione outras ideias futuras aqui)**

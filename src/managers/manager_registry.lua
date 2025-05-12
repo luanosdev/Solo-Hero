@@ -1,3 +1,4 @@
+---@class ManagerRegistry
 local ManagerRegistry = {
     managers = {},
     initialized = false
@@ -23,6 +24,16 @@ end
 function ManagerRegistry:get(name)
     if not self.managers[name] then
         error(string.format("Manager '%s' não encontrado", name))
+    end
+    return self.managers[name].instance
+end
+
+-- Obtém um manager registrado, mas retorna nil se não encontrado
+---@param name string
+---@return table|nil
+function ManagerRegistry:tryGet(name)
+    if not self.managers[name] then
+        return nil
     end
     return self.managers[name].instance
 end
@@ -56,7 +67,7 @@ function ManagerRegistry:init(initConfigs)
             print(string.format(" - Inicializando %s...", name))
             managerData.instance:init(initConfigs[name])
         elseif managerData then
-             print(string.format(" - Manager %s registrado, mas sem função init().", name))
+            print(string.format(" - Manager %s registrado, mas sem função init().", name))
         else
             print(string.format(" - AVISO: Manager %s na initOrder não está registrado!", name))
         end
@@ -97,4 +108,8 @@ function ManagerRegistry:draw()
     end
 end
 
-return ManagerRegistry 
+function ManagerRegistry:unregister(name)
+    self.managers[name] = nil
+end
+
+return ManagerRegistry

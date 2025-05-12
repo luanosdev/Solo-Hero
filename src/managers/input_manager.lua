@@ -1,4 +1,5 @@
 -- Módulo de gerenciamento de input do jogador
+---@class InputManager
 local InputManager = {}
 local ManagerRegistry = require("src.managers.manager_registry")
 local Camera = require("src.config.camera") -- Adicionado para conversão de coordenadas
@@ -6,7 +7,7 @@ local Camera = require("src.config.camera") -- Adicionado para conversão de coo
 local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
 print("[InputManager Top Level] type(RuneChoiceModal) after require:", type(RuneChoiceModal)) -- DEBUG
-local InventoryScreen = require("src.ui.inventory_screen")
+local InventoryScreen = require("src.ui.screens.inventory_screen")
 local ItemDetailsModal = require("src.ui.item_details_modal") -- Adicionado require direto
 
 -- Estado das teclas
@@ -31,9 +32,6 @@ InputManager.mouse = {
     wasRightButtonPressed = false  -- Verdadeiro apenas no frame em que o botão direito foi pressionado
 }
 
--- Referência para o PlayerManager (pode ser removido se sempre acessado via Registry)
-InputManager.playerManager = nil
-
 -- REMOVIDO: Referência para o modal de detalhes (será usado diretamente)
 -- InputManager.itemDetailsModalInstance = nil
 
@@ -55,18 +53,18 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
     -- Reseta os estados de pressionamento do mouse (eventos de frame único)
     self.mouse.wasLeftButtonPressed = false
     self.mouse.wasRightButtonPressed = false
-    
+
     -- Atualiza estado das teclas de movimento
     self.keys.moveUp = love.keyboard.isDown("w") or love.keyboard.isDown("up")
     self.keys.moveDown = love.keyboard.isDown("s") or love.keyboard.isDown("down")
     self.keys.moveLeft = love.keyboard.isDown("a") or love.keyboard.isDown("left")
     self.keys.moveRight = love.keyboard.isDown("d") or love.keyboard.isDown("right")
-    
+
     -- Não processa movimento se a UI estiver bloqueando
     if isUIBlockingInput then return end
 
-    local playerManager = ManagerRegistry:get("playerManager")
-    
+    local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
+
     -- Executa movimento se houver input
     if self.keys.moveUp or self.keys.moveDown or self.keys.moveLeft or self.keys.moveRight then
         local moveX, moveY = 0, 0
@@ -74,17 +72,18 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
         if self.keys.moveDown then moveY = moveY + 1 end
         if self.keys.moveLeft then moveX = moveX - 1 end
         if self.keys.moveRight then moveX = moveX + 1 end
-        
+
         if moveX ~= 0 or moveY ~= 0 then
             local length = math.sqrt(moveX * moveX + moveY * moveY)
             moveX = moveX / length
             moveY = moveY / length
         end
-        
+
         if playerManager and playerManager.player then
-            local newX = playerManager.player.position.x + moveX * playerManager.state:getTotalSpeed() * dt
-            local newY = playerManager.player.position.y + moveY * playerManager.state:getTotalSpeed() * dt
-            
+            local finalStats = playerManager:getCurrentFinalStats()
+            local newX = playerManager.player.position.x + moveX * finalStats.moveSpeed * dt
+            local newY = playerManager.player.position.y + moveY * finalStats.moveSpeed * dt
+
             playerManager.player.position.x = newX
             playerManager.player.position.y = newY
         end
@@ -120,7 +119,7 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
     if isGamePaused or isUIBlockingInput then return false end
 
     -- 4. Processa input do jogo (só executa se não pausado e nenhuma UI bloqueando)
-    local playerManager = ManagerRegistry:get("playerManager")
+    local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
 
     -- Verifica se é uma tecla de movimento (atualiza estado interno)
     if key == "w" or key == "up" then
@@ -144,18 +143,9 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
     
     -- Ações específicas do jogador (só se playerManager existir)
     if playerManager then
-        if key == "x" then playerManager:toggleAbilityAutoCast() end
+        if key == "x" then playerManager:toggleAbilityAutoAttack() end
         if key == "z" then playerManager:toggleAutoAim() end
-        if key == "v" then playerManager:toggleAbilityVisual() end
-        if key == "h" then playerManager:heal(20) end
-        if key == "g" then playerManager:takeDamage(30) end
-    -- Tests
-        if key == "f1" then playerManager:levelUp() end
-
-    if key >= "1" and key <= "9" then
-        local index = tonumber(key)
-        playerManager:switchWeapon(index)
-    end
+        if key == "v" then playerManager:toggleAttackPreview() end
     end
 
     return false -- Indica que o input não foi exclusivamente tratado por um modal/inventário
