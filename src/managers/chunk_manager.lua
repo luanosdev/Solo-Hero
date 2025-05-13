@@ -21,8 +21,9 @@ Chunk.__index = Chunk
 ---@param chunkY number Coordenada Y do chunk.
 ---@param chunkSize number Tamanho do chunk (ex: 32).
 ---@param portalThemeData table Dados do tema do portal atual.
+---@param globalSeed number Seed global para geração procedural.
 ---@return Chunk
-function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData)
+function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData, globalSeed)
     local instance = setmetatable({}, Chunk)
     instance.chunkX = chunkX
     instance.chunkY = chunkY
@@ -49,9 +50,8 @@ function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData)
             }
         end
     end
-    -- Gera decorações aleatórias para o chunk
     if theme.generateDecorations then
-        instance.decorations = theme.generateDecorations(chunkX, chunkY, chunkSize)
+        instance.decorations = theme.generateDecorations(chunkX, chunkY, chunkSize, globalSeed)
     end
     return instance
 end
@@ -123,6 +123,7 @@ function ChunkManager:initialize(portalThemeData, chunkSize, assetManagerInstanc
     self.currentSeed = randomSeed or os.time()
     self.maxDecoSize = 128                               -- tamanho máximo de sprite de decoração em pixels (ajuste se necessário)
     self.maxDecorationsPerChunk = maxDecorationsPerChunk -- pode ser nil
+    self.decorationBatches = {}                          -- Para SpriteBatching
 
     if not self.assetManager then
         print("ChunkManager WARN: AssetManager não fornecido na inicialização.")
@@ -164,8 +165,7 @@ function ChunkManager:_getChunkKey(chunkX, chunkY)
 end
 
 function ChunkManager:_generateChunkData(chunkX, chunkY)
-    local newChunk = Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme)
-    -- Limita o número de decorações por chunk, se definido
+    local newChunk = Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme, self.currentSeed)
     if self.maxDecorationsPerChunk and newChunk.decorations and #newChunk.decorations > self.maxDecorationsPerChunk then
         local limited = {}
         for i = 1, self.maxDecorationsPerChunk do
@@ -204,6 +204,10 @@ function ChunkManager:getTileAt(worldX, worldY)
 end
 
 function ChunkManager:update(playerWorldX, playerWorldY, cameraX, cameraY)
+    -- Adicionado Log para verificar cameraX e cameraY
+    print(string.format("[ChunkManager:update] Camera X: %.2f, Camera Y: %.2f, PlayerTileX: %d, PlayerTileY: %d",
+        cameraX or 0, cameraY or 0, playerWorldX or 0, playerWorldY or 0))
+
     if not playerWorldX or not playerWorldY then
         return
     end
@@ -255,9 +259,11 @@ function ChunkManager:draw(cameraX, cameraY)
         print("ChunkManager:draw - Pré-requisitos não atendidos (tema, mapDef, assetManager).")
         return
     end
-    local mapTileSize = { width = TILE_SIZE, height = TILE_SIZE }
+
     local screenW, screenH = love.graphics.getDimensions()
     love.graphics.push()
+
+    -- Desenha tiles do chão primeiro
     for key, chunk in pairs(self.activeChunks) do
         if chunk then
             for ty = 1, chunk.size do
@@ -268,51 +274,60 @@ function ChunkManager:draw(cameraX, cameraY)
                         local isoY = (tile.worldX + tile.worldY) * (TILE_HEIGHT / 2)
                         local tileImage = self.assetManager:getImage(tile.type)
                         if tileImage then
-                            local imgW = tileImage:getWidth()
-                            local imgH = tileImage:getHeight()
+                            local imgW, imgH = tileImage:getDimensions()
                             local scaleX = TILE_WIDTH / imgW
                             local scaleY = TILE_HEIGHT / imgH
                             local padX = (imgW - TILE_WIDTH) / 2
                             local padY = (imgH - TILE_HEIGHT) / 2
-                            love.graphics.draw(
-                                tileImage,
-                                isoX - padX * scaleX,
-                                isoY - (TILE_HEIGHT / 2) - padY * scaleY,
-                                0,
-                                scaleX,
-                                scaleY
-                            )
+                            love.graphics.draw(tileImage, isoX - padX * scaleX, isoY - (TILE_HEIGHT / 2) - padY * scaleY,
+                                0, scaleX, scaleY)
                         end
-                    end
-                end
-            end
-            -- Desenhar decorações do chunk
-            for _, deco in ipairs(chunk.decorations or {}) do
-                local decoImage = self.assetManager:getImage(deco.asset)
-                if decoImage then
-                    local imgW = decoImage:getWidth()
-                    local imgH = decoImage:getHeight()
-                    -- Coordenadas globais do chunk em pixels
-                    local chunkOriginX = chunk.chunkX * chunk.size * TILE_WIDTH
-                    local chunkOriginY = chunk.chunkY * chunk.size * TILE_HEIGHT
-                    -- Posição global da decoração em pixels
-                    local px = chunkOriginX + deco.px
-                    local py = chunkOriginY + deco.py
-                    -- Converter para isométrico
-                    local isoX = (px - py) / 2
-                    local isoY = (px + py) / 4
-                    -- Só desenha se estiver na tela
-                    if isoX + imgW > 0 and isoX < screenW and isoY + imgH > 0 and isoY < screenH then
-                        love.graphics.draw(
-                            decoImage,
-                            isoX - imgW / 2,
-                            isoY - imgH + TILE_HEIGHT / 2
-                        )
                     end
                 end
             end
         end
     end
+
+    for assetPath, batch in pairs(self.decorationBatches) do
+        batch:clear()
+    end
+
+    for key, chunk in pairs(self.activeChunks) do
+        if chunk and chunk.decorations then
+            for _, deco in ipairs(chunk.decorations) do
+                local decoImage = self.assetManager:getImage(deco.asset)
+                if decoImage then
+                    local batch = self.decorationBatches[deco.asset]
+                    if not batch then
+                        batch = love.graphics.newSpriteBatch(decoImage, 2000) -- Aumentado buffer do batch
+                        self.decorationBatches[deco.asset] = batch
+                    end
+
+                    local imgW, imgH = decoImage:getDimensions()
+                    local chunkOriginX = chunk.chunkX * chunk.size * TILE_WIDTH
+                    local chunkOriginY = chunk.chunkY * chunk.size * TILE_HEIGHT
+                    local px = chunkOriginX + deco.px
+                    local py = chunkOriginY + deco.py
+                    local isoX_deco_center = (px - py) / 2
+                    local isoY_deco_center = (px + py) / 4
+
+                    -- Posição de desenho do canto superior esquerdo da decoração no MUNDO
+                    local drawX = isoX_deco_center - imgW / 2
+                    local drawY = isoY_deco_center - imgH + TILE_HEIGHT / 2
+
+                    -- Culling: verifica se o retângulo da decoração está visível na câmera
+                    if drawX + imgW > cameraX and drawX < cameraX + screenW and drawY + imgH > cameraY and drawY < cameraY + screenH then
+                        batch:add(drawX, drawY)
+                    end
+                end
+            end
+        end
+    end
+
+    for assetPath, batch in pairs(self.decorationBatches) do
+        love.graphics.draw(batch)
+    end
+
     love.graphics.pop()
 end
 
