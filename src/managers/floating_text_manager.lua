@@ -1,4 +1,6 @@
 local FloatingText = require("src.entities.floating_text")
+local Camera = require("src.config.camera")
+local colors = require("src.ui.colors")
 
 --- Gerencia a criação, atualização e desenho de todos os textos flutuantes no jogo.
 --- Implementa um sistema de empilhamento/atraso para textos no mesmo alvo.
@@ -48,6 +50,17 @@ end
 
 --- Desenha todos os textos flutuantes ativos.
 function FloatingTextManager:draw()
+    print(string.format("[FloatingTextManager:draw()] Chamado. Quantidade de textos: %d", #self.texts))
+    if #self.texts > 0 then
+        local firstText = self.texts[1]
+        if firstText and firstText.currentPosition then
+            print(string.format("  - Primeiro texto: '%s' em (%.2f, %.2f), Alpha: %.2f, Delay: %.2f",
+                firstText.text, firstText.currentPosition.x, firstText.currentPosition.y, firstText.alpha,
+                firstText.initialDelay or 0))
+        end
+    end
+
+    -- O DESENHO AGORA É FEITO DIRETAMENTE PELO MANAGER
     for _, textInstance in ipairs(self.texts) do
         textInstance:draw()
     end
@@ -56,16 +69,28 @@ end
 --- Adiciona um texto flutuante genérico.
 --- Calcula o atraso e o deslocamento de empilhamento se necessário.
 ---@param factoryFunction function A função fábrica de FloatingText (ex: FloatingText.newEnemyDamage).
----@param position {x: number, y: number} Posição {x, y} inicial do texto.
+---@param worldPosition {x: number, y: number} Posição {x, y} inicial do texto NO MUNDO.
 ---@param textContent string O conteúdo do texto.
----@param isCriticalOrExtra boolean|any Se o texto é para um acerto crítico. Pode ser outro valor dependendo da factoryFunction.
----@param target table|nil O objeto alvo (ex: inimigo, jogador) que possui um campo `position`.
----@param ... any Argumentos adicionais para a factoryFunction.
-function FloatingTextManager:_addTextInternal(factoryFunction, position, textContent, isCriticalOrExtra, target, ...)
+---@param targetEntity table|nil O objeto alvo (ex: inimigo, jogador).
+---@param propsForFactory table Tabela de propriedades que será passada para a factoryFunction.
+---                          Esta tabela é o último argumento da factory (geralmente chamado 'props').
+function FloatingTextManager:_addTextInternal(factoryFunction, worldPosition, textContent, targetEntity, propsForFactory)
     local initialDelay = 0
     local initialStackOffsetY = 0
-    local stackOffsetX = 0                               -- Novo: Deslocamento X para empilhamento
-    local targetPositionRef = target and target.position -- Usa a tabela de posição do alvo como chave
+    local stackOffsetX = 0
+    local targetPositionRef = targetEntity and targetEntity.position -- Usado para a chave do activeTargetInfo
+    local targetNameForLog = (targetEntity and targetEntity.name) or
+        (targetEntity and "id_" .. tostring(targetEntity.id)) or "UnknownTarget_FTM"
+
+    -- DEBUG: Log da posição inicial fornecida para o texto
+    if worldPosition then
+        print(string.format("[FTM:_addInternal] Adding text '%s' for %s. Initial world pos: (%.2f, %.2f). TargetRef: %s",
+            textContent, targetNameForLog, worldPosition.x, worldPosition.y, tostring(targetPositionRef)))
+    else
+        print(string.format("[FTM:_addInternal] Adding text '%s' (no worldPosition!). TargetRef: %s", textContent,
+            tostring(targetPositionRef)))
+        worldPosition = { x = 0, y = 0 } -- Fallback para evitar erro, mas isso é um problema.
+    end
 
     if targetPositionRef then
         if not self.activeTargetInfo[targetPositionRef] or self.activeTargetInfo[targetPositionRef].count == 0 then
@@ -76,38 +101,57 @@ function FloatingTextManager:_addTextInternal(factoryFunction, position, textCon
         info.count = info.count + 1
 
         if info.count > 1 then
-            -- Aplica delay e offset com base na contagem (a partir do segundo texto)
             initialDelay = (info.count - 1) * self.TEXT_DELAY_INTERVAL
             initialStackOffsetY = (info.count - 1) * self.TEXT_STACK_OFFSET_Y
-            stackOffsetX = love.math.random(-8, 8)               -- Deslocamento X aleatório entre -8 e 8 pixels
+            stackOffsetX = love.math.random(-8, 8)
         end
-        info.lastSpawnTime = love.timer.getTime() + initialDelay -- Atualiza o tempo de spawn considerando o delay
+        info.lastSpawnTime = love.timer.getTime() + initialDelay
     end
 
-    -- Ajusta a posição X inicial com o stackOffsetX
-    local finalPosition = { x = position.x + stackOffsetX, y = position.y }
+    local screenX, screenY = Camera:worldToScreen(worldPosition.x, worldPosition.y)
+    local initialScreenPosition = { x = screenX + stackOffsetX, y = screenY }
 
-    -- A factoryFunction é chamada com `FloatingText` como `self`, seguido pelos argumentos.
-    local floatingTextInstance = factoryFunction(FloatingText, finalPosition, textContent, isCriticalOrExtra,
-        targetPositionRef, initialDelay, initialStackOffsetY, ...)
+    -- As factories (newEnemyDamage, newPlayerDamage, newText) esperam:
+    -- (self, initialScreenPosition, text, targetEntity, initialDelay, initialStackOffsetY, props)
+    -- Onde 'props' é a tabela propsForFactory que passamos.
+    local floatingTextInstance = factoryFunction(
+        FloatingText, -- self para a factory
+        initialScreenPosition,
+        textContent,
+        targetEntity,
+        initialDelay,
+        initialStackOffsetY,
+        propsForFactory or {} -- A tabela de props específica da factory
+    )
     table.insert(self.texts, floatingTextInstance)
 end
 
 --- Adiciona um texto flutuante para dano causado a um inimigo.
----@param position {x: number, y: number} Posição {x, y} inicial do texto.
+---@param position {x: number, y: number} Posição {x, y} inicial do texto NO MUNDO.
 ---@param text string O conteúdo do texto.
 ---@param isCritical boolean Se o dano é crítico.
 ---@param enemyTarget table O objeto inimigo alvo.
 function FloatingTextManager:addEnemyDamageText(position, text, isCritical, enemyTarget)
-    self:_addTextInternal(FloatingText.newEnemyDamage, position, text, isCritical, enemyTarget)
+    local factoryProps = {
+        isCritical = isCritical
+        -- Outras props como scale, lifetime, velocityY, baseOffsetY serão definidas
+        -- dentro de newEnemyDamage com base em isCritical.
+        -- Se quisermos permitir overrides de addEnemyDamageText, eles seriam adicionados aqui.
+    }
+    self:_addTextInternal(FloatingText.newEnemyDamage, position, text, enemyTarget, factoryProps)
 end
 
 --- Adiciona um texto flutuante para dano recebido pelo jogador.
----@param position {x: number, y: number} Posição {x, y} inicial do texto.
+---@param position {x: number, y: number} Posição {x, y} inicial do texto NO MUNDO.
 ---@param text string O conteúdo do texto.
 ---@param playerTarget table O objeto jogador alvo.
 function FloatingTextManager:addPlayerDamageText(position, text, playerTarget)
-    self:_addTextInternal(FloatingText.newPlayerDamage, position, text, false, playerTarget)
+    local factoryProps = {
+        isCritical = false -- Dano no jogador geralmente não é crítico desta forma
+        -- Outras props como scale, lifetime, velocityY, baseOffsetY serão definidas
+        -- dentro de newPlayerDamage.
+    }
+    self:_addTextInternal(FloatingText.newPlayerDamage, position, text, playerTarget, factoryProps)
 end
 
 --- Adiciona um texto flutuante para cura recebida pelo jogador.
@@ -115,8 +159,15 @@ end
 ---@param text string O conteúdo do texto.
 ---@param playerTarget table O objeto jogador alvo.
 function FloatingTextManager:addPlayerHealText(position, text, playerTarget)
-    -- Para cura, isCritical geralmente é false.
-    self:_addTextInternal(FloatingText.newPlayerHeal, position, text, false, playerTarget)
+    local factoryProps = {
+        textColor = colors.heal, -- newText espera 'textColor' em sua tabela de props
+        scale = 1.1,
+        velocityY = -30,
+        lifetime = 1.0,
+        baseOffsetY = -40
+        -- isCritical é false por padrão em newText se não especificado
+    }
+    self:_addTextInternal(FloatingText.newText, position, text, playerTarget, factoryProps)
 end
 
 --- Adds a floating text for a collected item.
@@ -126,10 +177,15 @@ end
 ---@param itemRarity string The item's rarity (e.g., "S", "A", etc.).
 ---@param target table|nil Optional target object that the text should follow.
 function FloatingTextManager:addItemCollectedText(position, itemName, itemRarity, target)
-    -- The factoryFunction newItemCollectedText expects: initialPosition, itemName, itemRarity, targetPosition, initialDelay, initialStackOffsetY
-    -- _addTextInternal provides: position, textContent (itemName), isCriticalOrExtra (itemRarity), target, initialDelay, initialStackOffsetY
-    -- The parameter name isCriticalOrExtra is now used for itemRarity in this case.
-    self:_addTextInternal(FloatingText.newItemCollectedText, position, itemName, itemRarity, target)
+    local itemColor = colors.rarity[itemRarity] or colors.text_default
+    local factoryProps = {
+        textColor = itemColor, -- newText espera 'textColor'
+        scale = 1.0,
+        velocityY = -25,
+        lifetime = 1.2,
+        baseOffsetY = -45
+    }
+    self:_addTextInternal(FloatingText.newText, position, itemName, target, factoryProps)
 end
 
 --- Adiciona um texto flutuante customizado.
@@ -139,10 +195,14 @@ end
 ---@param target table|nil O alvo (opcional, para rastreamento de posição e empilhamento).
 ---@param props table As propriedades do texto (color, scale, velocityY, lifetime, etc.).
 function FloatingTextManager:addCustomText(position, text, target, props)
+    print(string.format("[FloatingTextManager:addCustomText] Tentando adicionar: '%s' em (%.2f, %.2f) MUNDO", text,
+        position.x,
+        position.y))
     local initialDelay = 0
     local initialStackOffsetY = 0
     local stackOffsetX = 0 -- Novo: Deslocamento X para empilhamento
     local targetPositionRef = target and target.position
+    local targetNameForLog = (target and target.name) or (target and "id_" .. tostring(target.id)) or "UnknownTarget"
 
     props = props or {}
 
@@ -160,13 +220,19 @@ function FloatingTextManager:addCustomText(position, text, target, props)
         info.lastSpawnTime = love.timer.getTime() + initialDelay
     end
 
-    -- Ajusta a posição X inicial com o stackOffsetX
-    local finalPosition = { x = position.x + stackOffsetX, y = position.y }
+    -- Converte a posição do mundo para a tela ANTES de aplicar o offset de empilhamento X
+    local screenX, screenY = Camera:worldToScreen(position.x, position.y)
+    print(string.format("  -> Posição convertida para TELA: (%.2f, %.2f)", screenX, screenY))
 
-    props.initialDelay = initialDelay
-    props.initialStackOffsetY = initialStackOffsetY
-    -- A função :new do FloatingText espera targetPosition como argumento separado, não dentro de props.
-    local floatingTextInstance = FloatingText:new(finalPosition, text, targetPositionRef, props)
+    -- Ajusta a posição X inicial com o stackOffsetX (agora em coordenadas de tela)
+    local finalPosition = { x = screenX + stackOffsetX, y = screenY }
+
+    -- props.initialDelay = initialDelay -- Isso já é calculado e passado separadamente
+    -- props.initialStackOffsetY = initialStackOffsetY -- Isso já é calculado e passado separadamente
+
+    -- Chamada correta para FloatingText:new
+    local floatingTextInstance = FloatingText:new(finalPosition, text, props, targetPositionRef, initialDelay,
+        initialStackOffsetY, targetNameForLog, target)
     table.insert(self.texts, floatingTextInstance)
 end
 
@@ -216,6 +282,7 @@ function FloatingTextManager:addText(x, y, textContent, isCritical, target, cust
 
     -- A função addCustomText cuidará de obter target.position, e aplicar
     -- o sistema de delay e stacking com os valores padrão do manager.
+    -- A conversão de coordenadas MUNDO->TELA é feita em addCustomText.
     self:addCustomText({ x = x, y = y }, textContent, target, props)
 end
 

@@ -27,8 +27,11 @@ function Camera:follow(position, dt)
     local targetY = position.y - (self.screenHeight / 2)
 
     -- Interpola suavemente para a posição alvo
-    self.x = self.x + (targetX - self.x) * dt * self.smoothness
-    self.y = self.y + (targetY - self.y) * dt * self.smoothness
+    -- self.x = self.x + (targetX - self.x) * dt * self.smoothness
+    -- self.y = self.y + (targetY - self.y) * dt * self.smoothness
+    -- PARA TESTE: Remover suavização
+    self.x = targetX
+    self.y = targetY
 end
 
 function Camera:attach()

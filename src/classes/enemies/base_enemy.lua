@@ -101,7 +101,7 @@ function BaseEnemy:update(dt, playerManager, enemies)
             -- Usa a posição atual para verificar a colisão, não a posição alvo
             local distSq = (other.position.x - self.position.x) ^ 2 +
                 ((other.position.y - self.position.y) * 2) ^
-                2                                          -- Ajuste isométrico na distância Y
+                2 -- Ajuste isométrico na distância Y
             local minDist = self.radius + other.radius
 
             if distSq < minDist * minDist and distSq > 0 then -- Evita divisão por zero se distSq for 0
@@ -126,7 +126,7 @@ function BaseEnemy:update(dt, playerManager, enemies)
                 totalSeparationX = totalSeparationX + math.cos(angle) * self.radius * separationStrength
                 totalSeparationY = totalSeparationY +
                     math.sin(angle) * self.radius * separationStrength *
-                    0.5                                                  -- Menos força no Y devido à isometria
+                    0.5 -- Menos força no Y devido à isometria
             end
         end
     end
@@ -142,6 +142,12 @@ function BaseEnemy:update(dt, playerManager, enemies)
 
     -- Verifica colisão com o jogador usando a posição de colisão
     self:checkPlayerCollision(dt, playerManager)
+
+    -- DEBUG: Log da posição do inimigo
+    if self.name and self.position then -- Log apenas se tiver nome e posição
+        print(string.format("[BaseEnemy:update] %s final position: (%.2f, %.2f)", self.name, self.position.x,
+            self.position.y))
+    end
 end
 
 function BaseEnemy:checkPlayerCollision(dt, playerManager)
@@ -187,6 +193,12 @@ function BaseEnemy:takeDamage(damage, isCritical)
     -- Aplica o dano
     self.currentHealth = self.currentHealth - damage
     print(string.format("Inimigo ID: %d, Dano: %d, Vida: %d", self.id, damage, self.currentHealth))
+
+    -- DEBUG: Log da posição do inimigo NO MOMENTO de takeDamage
+    local enemyName = self.name or "id_" .. tostring(self.id)
+    print(string.format("[BaseEnemy:takeDamage for %s] World position AT DAMAGE: (%.2f, %.2f)", enemyName,
+        self.position.x, self.position.y))
+
     -- Mostra o número de dano
     local floatingTextManager = ManagerRegistry:get("floatingTextManager") ---@type FloatingTextManager
     floatingTextManager:addEnemyDamageText(self.position, tostring(damage), isCritical, self)

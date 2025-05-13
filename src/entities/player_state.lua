@@ -233,9 +233,9 @@ function PlayerState:heal(amount, finalMaxHealth, finalHealingBonusMultiplier)
     local effectiveAmount = amount * finalHealingBonusMultiplier
     local oldHealth = self.currentHealth
     -- Limita a cura pela vida máxima final
-    self.currentHealth = math.min(self.currentHealth + effectiveAmount, finalMaxHealth)
+    self.currentHealth = math.floor(math.min(self.currentHealth + effectiveAmount, finalMaxHealth))
 
-    return self.currentHealth - oldHealth
+    return math.floor(self.currentHealth - oldHealth)
 end
 
 --- Add bonus to an attribute

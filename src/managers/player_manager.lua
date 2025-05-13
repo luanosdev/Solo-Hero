@@ -386,14 +386,22 @@ end
 
 -- Desenha o player e elementos relacionados
 function PlayerManager:draw()
+    if not self.player or not self.player.position then return end -- Adiciona verificação
+
     -- O CÍRCULO DE COLISÃO E A BARRA DE VIDA PODEM SER DESENHADOS SEPARADAMENTE PELA SCENE
     -- OU CONSIDERADOS UI E DESENHADOS APÓS A RENDERLIST PRINCIPAL.
-    -- POR ENQUANTO, VAMOS MANTÊ-LOS AQUI, MAS ELES NÃO FAZEM PARTE DO collectRenderables DO JOGADOR EM SI.
+    -- AGORA SÃO DESENHADOS AQUI, CONVERTENDO COORDS DO MUNDO PARA TELA.
+
+    -- Converte a posição base do jogador no mundo para a tela
+    local playerScreenX, playerScreenY = Camera:worldToScreen(self.player.position.x, self.player.position.y)
 
     -- Desenha o círculo de colisão primeiro (embaixo de tudo)
-    local circleY = self.player.position.y + 25 -- Ajusta para ficar nos pés do sprite
+    -- O offset de +25 no Y é em coordenadas do mundo, então o convertemos separadamente
+    local collisionCircleWorldY = self.player.position.y + 25
+    local _, collisionCircleScreenY = Camera:worldToScreen(self.player.position.x, collisionCircleWorldY)
+
     love.graphics.push()
-    love.graphics.translate(self.player.position.x, circleY)
+    love.graphics.translate(playerScreenX, collisionCircleScreenY) -- Usa Y convertido para o círculo
     love.graphics.scale(1, 0.5)
     love.graphics.setColor(0, 0.5, 1, 0.3)
     love.graphics.circle("fill", 0, 0, self.radius)
@@ -403,24 +411,38 @@ function PlayerManager:draw()
 
     local finalStats = self:getCurrentFinalStats()
     if self.state and self.state.currentHealth < finalStats.health then
+        -- Barra de vida: Offset de -40 no Y (acima da cabeça) é em coordenadas do mundo
+        local healthBarWorldY = self.player.position.y - 40
+        local healthBarScreenX, healthBarScreenY = Camera:worldToScreen(self.player.position.x - 25, healthBarWorldY) -- X também precisa de conversão para o offset
+
         elements.drawResourceBar({
-            x = self.player.position.x - 25,
-            y = self.player.position.y - 40,
+            x = healthBarScreenX, -- Usa X convertido
+            y = healthBarScreenY, -- Usa Y convertido
             width = 50,
             height = 3,
             current = self.state.currentHealth,
             maxValue = finalStats.health,
             showText = false,
-            cacheEnabled = true,
-            entityId = "player"
+            cacheEnabled = true,       -- Considerar se o cache ainda é útil com posições dinâmicas
+            entityId = "player_health" -- ID único para o cache
         })
     end
 
     if self.isLevelingUp then
-        self.levelUpAnimation:draw(self.player.position.x, self.player.position.y)
+        -- A animação de level up também precisa ter sua posição convertida
+        -- Assumindo que levelUpAnimation:draw espera coordenadas de tela
+        local animScreenX, animScreenY = Camera:worldToScreen(self.player.position.x, self.player.position.y)
+        self.levelUpAnimation:draw(animScreenX, animScreenY)
     end
 
+    -- As habilidades de runa são desenhadas em coordenadas do mundo, então elas devem
+    -- ser movidas para collectRenderables ou ter sua própria lógica de conversão se forem UI.
+    -- POR ORA, VAMOS MANTÊ-LAS AQUI E VER O EFEITO. SE ELAS DESENHAM SPRITES NO MUNDO,
+    -- ESTA NÃO É A CHAMADA CORRETA PARA ELAS.
     for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
+        -- Se abilityInstance:draw espera coordenadas de mundo, isso estará errado.
+        -- Se espera coordenadas de tela, precisa converter a posição de origem da habilidade.
+        -- ESTA PARTE PROVAVELMENTE PRECISARÁ DE MAIS AJUSTES.
         abilityInstance:draw()
     end
 
@@ -510,11 +532,12 @@ function PlayerManager:updateHealthRecovery(dt)
             if healAmount >= 1 and self.state.currentHealth < finalMaxHealth then
                 -- Chama heal passando os valores finais necessários
                 local healedAmount = self.state:heal(healAmount, finalMaxHealth, finalHealingBonusMultiplier)
-                self.accumulatedRegen = self.accumulatedRegen - healedAmount -- Reduz apenas o que foi curado
+                self.accumulatedRegen = self.accumulatedRegen -
+                healedAmount                                                                                   -- Reduz apenas o que foi curado
 
-                if healedAmount > 0 and self.floatingTextManager then
-                    self.floatingTextManager:addText(self.player.position.x, self.player.position.y - 50,
-                        "+" .. healedAmount .. " HP", false, nil, { 0, 1, 0 })
+                if healedAmount > 0 and self.floatingTextManager and self.player and self.player.position then -- Garante que player e sua posição existam
+                self.floatingTextManager:addPlayerHealText(self.player.position, "+" .. healedAmount .. " HP",
+                        self.player)
                 end
             end
         end
