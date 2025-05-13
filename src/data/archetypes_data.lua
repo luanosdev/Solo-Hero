@@ -47,7 +47,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "É mais rapido que outros, bom para fugir de inimigos.",
         modifiers = {
-            { stat = "moveSpeed", type = "fixed", value = 40 }
+            { stat = "moveSpeed", type = "fixed", value = 20 }
         }
     },
     vigorous = {

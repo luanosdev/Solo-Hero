@@ -23,6 +23,7 @@ GameplayScene.__index = GameplayScene -- <<< ADICIONADO __index >>>
 
 function GameplayScene:load(args)
     print("GameplayScene:load - Inicializando sistemas de gameplay...")
+    self.renderList = {} -- <<< ADICIONADO PARA INICIALIZAR A LISTA DE RENDERIZAÇÃO
     self.portalId = args and args.portalId or "floresta_assombrada"
     self.hordeConfig = args and args.hordeConfig or nil
     self.hunterId = args and args.hunterId or nil
@@ -296,15 +297,55 @@ function GameplayScene:draw()
     love.graphics.setBackgroundColor(0.1, 0.1, 0.1)
     love.graphics.clear(0.1, 0.1, 0.1, 1)
 
+    -- 1. Limpa a lista de renderização
+    for k in pairs(self.renderList) do self.renderList[k] = nil end
+
+    -- 2. Coleta todos os renderizáveis
+    ChunkManager:collectRenderables(Camera.x, Camera.y, self.renderList)
+
+    -- TODO: Adicionar coleta do PlayerManager, EnemyManager, DropManager, etc.
+    -- Exemplo (a ser implementado nos respectivos managers):
+    -- ManagerRegistry:collectRenderables(Camera.x, Camera.y, self.renderList)
+    local playerMgr = ManagerRegistry:get("playerManager")
+    if playerMgr and playerMgr.collectRenderables then
+        playerMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+    end
+    local enemyMgr = ManagerRegistry:get("enemyManager")
+    if enemyMgr and enemyMgr.collectRenderables then
+        enemyMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+    end
+    -- Adicione outros managers aqui (DropManager, ProjectileManager se tiverem elementos visuais ordenáveis)
+
+    -- 3. Ordena a lista de renderização
+    table.sort(self.renderList, function(a, b)
+        if a.depth == b.depth then
+            return a.sortY < b.sortY -- Dentro da mesma camada (depth), ordena por sortY
+        end
+        return a.depth < b.depth     -- Primariamente, ordena por camada (depth)
+    end)
+
+    -- 4. Desenha os objetos ordenados
     Camera:attach()
-
-    -- <<< ALTERADO: Desenha o mapa usando ChunkManager >>>
-    ChunkManager:draw(Camera.x, Camera.y) -- Passa as coordenadas da câmera para possível culling no futuro
-
-    ManagerRegistry:CameraDraw()
+    for _, item in ipairs(self.renderList) do
+        if item.type == "tile" then
+            love.graphics.draw(item.image, item.drawX, item.drawY, 0, item.scaleX, item.scaleY)
+        elseif item.type == "decoration" then
+            love.graphics.draw(item.image, item.drawX, item.drawY)
+        elseif item.type == "player" or item.type == "enemy" then -- Assumindo que player/enemy adicionam 'drawFunction'
+            if item.drawFunction then
+                item.drawFunction()
+            elseif item.image then -- Fallback simples se tiver imagem e posições
+                love.graphics.draw(item.image, item.drawX, item.drawY, item.rotation_rad or 0, item.scaleX or 1,
+                    item.scaleY or 1, item.ox or 0, item.oy or 0)
+            end
+        end
+        -- Adicione outros tipos conforme necessário
+    end
     Camera:detach()
-    ManagerRegistry:draw()
 
+    -- Desenha UI (fora da câmera, sobre tudo)
+    ManagerRegistry:draw() -- Presumindo que isso desenha UI como barras de vida sobre entidades, etc.
+    -- Se não, precisará de um ManagerRegistry:drawUI() separado.
     LevelUpModal:draw()
     RuneChoiceModal:draw()
 
@@ -317,7 +358,6 @@ function GameplayScene:draw()
     HUD:draw()
 
     -- Desenha informações de Debug (opcional)
-    local enemyMgr = ManagerRegistry:get("enemyManager")
     if enemyMgr then
         local enemies = enemyMgr:getEnemies()
         if enemies and #enemies > 0 then -- <<< ADICIONADO: Verifica se enemies existe

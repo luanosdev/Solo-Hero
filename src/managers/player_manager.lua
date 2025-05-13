@@ -386,26 +386,21 @@ end
 
 -- Desenha o player e elementos relacionados
 function PlayerManager:draw()
+    -- O CÍRCULO DE COLISÃO E A BARRA DE VIDA PODEM SER DESENHADOS SEPARADAMENTE PELA SCENE
+    -- OU CONSIDERADOS UI E DESENHADOS APÓS A RENDERLIST PRINCIPAL.
+    -- POR ENQUANTO, VAMOS MANTÊ-LOS AQUI, MAS ELES NÃO FAZEM PARTE DO collectRenderables DO JOGADOR EM SI.
+
     -- Desenha o círculo de colisão primeiro (embaixo de tudo)
     local circleY = self.player.position.y + 25 -- Ajusta para ficar nos pés do sprite
-
-    -- Salva o estado atual de transformação
     love.graphics.push()
-
-    -- Aplica transformação isométrica no círculo
     love.graphics.translate(self.player.position.x, circleY)
-    love.graphics.scale(1, 0.5) -- Achata o círculo verticalmente para efeito isométrico
-
-    -- Desenha o círculo com efeito isométrico
-    love.graphics.setColor(0, 0.5, 1, 0.3) -- Azul semi-transparente
+    love.graphics.scale(1, 0.5)
+    love.graphics.setColor(0, 0.5, 1, 0.3)
     love.graphics.circle("fill", 0, 0, self.radius)
-    love.graphics.setColor(0, 0.7, 1, 0.5) -- Azul mais escuro para a borda
+    love.graphics.setColor(0, 0.7, 1, 0.5)
     love.graphics.circle("line", 0, 0, self.radius)
-
-    -- Restaura o estado de transformação
     love.graphics.pop()
 
-    -- Desenha a barra de vida em cima do player caso a vida nao esteja cheia
     local finalStats = self:getCurrentFinalStats()
     if self.state and self.state.currentHealth < finalStats.health then
         elements.drawResourceBar({
@@ -421,28 +416,68 @@ function PlayerManager:draw()
         })
     end
 
-    -- Desenha a animação de level up se estiver ativa
     if self.isLevelingUp then
         self.levelUpAnimation:draw(self.player.position.x, self.player.position.y)
     end
 
-    -- Desenha as HABILIDADES ATIVAS das runas equipadas
     for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
         abilityInstance:draw()
     end
 
-    -- Desenha o sprite do player
-    if self.player then
-        -- Correção: Chama a função draw do MÓDULO SpritePlayer, passando a instância self.player
-        -- REMOVIDOS: Logs antes de desenhar o sprite
-        SpritePlayer.draw(self.player)
-    else
-        print("PlayerManager:draw - self.player is nil, cannot draw.")
+    -- O DESENHO DO SPRITE DO JOGADOR E DA ARMA AGORA É FEITO PELA GAMEPLAYSCENE
+    -- if self.player then
+    --     SpritePlayer.draw(self.player)
+    -- end
+    -- if self.equippedWeapon and self.equippedWeapon.attackInstance then
+    --     self.equippedWeapon.attackInstance:draw()
+    -- end
+end
+
+--- Coleta o jogador e seus componentes visuais principais para renderização.
+---@param cameraX number Posição X da câmera.
+---@param cameraY number Posição Y da câmera.
+---@param renderList table Lista onde os objetos renderizáveis serão adicionados.
+function PlayerManager:collectRenderables(cameraX, cameraY, renderList)
+    if not self.player or not self.state or not self.state.isAlive or not self.player.position then
+        return
     end
 
-    -- Desenha a arma equipada e seu ataque
-    if self.equippedWeapon and self.equippedWeapon.attackInstance then
-        self.equippedWeapon.attackInstance:draw()
+    local Constants = require("src.config.constants")
+    local screenW, screenH = love.graphics.getDimensions()
+
+    -- Culling básico no espaço do mundo
+    local cullRadius = self.radius or Constants.TILE_WIDTH / 2 -- Usa o raio de colisão do jogador
+    if self.player.position.x + cullRadius > cameraX and
+        self.player.position.x - cullRadius < cameraX + screenW and
+        self.player.position.y + cullRadius > cameraY and -- Usando o centro Y do jogador para culling
+        self.player.position.y - cullRadius < cameraY + screenH then
+        local playerBaseY = self.player.position.y + 25   -- Base Y consistente com o círculo de colisão
+
+        local worldX_eq = self.player.position.x / Constants.TILE_WIDTH
+        local worldY_eq = playerBaseY / Constants.TILE_HEIGHT
+
+        local isoY_ref_top = (worldX_eq + worldY_eq) * (Constants.TILE_HEIGHT / 2)
+        local sortY = isoY_ref_top + Constants.TILE_HEIGHT -- REMOVIDO math.ceil
+
+        -- Adiciona o jogador principal
+        table.insert(renderList, {
+            type = "player",
+            sortY = sortY,
+            depth = 1, -- Jogador agora tem depth 1
+            drawFunction = function()
+                if self.player then SpritePlayer.draw(self.player) end
+                if self.equippedWeapon and self.equippedWeapon.attackInstance then
+                    self.equippedWeapon.attackInstance:draw()
+                end
+            end,
+            -- entity = self.player -- Para debug
+        })
+
+        --[[ Adicional: Se quisermos que o círculo de colisão e a animação de level up
+             sejam ordenados com o mundo, eles podem ser adicionados aqui também com
+             depths ligeiramente diferentes ou o mesmo sortY.
+             Por ora, eles permanecem no PlayerManager:draw() que será chamado pela UI.
+        --]]
     end
 end
 

@@ -15,9 +15,10 @@ local DECO_BASE_MAX_WIDTH = Constants.TILE_WIDTH
 local DECO_BASE_MAX_DEPTH = Constants.TILE_HEIGHT -- Usando TILE_HEIGHT como proxy para a profundidade da base no chão
 
 -- Configurações do tema
-local CHANCE_EMPTY_CHUNK = 0.15                                                  -- 15% de chance de um chunk ser completamente vazio
-local MIN_DISTANCE_BETWEEN_SCATTERED_TREES_SQ = (Constants.TILE_WIDTH * 0.8) ^ 2 -- Distância mínima ao quadrado
-local MAX_PLACEMENT_ATTEMPTS_SCATTERED = 5                                       -- Tentativas para posicionar uma árvore espalhada
+local CHANCE_EMPTY_CHUNK = 0.15            -- 15% de chance de um chunk ser completamente vazio
+local MIN_DISTANCE_BETWEEN_SCATTERED_TREES_SQ = (Constants.TILE_WIDTH * 3) ^
+    2                                      -- Distância mínima ao quadrado (aumentado multiplicador para maior espaçamento)
+local MAX_PLACEMENT_ATTEMPTS_SCATTERED = 5 -- Tentativas para posicionar uma árvore espalhada
 
 --- Gera decorações determinísticas para um chunk
 function ForestTheme.generateDecorations(chunkX, chunkY, chunkSize, globalSeed)

@@ -30,24 +30,16 @@ function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData, globalSeed)
     instance.size = chunkSize
     instance.tiles = {}
     instance.decorations = {}
-
-    local themeName = "forest"
-    if portalThemeData and portalThemeData.mapDefinition and portalThemeData.mapDefinition.theme then
-        themeName = portalThemeData.mapDefinition.theme
-    end
+    local themeName = portalThemeData and portalThemeData.mapDefinition and portalThemeData.mapDefinition.theme or
+        "forest"
     local theme = require("src.mapthemes." .. themeName)
     local tileAsset = theme.groundTile
-
     for y = 1, instance.size do
         instance.tiles[y] = {}
         for x = 1, instance.size do
             local worldX = (chunkX * instance.size) + (x - 1)
             local worldY = (chunkY * instance.size) + (y - 1)
-            instance.tiles[y][x] = {
-                worldX = worldX,
-                worldY = worldY,
-                type = tileAsset
-            }
+            instance.tiles[y][x] = { worldX = worldX, worldY = worldY, type = tileAsset }
         end
     end
     if theme.generateDecorations then
@@ -115,62 +107,21 @@ function ChunkManager:initialize(portalThemeData, chunkSize, assetManagerInstanc
     self.activeChunks = {}
     self.currentPortalTheme = portalThemeData
     self.chunkSize = chunkSize or 32
-    self.viewDistance = 2   -- quantos chunks visíveis ao redor do player (reduzido)
-    self.bufferDistance = 1 -- quantos chunks extra de buffer (reduzido)
+    self.bufferDistance = 1
     self.assetManager = assetManagerInstance
-    self.noiseShader = nil
-    self.noiseCanvas = nil
     self.currentSeed = randomSeed or os.time()
-    self.maxDecoSize = 128                               -- tamanho máximo de sprite de decoração em pixels (ajuste se necessário)
-    self.maxDecorationsPerChunk = maxDecorationsPerChunk -- pode ser nil
-    self.decorationBatches = {}                          -- Para SpriteBatching
-
-    if not self.assetManager then
-        print("ChunkManager WARN: AssetManager não fornecido na inicialização.")
-    end
-
-    if NoiseLib and NoiseLib.build_shader then
-        local shaderPath = "assets/shaders/noise.frag"
-        local success, shader_or_error = pcall(NoiseLib.build_shader, shaderPath, self.currentSeed)
-        if success then
-            self.noiseShader = shader_or_error
-            print(string.format("Noise shader '%s' compilado com seed %d.", shaderPath, self.currentSeed))
-            -- Cria o canvas para amostragem de noise
-            if love.graphics.newCanvas then
-                local canvasSuccess, canvas_or_error = pcall(love.graphics.newCanvas, self.chunkSize, self.chunkSize)
-                if canvasSuccess then
-                    self.noiseCanvas = canvas_or_error
-                    print(string.format("Noise canvas %dx%d criado.", self.chunkSize, self.chunkSize))
-                else
-                    print("ChunkManager ERRO: Falha ao criar noiseCanvas: " .. tostring(canvas_or_error))
-                end
-            else
-                print("ChunkManager ERRO: love.graphics.newCanvas não disponível (versão antiga do LÖVE?)")
-            end
-        else
-            print(string.format("ChunkManager ERRO: Falha ao compilar noise shader '%s': %s", shaderPath,
-                tostring(shader_or_error)))
-        end
-    else
-        print(
-            "ChunkManager WARN: NoiseLib.build_shader não disponível. Geração de noise procedural via shader não funcionará.")
-        -- Poderíamos implementar um fallback para uma função de noise puramente Lua aqui se desejado
-    end
-
-    print(string.format("ChunkManager initialized. ChunkSize: %d, ViewDistance: %d", self.chunkSize, self.viewDistance))
+    self.maxDecorationsPerChunk = maxDecorationsPerChunk
+    -- self.decorationBatches removido, não será usado com a nova abordagem de renderList
+    print(string.format("ChunkManager initialized. ChunkSize: %d, Seed: %s", self.chunkSize, tostring(self.currentSeed)))
 end
 
-function ChunkManager:_getChunkKey(chunkX, chunkY)
-    return chunkX .. "," .. chunkY
-end
+function ChunkManager:_getChunkKey(chunkX, chunkY) return chunkX .. "," .. chunkY end
 
 function ChunkManager:_generateChunkData(chunkX, chunkY)
     local newChunk = Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme, self.currentSeed)
     if self.maxDecorationsPerChunk and newChunk.decorations and #newChunk.decorations > self.maxDecorationsPerChunk then
         local limited = {}
-        for i = 1, self.maxDecorationsPerChunk do
-            table.insert(limited, newChunk.decorations[i])
-        end
+        for i = 1, self.maxDecorationsPerChunk do table.insert(limited, newChunk.decorations[i]) end
         newChunk.decorations = limited
     end
     return newChunk
@@ -186,9 +137,7 @@ end
 
 function ChunkManager:unloadChunk(chunkX, chunkY)
     local key = self:_getChunkKey(chunkX, chunkY)
-    if self.activeChunks[key] then
-        self.activeChunks[key] = nil
-    end
+    if self.activeChunks[key] then self.activeChunks[key] = nil end
 end
 
 function ChunkManager:getTileAt(worldX, worldY)
@@ -197,145 +146,168 @@ function ChunkManager:getTileAt(worldX, worldY)
     local localX = worldX - (chunkX * self.chunkSize) + 1
     local localY = worldY - (chunkY * self.chunkSize) + 1
     local chunk = self:loadChunk(chunkX, chunkY)
-    if chunk then
-        return chunk:getTile(localX, localY)
-    end
-    return nil
+    return chunk and chunk:getTile(localX, localY) or nil
 end
 
 function ChunkManager:update(playerWorldX, playerWorldY, cameraX, cameraY)
-    -- Adicionado Log para verificar cameraX e cameraY
-    print(string.format("[ChunkManager:update] Camera X: %.2f, Camera Y: %.2f, PlayerTileX: %d, PlayerTileY: %d",
-        cameraX or 0, cameraY or 0, playerWorldX or 0, playerWorldY or 0))
-
-    if not playerWorldX or not playerWorldY then
-        return
-    end
+    if not playerWorldX or not playerWorldY then return end
     local screenW, screenH = love.graphics.getDimensions()
-    cameraX = cameraX or 0
-    cameraY = cameraY or 0
+    cameraX = cameraX or 0; cameraY = cameraY or 0
     local bufferPx = (self.bufferDistance or 1) * self.chunkSize * TILE_WIDTH
-    local minWorldX = cameraX - bufferPx
-    local minWorldY = cameraY - bufferPx
-    local maxWorldX = cameraX + screenW + bufferPx
-    local maxWorldY = cameraY + screenH + bufferPx
-    local minChunkX = math.floor(minWorldX / (self.chunkSize * TILE_WIDTH))
-    local minChunkY = math.floor(minWorldY / (self.chunkSize * TILE_HEIGHT))
-    local maxChunkX = math.floor(maxWorldX / (self.chunkSize * TILE_WIDTH))
-    local maxChunkY = math.floor(maxWorldY / (self.chunkSize * TILE_HEIGHT))
+    local minWorldXVisible = cameraX - bufferPx
+    local minWorldYVisible = cameraY - bufferPx           -- Ajuste: Y isométrico para culling de chunks
+    local maxWorldXVisible = cameraX + screenW + bufferPx
+    local maxWorldYVisible = cameraY + screenH + bufferPx -- Ajuste: Y isométrico para culling de chunks
+
+    -- Conversão para coordenadas de chunk (considerando tiles isométricos)
+    -- A área de chunks a carregar precisa cobrir a projeção isométrica da tela
+    local minChunkX = math.floor(minWorldXVisible / (self.chunkSize * TILE_WIDTH)) - self.bufferDistance -
+        1 -- Buffer extra para bordas
+    local maxChunkX = math.floor(maxWorldXVisible / (self.chunkSize * TILE_WIDTH)) + self.bufferDistance + 1
+    local minChunkY = math.floor(minWorldYVisible / (self.chunkSize * TILE_HEIGHT * 0.5)) - self.bufferDistance -
+        2 -- TILE_HEIGHT * 0.5 pela natureza isométrica e buffer maior em Y
+    local maxChunkY = math.floor(maxWorldYVisible / (self.chunkSize * TILE_HEIGHT * 0.5)) + self.bufferDistance + 2
+
     local loadedThisFrame = 0
     local unloadedThisFrame = 0
+    local requiredChunks = {}
+
     for cx = minChunkX, maxChunkX do
         for cy = minChunkY, maxChunkY do
-            local chunk = self:loadChunk(cx, cy)
-            if chunk then
+            local key = self:_getChunkKey(cx, cy)
+            requiredChunks[key] = true
+            if not self.activeChunks[key] then
+                self:loadChunk(cx, cy)
                 loadedThisFrame = loadedThisFrame + 1
             end
         end
     end
+
     local chunksToUnload = {}
-    for key, chunk in pairs(self.activeChunks) do
-        if chunk.chunkX < minChunkX or chunk.chunkX > maxChunkX or chunk.chunkY < minChunkY or chunk.chunkY > maxChunkY then
-            table.insert(chunksToUnload, key)
-        end
+    for key, _ in pairs(self.activeChunks) do
+        if not requiredChunks[key] then table.insert(chunksToUnload, key) end
     end
+
     for _, keyToUnload in ipairs(chunksToUnload) do
         local chunkCoords = {}
-        for coordStr in string.gmatch(keyToUnload, "([^-?,]+)") do
-            table.insert(chunkCoords, tonumber(coordStr))
-        end
+        for coordStr in string.gmatch(keyToUnload, "([^-?,]+)") do table.insert(chunkCoords, tonumber(coordStr)) end
         if #chunkCoords == 2 then
             self:unloadChunk(chunkCoords[1], chunkCoords[2])
             unloadedThisFrame = unloadedThisFrame + 1
         end
     end
-    print(string.format(
-        "[ChunkManager] Chunks carregados: %d | Carregados este frame: %d | Descarregados este frame: %d",
-        tablelength(self.activeChunks), loadedThisFrame, unloadedThisFrame))
+
+    if loadedThisFrame > 0 or unloadedThisFrame > 0 then
+        print(string.format("[CM Update] Active: %d | Loaded: %d | Unloaded: %d | RangeCX: %d-%d | RangeCY: %d-%d",
+            tablelength(self.activeChunks), loadedThisFrame, unloadedThisFrame, minChunkX, maxChunkX, minChunkY,
+            maxChunkY))
+    end
 end
 
-function ChunkManager:draw(cameraX, cameraY)
-    if not self.currentPortalTheme or not self.currentPortalTheme.mapDefinition or not self.assetManager then
-        print("ChunkManager:draw - Pré-requisitos não atendidos (tema, mapDef, assetManager).")
-        return
-    end
-
+--- Coleta todos os objetos renderizáveis (tiles e decorações) dos chunks ativos.
+---@param cameraX number Posição X da câmera.
+---@param cameraY number Posição Y da câmera.
+---@param renderList table Lista onde os objetos renderizáveis serão adicionados.
+function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
+    if not self.currentPortalTheme or not self.currentPortalTheme.mapDefinition or not self.assetManager then return end
     local screenW, screenH = love.graphics.getDimensions()
-    love.graphics.push()
 
-    -- Desenha tiles do chão primeiro
-    for key, chunk in pairs(self.activeChunks) do
+    for _, chunk in pairs(self.activeChunks) do
         if chunk then
+            -- Coleta Tiles
             for ty = 1, chunk.size do
                 for tx = 1, chunk.size do
-                    local tile = chunk:getTile(tx, ty)
-                    if tile then
-                        local isoX = (tile.worldX - tile.worldY) * (TILE_WIDTH / 2)
-                        local isoY = (tile.worldX + tile.worldY) * (TILE_HEIGHT / 2)
-                        local tileImage = self.assetManager:getImage(tile.type)
+                    local tileData = chunk:getTile(tx, ty)
+                    if tileData then
+                        local tileImage = self.assetManager:getImage(tileData.type)
                         if tileImage then
                             local imgW, imgH = tileImage:getDimensions()
-                            local scaleX = TILE_WIDTH / imgW
-                            local scaleY = TILE_HEIGHT / imgH
-                            local padX = (imgW - TILE_WIDTH) / 2
-                            local padY = (imgH - TILE_HEIGHT) / 2
-                            love.graphics.draw(tileImage, isoX - padX * scaleX, isoY - (TILE_HEIGHT / 2) - padY * scaleY,
-                                0, scaleX, scaleY)
+                            local isoX = (tileData.worldX - tileData.worldY) * (TILE_WIDTH / 2)
+                            local isoY = (tileData.worldX + tileData.worldY) * (TILE_HEIGHT / 2)
+
+                            -- Culling básico de tiles (pode ser mais preciso)
+                            if isoX + TILE_WIDTH > cameraX and isoX - TILE_WIDTH < cameraX + screenW and isoY + TILE_HEIGHT * 2 > cameraY and isoY < cameraY + screenH then
+                                local scaleX = TILE_WIDTH / imgW
+                                local scaleY = TILE_HEIGHT / imgH
+
+                                -- drawX: O pico isoX é o centro horizontal. A imagem (escalada para TILE_WIDTH) deve ser desenhada a partir de isoX - TILE_WIDTH/2.
+                                -- drawY: O pico isoY é o topo. A imagem (escalada para TILE_HEIGHT) deve ser desenhada a partir de isoY.
+                                local finalDrawX = isoX - (Constants.TILE_WIDTH / 2)
+                                local finalDrawY = isoY
+
+                                table.insert(renderList, {
+                                    type = "tile",
+                                    sortY = isoY + TILE_HEIGHT, -- Ordena pela base do tile
+                                    image = tileImage,
+                                    drawX = finalDrawX,
+                                    drawY = finalDrawY,
+                                    scaleX = scaleX,
+                                    scaleY = scaleY,
+                                    depth = 0 -- Tiles do chão são a base
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+
+            -- Coleta Decorações
+            if chunk.decorations then
+                for _, deco in ipairs(chunk.decorations) do
+                    local decoImage = self.assetManager:getImage(deco.asset)
+                    if decoImage then
+                        local imgW, imgH = decoImage:getDimensions()
+
+                        -- Coordenadas de pixel cartesianas globais da âncora da decoração
+                        local anchorPx = (chunk.chunkX * chunk.size * Constants.TILE_WIDTH) + deco.px
+                        local anchorPy = (chunk.chunkY * chunk.size * Constants.TILE_HEIGHT) + deco.py
+
+                        -- Converte coordenadas da âncora para "unidades de tile" equivalentes
+                        local worldX_eq_deco = anchorPx / Constants.TILE_WIDTH
+                        local worldY_eq_deco = anchorPy / Constants.TILE_HEIGHT
+
+                        -- Calcula o Y isométrico de referência (como se fosse o topo de um tile no ponto da âncora)
+                        local isoY_deco_ref_top = (worldX_eq_deco + worldY_eq_deco) * (Constants.TILE_HEIGHT / 2)
+                        -- A sortY da decoração é este Y de referência + a altura visual padrão (como os tiles)
+                        -- Isso garante que a "base" da decoração seja comparável à "base" de um tile.
+                        -- Usamos math.ceil para garantir que a decoração seja ordenada corretamente
+                        -- em relação aos tiles, cujas sortY são efetivamente inteiras.
+                        -- Adicionamos um pequeno offset para sombras mais longas.
+                        local shadow_fudge_factor = 24 -- Pixels extras para empurrar a base da sombra para baixo (novo aumento)
+                        local decoration_sortY = isoY_deco_ref_top + Constants.TILE_HEIGHT + shadow_fudge_factor
+
+                        -- Calcula o X isométrico de referência para centralização
+                        local isoX_deco_ref_center = (worldX_eq_deco - worldY_eq_deco) * (Constants.TILE_WIDTH / 2)
+
+                        -- O drawX é o X de referência menos metade da largura da imagem para centralizar.
+                        local drawX = isoX_deco_ref_center - imgW / 2
+                        -- O drawY é a sortY (base da decoração no chão) menos a altura total da imagem.
+                        local drawY = decoration_sortY - imgH
+
+                        if drawX + imgW > cameraX and drawX < cameraX + screenW and drawY + imgH > cameraY and drawY < cameraY + screenH then
+                            table.insert(renderList, {
+                                type = "decoration",
+                                sortY = decoration_sortY, -- Ordena pela base da decoração no chão
+                                image = decoImage,
+                                drawX = drawX,
+                                drawY = drawY,
+                                depth = 2 -- Decorações agora têm depth 2, acima de jogador/inimigos (1)
+                            })
                         end
                     end
                 end
             end
         end
     end
-
-    for assetPath, batch in pairs(self.decorationBatches) do
-        batch:clear()
-    end
-
-    for key, chunk in pairs(self.activeChunks) do
-        if chunk and chunk.decorations then
-            for _, deco in ipairs(chunk.decorations) do
-                local decoImage = self.assetManager:getImage(deco.asset)
-                if decoImage then
-                    local batch = self.decorationBatches[deco.asset]
-                    if not batch then
-                        batch = love.graphics.newSpriteBatch(decoImage, 2000) -- Aumentado buffer do batch
-                        self.decorationBatches[deco.asset] = batch
-                    end
-
-                    local imgW, imgH = decoImage:getDimensions()
-                    local chunkOriginX = chunk.chunkX * chunk.size * TILE_WIDTH
-                    local chunkOriginY = chunk.chunkY * chunk.size * TILE_HEIGHT
-                    local px = chunkOriginX + deco.px
-                    local py = chunkOriginY + deco.py
-                    local isoX_deco_center = (px - py) / 2
-                    local isoY_deco_center = (px + py) / 4
-
-                    -- Posição de desenho do canto superior esquerdo da decoração no MUNDO
-                    local drawX = isoX_deco_center - imgW / 2
-                    local drawY = isoY_deco_center - imgH + TILE_HEIGHT / 2
-
-                    -- Culling: verifica se o retângulo da decoração está visível na câmera
-                    if drawX + imgW > cameraX and drawX < cameraX + screenW and drawY + imgH > cameraY and drawY < cameraY + screenH then
-                        batch:add(drawX, drawY)
-                    end
-                end
-            end
-        end
-    end
-
-    for assetPath, batch in pairs(self.decorationBatches) do
-        love.graphics.draw(batch)
-    end
-
-    love.graphics.pop()
 end
 
--- Função utilitária para contar elementos de uma tabela
+-- Função de draw foi removida/substituída por collectRenderables
+-- A cena agora é responsável por ordenar e desenhar a renderList.
+
 function tablelength(T)
-    local count = 0
-    for _ in pairs(T) do count = count + 1 end
-    return count
+    local c = 0
+    for _ in pairs(T) do c = c + 1 end
+    return c
 end
 
 return ChunkManager
