@@ -99,9 +99,7 @@ local portalDefinitions = {
 
         -- NOVA SEÇÃO mapDefinition
         mapDefinition = {
-            themeName = "BasicForest",
-            --- Caminho para o tile base do chão deste portal
-            tileAsset = "assets/tiles/basic_forest/ground/ground_base.png",
+            theme = "forest",
             objectSpawnRules = {},
             eventSpawnRules = {}
         },

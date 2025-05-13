@@ -277,7 +277,7 @@ function GameplayScene:update(dt)
             local tileSize = Constants.TILE_SIZE
             local playerWorldTileX = math.floor(playerMgr.player.position.x / tileSize)
             local playerWorldTileY = math.floor(playerMgr.player.position.y / (tileSize / 2))
-            ChunkManager:update(playerWorldTileX, playerWorldTileY)
+            ChunkManager:update(playerWorldTileX, playerWorldTileY, Camera.x, Camera.y)
         else
             print("GameplayScene WARN: Não foi possível atualizar ChunkManager - player ausente.")
         end

@@ -28,11 +28,14 @@ function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData)
     instance.chunkY = chunkY
     instance.size = chunkSize
     instance.tiles = {}
+    instance.decorations = {}
 
-    local tileAsset = "assets/tiles/basic_forest/ground/ground_base.png"
-    if portalThemeData and portalThemeData.mapDefinition and portalThemeData.mapDefinition.tileAsset then
-        tileAsset = portalThemeData.mapDefinition.tileAsset
+    local themeName = "forest"
+    if portalThemeData and portalThemeData.mapDefinition and portalThemeData.mapDefinition.theme then
+        themeName = portalThemeData.mapDefinition.theme
     end
+    local theme = require("src.mapthemes." .. themeName)
+    local tileAsset = theme.groundTile
 
     for y = 1, instance.size do
         instance.tiles[y] = {}
@@ -45,6 +48,10 @@ function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData)
                 type = tileAsset
             }
         end
+    end
+    -- Gera decorações aleatórias para o chunk
+    if theme.generateDecorations then
+        instance.decorations = theme.generateDecorations(chunkX, chunkY, chunkSize)
     end
     return instance
 end
@@ -104,15 +111,18 @@ else
     NoiseLib = nil -- Garante que está nil se falhar
 end
 
-function ChunkManager:initialize(portalThemeData, chunkSize, assetManagerInstance, randomSeed)
+function ChunkManager:initialize(portalThemeData, chunkSize, assetManagerInstance, randomSeed, maxDecorationsPerChunk)
     self.activeChunks = {}
     self.currentPortalTheme = portalThemeData
     self.chunkSize = chunkSize or 32
-    self.viewDistance = 2
+    self.viewDistance = 2   -- quantos chunks visíveis ao redor do player (reduzido)
+    self.bufferDistance = 1 -- quantos chunks extra de buffer (reduzido)
     self.assetManager = assetManagerInstance
     self.noiseShader = nil
     self.noiseCanvas = nil
     self.currentSeed = randomSeed or os.time()
+    self.maxDecoSize = 128                               -- tamanho máximo de sprite de decoração em pixels (ajuste se necessário)
+    self.maxDecorationsPerChunk = maxDecorationsPerChunk -- pode ser nil
 
     if not self.assetManager then
         print("ChunkManager WARN: AssetManager não fornecido na inicialização.")
@@ -155,6 +165,14 @@ end
 
 function ChunkManager:_generateChunkData(chunkX, chunkY)
     local newChunk = Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme)
+    -- Limita o número de decorações por chunk, se definido
+    if self.maxDecorationsPerChunk and newChunk.decorations and #newChunk.decorations > self.maxDecorationsPerChunk then
+        local limited = {}
+        for i = 1, self.maxDecorationsPerChunk do
+            table.insert(limited, newChunk.decorations[i])
+        end
+        newChunk.decorations = limited
+    end
     return newChunk
 end
 
@@ -185,21 +203,35 @@ function ChunkManager:getTileAt(worldX, worldY)
     return nil
 end
 
-function ChunkManager:update(playerWorldX, playerWorldY)
+function ChunkManager:update(playerWorldX, playerWorldY, cameraX, cameraY)
     if not playerWorldX or not playerWorldY then
         return
     end
-    local currentPlayerChunkX = math.floor(playerWorldX / self.chunkSize)
-    local currentPlayerChunkY = math.floor(playerWorldY / self.chunkSize)
-    for dx = -self.viewDistance, self.viewDistance do
-        for dy = -self.viewDistance, self.viewDistance do
-            self:loadChunk(currentPlayerChunkX + dx, currentPlayerChunkY + dy)
+    local screenW, screenH = love.graphics.getDimensions()
+    cameraX = cameraX or 0
+    cameraY = cameraY or 0
+    local bufferPx = (self.bufferDistance or 1) * self.chunkSize * TILE_WIDTH
+    local minWorldX = cameraX - bufferPx
+    local minWorldY = cameraY - bufferPx
+    local maxWorldX = cameraX + screenW + bufferPx
+    local maxWorldY = cameraY + screenH + bufferPx
+    local minChunkX = math.floor(minWorldX / (self.chunkSize * TILE_WIDTH))
+    local minChunkY = math.floor(minWorldY / (self.chunkSize * TILE_HEIGHT))
+    local maxChunkX = math.floor(maxWorldX / (self.chunkSize * TILE_WIDTH))
+    local maxChunkY = math.floor(maxWorldY / (self.chunkSize * TILE_HEIGHT))
+    local loadedThisFrame = 0
+    local unloadedThisFrame = 0
+    for cx = minChunkX, maxChunkX do
+        for cy = minChunkY, maxChunkY do
+            local chunk = self:loadChunk(cx, cy)
+            if chunk then
+                loadedThisFrame = loadedThisFrame + 1
+            end
         end
     end
     local chunksToUnload = {}
     for key, chunk in pairs(self.activeChunks) do
-        local distSq = (chunk.chunkX - currentPlayerChunkX) ^ 2 + (chunk.chunkY - currentPlayerChunkY) ^ 2
-        if distSq > (self.viewDistance + 1) ^ 2 then
+        if chunk.chunkX < minChunkX or chunk.chunkX > maxChunkX or chunk.chunkY < minChunkY or chunk.chunkY > maxChunkY then
             table.insert(chunksToUnload, key)
         end
     end
@@ -210,8 +242,12 @@ function ChunkManager:update(playerWorldX, playerWorldY)
         end
         if #chunkCoords == 2 then
             self:unloadChunk(chunkCoords[1], chunkCoords[2])
+            unloadedThisFrame = unloadedThisFrame + 1
         end
     end
+    print(string.format(
+        "[ChunkManager] Chunks carregados: %d | Carregados este frame: %d | Descarregados este frame: %d",
+        tablelength(self.activeChunks), loadedThisFrame, unloadedThisFrame))
 end
 
 function ChunkManager:draw(cameraX, cameraY)
@@ -220,6 +256,7 @@ function ChunkManager:draw(cameraX, cameraY)
         return
     end
     local mapTileSize = { width = TILE_SIZE, height = TILE_SIZE }
+    local screenW, screenH = love.graphics.getDimensions()
     love.graphics.push()
     for key, chunk in pairs(self.activeChunks) do
         if chunk then
@@ -249,9 +286,41 @@ function ChunkManager:draw(cameraX, cameraY)
                     end
                 end
             end
+            -- Desenhar decorações do chunk
+            for _, deco in ipairs(chunk.decorations or {}) do
+                local decoImage = self.assetManager:getImage(deco.asset)
+                if decoImage then
+                    local imgW = decoImage:getWidth()
+                    local imgH = decoImage:getHeight()
+                    -- Coordenadas globais do chunk em pixels
+                    local chunkOriginX = chunk.chunkX * chunk.size * TILE_WIDTH
+                    local chunkOriginY = chunk.chunkY * chunk.size * TILE_HEIGHT
+                    -- Posição global da decoração em pixels
+                    local px = chunkOriginX + deco.px
+                    local py = chunkOriginY + deco.py
+                    -- Converter para isométrico
+                    local isoX = (px - py) / 2
+                    local isoY = (px + py) / 4
+                    -- Só desenha se estiver na tela
+                    if isoX + imgW > 0 and isoX < screenW and isoY + imgH > 0 and isoY < screenH then
+                        love.graphics.draw(
+                            decoImage,
+                            isoX - imgW / 2,
+                            isoY - imgH + TILE_HEIGHT / 2
+                        )
+                    end
+                end
+            end
         end
     end
     love.graphics.pop()
+end
+
+-- Função utilitária para contar elementos de uma tabela
+function tablelength(T)
+    local count = 0
+    for _ in pairs(T) do count = count + 1 end
+    return count
 end
 
 return ChunkManager
