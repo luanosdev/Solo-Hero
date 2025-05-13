@@ -27,31 +27,22 @@ function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData)
     instance.chunkX = chunkX
     instance.chunkY = chunkY
     instance.size = chunkSize
-    instance.tiles = {}                                                         -- Matriz [localY][localX]
+    instance.tiles = {}
 
-    local baseGroundTilePath = "assets/tiles/basic_forest/grass/grass_base.png" -- ATUALIZADO
-    if portalThemeData and portalThemeData.mapDefinition and portalThemeData.mapDefinition.tileAssets and portalThemeData.mapDefinition.tileAssets.grass then
-        baseGroundTilePath = portalThemeData.mapDefinition.tileAssets.grass
-    elseif portalThemeData and portalThemeData.mapDefinition and portalThemeData.mapDefinition.baseGroundTile then
-        -- Fallback para baseGroundTile se tileAssets.grass não estiver definido
-        baseGroundTilePath = portalThemeData.mapDefinition.baseGroundTile
+    local tileAsset = "assets/tiles/basic_forest/ground/ground_base.png"
+    if portalThemeData and portalThemeData.mapDefinition and portalThemeData.mapDefinition.tileAsset then
+        tileAsset = portalThemeData.mapDefinition.tileAsset
     end
 
     for y = 1, instance.size do
         instance.tiles[y] = {}
         for x = 1, instance.size do
+            local worldX = (chunkX * instance.size) + (x - 1)
+            local worldY = (chunkY * instance.size) + (y - 1)
             instance.tiles[y][x] = {
-                type = baseGroundTilePath,                 -- Caminho para o asset do tile
-                isWalkable = true,
-                worldX = (chunkX * instance.size) + x - 1, -- Coordenada global do tile (0-indexed)
-                worldY = (chunkY * instance.size) + y - 1, -- Coordenada global do tile (0-indexed)
-                localX = x,
-                localY = y,
-                objectId = nil,
-                eventId = nil,
-                regionId = nil,
-                decorators = {},
-                category = "grass" -- Categoria default
+                worldX = worldX,
+                worldY = worldY,
+                type = tileAsset
             }
         end
     end
@@ -163,79 +154,7 @@ function ChunkManager:_getChunkKey(chunkX, chunkY)
 end
 
 function ChunkManager:_generateChunkData(chunkX, chunkY)
-    if not self.currentPortalTheme or not self.currentPortalTheme.mapDefinition then
-        print("ChunkManager Error: currentPortalTheme.mapDefinition não encontrado!")
-        return nil
-    end
-    local mapDef = self.currentPortalTheme.mapDefinition
-    local noiseParams = mapDef.noiseParameters
-    local tileAssets = mapDef.tileAssets
-    if not noiseParams or not tileAssets then
-        print("ChunkManager Error: noiseParameters ou tileAssets não definidos!")
-        return Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme)
-    end
-    if not self.noiseShader or not self.noiseCanvas or not NoiseLib or not NoiseLib.sample or not NoiseLib.types then
-        print("ChunkManager Error: Sistema de noise via shader não está pronto. Usando tiles base.")
-        return Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme) -- Retorna chunk base
-    end
-
-    local newChunk = Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme) -- Cria com tiles base primeiro
-    local noiseScale = noiseParams.scale or 0.1
-
-    -- Prepara para desenhar no canvas de noise
-    love.graphics.pushState("all")
-    love.graphics.setCanvas(self.noiseCanvas)
-    love.graphics.clear() -- Limpa o canvas
-
-    -- Coordenadas do canto do chunk no mundo do noise
-    local noiseWorldX = chunkX * self.chunkSize * noiseScale
-    local noiseWorldY = chunkY * self.chunkSize * noiseScale
-    local noiseAreaWidth = self.chunkSize * noiseScale
-    local noiseAreaHeight = self.chunkSize * noiseScale
-
-    -- Amostra o noise para o canvas
-    -- noise.sample(shader, noise_type, samples_x, samples_y, x, y, width, height, z, w)
-    NoiseLib.sample(self.noiseShader, NoiseLib.types.simplex2d,
-        self.chunkSize, self.chunkSize, -- samples_x, samples_y (um sample por pixel do canvas)
-        noiseWorldX, noiseWorldY,       -- x, y (canto superior esquerdo no espaço do noise)
-        noiseAreaWidth, noiseAreaHeight -- width, height (tamanho da área a ser amostrada no espaço do noise)
-    -- z, w são opcionais para 2D e podem ser omitidos ou nil
-    )
-    love.graphics.setCanvas() -- Volta para o canvas principal
-    love.graphics.popState()
-
-    local imgData = self.noiseCanvas:newImageData()
-
-    for ly = 1, newChunk.size do
-        for lx = 1, newChunk.size do
-            local r, g, b, a = imgData:getPixel(lx - 1, ly - 1) -- ImageData é 0-indexed
-            local noiseValue = r /
-                255                                             -- Assumindo que o noise (0-1) é armazenado no canal vermelho
-
-            -- Se a biblioteca usar noise.decode, precisaríamos usá-lo aqui.
-            -- Ex: local decodedValue = NoiseLib.decode(NoiseLib.encoding.default, r*255, g*255, b*255)
-            -- Por enquanto, vamos assumir r/255.
-
-            local selectedTileAssetPath = tileAssets.grass
-            local isWalkable = true
-            local tileCategory = "grass"
-
-            if noiseValue < noiseParams.waterThreshold then
-                selectedTileAssetPath = tileAssets.water
-                isWalkable = false
-                tileCategory = "water"
-            elseif noiseValue < noiseParams.sandThreshold then
-                selectedTileAssetPath = tileAssets.sand
-                tileCategory = "sand"
-            end
-
-            newChunk:setTile(lx, ly, {
-                type = selectedTileAssetPath,
-                isWalkable = isWalkable,
-                category = tileCategory
-            })
-        end
-    end
+    local newChunk = Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme)
     return newChunk
 end
 
@@ -243,9 +162,6 @@ function ChunkManager:loadChunk(chunkX, chunkY)
     local key = self:_getChunkKey(chunkX, chunkY)
     if not self.activeChunks[key] then
         self.activeChunks[key] = self:_generateChunkData(chunkX, chunkY)
-        if not self.activeChunks[key] then
-            print(string.format("ChunkManager: Falha ao gerar chunk %s.", key))
-        end
     end
     return self.activeChunks[key]
 end
@@ -298,41 +214,27 @@ function ChunkManager:update(playerWorldX, playerWorldY)
     end
 end
 
-function ChunkManager:draw(cameraX, cameraY) -- cameraX, cameraY são o canto superior esquerdo da visão da câmera no mundo
+function ChunkManager:draw(cameraX, cameraY)
     if not self.currentPortalTheme or not self.currentPortalTheme.mapDefinition or not self.assetManager then
         print("ChunkManager:draw - Pré-requisitos não atendidos (tema, mapDef, assetManager).")
         return
     end
-    if not self.assetManager then
-        print("ChunkManager:draw - AssetManager não definido.")
-        return
-    end
-
-    -- Usa o tamanho global do tile
     local mapTileSize = { width = TILE_SIZE, height = TILE_SIZE }
-
     love.graphics.push()
-    -- Aqui, assumimos que a câmera global já está aplicada (Camera:attach() em outro lugar)
-    -- Se não, você precisaria aplicar transformações da câmera aqui ou passar a câmera.
-
-    -- Determinar quais chunks estão visíveis (simplificado por agora, desenha todos os ativos)
-    -- Uma otimização seria calcular os chunks que realmente estão na tela
-
     for key, chunk in pairs(self.activeChunks) do
         if chunk then
             for ty = 1, chunk.size do
                 for tx = 1, chunk.size do
-                    local tileData = chunk:getTile(tx, ty)
-                    if tileData then
-                        local isoX = (tileData.worldX - tileData.worldY) * (TILE_WIDTH / 2)
-                        local isoY = (tileData.worldX + tileData.worldY) * (TILE_HEIGHT / 2)
-                        local tileImage = self.assetManager:getImage(tileData.type)
+                    local tile = chunk:getTile(tx, ty)
+                    if tile then
+                        local isoX = (tile.worldX - tile.worldY) * (TILE_WIDTH / 2)
+                        local isoY = (tile.worldX + tile.worldY) * (TILE_HEIGHT / 2)
+                        local tileImage = self.assetManager:getImage(tile.type)
                         if tileImage then
                             local imgW = tileImage:getWidth()
                             local imgH = tileImage:getHeight()
                             local scaleX = TILE_WIDTH / imgW
                             local scaleY = TILE_HEIGHT / imgH
-                            -- Calcula o padding para centralizar o losango do PNG no losango lógico
                             local padX = (imgW - TILE_WIDTH) / 2
                             local padY = (imgH - TILE_HEIGHT) / 2
                             love.graphics.draw(
@@ -343,20 +245,7 @@ function ChunkManager:draw(cameraX, cameraY) -- cameraX, cameraY são o canto su
                                 scaleX,
                                 scaleY
                             )
-                        else
-                            local r, g, b = 0.5, 0.5, 0.5
-                            if tileData.category == "water" then
-                                r, g, b = 0, 0, 1
-                            elseif tileData.category == "sand" then
-                                r, g, b = 1, 1, 0
-                            elseif tileData.category == "grass" then
-                                r, g, b = 0, 1, 0
-                            end
-                            love.graphics.setColor(r, g, b, 0.8)
-                            love.graphics.rectangle("fill", isoX, isoY, mapTileSize.width, mapTileSize.height / 2)
-                            love.graphics.setColor(1, 1, 1, 1)
                         end
-                        -- TODO: Desenhar objetos sobre o tile (tileData.objectId)
                     end
                 end
             end

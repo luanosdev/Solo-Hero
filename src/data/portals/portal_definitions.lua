@@ -100,20 +100,8 @@ local portalDefinitions = {
         -- NOVA SEÇÃO mapDefinition
         mapDefinition = {
             themeName = "BasicForest",
-            noiseParameters = {
-                scale = 0.07,          -- Ajuste este valor para mudar o "zoom" do noise. Menor = feições maiores.
-                waterThreshold = -0.3, -- Valores de noise abaixo disso serão água
-                sandThreshold = 0.0,   -- Valores de noise entre waterThreshold e sandThreshold serão areia
-                -- Valores acima de sandThreshold serão grama (o padrão)
-                -- octaves = 3,        -- Exemplo: se sua lib de noise usar oitavas
-                -- persistence = 0.5,
-                -- lacunarity = 2.0
-            },
-            tileAssets = {
-                grass = "assets/tiles/basic_forest/grass/grass_base.png",
-                sand  = "assets/tiles/basic_forest/sand/sand_base.png",
-                water = "assets/tiles/basic_forest/water/water_base.png"
-            },
+            --- Caminho para o tile base do chão deste portal
+            tileAsset = "assets/tiles/basic_forest/ground/ground_base.png",
             objectSpawnRules = {},
             eventSpawnRules = {}
         },
