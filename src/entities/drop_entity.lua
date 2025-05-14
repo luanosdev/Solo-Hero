@@ -19,7 +19,7 @@ local DropEntity = {
     config = nil,
     collected = false,
     collectionProgress = 0,
-    collectionSpeed = 3,
+    collectionSpeed = 1,
     initialY = 0,
     beamColor = { 1, 1, 1 },
     beamHeight = 500,
@@ -76,9 +76,16 @@ function DropEntity:update(dt, playerManager)
 
     local currentFinalStats = playerManager:getCurrentFinalStats()
     if distance <= currentFinalStats.pickupRadius then
+        -- Considera o toque se a distância for menor/igual ao raio do drop
+        local immediateCollectionThreshold = self.radius
+        if distance <= immediateCollectionThreshold then
+            self.collected = true
+            return true
+        end
+
         self.collectionProgress = self.collectionProgress + dt * self.collectionSpeed
 
-        local t = math.min(self.collectionProgress, 1)
+        local t = math.min(self.collectionProgress, 1) -- Garante que t não exceda 1
         local easeOutQuad = 1 - (1 - t) * (1 - t)
 
         self.position.x = self.initialPosition.x +

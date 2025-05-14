@@ -77,13 +77,15 @@ function GameplayScene:load(args)
     local dropMgr = ManagerRegistry:get("dropManager")
     local playerMgr = ManagerRegistry:get("playerManager")
     local itemDataMgr = ManagerRegistry:get("itemDataManager")
+    local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
 
-    if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr then
+    if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr or not experienceOrbMgr then
         local missing = {}
         if not playerMgr then table.insert(missing, "PlayerManager") end
         if not enemyMgr then table.insert(missing, "EnemyManager") end
         if not dropMgr then table.insert(missing, "DropManager") end
         if not itemDataMgr then table.insert(missing, "ItemDataManager") end
+        if not experienceOrbMgr then table.insert(missing, "ExperienceOrbManager") end
         error("ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers: " .. table.concat(missing, ", "))
     end
 
@@ -309,6 +311,7 @@ function GameplayScene:draw()
     local playerMgr = ManagerRegistry:get("playerManager")
     local enemyMgr = ManagerRegistry:get("enemyManager")
     local dropMgr = ManagerRegistry:get("dropManager")
+    local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
 
     if playerMgr then
         playerMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
@@ -317,7 +320,10 @@ function GameplayScene:draw()
         enemyMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
     if dropMgr then -- Supondo que exista e tenha collectRenderables
-        --- dropMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+        dropMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+    end
+    if experienceOrbMgr then
+        experienceOrbMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
 
     -- 3. Ordena a lista de renderização
@@ -341,6 +347,14 @@ function GameplayScene:draw()
             elseif item.image then -- Fallback simples se tiver imagem e posições
                 love.graphics.draw(item.image, item.drawX, item.drawY, item.rotation_rad or 0, item.scaleX or 1,
                     item.scaleY or 1, item.ox or 0, item.oy or 0)
+            end
+        elseif item.type == "experience_orb" then
+            if item.drawFunction then
+                item.drawFunction()
+            end
+        elseif item.type == "drop_entity" then
+            if item.drawFunction then
+                item.drawFunction()
             end
         end
         -- Adicione outros tipos conforme necessário
