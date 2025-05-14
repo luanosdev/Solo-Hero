@@ -63,4 +63,6 @@ Constants.TILE_SIZE = 32
 Constants.TILE_WIDTH = 256
 Constants.TILE_HEIGHT = 128
 
+Constants.PLAYER_DAMAGE_COOLDOWN = 0.5
+
 return Constants

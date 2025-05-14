@@ -9,6 +9,8 @@ local elements = require("src.ui.ui_elements")
 local Camera = require("src.config.camera")
 local LevelUpAnimation = require("src.animations.level_up_animation")
 local Constants = require("src.config.constants")
+local FloatingText = require("src.entities.floating_text")
+local Colors = require("src.ui.colors")
 
 ---@class FinalStats
 ---@field health number Vida máxima final.
@@ -96,10 +98,12 @@ local PlayerManager = {
     itemDataManager = nil, ---@class ItemDataManager
     archetypeManager = nil, ---@class ArchetypeManager
 
-    currentHunterId = nil,            -- <<< ADICIONADO: Para armazenar o ID do caçador ativo
+    currentHunterId = nil,         -- <<< ADICIONADO: Para armazenar o ID do caçador ativo
 
-    finalStatsCache = nil,            -- Guarda a última tabela de stats calculada
-    statsNeedRecalculation = true,    -- Flag para indicar se o cache precisa ser atualizado
+    finalStatsCache = nil,         -- Guarda a última tabela de stats calculada
+    statsNeedRecalculation = true, -- Flag para indicar se o cache precisa ser atualizado
+
+    activeFloatingTexts = {},
 }
 PlayerManager.__index = PlayerManager -- <<< ADICIONADO __index >>>
 
@@ -115,6 +119,7 @@ function PlayerManager:new()
     instance.state = nil
     instance.gameTime = 0
     instance.activeRuneAbilities = {}
+    instance.activeFloatingTexts = {}
     instance.autoAttack = false
     instance.autoAttackEnabled = false
     instance.autoAim = false
@@ -162,6 +167,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
 
     -- Armazena o ID do caçador atual
     self.currentHunterId = hunterId
+    self.activeFloatingTexts = {} -- ADICIONADO (Reset)
 
     -- 1. Obtém os managers necessários do Registry
     self.inputManager = registry:get("inputManager") ---@class InputManager
@@ -292,6 +298,9 @@ function PlayerManager:update(dt)
     if not self.state or not self.state.isAlive then
         return
     end
+
+    self:updateFloatingTexts(dt) -- ATUALIZA TEXTOS FLUTUANTES
+
     self.gameTime = self.gameTime + dt
 
     -- Tenta mostrar o modal de level up se houver pendências e o modal não estiver visível
@@ -382,6 +391,9 @@ function PlayerManager:update(dt)
     if self.player and self.player.position then
         Camera:follow(self.player.position, dt)
     end
+
+    -- ATUALIZA TEXTOS FLUTUANTES
+    self:updateFloatingTexts(dt)
 end
 
 -- Desenha o player e elementos relacionados
@@ -533,11 +545,21 @@ function PlayerManager:updateHealthRecovery(dt)
                 -- Chama heal passando os valores finais necessários
                 local healedAmount = self.state:heal(healAmount, finalMaxHealth, finalHealingBonusMultiplier)
                 self.accumulatedRegen = self.accumulatedRegen -
-                healedAmount                                                                                   -- Reduz apenas o que foi curado
+                    healedAmount                                                  -- Reduz apenas o que foi curado
 
-                if healedAmount > 0 and self.floatingTextManager and self.player and self.player.position then -- Garante que player e sua posição existam
-                self.floatingTextManager:addPlayerHealText(self.player.position, "+" .. healedAmount .. " HP",
-                        self.player)
+                if healedAmount > 0 and self.player and self.player.position then -- Garante que player e sua posição existam
+                    -- NOVA LÓGICA PARA FLOATING TEXT DE CURA
+                    local props = {
+                        textColor = Colors.heal,
+                        scale = 1.1,
+                        velocityY = -30,
+                        lifetime = 1.0,
+                        baseOffsetY = -40, -- Offset Y base (acima da cabeça do jogador)
+                        baseOffsetX = 0
+                        -- isCritical não é relevante para cura
+                    }
+
+                    self:addFloatingText("+" .. healedAmount .. " HP", props)
                 end
             end
         end
@@ -571,6 +593,7 @@ function PlayerManager:isAlive()
     return self.state and self.state.isAlive -- <<< ADICIONADO: Verifica se state existe
 end
 
+---@deprecated use PlayerManager:receiveDamage instead
 function PlayerManager:takeDamage(amount, source)
     if not self.state or not self.state.isAlive then return end
 
@@ -618,10 +641,14 @@ function PlayerManager:addExperience(amount)
         self:invalidateStatsCache()                                -- Invalida o cache pois o nível mudou (e bônus podem ter mudado)
 
         for i = 1, levelsGained do
-            if self.floatingTextManager and self.player then
-                self.floatingTextManager:addCustomText(self.player.position, "LEVEL UP!", self.player,
-                    { color = { 1, 1, 1 } })
-            end
+            local props = {
+                color = { 1, 1, 1 },
+                scale = 1.5,
+                velocityY = -30,
+                lifetime = 1.0,
+                baseOffsetY = -40, -- Offset Y base (acima da cabeça do jogador)
+            }
+            self:addFloatingText("LEVEL UP!", props)
         end
 
         self:tryShowLevelUpModal() -- Tenta abrir o modal imediatamente
@@ -987,6 +1014,99 @@ function PlayerManager:setActiveWeapon(weaponInstance)
         end
     end
     self:invalidateStatsCache()
+end
+
+--- Aplica dano ao jogador.
+---@param damageAmount number Quantidade de dano bruto.
+function PlayerManager:receiveDamage(damageAmount)
+    if not self.state or not self.state.isAlive then return end
+
+    local currentTime = self.gameTime
+    if currentTime - self.lastDamageTime < Constants.PLAYER_DAMAGE_COOLDOWN then
+        return -- Em cooldown de dano
+    end
+
+    local finalStats = self:getCurrentFinalStats()
+    local defense = finalStats.defense
+
+    -- 2. Calcula a redução de dano usando a defesa final
+    local K = Constants and Constants.DEFENSE_DAMAGE_REDUCTION_K
+    local finalDamageReduction = defense / (defense + K)
+    finalDamageReduction = math.min(Constants and Constants.MAX_DAMAGE_REDUCTION, finalDamageReduction)
+
+    local damageTaken = self.state:takeDamage(damageAmount, finalDamageReduction)
+    self.lastDamageTime = currentTime
+
+    -- NOVA LÓGICA PARA FLOATING TEXT
+    if damageTaken > 0 then
+        local props = {
+            textColor = Colors.damage_player, -- Cor para dano no jogador
+            scale = 1.1,
+            velocityY = -45,
+            lifetime = 0.9,
+            isCritical = false, -- Dano no jogador normalmente não é "crítico" da mesma forma que o dano do jogador
+            baseOffsetY = -40,  -- Ajustar para ficar bem posicionado em relação ao sprite do jogador
+            baseOffsetX = 0
+        }
+
+        self:addFloatingText("-" .. tostring(damageTaken), props)
+    end
+
+
+    if not self.state.isAlive then
+        self:onDeath()
+    else
+        -- Tocar som de dano, etc.
+        -- if self.player and self.player.playHitAnimation then
+        --     self.player:playHitAnimation()
+        -- end
+    end
+end
+
+--- Adiciona um texto flutuante ao jogador.
+---@param text string Texto a ser exibido.
+---@param props table Propriedades do texto flutuante.
+function PlayerManager:addFloatingText(text, props)
+    -- Empilhamento básico (similar ao do inimigo, pode ser ajustado)
+    local stackOffsetY = #self.activeFloatingTexts * -15 -- Empilha para cima
+
+    local screenX, screenY = Camera:worldToScreen(self.player.position.x, self.player.position.y)
+
+    local textInstance = FloatingText:new(
+        { x = screenX, y = screenY },
+        text,
+        props,
+        0,           -- initialDelay
+        stackOffsetY -- initialStackOffsetY
+    )
+    table.insert(self.activeFloatingTexts, textInstance)
+end
+
+--- Atualiza todos os textos flutuantes ativos para o jogador.
+---@param dt number Delta time.
+function PlayerManager:updateFloatingTexts(dt)
+    if not self.activeFloatingTexts then return end
+    for i = #self.activeFloatingTexts, 1, -1 do
+        local textInstance = self.activeFloatingTexts[i]
+        if not textInstance:update(dt) then -- update retorna false se deve ser removido
+            table.remove(self.activeFloatingTexts, i)
+        end
+    end
+end
+
+--- Desenha os textos flutuantes ativos para o jogador.
+--- Esta função deve ser chamada após a renderização principal e antes da UI global.
+function PlayerManager:drawFloatingTexts()
+    if not self.activeFloatingTexts then return end
+    for _, textInstance in ipairs(self.activeFloatingTexts) do
+        textInstance:draw()
+    end
+end
+
+function PlayerManager:onDeath()
+    -- Implemente a lógica de morte do jogador
+    print("Player Morreu!")
+    -- TODO: Lógica de morte
 end
 
 return PlayerManager

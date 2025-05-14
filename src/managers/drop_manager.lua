@@ -4,6 +4,7 @@
 ]]
 
 local DropEntity = require("src.entities.drop_entity")
+local Colors = require("src.ui.colors")
 
 ---@class DropManager
 ---@field activeDrops table[] Lista de drops ativos no mundo
@@ -242,17 +243,16 @@ function DropManager:applyDrop(dropConfig)
                 local itemName = baseData and baseData.name or itemBaseId
                 -- A cor do item não é mais passada diretamente, a raridade controlará a cor no FloatingTextManager
                 local itemRarity = baseData and baseData.rarity or "E" -- Fallback para raridade comum "E"
+                local itemColor = Colors.rarity[itemRarity] or Colors.text_default
 
-                -- Posição inicial do texto flutuante (o Y será ajustado pelo baseOffsetY em FloatingText)
-                local textPosition = self.playerManager.player.position
-                local displayText = string.format("+%d %s", addedQuantity, itemName)
-
-                self.floatingTextManager:addItemCollectedText(
-                    textPosition,
-                    displayText,
-                    itemRarity,
-                    self.playerManager.player -- O alvo para o texto seguir
-                )
+                self.playerManager:addFloatingText("+" .. addedQuantity .. " " .. itemName, {
+                    textColor = itemColor,
+                    scale = 1.1,
+                    velocityY = -30,
+                    lifetime = 1.0,
+                    baseOffsetY = -40, -- Offset Y base (acima da cabeça do jogador)
+                    baseOffsetX = 0
+                })
             else
                 print(string.format("Falha ao coletar %s (Inventário cheio?).", itemBaseId))
             end

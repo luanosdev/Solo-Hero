@@ -52,7 +52,7 @@ local portalDefinitions = {
                         baseInterval = 2.5,
                         intervalReductionPerMin = 0.30,
                         minInterval = 1.0,
-                        count = 1
+                        count = 5
                     }
                 },
                 -- Ciclo 2: Skeletons e Zombies (Próximos 120 segundos)

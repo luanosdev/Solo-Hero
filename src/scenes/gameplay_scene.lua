@@ -301,20 +301,24 @@ function GameplayScene:draw()
     for k in pairs(self.renderList) do self.renderList[k] = nil end
 
     -- 2. Coleta todos os renderizáveis
-    ChunkManager:collectRenderables(Camera.x, Camera.y, self.renderList)
+    if ChunkManager then
+        ChunkManager:collectRenderables(Camera.x, Camera.y, self.renderList)
+    end
 
-    -- TODO: Adicionar coleta do PlayerManager, EnemyManager, DropManager, etc.
-    -- Exemplo (a ser implementado nos respectivos managers):
-    -- ManagerRegistry:collectRenderables(Camera.x, Camera.y, self.renderList)
+    -- Obtém os managers do Registry para garantir que temos as instâncias corretas
     local playerMgr = ManagerRegistry:get("playerManager")
-    if playerMgr and playerMgr.collectRenderables then
+    local enemyMgr = ManagerRegistry:get("enemyManager")
+    local dropMgr = ManagerRegistry:get("dropManager")
+
+    if playerMgr then
         playerMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
-    local enemyMgr = ManagerRegistry:get("enemyManager")
-    if enemyMgr and enemyMgr.collectRenderables then
+    if enemyMgr then
         enemyMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
-    -- Adicione outros managers aqui (DropManager, ProjectileManager se tiverem elementos visuais ordenáveis)
+    if dropMgr then -- Supondo que exista e tenha collectRenderables
+        --- dropMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+    end
 
     -- 3. Ordena a lista de renderização
     table.sort(self.renderList, function(a, b)
@@ -343,6 +347,9 @@ function GameplayScene:draw()
     end
     Camera:detach()
 
+    if playerMgr and playerMgr.drawFloatingTexts then
+        playerMgr:drawFloatingTexts()
+    end
     -- Desenha UI (fora da câmera, sobre tudo)
     ManagerRegistry:draw() -- Presumindo que isso desenha UI como barras de vida sobre entidades, etc.
     -- Se não, precisará de um ManagerRegistry:drawUI() separado.

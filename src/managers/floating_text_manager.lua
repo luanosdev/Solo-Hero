@@ -53,9 +53,9 @@ function FloatingTextManager:draw()
     print(string.format("[FloatingTextManager:draw()] Chamado. Quantidade de textos: %d", #self.texts))
     if #self.texts > 0 then
         local firstText = self.texts[1]
-        if firstText and firstText.currentPosition then
+        if firstText and firstText.position then
             print(string.format("  - Primeiro texto: '%s' em (%.2f, %.2f), Alpha: %.2f, Delay: %.2f",
-                firstText.text, firstText.currentPosition.x, firstText.currentPosition.y, firstText.alpha,
+                firstText.text, firstText.position.x, firstText.position.y, firstText.alpha,
                 firstText.initialDelay or 0))
         end
     end
