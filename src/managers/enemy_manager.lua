@@ -333,9 +333,55 @@ function EnemyManager:draw()
         self.bossDeathTimer = 0
     end
 
-    -- Desenha os inimigos (dentro da transformação da câmera)
+    -- O DESENHO DOS INIMIGOS AGORA É FEITO PELA GAMEPLAYSCENE ATRAVÉS DA RENDERLIST
+    -- for _, enemy in ipairs(self.enemies) do
+    --     enemy:draw()
+    -- end
+end
+
+--- Coleta todos os inimigos renderizáveis.
+---@param cameraX number Posição X da câmera.
+---@param cameraY number Posição Y da câmera.
+---@param renderList table Lista onde os objetos renderizáveis serão adicionados.
+function EnemyManager:collectRenderables(cameraX, cameraY, renderList)
+    if not self.enemies or #self.enemies == 0 then return end
+
+    local Constants = require("src.config.constants") -- Necessário para TILE_WIDTH, TILE_HEIGHT
+    local screenW, screenH = love.graphics.getDimensions()
+
     for _, enemy in ipairs(self.enemies) do
-        enemy:draw()
+        if enemy and enemy.isAlive and enemy.position then
+            -- Culling básico no espaço do mundo
+            -- Usaremos enemy.radius para uma estimativa de tamanho. Se não houver, um fallback.
+            local cullRadius = enemy.radius or Constants.TILE_WIDTH / 2
+            if enemy.position.x + cullRadius > cameraX and
+                enemy.position.x - cullRadius < cameraX + screenW and
+                enemy.position.y + cullRadius > cameraY and
+                enemy.position.y - cullRadius < cameraY + screenH then
+                -- Calcular sortY consistentemente com tiles e decorações
+                -- Assumindo que enemy.position.y é o centro, adicionamos o raio para obter a base.
+                local enemyBaseY = enemy.position.y + (enemy.radius or Constants.TILE_HEIGHT / 4) -- Estimativa da base
+
+                local worldX_eq = enemy.position.x / Constants.TILE_WIDTH
+                local worldY_eq = enemyBaseY / Constants.TILE_HEIGHT -- Usa a base Y para worldY_eq
+
+                local isoY_ref_top = (worldX_eq + worldY_eq) * (Constants.TILE_HEIGHT / 2)
+                local sortY = isoY_ref_top + Constants.TILE_HEIGHT -- REMOVIDO math.ceil
+
+                table.insert(renderList, {
+                    type = "enemy",
+                    sortY = sortY,
+                    depth = 1,                       -- Inimigos agora têm depth 1
+                    drawFunction = function()
+                        if enemy and enemy.draw then -- Checa se o inimigo e o método draw ainda existem
+                            enemy:draw()
+                        end
+                    end,
+                    -- Para debug, podemos adicionar a entidade original
+                    -- entity = enemy
+                })
+            end
+        end
     end
 end
 

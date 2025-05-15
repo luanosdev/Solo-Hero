@@ -4,6 +4,9 @@
 ]]
 
 local ManagerRegistry = require("src.managers.manager_registry")
+local Camera = require("src.config.camera")                -- ADICIONADO para conversão de coordenadas
+local FloatingText = require("src.entities.floating_text") -- ADICIONADO
+local Colors = require("src.ui.colors")                    -- ADICIONADO para cores do texto
 
 ---@class BaseEnemy
 ---@field position {x: number, y: number} Posição do inimigo
@@ -16,7 +19,7 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field lastDamageTime number Tempo do último dano causado
 ---@field damageCooldown number Cooldown entre danos em segundos
 ---@field attackSpeed number Velocidade de ataque do inimigo
-
+---@field activeFloatingTexts table Array para armazenar instâncias de FloatingText ativas.
 local BaseEnemy = {
     position = {
         x = 0,
@@ -41,6 +44,7 @@ local BaseEnemy = {
 function BaseEnemy:new(position, id)
     local enemy = {}
     setmetatable(enemy, { __index = self })
+    enemy.activeFloatingTexts = {}
 
     -- Copia todas as propriedades base
     enemy.position = {
@@ -101,7 +105,7 @@ function BaseEnemy:update(dt, playerManager, enemies)
             -- Usa a posição atual para verificar a colisão, não a posição alvo
             local distSq = (other.position.x - self.position.x) ^ 2 +
                 ((other.position.y - self.position.y) * 2) ^
-                2                                          -- Ajuste isométrico na distância Y
+                2 -- Ajuste isométrico na distância Y
             local minDist = self.radius + other.radius
 
             if distSq < minDist * minDist and distSq > 0 then -- Evita divisão por zero se distSq for 0
@@ -126,7 +130,7 @@ function BaseEnemy:update(dt, playerManager, enemies)
                 totalSeparationX = totalSeparationX + math.cos(angle) * self.radius * separationStrength
                 totalSeparationY = totalSeparationY +
                     math.sin(angle) * self.radius * separationStrength *
-                    0.5                                                  -- Menos força no Y devido à isometria
+                    0.5 -- Menos força no Y devido à isometria
             end
         end
     end
@@ -142,8 +146,12 @@ function BaseEnemy:update(dt, playerManager, enemies)
 
     -- Verifica colisão com o jogador usando a posição de colisão
     self:checkPlayerCollision(dt, playerManager)
+
+    self:updateFloatingTexts(dt)
 end
 
+---@param dt number Delta time.
+---@param playerManager PlayerManager
 function BaseEnemy:checkPlayerCollision(dt, playerManager)
     -- Obtém a posição de colisão do jogador
     local playerCollision = playerManager:getCollisionPosition()
@@ -164,7 +172,7 @@ function BaseEnemy:checkPlayerCollision(dt, playerManager)
         -- Verifica se pode causar dano (cooldown)
         if self.lastDamageTime >= self.damageCooldown then
             -- Causa dano ao jogador usando o PlayerManager
-            if playerManager:takeDamage(self.damage) then
+            if playerManager:receiveDamage(self.damage) then
                 -- Se o jogador morreu, remove o inimigo
                 self.isAlive = false
             end
@@ -177,19 +185,44 @@ end
 function BaseEnemy:draw()
     if not self.isAlive then return end
 
-    -- Desenha a area de colisão
-    -- local collisionPosition = self:getCollisionPosition()
-    -- love.graphics.setColor(1, 0, 0, 0.5)
-    -- love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
+    -- Desenha a area de colisão (Exemplo, pode ser removido ou adaptado)
+    local collisionPosition = self:getCollisionPosition()
+    love.graphics.setColor(1, 0, 0, 0.5)
+    love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
+
+    self:drawFloatingTexts()
 end
 
+--- Aplica dano ao inimigo.
+---@param damage number Dano a ser aplicado
+---@param isCritical boolean Se o dano é crítico
+---@return boolean True se o inimigo morreu, false caso contrário
 function BaseEnemy:takeDamage(damage, isCritical)
     -- Aplica o dano
     self.currentHealth = self.currentHealth - damage
     print(string.format("Inimigo ID: %d, Dano: %d, Vida: %d", self.id, damage, self.currentHealth))
-    -- Mostra o número de dano
-    local floatingTextManager = ManagerRegistry:get("floatingTextManager") ---@type FloatingTextManager
-    floatingTextManager:addEnemyDamageText(self.position, tostring(damage), isCritical, self)
+
+    if damage > 0 then -- Só cria texto se houver dano
+        local props = {
+            textColor = isCritical and Colors.damage_crit or Colors.damage_enemy,
+            scale = isCritical and 1.3 or 1,
+            velocityY = isCritical and -55 or -45,
+            lifetime = isCritical and 1.1 or 0.8,
+            isCritical = isCritical or false,
+            baseOffsetY = -50, -- Offset Y base (acima do centro do inimigo)
+            baseOffsetX = 0    -- Offset X base (pode ser usado para empilhamento se necessário)
+        }
+
+        local stackOffsetY = #self.activeFloatingTexts * -12 -- Empilha para cima (valor negativo)
+        local textInstance = FloatingText:new(
+            self.position,
+            tostring(damage),
+            props,
+            0,           -- initialDelay
+            stackOffsetY -- initialStackOffsetY
+        )
+        table.insert(self.activeFloatingTexts, textInstance)
+    end
 
     if self.currentHealth <= 0 then
         self.currentHealth = 0
@@ -201,8 +234,9 @@ function BaseEnemy:takeDamage(damage, isCritical)
         local experienceOrbManager = ManagerRegistry:get("experienceOrbManager") ---@type ExperienceOrbManager
         experienceOrbManager:addOrb(self.position.x, self.position.y, self.experienceValue)
 
-        return true -- Retorna true se o inimigo morreu
+        return true
     end
+
     return false
 end
 
@@ -214,6 +248,26 @@ function BaseEnemy:getCollisionPosition()
         },
         radius = self.radius
     }
+end
+
+--- Atualiza todos os textos flutuantes ativos para este inimigo.
+---@param dt number Delta time.
+function BaseEnemy:updateFloatingTexts(dt)
+    if not self.activeFloatingTexts then return end
+    for i = #self.activeFloatingTexts, 1, -1 do
+        local textInstance = self.activeFloatingTexts[i]
+        if not textInstance:update(dt) then -- update retorna false se deve ser removido
+            table.remove(self.activeFloatingTexts, i)
+        end
+    end
+end
+
+--- Desenha os textos flutuantes ativos para este inimigo.
+function BaseEnemy:drawFloatingTexts()
+    if not self.activeFloatingTexts then return end
+    for _, textInstance in ipairs(self.activeFloatingTexts) do
+        textInstance:draw()
+    end
 end
 
 return BaseEnemy

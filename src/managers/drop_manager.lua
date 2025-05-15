@@ -1,9 +1,11 @@
---[[
-    Drop Manager
-    Gerencia os drops de bosses e outros inimigos
-]]
+------------------------------------------------
+-- Drop Manager
+-- Gerencia os drops de bosses e outros inimigos
+------------------------------------------------
 
 local DropEntity = require("src.entities.drop_entity")
+local Colors = require("src.ui.colors")
+local Constants = require("src.config.constants")
 
 ---@class DropManager
 ---@field activeDrops table[] Lista de drops ativos no mundo
@@ -51,11 +53,9 @@ function DropManager:init(config)
     print("DropManager inicializado") -- Removido rank do mapa que não estava definido
 end
 
---[[
-    Processa os drops de uma entidade derrotada (Inimigo, MVP, Boss)
-    Lê a dropTable da classe da entidade.
-    @param entity A entidade que foi derrotada
-]]
+--- Processa os drops de uma entidade derrotada (Inimigo, MVP, Boss)
+--- Lê a dropTable da classe da entidade.
+---@param entity ta Entity A entidade que foi derrotada
 function DropManager:processEntityDrop(entity)
     -- Usa a posição da entidade como base para os drops
     local entityPosition = { x = entity.position.x, y = entity.position.y }
@@ -161,13 +161,11 @@ function DropManager:processEntityDrop(entity)
     end
 end
 
---[[
-    Obtém as configurações visuais (cor, altura, brilho) para um drop.
-    @param dropConfig A configuração do drop.
-    @return table Cor {r, g, b}.
-    @return number Altura do feixe.
-    @return number Escala do brilho base.
-]]
+--- Obtém as configurações visuais (cor, altura, brilho) para um drop.
+---@param dropConfig table A configuração do drop.
+---@return table Cor {r, g, b}.
+---@return number Altura do feixe.
+---@return number Escala do brilho base.
 function DropManager:_getDropVisualSettings(dropConfig)
     local settingsKey = "E"
     local isItemWithRarity = false
@@ -195,11 +193,9 @@ function DropManager:_getDropVisualSettings(dropConfig)
     return finalSettings.color, finalSettings.height, finalSettings.glow, finalSettings.beamCount or 1
 end
 
---[[
-    Cria uma entidade de drop no mundo
-    @param dropConfig Configuração do drop (ex: {type="rune", rarity="D"} ou {type="item", itemId="sword_01"})
-    @param position Posição {x, y} do drop
-]]
+--- Cria uma entidade de drop no mundo
+---@param dropConfig table Configuração do drop (ex: {type="rune", rarity="D"} ou {type="item", itemId="sword_01"})
+---@param position table Posição {x, y} do drop
 function DropManager:createDrop(dropConfig, position)
     -- Determina as propriedades visuais
     local color, height, glowScale, beamCount = self:_getDropVisualSettings(dropConfig)
@@ -210,10 +206,8 @@ function DropManager:createDrop(dropConfig, position)
     -- print(string.format("DropEntity criado em (%.1f, %.1f) para tipo: %s", position.x, position.y, dropConfig.type))
 end
 
---[[
-    Atualiza os drops ativos
-    @param dt Delta time
-]]
+--- Atualiza os drops ativos
+---@param dt number Delta time
 function DropManager:update(dt)
     for i = #self.activeDrops, 1, -1 do
         local drop = self.activeDrops[i]
@@ -225,10 +219,8 @@ function DropManager:update(dt)
     end
 end
 
---[[
-    Aplica um drop ao jogador
-    @param dropConfig A configuração do drop coletado (contém 'type' e outros dados)
-]]
+--- Aplica um drop ao jogador
+---@param dropConfig table A configuração do drop coletado (contém 'type' e outros dados)
 function DropManager:applyDrop(dropConfig)
     if dropConfig.type == "item" then
         print(string.format("Tentando coletar item: %s", dropConfig.itemId or 'ID Inválido'))
@@ -242,17 +234,16 @@ function DropManager:applyDrop(dropConfig)
                 local itemName = baseData and baseData.name or itemBaseId
                 -- A cor do item não é mais passada diretamente, a raridade controlará a cor no FloatingTextManager
                 local itemRarity = baseData and baseData.rarity or "E" -- Fallback para raridade comum "E"
+                local itemColor = Colors.rarity[itemRarity] or Colors.text_default
 
-                -- Posição inicial do texto flutuante (o Y será ajustado pelo baseOffsetY em FloatingText)
-                local textPosition = self.playerManager.player.position
-                local displayText = string.format("+%d %s", addedQuantity, itemName)
-
-                self.floatingTextManager:addItemCollectedText(
-                    textPosition,
-                    displayText,
-                    itemRarity,
-                    self.playerManager.player -- O alvo para o texto seguir
-                )
+                self.playerManager:addFloatingText("+" .. addedQuantity .. " " .. itemName, {
+                    textColor = itemColor,
+                    scale = 1.1,
+                    velocityY = -30,
+                    lifetime = 1.0,
+                    baseOffsetY = -40, -- Offset Y base (acima da cabeça do jogador)
+                    baseOffsetX = 0
+                })
             else
                 print(string.format("Falha ao coletar %s (Inventário cheio?).", itemBaseId))
             end
@@ -264,20 +255,47 @@ function DropManager:applyDrop(dropConfig)
     end
 end
 
---[[
-    Desenha os drops ativos
-]]
-function DropManager:draw()
-    for _, drop in ipairs(self.activeDrops) do
-        drop:draw()
+--- Coleta os drops renderizáveis para a lista de renderização da cena.
+---@param cameraX number Posição X da câmera (não usado diretamente aqui, pois o drop se desenha em coords mundiais)
+---@param cameraY number Posição Y da câmera (não usado diretamente aqui)
+---@param renderList table A lista onde os objetos renderizáveis serão adicionados.
+function DropManager:collectRenderables(cameraX, cameraY, renderList)
+    if not self.activeDrops or #self.activeDrops == 0 then
+        return
+    end
+
+    for _, dropEntity in ipairs(self.activeDrops) do
+        if not dropEntity.collected then
+            -- A posição do DropEntity é o seu centro no chão.
+            local dropWorldX = dropEntity.position.x
+            local dropWorldY = dropEntity.position.y
+
+            -- Converte a posição do centro do drop para a "base" isométrica para ordenação.
+            -- A função de desenho da DropEntity já lida com sua posição correta na tela.
+            local isoX = (dropWorldX - dropWorldY) * (Constants.TILE_WIDTH / 2)
+            -- A sortY deve ser o Y isométrico da base do drop.
+            -- Adicionamos TILE_HEIGHT para que a ordenação seja pela "parte de baixo" do tile que o drop ocupa.
+            local isoY_base = (dropWorldX + dropWorldY) * (Constants.TILE_HEIGHT / 2) + Constants.TILE_HEIGHT
+
+            table.insert(renderList, {
+                type = "drop_entity",
+                sortY = isoY_base,
+                depth = 1, -- Mesma camada de jogadores/inimigos/orbes
+                drawFunction = function()
+                    if dropEntity and not dropEntity.collected then
+                        dropEntity:draw()
+                    end
+                end
+                -- Não precisamos de drawX, drawY aqui, pois a função draw da DropEntity usa suas próprias
+                -- coordenadas do mundo e a câmera já estará aplicada pela GameplayScene.
+            })
+        end
     end
 end
 
---[[
-    Função auxiliar para espalhar os drops em um círculo
-    @param dropsToCreate (table) Lista de configurações de drop a serem criadas
-    @param centerPosition (table) Posição {x, y} central para espalhar os drops
-]]
+--- Função auxiliar para espalhar os drops em um círculo
+---@param dropsToCreate (table) Lista de configurações de drop a serem criadas
+---@param centerPosition (table) Posição {x, y} central para espalhar os drops
 function DropManager:spreadDrops(dropsToCreate, centerPosition)
     local dropCount = #dropsToCreate
     if dropCount == 0 then return end

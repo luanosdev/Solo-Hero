@@ -42,7 +42,7 @@ function Bootstrap.initialize()
 
     -- FloatingTextManager
     print("  - Inicializando/Registrando FloatingTextManager...")
-    ManagerRegistry:register("floatingTextManager", FloatingTextManager, true)
+    ManagerRegistry:register("floatingTextManager", FloatingTextManager, false)
     print("    > FloatingTextManager registrado.")
 
     -- ExperienceOrbManager
@@ -53,13 +53,13 @@ function Bootstrap.initialize()
     -- PlayerManager (Cria instância)
     print("  - Criando/Registrando PlayerManager...")
     local playerMgr = PlayerManager:new()
-    ManagerRegistry:register("playerManager", playerMgr, true)
+    ManagerRegistry:register("playerManager", playerMgr, false)
     print("    > PlayerManager registrado (aguardando setupGameplay).")
 
     -- EnemyManager (Registra ANTES de DropManager)
     print("  - Criando/Registrando EnemyManager...")
     local enemyManager =
-    EnemyManager                                                 -- Assume Singleton. Se não for: local enemyManager = EnemyManager:new()
+        EnemyManager                                             -- Assume Singleton. Se não for: local enemyManager = EnemyManager:new()
     -- Chamar :init se necessário: if enemyManager.init then enemyManager:init({...}) end
     ManagerRegistry:register("enemyManager", enemyManager, true) -- Registra a tabela/instância
     print("    > EnemyManager registrado (aguardando setupGameplay).")

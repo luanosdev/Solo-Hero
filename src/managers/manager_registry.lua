@@ -48,15 +48,15 @@ function ManagerRegistry:init(initConfigs)
 
     -- Ordem de inicialização é importante
     local initOrder = {
-        "inputManager",      -- Input primeiro
-        "itemDataManager",   -- ItemDataManager antes do InventoryManager
-        "inventoryManager",  -- Inventário antes do Player
-        "playerManager",     -- Player depende do inventário (agora)
+        "inputManager",     -- Input primeiro
+        "itemDataManager",  -- ItemDataManager antes do InventoryManager
+        "inventoryManager", -- Inventário antes do Player
+        "playerManager",    -- Player depende do inventário (agora)
         "experienceOrbManager",
         "floatingTextManager",
-        "runeManager",       -- Runas podem depender do Player
-        "enemyManager",      -- Inimigos (e seus drops) podem depender do Player/Rank do Mapa
-        "dropManager"        -- Drops dependem do EnemyManager e PlayerManager
+        "runeManager",  -- Runas podem depender do Player
+        "enemyManager", -- Inimigos (e seus drops) podem depender do Player/Rank do Mapa
+        "dropManager"   -- Drops dependem do EnemyManager e PlayerManager
         -- Adicione outros managers aqui na ordem correta
     }
 
@@ -77,13 +77,51 @@ function ManagerRegistry:init(initConfigs)
     self.initialized = true
 end
 
+-- Define a ordem de atualização dos managers
+ManagerRegistry.updateOrder = {
+    "inputManager",
+    "playerManager",
+    "enemyManager",
+    "experienceOrbManager",
+    "dropManager",
+    "floatingTextManager", -- << Deve vir DEPOIS de playerManager e enemyManager
+    "runeManager",
+    "inventoryManager"
+    -- Adicione outros managers que precisam de update em ordem específica aqui
+}
+
 -- Atualiza todos os managers registrados
 function ManagerRegistry:update(dt)
-    for _, manager in pairs(self.managers) do
-        if manager.instance.update then
-            manager.instance:update(dt)
+    -- print("[ManagerRegistry:update] Iniciando ciclo de update...") -- Log opcional
+    for _, name in ipairs(self.updateOrder) do
+        local managerData = self.managers[name]
+        if managerData and managerData.instance and managerData.instance.update then
+            -- print(string.format("  -> Atualizando %s", name)) -- Log opcional
+            managerData.instance:update(dt)
+        elseif managerData and managerData.instance and not managerData.instance.update then
+            -- print(string.format("  -> Manager %s na updateOrder NÃO tem método update.", name)) -- Log opcional
+        elseif not managerData then
+            -- print(string.format("  -> AVISO: Manager %s na updateOrder não está registrado!", name)) -- Log opcional
         end
     end
+
+    -- Atualiza quaisquer outros managers que não estão na updateOrder (caso existam e precisem de update)
+    -- Isso pode ser útil para managers adicionados dinamicamente ou que não têm ordem crítica.
+    -- No entanto, para um controle estrito, é melhor que todos os managers com `update` estejam na `updateOrder`.
+    for name, managerData in pairs(self.managers) do
+        local foundInOrder = false
+        for _, orderedName in ipairs(self.updateOrder) do
+            if name == orderedName then
+                foundInOrder = true
+                break
+            end
+        end
+        if not foundInOrder and managerData.instance and managerData.instance.update then
+            print(string.format("  -> AVISO: Atualizando manager '%s' que não está na updateOrder definida.", name))
+            managerData.instance:update(dt)
+        end
+    end
+    -- print("[ManagerRegistry:update] Ciclo de update concluído.") -- Log opcional
 end
 
 --[[
@@ -101,9 +139,25 @@ end
     Desenha todos os managers registrados fora da transformação da câmera
 ]]
 function ManagerRegistry:draw()
-    for _, manager in pairs(self.managers) do
-        if not manager.drawInCamera and manager.instance.draw then
-            manager.instance:draw()
+    local drawnCount = 0
+    local checkedCount = 0
+    if not self.managers or next(self.managers) == nil then
+        print("  [ManagerRegistry:draw()] AVISO: Tabela self.managers está VAZIA ou NIL.")
+        print("[ManagerRegistry:draw()] ----- FIM CICLO DRAW UI (VAZIO) -----")
+        return
+    end
+
+    for name, managerData in pairs(self.managers) do
+        checkedCount = checkedCount + 1
+        local hasDrawMethod = (managerData.instance and type(managerData.instance.draw) == "function")
+        if not managerData.drawInCamera then
+            if hasDrawMethod then
+                print(string.format("    -> DESENHANDO UI: %s", name))
+                managerData.instance:draw()
+                drawnCount = drawnCount + 1
+            else
+                -- Já logado acima que não tem método draw, não precisa logar de novo aqui
+            end
         end
     end
 end

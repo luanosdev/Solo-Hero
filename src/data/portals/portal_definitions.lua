@@ -10,9 +10,9 @@ local SpiderBoss = require("src.classes.bosses.spider")
 local portalDefinitions = {
     -- Exemplo de um portal inicial: Floresta Assombrada
     floresta_assombrada = {
-        name = "Floresta Assombrada", -- Nome exibido para o jogador
-        theme = "Floresta",           -- Temática (influencia visual, eventos, etc.)
-        rank = "E",                   -- Ranking de dificuldade base do portal
+        name = "Basic Forest", -- ATUALIZADO
+        theme = "BasicForest", -- ATUALIZADO
+        rank = "E",            -- Ranking de dificuldade base do portal
 
         -- Configuração específica das hordas para este portal
         hordeConfig = {
@@ -52,7 +52,7 @@ local portalDefinitions = {
                         baseInterval = 2.5,
                         intervalReductionPerMin = 0.30,
                         minInterval = 1.0,
-                        count = 1
+                        count = 5
                     }
                 },
                 -- Ciclo 2: Skeletons e Zombies (Próximos 120 segundos)
@@ -97,10 +97,16 @@ local portalDefinitions = {
             }
         },
 
+        -- NOVA SEÇÃO mapDefinition
+        mapDefinition = {
+            theme = "forest",
+            objectSpawnRules = {},
+            eventSpawnRules = {}
+        },
+
         -- Futuras configurações (placeholder)
-        randomEvents = {},   -- Tabela para definir eventos aleatórios que podem ocorrer
-        mapDefinition = nil, -- Referência para a definição do mapa (tiles, layout)
-        assetPack = nil      -- Referência para assets específicos do tema (sprites, sons)
+        randomEvents = {}, -- Tabela para definir eventos aleatórios que podem ocorrer
+        assetPack = nil    -- Referência para assets específicos do tema (sprites, sons)
     },
 
     -- Adicione outras definições de portais aqui...

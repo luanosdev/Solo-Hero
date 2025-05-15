@@ -53,4 +53,16 @@ Constants.GRID_ROWS = 4
 Constants.GRID_COLS = 4
 -- <<< FIM ADIÇÃO >>>
 
+--- Tamanho lógico do tile (em pixels) para o grid do mapa isométrico
+--- Este valor define o "tamanho do mundo" de cada tile, não a resolução da imagem do asset
+--- Exemplo: 1 tile = 1 metro no mundo do jogo
+Constants.TILE_SIZE = 32
+
+--- Tamanho lógico do tile isométrico (em pixels)
+--- Use proporção clássica: largura = 2x altura
+Constants.TILE_WIDTH = 256
+Constants.TILE_HEIGHT = 128
+
+Constants.PLAYER_DAMAGE_COOLDOWN = 0.5
+
 return Constants

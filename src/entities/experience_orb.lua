@@ -19,7 +19,7 @@ local ExperienceOrb = {
     color = { 0.5, 0, 0.5 }, -- Cor roxa base
     collected = false,
     collectionProgress = 0,  -- Progresso da animação de coleta (0 a 1)
-    collectionSpeed = 3,     -- Velocidade da animação
+    collectionSpeed = 0.05,  -- Velocidade da animação
     initialX = 0,            -- Posição X inicial
     initialY = 0,            -- Posição Y inicial
 
@@ -89,11 +89,18 @@ function ExperienceOrb:update(dt)
     local currentFinalStats = playerManager:getCurrentFinalStats()
     -- Se estiver dentro do raio de coleta do jogador
     if distance <= currentFinalStats.pickupRadius then
+        -- Considera o toque se a distância for menor/igual ao raio do orbe
+        local immediateCollectionThreshold = self.radius
+        if distance <= immediateCollectionThreshold then
+            self.collected = true
+            return true
+        end
+
         -- Inicia a animação de coleta
         self.collectionProgress = self.collectionProgress + dt * self.collectionSpeed
 
         -- Atualiza a posição do orbe
-        local t = self.collectionProgress
+        local t = math.min(self.collectionProgress, 1) -- Garante que t não exceda 1
         -- Função de easing para movimento suave
         local easeOutQuad = 1 - (1 - t) * (1 - t)
 
@@ -113,9 +120,7 @@ function ExperienceOrb:update(dt)
     return false
 end
 
---[[--------------------------------------------------------------------------
-  Função auxiliar para desenhar o efeito durante a coleta (Rastro + Orbe)
-----------------------------------------------------------------------------]]
+--- Função auxiliar para desenhar o efeito durante a coleta (Rastro + Orbe)
 function ExperienceOrb:_drawCollectionEffect()
     local x, y = self.position.x, self.position.y
     local initialX, initialY = self.initialPosition.x, self.initialPosition.y
@@ -133,9 +138,10 @@ function ExperienceOrb:_drawCollectionEffect()
     -- 2. Desenha o Orbe (simplificado durante a coleta, sem levitação/partículas complexas)
     -- Pode ajustar isso se quiser manter mais efeitos visuais durante a coleta
     local currentRadius = self.radius *
-    (1 + self.collectionProgress * 0.3)                                                           -- Aumenta um pouco ao coletar
+        (1 + self.collectionProgress * 0.3) -- Aumenta um pouco ao coletar
     local currentAlpha = 0.8 +
-    math.sin(self.levitationTime * 5) * 0.2                                                       -- Leve pulsação no alfa
+        math.sin(self.levitationTime * 5) *
+        0.2                                                                                       -- Leve pulsação no alfa
     currentAlpha = math.max(0.6, math.min(1, currentAlpha)) * (1 - self.collectionProgress * 0.5) -- Fade out leve
 
     -- Desenha o orbe principal
