@@ -9,6 +9,7 @@ local LobbyPortalManager = require("src.managers.lobby_portal_manager")
 local EquipmentScreen = require("src.ui.screens.equipment_screen")
 local PortalScreen = require("src.ui.screens.portal_screen")
 local GuildScreen = require("src.ui.screens.guild_screen")
+local TooltipManager = require("src.ui.tooltip_manager")
 
 local TabIds = Constants.TabIds
 
@@ -269,6 +270,8 @@ function LobbyScene:update(dt)
             self.guildScreen:update(dt, mx, my, allowGuildScreenHover)
         end
     end
+
+    TooltipManager.update(dt, mx, my)
 end
 
 --- Desenha os elementos da cena.
@@ -351,6 +354,8 @@ function LobbyScene:draw()
             colors = tabSettings.colors
         })
     end
+
+    TooltipManager.draw()
 
     -- Reset final
     love.graphics.setColor(colors.white)
