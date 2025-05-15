@@ -189,6 +189,7 @@ function BaseEnemy:draw()
     local collisionPosition = self:getCollisionPosition()
     love.graphics.setColor(1, 0, 0, 0.5)
     love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
+    love.graphics.setColor(1, 1, 1, 1)
 
     self:drawFloatingTexts()
 end
