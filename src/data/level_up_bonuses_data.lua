@@ -303,7 +303,7 @@ LevelUpBonusesData.Bonuses = {
         icon = "A+",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "attackArea", type = "fixed", value = 10 }
+            { stat = "attackArea", type = "fixed_percentage_as_fraction", value = 0.10 }
         },
         tags = { "utilidade", "alcance", "fixo" }
     },
@@ -337,7 +337,7 @@ LevelUpBonusesData.Bonuses = {
         icon = "A+",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "range", type = "fixed", value = 10 }
+            { stat = "range", type = "fixed_percentage_as_fraction", value = 0.10 }
         },
         tags = { "utilidade", "alcance", "fixo" }
     },
