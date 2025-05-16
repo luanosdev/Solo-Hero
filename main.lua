@@ -1,6 +1,9 @@
 -- main.lua
 -- Love2D callbacks e inicialização principal
 
+-- [[ Modo de Depuração Global ]] --
+DEV = true
+
 -- DEBUG: Configurar saída para UTF-8 se possível (tentativa)
 xpcall(function()
     if love.system.getOS() == "Windows" then
@@ -21,11 +24,18 @@ local LobbyStorageManager = require("src.managers.lobby_storage_manager")
 local HunterManager = require("src.managers.hunter_manager")
 local fonts = require("src.ui.fonts")
 
-local currentScene = nil
+local lovebird = require("src.libs.lovebird")
+local profiler = require("src.libs.profiler")
 
 -- [[ Inicialização LOVE ]] --
 function love.load()
     print("\n--- Iniciando love.load() ---")
+    print("Modo DEV: " .. tostring(DEV))
+
+    if DEV then
+        profiler.start()
+    end
+
     fonts.load()
     love.graphics.setDefaultFilter("nearest", "nearest")
     love.keyboard.setKeyRepeat(true) -- Habilita repetição de tecla
@@ -70,6 +80,10 @@ end
 function love.update(dt)
     -- Delega o update para a cena atual (se não for encerrar)
     SceneManager.update(dt)
+
+    if DEV then
+        lovebird.update()
+    end
 end
 
 function love.draw()
@@ -92,6 +106,10 @@ function love.keypressed(key, scancode, isrepeat)
     if key == "f11" then
         local isFullscreen, fullscreenType = love.window.getFullscreen()
         love.window.setFullscreen(not isFullscreen, "desktop")
+    end
+    if key == "f12" then
+        profiler.stop()
+        profiler.report("profiler_report.txt")
     end
 end
 

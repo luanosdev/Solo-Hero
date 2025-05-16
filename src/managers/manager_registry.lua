@@ -152,7 +152,6 @@ function ManagerRegistry:draw()
         local hasDrawMethod = (managerData.instance and type(managerData.instance.draw) == "function")
         if not managerData.drawInCamera then
             if hasDrawMethod then
-                print(string.format("    -> DESENHANDO UI: %s", name))
                 managerData.instance:draw()
                 drawnCount = drawnCount + 1
             else

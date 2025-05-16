@@ -7,4 +7,4 @@ function love.conf(t)
     t.modules.joystick = false
     t.modules.physics = false
     t.console = true -- Habilita console para debug (pressione `)
-end 
+end

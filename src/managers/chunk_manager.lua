@@ -111,6 +111,8 @@ function ChunkManager:initialize(portalThemeData, chunkSize, assetManagerInstanc
     self.assetManager = assetManagerInstance
     self.currentSeed = randomSeed or os.time()
     self.maxDecorationsPerChunk = maxDecorationsPerChunk
+    self.tileBatches = {} -- Para SpriteBatch por textura de tile
+    self.tileQuads = {}   -- Para Quads reutilizáveis por textura de tile
     -- self.decorationBatches removido, não será usado com a nova abordagem de renderList
     print(string.format("ChunkManager initialized. ChunkSize: %d, Seed: %s", self.chunkSize, tostring(self.currentSeed)))
 end
@@ -197,10 +199,12 @@ function ChunkManager:update(playerWorldX, playerWorldY, cameraX, cameraY)
         end
     end
 
-    if loadedThisFrame > 0 or unloadedThisFrame > 0 then
-        print(string.format("[CM Update] Active: %d | Loaded: %d | Unloaded: %d | RangeCX: %d-%d | RangeCY: %d-%d",
-            tablelength(self.activeChunks), loadedThisFrame, unloadedThisFrame, minChunkX, maxChunkX, minChunkY,
-            maxChunkY))
+    if DEV then
+        if loadedThisFrame > 0 or unloadedThisFrame > 0 then
+            print(string.format("[CM Update] Active: %d | Loaded: %d | Unloaded: %d | RangeCX: %d-%d | RangeCY: %d-%d",
+                tablelength(self.activeChunks), loadedThisFrame, unloadedThisFrame, minChunkX, maxChunkX, minChunkY,
+                maxChunkY))
+        end
     end
 end
 
@@ -211,40 +215,96 @@ end
 function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
     if not self.currentPortalTheme or not self.currentPortalTheme.mapDefinition or not self.assetManager then return end
     local screenW, screenH = love.graphics.getDimensions()
+    local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
+    local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
+
+    local camMinX = cameraX
+    local camMaxX = cameraX + screenW
+    local camMinY = cameraY
+    local camMaxY = cameraY + screenH
+
+    -- Limpa todos os batches de tiles no início de cada coleta
+    for texturePath, batch in pairs(self.tileBatches) do
+        batch:clear()
+    end
 
     for _, chunk in pairs(self.activeChunks) do
         if chunk then
+            -- Culling de Chunk
+            local minTileX = chunk.chunkX * chunk.size
+            local minTileY = chunk.chunkY * chunk.size
+            local maxTileX = minTileX + chunk.size - 1
+            local maxTileY = minTileY + chunk.size - 1
+
+            -- Cantos do chunk em coordenadas de tile do mundo:
+            -- p1 (minTileX, minTileY) - Canto superior do mapa, mais à esquerda na tela
+            -- p2 (maxTileX, minTileY) - Canto direito do mapa, topo
+            -- p3 (minTileX, maxTileY) - Canto esquerdo do mapa, base
+            -- p4 (maxTileX, maxTileY) - Canto inferior do mapa, mais à direita na tela
+
+            -- Bounding box do chunk em coordenadas isométricas (tela)
+            -- Ponto mais à esquerda na tela: canto esquerdo do tile (minTileX, maxTileY)
+            local chunkScreenMinX = (minTileX - maxTileY) * TILE_WIDTH_HALF - TILE_WIDTH_HALF
+            -- Ponto mais à direita na tela: canto direito do tile (maxTileX, minTileY)
+            local chunkScreenMaxX = (maxTileX - minTileY) * TILE_WIDTH_HALF + TILE_WIDTH_HALF
+            -- Ponto mais ao topo na tela: pico do tile (minTileX, minTileY)
+            local chunkScreenMinY = (minTileX + minTileY) * TILE_HEIGHT_HALF
+            -- Ponto mais abaixo na tela: base do tile (maxTileX, maxTileY)
+            local chunkScreenMaxY = (maxTileX + maxTileY) * TILE_HEIGHT_HALF + Constants.TILE_HEIGHT
+
+            if chunkScreenMaxX < camMinX or chunkScreenMinX > camMaxX or chunkScreenMaxY < camMinY or chunkScreenMinY > camMaxY then
+                -- Chunk está completamente fora da tela, pular para o próximo
+                goto continue_chunk_loop
+            end
+
             -- Coleta Tiles
             for ty = 1, chunk.size do
                 for tx = 1, chunk.size do
                     local tileData = chunk:getTile(tx, ty)
                     if tileData then
-                        local tileImage = self.assetManager:getImage(tileData.type)
+                        local tileAssetPath = tileData.type -- type é o caminho do asset
+                        local tileImage = self.assetManager:getImage(tileAssetPath)
                         if tileImage then
                             local imgW, imgH = tileImage:getDimensions()
-                            local isoX = (tileData.worldX - tileData.worldY) * (TILE_WIDTH / 2)
-                            local isoY = (tileData.worldX + tileData.worldY) * (TILE_HEIGHT / 2)
+                            local isoX = (tileData.worldX - tileData.worldY) *
+                                TILE_WIDTH_HALF -- Correção aqui, já era TILE_WIDTH/2
+                            local isoY = (tileData.worldX + tileData.worldY) *
+                                TILE_HEIGHT_HALF -- Correção aqui, já era TILE_HEIGHT/2
 
                             -- Culling básico de tiles (pode ser mais preciso)
-                            if isoX + TILE_WIDTH > cameraX and isoX - TILE_WIDTH < cameraX + screenW and isoY + TILE_HEIGHT * 2 > cameraY and isoY < cameraY + screenH then
-                                local scaleX = TILE_WIDTH / imgW
-                                local scaleY = TILE_HEIGHT / imgH
+                            if isoX + Constants.TILE_WIDTH > camMinX and isoX - Constants.TILE_WIDTH < camMaxX and isoY + Constants.TILE_HEIGHT * 2 > camMinY and isoY < camMaxY then
+                                local scaleX = Constants.TILE_WIDTH / imgW
+                                local scaleY = Constants.TILE_HEIGHT / imgH
 
-                                -- drawX: O pico isoX é o centro horizontal. A imagem (escalada para TILE_WIDTH) deve ser desenhada a partir de isoX - TILE_WIDTH/2.
-                                -- drawY: O pico isoY é o topo. A imagem (escalada para TILE_HEIGHT) deve ser desenhada a partir de isoY.
-                                local finalDrawX = isoX - (Constants.TILE_WIDTH / 2)
+                                local finalDrawX = isoX -
+                                    TILE_WIDTH_HALF -- Correção aqui, já era Constants.TILE_WIDTH / 2
                                 local finalDrawY = isoY
 
-                                table.insert(renderList, {
-                                    type = "tile",
-                                    sortY = isoY + TILE_HEIGHT, -- Ordena pela base do tile
-                                    image = tileImage,
-                                    drawX = finalDrawX,
-                                    drawY = finalDrawY,
-                                    scaleX = scaleX,
-                                    scaleY = scaleY,
-                                    depth = 0 -- Tiles do chão são a base
-                                })
+                                -- Gerencia SpriteBatch e Quad para esta textura de tile
+                                if not self.tileBatches[tileAssetPath] then
+                                    self.tileBatches[tileAssetPath] = love.graphics.newSpriteBatch(tileImage, 2048,
+                                        "static")
+                                end
+                                if not self.tileQuads[tileAssetPath] then
+                                    self.tileQuads[tileAssetPath] = love.graphics.newQuad(0, 0, imgW, imgH,
+                                        tileImage:getDimensions())
+                                end
+
+                                local batch = self.tileBatches[tileAssetPath]
+                                local quad = self.tileQuads[tileAssetPath]
+                                batch:add(quad, finalDrawX, finalDrawY, 0, scaleX, scaleY)
+
+                                -- REMOVIDO: Inserção individual de tiles na renderList
+                                -- table.insert(renderList, {
+                                --     type = "tile",
+                                --     sortY = isoY + Constants.TILE_HEIGHT, -- Ordena pela base do tile
+                                --     image = tileImage,
+                                --     drawX = finalDrawX,
+                                --     drawY = finalDrawY,
+                                --     scaleX = scaleX,
+                                --     scaleY = scaleY,
+                                --     depth = 0 -- Tiles do chão são a base
+                                -- })
                             end
                         end
                     end
@@ -284,7 +344,8 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
                         -- O drawY é a sortY (base da decoração no chão) menos a altura total da imagem.
                         local drawY = decoration_sortY - imgH
 
-                        if drawX + imgW > cameraX and drawX < cameraX + screenW and drawY + imgH > cameraY and drawY < cameraY + screenH then
+                        -- Culling de decoração individual (já existia, mas pode ser refinado se necessário)
+                        if drawX + imgW > camMinX and drawX < camMaxX and drawY + imgH > camMinY and drawY < camMaxY then
                             table.insert(renderList, {
                                 type = "decoration",
                                 sortY = decoration_sortY, -- Ordena pela base da decoração no chão
@@ -297,6 +358,19 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
                     end
                 end
             end
+        end
+        ::continue_chunk_loop:: -- Label para o goto
+    end
+
+    -- Adiciona os batches de tiles à renderList
+    for texturePath, batch in pairs(self.tileBatches) do
+        if batch:getCount() > 0 then -- Verifica se o batch tem algo para desenhar
+            table.insert(renderList, {
+                type = "tile_batch",
+                batch = batch,
+                sortY = -10000, -- Garante que seja desenhado primeiro
+                depth = -1      -- Define uma profundidade baixa
+            })
         end
     end
 end

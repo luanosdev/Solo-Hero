@@ -50,7 +50,6 @@ end
 
 --- Desenha todos os textos flutuantes ativos.
 function FloatingTextManager:draw()
-    print(string.format("[FloatingTextManager:draw()] Chamado. Quantidade de textos: %d", #self.texts))
     if #self.texts > 0 then
         local firstText = self.texts[1]
         if firstText and firstText.position then
@@ -58,11 +57,11 @@ function FloatingTextManager:draw()
                 firstText.text, firstText.position.x, firstText.position.y, firstText.alpha,
                 firstText.initialDelay or 0))
         end
-    end
 
-    -- O DESENHO AGORA É FEITO DIRETAMENTE PELO MANAGER
-    for _, textInstance in ipairs(self.texts) do
-        textInstance:draw()
+        -- O DESENHO AGORA É FEITO DIRETAMENTE PELO MANAGER
+        for _, textInstance in ipairs(self.texts) do
+            textInstance:draw()
+        end
     end
 end
 

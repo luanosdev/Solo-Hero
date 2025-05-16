@@ -185,11 +185,14 @@ end
 function BaseEnemy:draw()
     if not self.isAlive then return end
 
-    -- Desenha a area de colisão (Exemplo, pode ser removido ou adaptado)
-    local collisionPosition = self:getCollisionPosition()
-    love.graphics.setColor(1, 0, 0, 0.5)
-    love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition.radius)
-    love.graphics.setColor(1, 1, 1, 1)
+    if DEV then
+        -- Desenha a area de colisão (Exemplo, pode ser removido ou adaptado)
+        local collisionPosition = self:getCollisionPosition()
+        love.graphics.setColor(1, 0, 0, 0.5)
+        love.graphics.circle("line", collisionPosition.position.x, collisionPosition.position.y, collisionPosition
+        .radius)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
 
     self:drawFloatingTexts()
 end

@@ -124,6 +124,18 @@ function GameplayScene:load(args)
     print("GameplayScene:load concluído.")
 end
 
+function GameplayScene:createDropNearPlayer(dropId)
+    local playerMgr = ManagerRegistry:get("playerManager")
+    local dropMgr = ManagerRegistry:get("dropManager")
+    local itemDataMgr = ManagerRegistry:get("itemDataManager")
+
+    local playerPos = playerMgr.player.position;
+    if itemDataMgr:getBaseItemData(dropId) then
+        dropMgr:createDrop({ type = "item", itemId = dropId, quantity = 1 },
+            { x = playerPos.x + 250, y = playerPos.y })
+    end
+end
+
 function GameplayScene:update(dt)
     local mx, my = love.mouse.getPosition()
     InventoryScreen.update(dt, mx, my)
@@ -296,6 +308,14 @@ function GameplayScene:update(dt)
 end
 
 function GameplayScene:draw()
+    -- Adicione este log para teste:
+    local currentShader = love.graphics.getShader()
+    if currentShader then
+        print("ALERTA [GameplayScene:draw]: Um shader está ativo no início do frame! Shader: ", currentShader)
+    else
+        -- print("[GameplayScene:draw]: Nenhum shader ativo no início do frame.") -- Log opcional para confirmar que está nil
+    end
+
     love.graphics.setBackgroundColor(0.1, 0.1, 0.1)
     love.graphics.clear(0.1, 0.1, 0.1, 1)
 
@@ -339,6 +359,8 @@ function GameplayScene:draw()
     for _, item in ipairs(self.renderList) do
         if item.type == "tile" then
             love.graphics.draw(item.image, item.drawX, item.drawY, 0, item.scaleX, item.scaleY)
+        elseif item.type == "tile_batch" then -- <<< NOVA CONDIÇÃO >>>
+            love.graphics.draw(item.batch)    -- Desenha o SpriteBatch diretamente
         elseif item.type == "decoration" then
             love.graphics.draw(item.image, item.drawX, item.drawY)
         elseif item.type == "player" or item.type == "enemy" then -- Assumindo que player/enemy adicionam 'drawFunction'

@@ -146,19 +146,6 @@ function LobbyScene:load(args)
         self.portalScreen.mapCurrentPanY = self.portalScreen.mapTargetPanY
     end
 
-    -- Carrega o shader de névoa
-    local shaderSuccess, shaderErr = pcall(function()
-        self.portalScreen.fogShader = love.graphics.newShader(self.portalScreen.fogShaderPath)
-    end)
-    if not shaderSuccess or not self.portalScreen.fogShader then
-        print(string.format("Erro ao carregar shader de névoa '%s': %s - EFEITO DESABILITADO",
-            self.portalScreen.fogShaderPath,
-            tostring(shaderErr or "error")))
-        self.portalScreen.fogShader = nil
-    else
-        print("Shader de névoa carregado com sucesso.")
-    end
-
     -- Calcula a posição Y dos tabs
     tabSettings.yPosition = screenH - tabSettings.height
 
