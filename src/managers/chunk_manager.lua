@@ -111,9 +111,10 @@ function ChunkManager:initialize(portalThemeData, chunkSize, assetManagerInstanc
     self.assetManager = assetManagerInstance
     self.currentSeed = randomSeed or os.time()
     self.maxDecorationsPerChunk = maxDecorationsPerChunk
-    self.tileBatches = {} -- Para SpriteBatch por textura de tile
-    self.tileQuads = {}   -- Para Quads reutilizáveis por textura de tile
-    -- self.decorationBatches removido, não será usado com a nova abordagem de renderList
+    self.tileBatches = {}       -- Para SpriteBatch por textura de tile
+    self.tileQuads = {}         -- Para Quads reutilizáveis por textura de tile
+    self.decorationBatches = {} -- Para SpriteBatch por textura de decoração
+    self.decorationQuads = {}   -- Para Quads reutilizáveis por textura de decoração
     print(string.format("ChunkManager initialized. ChunkSize: %d, Seed: %s", self.chunkSize, tostring(self.currentSeed)))
 end
 
@@ -227,6 +228,10 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
     for texturePath, batch in pairs(self.tileBatches) do
         batch:clear()
     end
+    -- Limpa todos os batches de decorações
+    for texturePath, batch in pairs(self.decorationBatches) do
+        batch:clear()
+    end
 
     for _, chunk in pairs(self.activeChunks) do
         if chunk then
@@ -267,7 +272,7 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
                         if tileImage then
                             local imgW, imgH = tileImage:getDimensions()
                             local isoX = (tileData.worldX - tileData.worldY) *
-                                TILE_WIDTH_HALF -- Correção aqui, já era TILE_WIDTH/2
+                                TILE_WIDTH_HALF  -- Correção aqui, já era TILE_WIDTH/2
                             local isoY = (tileData.worldX + tileData.worldY) *
                                 TILE_HEIGHT_HALF -- Correção aqui, já era TILE_HEIGHT/2
 
@@ -314,7 +319,8 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
             -- Coleta Decorações
             if chunk.decorations then
                 for _, deco in ipairs(chunk.decorations) do
-                    local decoImage = self.assetManager:getImage(deco.asset)
+                    local decoAssetPath = deco.asset
+                    local decoImage = self.assetManager:getImage(decoAssetPath)
                     if decoImage then
                         local imgW, imgH = decoImage:getDimensions()
 
@@ -344,16 +350,33 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
                         -- O drawY é a sortY (base da decoração no chão) menos a altura total da imagem.
                         local drawY = decoration_sortY - imgH
 
-                        -- Culling de decoração individual (já existia, mas pode ser refinado se necessário)
+                        -- Culling de decoração individual
                         if drawX + imgW > camMinX and drawX < camMaxX and drawY + imgH > camMinY and drawY < camMaxY then
-                            table.insert(renderList, {
-                                type = "decoration",
-                                sortY = decoration_sortY, -- Ordena pela base da decoração no chão
-                                image = decoImage,
-                                drawX = drawX,
-                                drawY = drawY,
-                                depth = 2 -- Decorações agora têm depth 2, acima de jogador/inimigos (1)
-                            })
+                            -- Gerencia SpriteBatch e Quad para esta textura de decoração
+                            if not self.decorationBatches[decoAssetPath] then
+                                self.decorationBatches[decoAssetPath] = love.graphics.newSpriteBatch(decoImage, 512,
+                                    "static") -- Tamanho menor para decorações
+                            end
+                            if not self.decorationQuads[decoAssetPath] then
+                                self.decorationQuads[decoAssetPath] = love.graphics.newQuad(0, 0, imgW, imgH,
+                                    decoImage:getDimensions())
+                            end
+
+                            local batch = self.decorationBatches[decoAssetPath]
+                            local quad = self.decorationQuads[decoAssetPath]
+                            -- Adiciona ao batch. A ordenação DENTRO do batch será a ordem de adição.
+                            -- Para decorações, isso geralmente é aceitável se não houver muita sobreposição da MESMA decoração.
+                            batch:add(quad, drawX, drawY)
+
+                            -- REMOVIDO: Inserção individual da decoração
+                            -- table.insert(renderList, {
+                            --     type = "decoration",
+                            --     sortY = decoration_sortY, -- Ordena pela base da decoração no chão
+                            --     image = decoImage,
+                            --     drawX = drawX,
+                            --     drawY = drawY,
+                            --     depth = 2 -- Decorações agora têm depth 2, acima de jogador/inimigos (1)
+                            -- })
                         end
                     end
                 end
@@ -370,6 +393,18 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
                 batch = batch,
                 sortY = -10000, -- Garante que seja desenhado primeiro
                 depth = -1      -- Define uma profundidade baixa
+            })
+        end
+    end
+
+    -- Adiciona os batches de decorações à renderList
+    for texturePath, batch in pairs(self.decorationBatches) do
+        if batch:getCount() > 0 then
+            table.insert(renderList, {
+                type = "decoration_batch",
+                batch = batch,
+                sortY = 0, -- Batches de decoração são ordenados por depth primariamente
+                depth = 2  -- Mesma profundidade das decorações individuais
             })
         end
     end

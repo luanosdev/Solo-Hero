@@ -357,12 +357,10 @@ function GameplayScene:draw()
     -- 4. Desenha os objetos ordenados
     Camera:attach()
     for _, item in ipairs(self.renderList) do
-        if item.type == "tile" then
-            love.graphics.draw(item.image, item.drawX, item.drawY, 0, item.scaleX, item.scaleY)
-        elseif item.type == "tile_batch" then -- <<< NOVA CONDIÇÃO >>>
-            love.graphics.draw(item.batch)    -- Desenha o SpriteBatch diretamente
-        elseif item.type == "decoration" then
-            love.graphics.draw(item.image, item.drawX, item.drawY)
+        if item.type == "tile_batch" then       -- <<< NOVA CONDIÇÃO >>>
+            love.graphics.draw(item.batch)          -- Desenha o SpriteBatch diretamente
+        elseif item.type == "decoration_batch" then -- <<< NOVA CONDIÇÃO PARA DECORAÇÕES >>>
+            love.graphics.draw(item.batch)          -- Desenha o SpriteBatch de decorações
         elseif item.type == "player" or item.type == "enemy" then -- Assumindo que player/enemy adicionam 'drawFunction'
             if item.drawFunction then
                 item.drawFunction()
