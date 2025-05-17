@@ -79,7 +79,14 @@ LobbyScene.equipmentSlotAreas = {} ---@type table<string, table> { [slotId] = {x
 
 --- Chamado quando a cena é carregada.
 -- Calcula layout dos tabs, carrega imagem do mapa e define tab inicial.
----@param args table|nil
+-- Processa dados de extração se vierem da GameplayScene.
+---@param args table|nil Argumentos passados ao carregar a cena.
+-- Pode incluir:
+-- args.startTab: O ID da aba para abrir inicialmente.
+-- args.extractionSuccessful: booleano, true se a extração foi bem-sucedida.
+-- args.hunterId: string, ID do caçador que extraiu.
+-- args.extractedItems: table, lista de itens da mochila extraídos.
+-- args.extractedEquipment: table, mapa de equipamentos extraídos (slotId -> itemInstance).
 function LobbyScene:load(args)
     print("LobbyScene:load")
     local screenW = love.graphics.getWidth()
@@ -88,10 +95,11 @@ function LobbyScene:load(args)
     -- Configurações básicas da cena
     self.camera = Camera:new()
     self.camera:init()
-    self.activeTab = args and args.startTab or TabIds.PORTALS -- Começa nos portais ou conforme argumento
+    -- Define a aba ativa. Se veio de uma extração, geralmente queremos ir para Equipamento ou Portais.
+    -- Se args.startTab for definido, ele tem precedência.
+    self.activeTab = args and args.startTab or TabIds.PORTALS
 
     -- Inicializar Gerenciadores de UI/Componentes da Cena
-    -- (Obtém managers persistentes do Registry em vez de criá-los)
     print("[LobbyScene] Obtendo managers persistentes do Registry...")
     LobbyScene.itemDataManager = ManagerRegistry:get("itemDataManager")
     LobbyScene.lobbyStorageManager = ManagerRegistry:get("lobbyStorageManager")
@@ -100,19 +108,87 @@ function LobbyScene:load(args)
     LobbyScene.hunterManager = ManagerRegistry:get("hunterManager")
     LobbyScene.portalManager = LobbyPortalManager:new()
 
-    self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
-        self.loadoutManager)
-    self.portalScreen = PortalScreen:new(self.portalManager, self.hunterManager)
-    self.guildScreen = GuildScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
-        self.loadoutManager)
-
-
     -- Validação básica se os managers foram carregados corretamente em main.lua
     if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager then
         error(
             "ERRO CRÍTICO [LobbyScene:load]: Falha ao obter um ou mais managers persistentes do Registry! Eles foram inicializados em main.lua?")
     end
     print("[LobbyScene] Managers persistentes obtidos com sucesso.")
+
+    if args and args.extractionSuccessful and args.hunterId then
+        print(string.format("[LobbyScene] Processando dados de extração bem-sucedida para o caçador: %s", args.hunterId))
+
+        -- 1. Adicionar itens da mochila ao LobbyStorageManager
+        if args.extractedItems and #args.extractedItems > 0 then
+            if self.lobbyStorageManager.addItemsBatch then -- Assumindo um método para adicionar em lote
+                local success, message = self.lobbyStorageManager:addItemsBatch(args.extractedItems)
+                if success then
+                    print(string.format("[LobbyScene] %d itens extraídos adicionados ao LobbyStorage.",
+                        #args.extractedItems))
+                else
+                    error(string.format("[LobbyScene] Falha ao adicionar itens extraídos ao LobbyStorage: %s",
+                        message or "Erro desconhecido"))
+                    -- Considerar o que fazer aqui: reverter? notificar?
+                end
+            else
+                error(
+                    "[LobbyScene] AVISO: lobbyStorageManager:addItemsBatch() não encontrado. Não foi possível adicionar itens extraídos.")
+            end
+        else
+            print("[LobbyScene] Nenhum item na mochila para adicionar do processo de extração.")
+        end
+
+        -- 2. Atualizar equipamentos no LoadoutManager para o caçador específico
+        if args.extractedEquipment then
+            if self.loadoutManager.updateHunterLoadout then -- Assumindo um método que atualiza o loadout de um caçador
+                local success, message = self.loadoutManager:updateHunterLoadout(args.hunterId, args.extractedEquipment)
+                if success then
+                    print(string.format("[LobbyScene] Equipamento extraído atualizado para o caçador %s.", args.hunterId))
+                else
+                    print(string.format("[LobbyScene] Falha ao atualizar equipamento extraído para o caçador %s: %s",
+                        args.hunterId, message or "Erro desconhecido"))
+                end
+            else
+                print(
+                    "[LobbyScene] AVISO: loadoutManager:updateHunterLoadout() não encontrado. Não foi possível atualizar equipamentos.")
+            end
+        else
+            print("[LobbyScene] Nenhum equipamento extraído para atualizar.")
+        end
+
+        -- 3. SALVAR o estado dos managers após a atualização
+        -- É crucial salvar aqui para persistir o resultado da extração.
+        print("[LobbyScene] Salvando estado dos managers após extração...")
+        if self.lobbyStorageManager.saveStorage then
+            self.lobbyStorageManager:saveStorage()
+            print("[LobbyScene] LobbyStorageManager salvo.")
+        else
+            print("[LobbyScene] AVISO: lobbyStorageManager:saveStorage() não encontrado.")
+        end
+
+        if self.loadoutManager.saveState then
+            self.loadoutManager:saveState() -- Salva todos os loadouts, incluindo o atualizado
+            print("[LobbyScene] LoadoutManager salvo.")
+        else
+            print("[LobbyScene] AVISO: loadoutManager:saveState() não encontrado.")
+        end
+        -- Se a extração foi bem-sucedida, talvez mudar para a aba de Equipamento
+        self.activeTab = TabIds.EQUIPMENT
+    elseif args and args.extractionSuccessful == false then
+        -- Extração falhou ou foi cancelada (ex: morte do jogador na GameplayScene que levou de volta ao Lobby)
+        print("[LobbyScene] Carregado após uma tentativa de extração malsucedida ou saída da gameplay sem extração.")
+        -- Neste caso, NENHUM item da partida é transferido, e NADA é salvo aqui.
+        -- Os managers já carregaram seu estado persistido anteriormente.
+    end
+    -- <<< FIM DO PROCESSAMENTO DE DADOS DE EXTRAÇÃO >>>
+
+    -- Inicializa as telas da UI da cena (DEPOIS de processar a extração, pois podem depender dos managers atualizados)
+    self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
+        self.loadoutManager)
+    self.portalScreen = PortalScreen:new(self.portalManager, self.hunterManager)
+    self.guildScreen = GuildScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
+        self.loadoutManager)
+
 
     -- Reseta estado de zoom/seleção
     self.portalScreen.isZoomedIn = false
@@ -133,29 +209,24 @@ function LobbyScene:load(args)
         self.portalScreen.mapOriginalWidth = self.portalScreen.mapImage:getWidth()
         self.portalScreen.mapOriginalHeight = self.portalScreen.mapImage:getHeight()
 
-        -- >>> Inicializa o PortalManager <<< (Não pega mais posição inicial)
         self.portalManager:initialize(self.portalScreen.mapOriginalWidth, self.portalScreen.mapOriginalHeight)
 
-        -- >>> Define o Pan inicial da Câmera PARA O CENTRO DO MAPA <<< --
         self.portalScreen.mapTargetPanX = self.portalScreen.mapOriginalWidth / 2
         self.portalScreen.mapTargetPanY = self.portalScreen.mapOriginalHeight / 2
-        -- print(string.format("LobbyScene: Câmera inicial focada no CENTRO do mapa (%.0f, %.0f)", self.portalScreen.mapTargetPanX, self.portalScreen.mapTargetPanY))
 
-        -- Define a posição atual para ser igual ao alvo inicial (sem animação)
         self.portalScreen.mapCurrentPanX = self.portalScreen.mapTargetPanX
         self.portalScreen.mapCurrentPanY = self.portalScreen.mapTargetPanY
     end
 
-    -- Calcula a posição Y dos tabs
     tabSettings.yPosition = screenH - tabSettings.height
 
-    -- Calcula largura e posição X dos tabs
     local totalTabs = #tabs
     local totalPadding = (totalTabs + 1) * tabSettings.padding
     local availableWidth = screenW - totalPadding
     local tabWidth = availableWidth / totalTabs
     local currentX = tabSettings.padding
 
+    self.activeTabIndex = 0 -- Reset antes de encontrar a aba correta
     for i, tab in ipairs(tabs) do
         tab.x = currentX
         tab.y = tabSettings.yPosition
@@ -163,15 +234,23 @@ function LobbyScene:load(args)
         tab.h = tabSettings.height
         tab.isHovering = false
         currentX = currentX + tabWidth + tabSettings.padding
-        -- Define o tab "Portais" como ativo inicialmente (usando ID)
-        if tab.id == TabIds.PORTALS then
+        -- Define o tab ativo (pode ter sido alterado pelo processamento da extração)
+        if tab.id == self.activeTab then
             self.activeTabIndex = i
         end
     end
 
-    -- Garante que haja um tab ativo se "Portais" não for encontrado (fallback)
     if self.activeTabIndex == 0 and #tabs > 0 then
-        self.activeTabIndex = 1
+        -- Fallback se a aba definida por self.activeTab não foi encontrada
+        local defaultPortalTabIndex = 0
+        for i, tabData in ipairs(tabs) do
+            if tabData.id == TabIds.PORTALS then
+                defaultPortalTabIndex = i
+                break
+            end
+        end
+        self.activeTabIndex = defaultPortalTabIndex > 0 and defaultPortalTabIndex or 1
+        self.activeTab = tabs[self.activeTabIndex].id -- Atualiza self.activeTab para consistência
     end
 
     print("LobbyScene: Tab ativo inicial:", self.activeTabIndex, tabs[self.activeTabIndex].text)

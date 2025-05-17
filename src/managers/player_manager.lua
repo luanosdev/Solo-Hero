@@ -446,7 +446,6 @@ function PlayerManager:draw()
         local animScreenX, animScreenY = Camera:worldToScreen(self.player.position.x, self.player.position.y)
         self.levelUpAnimation:draw(animScreenX, animScreenY)
     end
-
 end
 
 --- Coleta o jogador e seus componentes visuais principais para renderização.
@@ -1182,6 +1181,18 @@ function PlayerManager:deactivateRuneAbility(slotId)
         print(string.format("  -> Habilidade do slot %s removida.", slotId))
         -- TODO: Considerar invalidar cache de stats se runas concediam bônus passivos
         -- self:invalidateStatsCache()
+    end
+end
+
+--- Retorna os itens atualmente equipados pelo jogador durante a gameplay.
+--- Usado pela GameplayScene para coletar equipamentos durante a extração.
+--- @return table: Uma tabela (dicionário) com slotId como chave e a instância do item como valor, ou nil se o estado não existir.
+function PlayerManager:getCurrentEquipmentGameplay()
+    if self.state and self.state.equippedItems then
+        return self.state.equippedItems
+    else
+        error(
+            "AVISO [PlayerManager:getCurrentEquipmentGameplay]: PlayerState ou PlayerState.equippedItems não encontrado.")
     end
 end
 

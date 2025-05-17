@@ -160,3 +160,22 @@ function love.quit()
     print("--- love.quit() concluído ---")
     return false -- Retorna false para permitir o fechamento padrão
 end
+
+-- Em algum lugar que é executado (ex: main.lua ou um arquivo de debug)
+_G.GSAddItem = function(itemId, quantity)
+    local scene = SceneManager and SceneManager.currentScene
+    if scene and scene.debugAddItemToPlayerInventory then
+        scene:debugAddItemToPlayerInventory(itemId, quantity)
+    else
+        print("DEBUG ERRO: Não foi possível chamar debugAddItemToPlayerInventory. Cena atual ou método não encontrado.")
+    end
+end
+
+_G.GSDropItem = function(itemId, quantity)
+    local scene = SceneManager and SceneManager.currentScene
+    if scene and scene.debugDropItemAtPlayer then
+        scene:debugDropItemAtPlayer(itemId, quantity)
+    else
+        print("DEBUG ERRO: Não foi possível chamar debugDropItemAtPlayer. Cena atual ou método não encontrado.")
+    end
+end

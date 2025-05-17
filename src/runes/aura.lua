@@ -142,6 +142,7 @@ function Aura:draw()
             love.graphics.setLineWidth(previousLineWidth)
         end
     end
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 -- O método cast pode não ser diretamente chamado pelo PlayerManager para auras passivas,

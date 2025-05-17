@@ -399,4 +399,15 @@ function InventoryManager:getPlacedItemInstances()
     return self.placedItems
 end
 
+--- Retorna uma lista de todas as instâncias de itens na mochila.
+--- Usado pela GameplayScene para coletar itens durante a extração.
+--- @return table: Uma lista (array) contendo todas as instâncias de itens (objetos).
+function InventoryManager:getAllItemsGameplay()
+    local allItems = {}
+    for _, itemInstance in pairs(self.placedItems) do
+        table.insert(allItems, itemInstance)
+    end
+    return allItems
+end
+
 return InventoryManager

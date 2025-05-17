@@ -319,14 +319,15 @@ end
 --- Verifica clique e retorna dados se um drag deve ser iniciado.
 ---@param x number Coordenada X do mouse
 ---@param y number Coordenada Y do mouse
----@param button number Botão do mouse (1 para esquerdo)
----@return boolean consumed Se o clique foi consumido (mesmo que não inicie drag).
+---@param button number Botão do mouse (1 para esquerdo, 2 para direito)
+---@return boolean consumed Se o clique foi consumido.
 ---@return table|nil dragStartData Se drag iniciado: { item, sourceGridId, sourceSlotId, offsetX, offsetY, isRotated }.
+---@return table|nil useItemData Se uso de item solicitado: { item }.
 function InventoryScreen.handleMousePress(x, y, button)
-    if not InventoryScreen.isVisible or button ~= 1 then
-        return false, nil -- Ignora se não estiver visível ou não for botão esquerdo
+    if not InventoryScreen.isVisible then
+        return false, nil, nil -- Ignora se não estiver visível
     end
-    TooltipManager.hide() -- <<< ADICIONADO: Esconde tooltip ao clicar
+    TooltipManager.hide()      -- Esconde tooltip ao clicar
 
     -- Managers necessários
     local hunterManager = ManagerRegistry:get("hunterManager")
@@ -335,91 +336,129 @@ function InventoryScreen.handleMousePress(x, y, button)
     local playerManager = ManagerRegistry:get("playerManager")
 
     if not hunterManager or not inventoryManager or not itemDataManager or not playerManager then
-        print("ERRO [handleMousePress]: Managers necessários não encontrados!")
-        return false, nil
+        print("ERRO [InventoryScreen.handleMousePress]: Managers necessários não encontrados!")
+        return false, nil, nil
     end
 
     local currentHunterId = playerManager:getCurrentHunterId()
     if not currentHunterId then
-        print("AVISO [handleMousePress]: currentHunterId não encontrado.")
-        return false, nil
+        print("AVISO [InventoryScreen.handleMousePress]: currentHunterId não encontrado.")
+        return false, nil, nil
     end
 
-    -- 1. Verifica clique em Slots de Equipamento
-    local equippedItems = hunterManager:getEquippedItems(currentHunterId)
-    -- Usa as áreas cacheadas localmente (que foram calculadas no draw anterior)
-    for slotId, area in pairs(InventoryScreen.equipmentSlotAreas or {}) do
-        if area and x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
-            local itemInstance = equippedItems and equippedItems[slotId]
-            if itemInstance then
-                -- <<< RETORNA dados para iniciar drag >>>
-                local dragData = {
-                    item = itemInstance,
-                    sourceGridId = "equipment",
-                    sourceSlotId = slotId,
-                    offsetX = x - area.x,
-                    offsetY = y - area.y,
-                    isRotated = false -- Equipamento não rotaciona visualmente no drag
-                }
-                print(string.format("[handleMousePress] Iniciando drag do Equip Slot '%s'", slotId))
-                return true, dragData -- Consumiu e iniciou drag
-            else
-                print(string.format("[handleMousePress] Clicou no Equip Slot VAZIO '%s'", slotId))
-                return true, nil -- Consumiu clique em slot vazio
+    -- Lógica para Botão Esquerdo (Drag and Drop)
+    if button == 1 then
+        -- 1. Verifica clique em Slots de Equipamento
+        local equippedItems = hunterManager:getEquippedItems(currentHunterId)
+        for slotId, area in pairs(InventoryScreen.equipmentSlotAreas or {}) do
+            if area and x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
+                local itemInstance = equippedItems and equippedItems[slotId]
+                if itemInstance then
+                    local dragData = {
+                        item = itemInstance,
+                        sourceGridId = "equipment",
+                        sourceSlotId = slotId,
+                        offsetX = x - area.x,
+                        offsetY = y - area.y,
+                        isRotated = false
+                    }
+                    print(string.format("[InventoryScreen.handleMousePress] Drag iniciado do Equip Slot '%s'", slotId))
+                    return true, dragData, nil -- Consumiu, iniciou drag, sem uso de item
+                else
+                    return true, nil, nil      -- Consumiu clique em slot vazio
+                end
             end
         end
-    end
 
-    -- 2. Verifica clique na Grade de Inventário
-    local area = InventoryScreen.inventoryGridArea -- Usa área cacheada
-    if area and x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
-        local ItemGridUI = require("src.ui.item_grid_ui")
-        -- <<< CORRIGIDO: Chama getGridDimensions e extrai rows/cols >>>
-        local gridDims = inventoryManager:getGridDimensions()
-        local invRows = gridDims and gridDims.rows
-        local invCols = gridDims and gridDims.cols
+        -- 2. Verifica clique na Grade de Inventário
+        local area = InventoryScreen.inventoryGridArea
+        if area and x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
+            local ItemGridUI = require("src.ui.item_grid_ui")
+            local gridDims = inventoryManager:getGridDimensions()
+            local invRows = gridDims and gridDims.rows
+            local invCols = gridDims and gridDims.cols
 
-        if invRows and invCols then
-            local coords = ItemGridUI.getSlotCoordsAtMouse(x, y, invRows, invCols, area.x, area.y, area.w, area.h)
-            if coords then
-                local itemInstance = inventoryManager:getItemAt(coords.row, coords.col)
-                if itemInstance then
-                    local itemScreenX, itemScreenY = ItemGridUI.getItemScreenPos(coords.row, coords.col, invRows, invCols,
-                        area.x, area.y, area.w, area.h)
-                    if itemScreenX and itemScreenY then
-                        -- <<< RETORNA dados para iniciar drag >>>
-                        local dragData = {
-                            item = itemInstance,
-                            sourceGridId = "inventory",
-                            sourceSlotId = nil, -- Não aplicável para grade
-                            offsetX = x - itemScreenX,
-                            offsetY = y - itemScreenY,
-                            isRotated = itemInstance.isRotated or false -- Pega rotação atual
-                        }
-                        print(string.format("[handleMousePress] Iniciando drag do Inventário [%d,%d]", coords.row,
-                            coords.col))
-                        return true, dragData -- Consumiu e iniciou drag
+            if invRows and invCols then
+                local coords = ItemGridUI.getSlotCoordsAtMouse(x, y, invRows, invCols, area.x, area.y, area.w, area.h)
+                if coords then
+                    local itemInstance = inventoryManager:getItemAt(coords.row, coords.col)
+                    if itemInstance then
+                        local itemScreenX, itemScreenY = ItemGridUI.getItemScreenPos(coords.row, coords.col, invRows,
+                            invCols,
+                            area.x, area.y, area.w, area.h)
+                        if itemScreenX and itemScreenY then
+                            local dragData = {
+                                item = itemInstance,
+                                sourceGridId = "inventory",
+                                sourceSlotId = nil,
+                                offsetX = x - itemScreenX,
+                                offsetY = y - itemScreenY,
+                                isRotated = itemInstance.isRotated or false
+                            }
+                            print(string.format("[InventoryScreen.handleMousePress] Drag iniciado do Inventário [%d,%d]",
+                                coords.row,
+                                coords.col))
+                            return true, dragData, nil -- Consumiu, iniciou drag, sem uso de item
+                        else
+                            return true, nil, nil      -- Consumiu, mas erro interno
+                        end
                     else
-                        print("[handleMousePress] Erro ao calcular itemScreenPos para inventário")
-                        return true, nil -- Consumiu, mas erro interno
+                        return true, nil, nil -- Consumiu clique em célula vazia
                     end
                 else
-                    print(string.format("[handleMousePress] Clicou em célula vazia do inventário [%d,%d]", coords.row,
-                        coords.col))
-                    return true, nil -- Consumiu clique em célula vazia
+                    return true, nil, nil -- Consumiu clique fora das células
                 end
             else
-                print("[handleMousePress] Clicou fora das células válidas da grade de inventário")
-                return true, nil -- Consumiu clique fora das células
+                return true, nil, nil -- Consumiu, mas erro interno (dimensões inválidas)
             end
-        else
-            print("[handleMousePress] Dimensões do inventário inválidas")
-            return true, nil -- Consumiu, mas erro interno
         end
+        return false, nil, nil -- Não clicou em nada relevante para botão esquerdo
+
+        -- Lógica para Botão Direito (Uso de Item)
+    elseif button == 2 then
+        local area = InventoryScreen.inventoryGridArea
+        if area and x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
+            local ItemGridUI = require("src.ui.item_grid_ui")
+            local gridDims = inventoryManager:getGridDimensions()
+            local invRows = gridDims and gridDims.rows
+            local invCols = gridDims and gridDims.cols
+
+            if invRows and invCols then
+                local coords = ItemGridUI.getSlotCoordsAtMouse(x, y, invRows, invCols, area.x, area.y, area.w, area.h)
+                if coords then
+                    local itemInstance = inventoryManager:getItemAt(coords.row, coords.col)
+                    if itemInstance then
+                        -- Verifica se o item é usável (tem useDetails)
+                        local baseData = itemDataManager:getBaseItemData(itemInstance.itemBaseId)
+                        if baseData and baseData.useDetails then
+                            print(string.format(
+                                "[InventoryScreen.handleMousePress] Uso solicitado para item \'%s\' (ID: %s) do Inventário [%d,%d]",
+                                baseData.name, itemInstance.instanceId, coords.row, coords.col))
+                            return true, nil, { item = itemInstance } -- Consumiu, sem drag, dados para uso
+                        else
+                            print(string.format("[InventoryScreen.handleMousePress] Item \'%s\' (ID: %s) não é usável.",
+                                (baseData and baseData.name) or itemInstance.itemBaseId, itemInstance.instanceId))
+                            return true, nil, nil -- Consumiu, mas item não usável
+                        end
+                    else
+                        -- Clicou em célula vazia com botão direito, não faz nada
+                        return true, nil, nil
+                    end
+                else
+                    -- Clicou fora das células válidas com botão direito
+                    return true, nil, nil
+                end
+            else
+                -- Dimensões do inventário inválidas
+                return true, nil, nil
+            end
+        end
+        -- Se clicou com botão direito fora da grade do inventário, considera não consumido para esta tela
+        return false, nil, nil
     end
 
-    -- Se chegou aqui, não clicou em nada relevante dentro da tela
-    return false, nil
+    -- Se não for botão 1 ou 2, ou se nada foi interagido
+    return false, nil, nil
 end
 
 --- Finaliza uma operação de drag-and-drop válida.

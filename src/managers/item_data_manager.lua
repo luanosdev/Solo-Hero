@@ -79,6 +79,7 @@ function ItemDataManager:init()
     self:_loadDataFile("src.data.items.consumables", "consumíveis")
     self:_loadDataFile("src.data.items.materials", "materiais")
     self:_loadDataFile("src.data.items.runes", "runas")
+    self:_loadDataFile("src.data.items.teleport_stones", "pedras de teletransporte")
 
     local count = 0
     for _ in pairs(self.itemDatabase) do count = count + 1 end

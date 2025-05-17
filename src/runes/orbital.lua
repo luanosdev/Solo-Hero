@@ -154,6 +154,7 @@ function OrbitalRune:draw()
             frameToDraw:getHeight() / 2
         )
     end
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 -- Cast para runas orbitais geralmente não faz nada, elas são passivas.

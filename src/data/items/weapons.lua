@@ -140,4 +140,5 @@ local weapons = {
         attackClass = "src.abilities.player.attacks.chain_lightning", -- Classe de ataque
     },
 }
+
 return weapons
