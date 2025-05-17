@@ -8,7 +8,7 @@ local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
 print("[InputManager Top Level] type(RuneChoiceModal) after require:", type(RuneChoiceModal)) -- DEBUG
 local InventoryScreen = require("src.ui.screens.inventory_screen")
-local ItemDetailsModal = require("src.ui.item_details_modal") -- Adicionado require direto
+local ItemDetailsModal = require("src.ui.item_details_modal")                                 -- Adicionado require direto
 
 -- Estado das teclas
 InputManager.keys = {
@@ -26,10 +26,10 @@ InputManager.keys = {
 InputManager.mouse = {
     x = 0,
     y = 0,
-    isLeftButtonDown = false,      -- Verdadeiro enquanto o botão esquerdo estiver pressionado
-    isRightButtonDown = false,     -- Verdadeiro enquanto o botão direito estiver pressionado
-    wasLeftButtonPressed = false,  -- Verdadeiro apenas no frame em que o botão esquerdo foi pressionado
-    wasRightButtonPressed = false  -- Verdadeiro apenas no frame em que o botão direito foi pressionado
+    isLeftButtonDown = false,     -- Verdadeiro enquanto o botão esquerdo estiver pressionado
+    isRightButtonDown = false,    -- Verdadeiro enquanto o botão direito estiver pressionado
+    wasLeftButtonPressed = false, -- Verdadeiro apenas no frame em que o botão esquerdo foi pressionado
+    wasRightButtonPressed = false -- Verdadeiro apenas no frame em que o botão direito foi pressionado
 }
 
 -- REMOVIDO: Referência para o modal de detalhes (será usado diretamente)
@@ -107,9 +107,9 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
         -- Toggle fullscreen
         local fullscreen = love.window.getFullscreen()
         if fullscreen then
-            love.window.setMode(800, 600, {fullscreen = false})
+            love.window.setMode(800, 600, { fullscreen = false })
         else
-            love.window.setMode(0, 0, {fullscreen = true})
+            love.window.setMode(0, 0, { fullscreen = true })
         end
         return true -- Input tratado
     end
@@ -131,7 +131,7 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
     elseif key == "d" or key == "right" then
         self.keys.moveRight = true
     end
-    
+
     if key == "return" then
         self.keys[key] = true
     end
@@ -140,7 +140,7 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
     if key == "f3" then
         self.keys[key] = true
     end
-    
+
     -- Ações específicas do jogador (só se playerManager existir)
     if playerManager then
         if key == "x" then playerManager:toggleAbilityAutoAttack() end
@@ -159,11 +159,11 @@ function InputManager:mousemoved(x, y, dx, dy)
 end
 
 -- Manipulador de clique do mouse
-function InputManager:mousepressed(x, y, button, isGamePaused) -- Recebe estado de pausa
+function InputManager:mousepressed(x, y, button, isGamePaused)                   -- Recebe estado de pausa
     print("InputManager:mousepressed - type(LevelUpModal):", type(LevelUpModal)) -- DEBUG
     -- 1. Verifica se as UIs visíveis querem tratar o clique (usa ItemDetailsModal direto)
     if ItemDetailsModal.isVisible and ItemDetailsModal:mousepressed(x, y, button) then return true end
-    if InventoryScreen.isVisible and InventoryScreen.mousepressed(x, y, button) then return true end
+    if InventoryScreen.isVisible and InventoryScreen.handleMousePress(x, y, button) then return true end
     if LevelUpModal.visible and LevelUpModal:mousepressed(x, y, button) then return true end
     if RuneChoiceModal.visible and RuneChoiceModal:mousepressed(x, y, button) then return true end
 
@@ -172,8 +172,8 @@ function InputManager:mousepressed(x, y, button, isGamePaused) -- Recebe estado 
 
     -- 3. Processa cliques do jogo
     local playerManager = ManagerRegistry:get("playerManager")
-    if button == 1 then -- Botão esquerdo
-        self.mouse.isLeftButtonDown = true       -- Define o estado 'segurado' como verdadeiro
+    if button == 1 then                        -- Botão esquerdo
+        self.mouse.isLeftButtonDown = true     -- Define o estado 'segurado' como verdadeiro
         self.mouse.wasLeftButtonPressed = true -- Define o evento 'pressionado' como verdadeiro para este frame
         if playerManager then
             playerManager:leftMouseClicked(x, y)
@@ -198,7 +198,7 @@ function InputManager:mousereleased(x, y, button, isGamePaused) -- Recebe estado
 
     -- 3. Processa liberação de clique do jogo
     local playerManager = ManagerRegistry:get("playerManager")
-    if button == 1 then -- Botão esquerdo
+    if button == 1 then                     -- Botão esquerdo
         self.mouse.isLeftButtonDown = false -- Define o estado 'segurado' como falso
         if playerManager then
             playerManager:leftMouseReleased(x, y)
@@ -258,4 +258,4 @@ end
 -- InputManager.mouse.position = InputManager.getMousePosition -- Remover/Comentar: pode causar confusão entre tela/mundo
 
 -- Retorna a tabela do módulo para que possa ser usada com require
-return InputManager 
+return InputManager

@@ -393,4 +393,10 @@ function InventoryManager:getTotalItemCount()
     return count
 end
 
+--- Retorna a tabela de instâncias de itens colocados.
+--- @return table: Dicionário { [instanceId] = itemInstanceData }.
+function InventoryManager:getPlacedItemInstances()
+    return self.placedItems
+end
+
 return InventoryManager

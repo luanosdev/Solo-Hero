@@ -373,13 +373,21 @@ function HunterManager:equipItem(itemInstance, slotId)
     print(string.format("[HunterManager] Item %s (%s) equipped in slot %s for %s",
         tostring(itemInstance.instanceId), itemInstance.itemBaseId, slotId, self.activeHunterId))
 
+    local playerManager = ManagerRegistry:tryGet("playerManager")
+
     if slotId == Constants.SLOT_IDS.WEAPON then
-        local playerManager = ManagerRegistry:tryGet("playerManager")
         if playerManager then
             playerManager:setActiveWeapon(itemInstance)
             print("  -> Notified PlayerManager to set new active weapon.")
         else
             print("  -> WARNING: Could not get PlayerManager to set new weapon!")
+        end
+    elseif baseData and baseData.type == "rune" then
+        if playerManager then
+            playerManager:activateRuneAbility(slotId, itemInstance)
+            print(string.format("  -> Notified PlayerManager to activate rune ability for slot %s.", slotId))
+        else
+            print(string.format("  -> WARNING: Could not get PlayerManager to activate rune for slot %s!", slotId))
         end
     end
     return true, oldItemInstance
@@ -401,13 +409,26 @@ function HunterManager:unequipItem(slotId)
         print(string.format("[HunterManager] Unequipping item (%s, ID: %s) from slot %s for %s",
             itemToUnequip.itemBaseId, itemToUnequip.instanceId or -1, slotId, self.activeHunterId))
         hunterEquipment[slotId] = nil
+
+        local playerManager = ManagerRegistry:tryGet("playerManager")
+
         if slotId == Constants.SLOT_IDS.WEAPON then
-            local playerManager = ManagerRegistry:tryGet("playerManager")
             if playerManager then
                 playerManager:setActiveWeapon(nil)
                 print("  -> Notified PlayerManager to clear active weapon (set to nil).")
             else
                 print("  -> WARNING: Could not get PlayerManager to clear weapon!")
+            end
+        else
+            local baseDataItem = self.itemDataManager:getBaseItemData(itemToUnequip.itemBaseId)
+            if baseDataItem and baseDataItem.type == "rune" then
+                if playerManager then
+                    playerManager:deactivateRuneAbility(slotId)
+                    print(string.format("  -> Notified PlayerManager to deactivate rune ability for slot %s.", slotId))
+                else
+                    print(string.format("  -> WARNING: Could not get PlayerManager to deactivate rune for slot %s!",
+                        slotId))
+                end
             end
         end
         return itemToUnequip

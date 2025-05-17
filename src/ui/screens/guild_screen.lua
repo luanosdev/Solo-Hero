@@ -14,6 +14,7 @@ local LoadoutManager = require("src.managers.loadout_manager")                  
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")         -- << NOVO
 local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn") -- << NOVO
 local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn")     -- << NOVO
+local TooltipManager = require("src.ui.tooltip_manager")                         -- <<< ADICIONADO
 
 ---@class GuildScreen
 ---@field hunterManager HunterManager
@@ -31,6 +32,8 @@ local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn")    
 ---@field recruitModalButtons table<number, Button>|nil Botões "Escolher" abaixo de cada coluna.
 ---@field isActiveFrame boolean
 ---@field setActiveButton Button|nil Instância do botão 'Definir Ativo'.
+---@field hoveredItemOwnerSignature string
+---@field equipmentSlotAreas table|nil Áreas dos slots de equipamento do caçador selecionado
 local GuildScreen = {}
 GuildScreen.__index = GuildScreen
 
@@ -55,8 +58,10 @@ function GuildScreen:new(hunterManager, archetypeManager, itemDataManager, loado
     instance.recruitModalColumns = {}
     instance.recruitModalButtons = {}
     instance.isActiveFrame = false
-    instance.recruitCancelButton = nil -- Inicializa botão cancelar
-    instance.setActiveButton = nil     -- <<< ADICIONADO
+    instance.recruitCancelButton = nil                  -- Inicializa botão cancelar
+    instance.setActiveButton = nil                      -- <<< ADICIONADO
+    instance.hoveredItemOwnerSignature = "guild_screen" -- <<< ADICIONADO
+    instance.equipmentSlotAreas = nil                   -- <<< ADICIONADO: Para armazenar áreas dos slots de equipamento
 
     if not instance.hunterManager or not instance.archetypeManager or not instance.itemDataManager or not instance.loadoutManager then
         error(
@@ -342,7 +347,8 @@ function GuildScreen:draw(x, y, w, h, mx, my)
                 -- 2. Desenha Coluna de Equipamento
                 if self.hunterManager then
                     -- Passa o ID do caçador selecionado para a coluna
-                    HunterEquipmentColumn.draw(equipColX, detailsContentY, equipColW, detailsContentHeight,
+                    self.equipmentSlotAreas = HunterEquipmentColumn.draw(equipColX, detailsContentY, equipColW,
+                        detailsContentHeight,
                         self.hunterManager, self.selectedHunterId)
                 else
                     love.graphics.setColor(colors.red)
@@ -398,6 +404,30 @@ function GuildScreen:draw(x, y, w, h, mx, my)
         -- Passa coordenadas globais para o modal
         self:_drawRecruitmentModal(0, 0, w, h, mx, my) -- Usa 0,0 porque o pop anterior restaurou
     end
+
+    -- <<< ADICIONADO: Lógica de Tooltip para Equipamentos >>>
+    local itemToShowTooltip = nil
+    if not self.isRecruiting and self.selectedHunterId and self.equipmentSlotAreas then -- <<< MODIFICADO: Usa self.equipmentSlotAreas
+        -- As coordenadas mx, my são globais da tela da Guilda.
+        local equippedItems = self.hunterManager:getEquippedItems(self.selectedHunterId)
+        if equippedItems then
+            for slotId, area in pairs(self.equipmentSlotAreas) do -- <<< MODIFICADO: Usa self.equipmentSlotAreas
+                if mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
+                    if equippedItems[slotId] then
+                        itemToShowTooltip = equippedItems[slotId]
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    if itemToShowTooltip and not self.isRecruiting then -- <<< MODIFICADO: Garante que não está recrutando
+        TooltipManager.show(itemToShowTooltip, mx, my, self.hoveredItemOwnerSignature)
+    else
+        TooltipManager.requestHide(self.hoveredItemOwnerSignature)
+    end
+    -- <<< FIM LÓGICA TOOLTIP >>>
 end
 
 --- Desenha os modais de seleção de caçador.

@@ -226,8 +226,20 @@ function DropManager:applyDrop(dropConfig)
         print(string.format("Tentando coletar item: %s", dropConfig.itemId or 'ID Inválido'))
         if dropConfig.itemId then
             local itemBaseId = dropConfig.itemId
-            local quantity = dropConfig.quantity or 1 -- Padrão para 1 se não especificado
-            local addedQuantity = self.playerManager:addInventoryItem(itemBaseId, quantity)
+            local quantityToProcess = dropConfig.quantity
+            local finalQuantity
+
+            if type(quantityToProcess) == "table" and quantityToProcess.min and quantityToProcess.max then
+                finalQuantity = love.math.random(quantityToProcess.min, quantityToProcess.max)
+                print(string.format("Drop com quantidade aleatória: %s de %s, min=%d, max=%d, escolhido=%d",
+                    itemBaseId, dropConfig.type or "item", quantityToProcess.min, quantityToProcess.max, finalQuantity))
+            elseif type(quantityToProcess) == "number" then
+                finalQuantity = quantityToProcess
+            else
+                finalQuantity = 1 -- Padrão para 1 se não especificado ou tipo inválido
+            end
+
+            local addedQuantity = self.playerManager:addInventoryItem(itemBaseId, finalQuantity)
 
             if addedQuantity > 0 then
                 local baseData = self.itemDataManager:getBaseItemData(itemBaseId)

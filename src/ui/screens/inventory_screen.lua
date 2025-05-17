@@ -3,6 +3,8 @@ local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado
+local TooltipManager = require("src.ui.tooltip_manager")         -- <<< ADICIONADO
+local ItemGridUI = require("src.ui.item_grid_ui")                -- <<< ADICIONADO (ou garantir que existe)
 
 -- Carrega as NOVAS colunas
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
@@ -13,9 +15,10 @@ local InventoryScreen = {}
 InventoryScreen.isVisible = false
 InventoryScreen.mouseX = 0
 InventoryScreen.mouseY = 0
-InventoryScreen.equipmentSlotAreas = {} -- Mantém como cache local, mas será retornado
+InventoryScreen.equipmentSlotAreas = {}                        -- Mantém como cache local, mas será retornado
 -- InventoryScreen.loadoutGridArea = {} -- Removido, a coluna de inventário retorna a área dela
-InventoryScreen.inventoryGridArea = {}  -- Mantém como cache local, mas será retornado
+InventoryScreen.inventoryGridArea = {}                         -- Mantém como cache local, mas será retornado
+InventoryScreen.hoveredItemOwnerSignature = "inventory_screen" -- <<< ADICIONADO
 
 -- <<< REMOVENDO Variáveis de Estado de Drag Internas >>>
 -- InventoryScreen.isDragging = false
@@ -178,13 +181,6 @@ function InventoryScreen.draw(dragState)
     -- Atribui o resultado retornado (para uso local e retorno)
     InventoryScreen.equipmentSlotAreas = tempAreas
 
-    -- DEBUG: Imprime a tabela após atribuí-la (mantido)
-    -- print("[InventoryScreen.draw] Stored equipmentSlotAreas:")
-    -- for id, data in pairs(InventoryScreen.equipmentSlotAreas or {}) do
-    --     print(string.format("  SlotID: %s, Area: {x=%s, y=%s, w=%s, h=%s}",
-    --         tostring(id), tostring(data.x), tostring(data.y), tostring(data.w), tostring(data.h)))
-    -- end
-
     -- Desenha Coluna de Inventário (usando HunterInventoryColumn)
     InventoryScreen.inventoryGridArea = HunterInventoryColumn.draw(
         inventoryX + innerColXOffset, centeredContentStartY, innerColW, centeredContentH,
@@ -192,7 +188,52 @@ function InventoryScreen.draw(dragState)
         itemDataManager
     )
 
-    -- <<< MODIFICADO: Usa dragState recebido para Desenho do Drag-and-Drop >>>
+    local itemToShowTooltip = nil
+    -- Só mostra tooltip se não estiver arrastando (dragState é passado para draw)
+    if not (dragState and dragState.isDragging) then
+        -- 1. Checa hover em slots de equipamento
+        local currentHunterId = playerManager:getCurrentHunterId()
+        if currentHunterId and InventoryScreen.equipmentSlotAreas then
+            local equippedItems = hunterManager:getEquippedItems(currentHunterId)
+            if equippedItems then
+                for slotId, area in pairs(InventoryScreen.equipmentSlotAreas) do
+                    if InventoryScreen.mouseX >= area.x and InventoryScreen.mouseX < area.x + area.w and
+                        InventoryScreen.mouseY >= area.y and InventoryScreen.mouseY < area.y + area.h then
+                        if equippedItems[slotId] then
+                            itemToShowTooltip = equippedItems[slotId]
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 2. Checa hover na grade de Inventário (se não achou no equipamento)
+        if not itemToShowTooltip and inventoryManager and InventoryScreen.inventoryGridArea.w and InventoryScreen.inventoryGridArea.w > 0 then -- Verifica se a area tem largura
+            local invPlacedItems = inventoryManager:getPlacedItemInstances()                                                                   -- Deve retornar o dicionário self.placedItems
+            local gridDims = inventoryManager:getGridDimensions()
+            local invRows = gridDims and gridDims.rows
+            local invCols = gridDims and gridDims.cols
+
+            if invPlacedItems and invRows and invCols then
+                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(InventoryScreen.mouseX, InventoryScreen.mouseY,
+                    invPlacedItems, invRows, invCols,
+                    InventoryScreen.inventoryGridArea.x, InventoryScreen.inventoryGridArea.y,
+                    InventoryScreen.inventoryGridArea.w, InventoryScreen.inventoryGridArea.h)
+
+                if hoveredItem then
+                    itemToShowTooltip = hoveredItem
+                end
+            end
+        end
+    end
+
+    if itemToShowTooltip then
+        TooltipManager.show(itemToShowTooltip, InventoryScreen.mouseX, InventoryScreen.mouseY,
+            InventoryScreen.hoveredItemOwnerSignature)
+    else
+        TooltipManager.requestHide(InventoryScreen.hoveredItemOwnerSignature)
+    end
     if dragState and dragState.isDragging and dragState.draggedItem then
         -- Usa mouseX/Y local da tela para desenho (assumindo que 'update' ainda armazena)
         local mx_draw, my_draw = InventoryScreen.mouseX, InventoryScreen.mouseY
@@ -251,24 +292,12 @@ function InventoryScreen.draw(dragState)
             end
         end
     end
-    -- <<< FIM: Desenho do Drag-and-Drop >>>
 
-    -- DEBUG: Imprime estado no final do draw (mantido)
-    -- print(string.format("[InventoryScreen.draw END] equipmentSlotAreas type: %s",
-    --     type(InventoryScreen.equipmentSlotAreas)))
-    -- if type(InventoryScreen.equipmentSlotAreas) == 'table' then
-    --     local count = 0
-    --     for _ in pairs(InventoryScreen.equipmentSlotAreas) do count = count + 1 end
-    --     print("  equipmentSlotAreas item count:", count)
-    -- end
-
-    -- <<< RETORNA AS ÁREAS CALCULADAS >>>
     return InventoryScreen.equipmentSlotAreas, InventoryScreen.inventoryGridArea
 end
 
 -- Mantém as funções de input, mas a lógica interna precisará ser adaptada
 -- para interagir com as áreas retornadas pelas colunas (equipmentSlotAreas, loadoutGridArea)
-
 function InventoryScreen.keypressed(key)
     if not InventoryScreen.isVisible then return end
 
@@ -297,6 +326,7 @@ function InventoryScreen.handleMousePress(x, y, button)
     if not InventoryScreen.isVisible or button ~= 1 then
         return false, nil -- Ignora se não estiver visível ou não for botão esquerdo
     end
+    TooltipManager.hide() -- <<< ADICIONADO: Esconde tooltip ao clicar
 
     -- Managers necessários
     local hunterManager = ManagerRegistry:get("hunterManager")
@@ -401,6 +431,8 @@ end
 function InventoryScreen.handleMouseRelease(dragState)
     -- Captura estado do parâmetro dragState
     local draggedItem = dragState.draggedItem
+    TooltipManager.hide() -- <<< ADICIONADO: Esconde tooltip ao soltar o mouse
+
     local sourceGrid = dragState.sourceGridId
     local sourceSlot = dragState.sourceSlotId
     local targetGrid = dragState.targetGridId

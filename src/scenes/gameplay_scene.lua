@@ -12,6 +12,7 @@ local InventoryScreen = require("src.ui.screens.inventory_screen")
 local ItemDetailsModal = require("src.ui.item_details_modal")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Bootstrap = require("src.core.bootstrap")
+local TooltipManager = require("src.ui.tooltip_manager")
 
 local AssetManager = require("src.managers.asset_manager")
 local ChunkManager = require("src.managers.chunk_manager")
@@ -115,7 +116,7 @@ function GameplayScene:load(args)
 
     -- Test drop (mantido por enquanto)
     if dropMgr and playerMgr and playerMgr.player and itemDataMgr then
-        local playerPos = playerMgr.player.position; local testWeaponId = "chain_laser"
+        local playerPos = playerMgr.player.position; local testWeaponId = "rune_aura_e"
         if itemDataMgr:getBaseItemData(testWeaponId) then
             dropMgr:createDrop({ type = "item", itemId = testWeaponId, quantity = 1 },
                 { x = playerPos.x + 50, y = playerPos.y })
@@ -357,16 +358,20 @@ function GameplayScene:draw()
     -- 4. Desenha os objetos ordenados
     Camera:attach()
     for _, item in ipairs(self.renderList) do
-        if item.type == "tile_batch" then       -- <<< NOVA CONDIÇÃO >>>
-            love.graphics.draw(item.batch)          -- Desenha o SpriteBatch diretamente
-        elseif item.type == "decoration_batch" then -- <<< NOVA CONDIÇÃO PARA DECORAÇÕES >>>
-            love.graphics.draw(item.batch)          -- Desenha o SpriteBatch de decorações
+        if item.type == "tile_batch" then                         -- <<< NOVA CONDIÇÃO >>>
+            love.graphics.draw(item.batch)                        -- Desenha o SpriteBatch diretamente
+        elseif item.type == "decoration_batch" then               -- <<< NOVA CONDIÇÃO PARA DECORAÇÕES >>>
+            love.graphics.draw(item.batch)                        -- Desenha o SpriteBatch de decorações
         elseif item.type == "player" or item.type == "enemy" then -- Assumindo que player/enemy adicionam 'drawFunction'
             if item.drawFunction then
                 item.drawFunction()
             elseif item.image then -- Fallback simples se tiver imagem e posições
                 love.graphics.draw(item.image, item.drawX, item.drawY, item.rotation_rad or 0, item.scaleX or 1,
                     item.scaleY or 1, item.ox or 0, item.oy or 0)
+            end
+        elseif item.type == "rune_ability" then
+            if item.drawFunction then
+                item.drawFunction()
             end
         elseif item.type == "experience_orb" then
             if item.drawFunction then
@@ -397,6 +402,7 @@ function GameplayScene:draw()
     end
     ItemDetailsModal:draw()
     HUD:draw()
+    TooltipManager.draw()
 
     -- Desenha informações de Debug (opcional)
     if enemyMgr then

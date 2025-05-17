@@ -447,24 +447,6 @@ function PlayerManager:draw()
         self.levelUpAnimation:draw(animScreenX, animScreenY)
     end
 
-    -- As habilidades de runa são desenhadas em coordenadas do mundo, então elas devem
-    -- ser movidas para collectRenderables ou ter sua própria lógica de conversão se forem UI.
-    -- POR ORA, VAMOS MANTÊ-LAS AQUI E VER O EFEITO. SE ELAS DESENHAM SPRITES NO MUNDO,
-    -- ESTA NÃO É A CHAMADA CORRETA PARA ELAS.
-    for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
-        -- Se abilityInstance:draw espera coordenadas de mundo, isso estará errado.
-        -- Se espera coordenadas de tela, precisa converter a posição de origem da habilidade.
-        -- ESTA PARTE PROVAVELMENTE PRECISARÁ DE MAIS AJUSTES.
-        abilityInstance:draw()
-    end
-
-    -- O DESENHO DO SPRITE DO JOGADOR E DA ARMA AGORA É FEITO PELA GAMEPLAYSCENE
-    -- if self.player then
-    --     SpritePlayer.draw(self.player)
-    -- end
-    -- if self.equippedWeapon and self.equippedWeapon.attackInstance then
-    --     self.equippedWeapon.attackInstance:draw()
-    -- end
 end
 
 --- Coleta o jogador e seus componentes visuais principais para renderização.
@@ -507,10 +489,41 @@ function PlayerManager:collectRenderables(cameraX, cameraY, renderList)
             -- entity = self.player -- Para debug
         })
 
+        -- <<< ADICIONADO: Adiciona Habilidades de Runa Ativas à RenderList >>>
+        for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
+            if abilityInstance.draw then -- Verifica se a habilidade tem um método draw
+                -- Para sortY e depth das runas:
+                -- Aura: geralmente no mesmo nível do jogador ou abaixo.
+                -- Orbital: os orbes podem ser considerados no nível do jogador ou ligeiramente acima.
+                -- Thunder: os raios são efeitos no alvo, o sortY pode ser o do alvo ou um depth alto.
+                -- Vamos usar o sortY do jogador por enquanto e um depth para diferenciá-los.
+                -- Poderíamos ter uma propriedade na runa para depth (ex: abilityInstance.renderDepth)
+                local runeDepth = 1                                           -- Default depth, pode ser ajustado por tipo de runa se necessário
+                if abilityInstance.name == "Aura de Dano (Instância)" then
+                    runeDepth = 0                                             -- Desenha aura abaixo do jogador
+                elseif abilityInstance.name == "Orbes Orbitais (Instância)" then
+                    runeDepth = 2                                             -- Desenha orbes acima do jogador
+                elseif string.find(abilityInstance.name or "", "Trovão") then -- Checa se nome contém Trovão
+                    runeDepth = 3                                             -- Desenha raios mais acima
+                end
+
+                table.insert(renderList, {
+                    type = "rune_ability",
+                    sortY = sortY, -- Usa o mesmo sortY do jogador por simplicidade inicial
+                    -- Poderia ser self.player.position.y para efeitos no chão
+                    depth = runeDepth,
+                    drawFunction = function()
+                        abilityInstance:draw()
+                    end,
+                    -- entity = abilityInstance -- Para debug
+                })
+            end
+        end
+        -- <<< FIM ADIÇÃO >>>
+
         --[[ Adicional: Se quisermos que o círculo de colisão e a animação de level up
              sejam ordenados com o mundo, eles podem ser adicionados aqui também com
              depths ligeiramente diferentes ou o mesmo sortY.
-             Por ora, eles permanecem no PlayerManager:draw() que será chamado pela UI.
         --]]
     end
 end
@@ -1107,6 +1120,69 @@ function PlayerManager:onDeath()
     -- Implemente a lógica de morte do jogador
     print("Player Morreu!")
     -- TODO: Lógica de morte
+end
+
+--- ADICIONADO: Ativa a habilidade de uma runa equipada.
+--- @param slotId string O ID do slot onde a runa foi equipada (ex: "rune_1").
+--- @param runeItemInstance table A instância do item da runa.
+function PlayerManager:activateRuneAbility(slotId, runeItemInstance)
+    if not runeItemInstance or not runeItemInstance.itemBaseId then
+        print(string.format("AVISO [PlayerManager:activateRuneAbility]: Dados inválidos para item da runa no slot %s",
+            slotId))
+        return
+    end
+
+    -- Desativa qualquer habilidade anterior no mesmo slot para evitar duplicação ou conflitos
+    self:deactivateRuneAbility(slotId)
+
+    local runeBaseData = self.itemDataManager:getBaseItemData(runeItemInstance.itemBaseId)
+
+    if runeBaseData and runeBaseData.abilityClass then
+        print(string.format("[PlayerManager:activateRuneAbility] Ativando runa '%s' no slot %s. Classe: %s",
+            runeItemInstance.itemBaseId, slotId, runeBaseData.abilityClass))
+
+        local success, AbilityClass = pcall(require, runeBaseData.abilityClass)
+        if success and AbilityClass and AbilityClass.new then -- Verifica se a classe e o construtor :new existem
+            local abilityInstance = AbilityClass:new(self, runeItemInstance)
+            self.activeRuneAbilities[slotId] = abilityInstance
+            print(string.format("  -> Habilidade da runa '%s' ativada para o slot %s.", runeItemInstance.itemBaseId,
+                slotId))
+            -- TODO: Considerar invalidar cache de stats se runas concederem bônus passivos
+            -- self:invalidateStatsCache()
+        else
+            print(string.format(
+                "ERRO [PlayerManager:activateRuneAbility]: Não foi possível carregar ou instanciar a classe de habilidade '%s' para a runa '%s'. Erro pcall: %s",
+                runeBaseData.abilityClass, runeItemInstance.itemBaseId,
+                success and "Classe ou :new ausente" or tostring(AbilityClass)))
+        end
+    else
+        print(string.format(
+            "AVISO [PlayerManager:activateRuneAbility]: Runa '%s' no slot %s não possui 'abilityClass' ou dados base.",
+            runeItemInstance.itemBaseId, slotId))
+    end
+end
+
+--- ADICIONADO: Desativa a habilidade de uma runa desequipada.
+--- @param slotId string O ID do slot da runa a ser desativada.
+function PlayerManager:deactivateRuneAbility(slotId)
+    if self.activeRuneAbilities[slotId] then
+        local abilityInstance = self.activeRuneAbilities[slotId]
+        local runeName = (abilityInstance.runeItemData and abilityInstance.runeItemData.name) or slotId
+        print(string.format("[PlayerManager:deactivateRuneAbility] Desativando habilidade da runa no slot %s (%s).",
+            slotId, runeName))
+
+        -- Se a instância da habilidade tiver um método :destroy ou :onUnequip, chame-o
+        if abilityInstance.destroy then
+            abilityInstance:destroy()
+        elseif abilityInstance.onUnequip then
+            abilityInstance:onUnequip()
+        end
+
+        self.activeRuneAbilities[slotId] = nil
+        print(string.format("  -> Habilidade do slot %s removida.", slotId))
+        -- TODO: Considerar invalidar cache de stats se runas concediam bônus passivos
+        -- self:invalidateStatsCache()
+    end
 end
 
 return PlayerManager

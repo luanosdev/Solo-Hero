@@ -1,9 +1,6 @@
 -- main.lua
 -- Love2D callbacks e inicialização principal
 
--- [[ Modo de Depuração Global ]] --
-DEV = true
-
 -- DEBUG: Configurar saída para UTF-8 se possível (tentativa)
 xpcall(function()
     if love.system.getOS() == "Windows" then
@@ -32,7 +29,7 @@ function love.load()
     print("\n--- Iniciando love.load() ---")
     print("Modo DEV: " .. tostring(DEV))
 
-    if DEV then
+    if DEV and PROFILER then
         profiler.start()
     end
 

@@ -14,6 +14,7 @@ local runes = {
         stackable = false,
         -- Atributos específicos da runa (podemos adicionar mais tarde)
         effect = "orbital",
+        abilityClass = "src.runes.orbital",
         num_projectiles = 3,
         damage = 150,
         orbitRadius = 90,
@@ -34,6 +35,7 @@ local runes = {
         gridHeight = 1,
         stackable = false,
         effect = "thunder",
+        abilityClass = "src.runes.thunder",
         interval = 2.0,
         damage = 200,
         radius = 150
@@ -51,7 +53,8 @@ local runes = {
         gridHeight = 1,
         stackable = false,
         effect = "aura",
-        damage_per_tick = 50,
+        abilityClass = "src.runes.aura",
+        damage = 50,
         tick_interval = 1,
         radius = 100
     }
