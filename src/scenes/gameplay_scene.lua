@@ -13,7 +13,7 @@ local ItemDetailsModal = require("src.ui.item_details_modal")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Bootstrap = require("src.core.bootstrap")
 local TooltipManager = require("src.ui.tooltip_manager")
-
+local colors = require("src.ui.colors")
 local AssetManager = require("src.managers.asset_manager")
 local ChunkManager = require("src.managers.chunk_manager")
 local portalDefinitions = require("src.data.portals.portal_definitions") -- Para mapDefinition
@@ -782,9 +782,9 @@ function GameplayScene:debugDropItemAtPlayer(itemId, quantity)
 end
 
 --- Solicita o uso de um item.
---- Verifica se o item é usável e inicia o processo de "casting".
+--- Verifica se o item é usável, CONSOME se aplicável, e inicia o processo de "casting".
 --- @param itemInstance table A instância do item a ser usado (do inventário da partida).
---- @return boolean True se o uso foi iniciado, false caso contrário.
+--- @return boolean True se o uso foi iniciado com sucesso (e item consumido, se aplicável), false caso contrário.
 function GameplayScene:requestUseItem(itemInstance)
     if self.isCasting then
         print("GameplayScene: Já está conjurando outro item.")
@@ -794,145 +794,148 @@ function GameplayScene:requestUseItem(itemInstance)
 
     local itemDataManager = ManagerRegistry:get("itemDataManager")
     if not itemDataManager then
-        error("[GameplayScene:requestUseItem] ItemDataManager não encontrado.")
+        error("[RequestUseItem] ERRO CRÍTICO: ItemDataManager não encontrado.")
         return false
     end
 
     local baseData = itemDataManager:getBaseItemData(itemInstance.itemBaseId)
     if not baseData or not baseData.useDetails then
-        print("GameplayScene: Item não é usável ou não tem useDetails.")
+        print(string.format("[RequestUseItem] Falha: Item '%s' não é usável ou não tem useDetails.",
+            itemInstance.itemBaseId))
         return false
     end
 
     local useDetails = baseData.useDetails
+    local itemName = baseData.name or itemInstance.itemBaseId
 
-    -- Configura o estado de conjuração independentemente de ser instantâneo ou não
-    -- para que o callback tenha acesso a estas informações.
-    self.isCasting = true -- Mesmo para instantâneo, marcamos como casting brevemente
-    self.castTimer = 0
-    self.castDuration = useDetails.castTime or 0
-    self.castingItem = itemInstance                  -- Armazena a instância do item
-    self.currentCastType = useDetails.extractionType -- Armazena o tipo de extração para o callback
+    print(string.format("[RequestUseItem] Tentando usar: %s (ID da Instância: %s)", itemName,
+        itemInstance.instanceId or "N/A"))
 
-    print(string.format(
-        "GameplayScene: Iniciando uso/conjuração de '%s' (ID da Instância: %s) com duração: %.2f seg. Tipo Ext: %s",
-        baseData.name, tostring(itemInstance.instanceId), self.castDuration, self.currentCastType or "N/A"))
+    if useDetails.consumesOnUse then
+        print(string.format("  Item '%s' é consumível. Tentando remover...", itemName))
+        local inventoryManager = ManagerRegistry:get("inventoryManager") ---@type InventoryManager
+        if inventoryManager then
+            local removed = inventoryManager:removeItemInstance(itemInstance.instanceId, 1)
+            if removed then
+                print(string.format("  [SUCCESS] Item '%s' consumido com sucesso do inventário.", itemName))
 
-    -- Define o que fazer quando a conjuração terminar (ou se for instantânea)
-    self.onCastCompleteCallback = function()
-        -- Estas variáveis locais capturam os valores de self.castingItem e self.currentCastType
-        -- no momento da DEFINIÇÃO do callback, tornando-o mais robusto a resets prematuros SE o self fosse usado diretamente.
-        -- No entanto, com a correção de ordem, o self.castingItem e self.currentCastType AINDA ESTARÃO VÁLIDOS AQUI.
-        local itemBeingUsed = self.castingItem
-        local extractionTypeForThisCast = self.currentCastType
-
-        print(string.format("GameplayScene: Callback de conclusão para '%s'. Tipo Ext: %s",
-            (itemBeingUsed and baseData.name) or "Item Desconhecido", extractionTypeForThisCast or "N/A"))
-
-        if useDetails.consumesOnUse then
-            local inventoryManager = ManagerRegistry:get("inventoryManager")
-            if inventoryManager and itemBeingUsed then -- Verifica itemBeingUsed
-                print(string.format("GameplayScene: Consumindo item ID da instância: %s",
-                    tostring(itemBeingUsed.instanceId)))
-                inventoryManager:removeItemInstance(itemBeingUsed.instanceId, 1) -- Remove 1 da pilha
-            elseif not itemBeingUsed then
-                print("GameplayScene: ERRO no callback - itemBeingUsed é nil, não pode consumir.")
-            elseif not inventoryManager then
-                error("[GameplayScene:onCastCompleteCallback] InventoryManager não encontrado para consumir item.")
-            end
-        end
-
-        if extractionTypeForThisCast then -- Verifica se o tipo de extração é válido
-            self:initiateExtraction(extractionTypeForThisCast, useDetails.extractionRandomParams)
-        else
-            -- Se extractionTypeForThisCast for nil, mas o item era para ser um teleporte, isso é um erro nos dados do item.
-            -- Se não era um item de teleporte, não fazer nada aqui está correto.
-            if baseData.type == "consumable" and useDetails.extractionType == nil and (string.find(itemInstance.itemBaseId, "teleport", 1, true) or string.find(baseData.name, "Teleporte", 1, true)) then
-                error(string.format(
-                    "[GameplayScene:onCastCompleteCallback] 'extractionType' é nil para o item de teleporte '%s' nos useDetails ou não foi armazenado corretamente.",
-                    baseData.name))
+                local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
+                if playerManager then
+                    local itemRarity = itemInstance.rarity or 'E'
+                    local rankStyle = colors.rankDetails[itemRarity]
+                    local textColor = (rankStyle and rankStyle.text) or colors.text_main
+                    local props = {
+                        textColor = textColor,
+                        scale = 1.2,
+                        velocityY = -60,
+                        lifetime = 2.0,
+                        baseOffsetY = -50,
+                    }
+                    playerManager:addFloatingText("Consumiu " .. itemName .. "!", props)
+                    print(string.format("    Texto flutuante para '%s' adicionado.", itemName))
+                else
+                    print("    [WARN] PlayerManager não encontrado para texto flutuante de consumo.")
+                end
             else
                 print(string.format(
-                    "GameplayScene:onCastCompleteCallback - Nenhum extractionType definido para '%s', ou item não é de extração.",
-                    baseData.name))
+                    "  [FAIL] Falha ao consumir '%s'. inventoryManager:removeItemInstance retornou false. Uso cancelado.",
+                    itemName))
+                -- Se não puder consumir um item que deveria ser consumido, não inicia o cast.
+                return false
+            end
+        else
+            print(string.format(
+                "  [ERROR] InventoryManager não encontrado. Não é possível consumir '%s'. Uso cancelado.", itemName))
+            return false -- Não inicia o cast se o manager estiver faltando
+        end
+    else
+        print(string.format("  Item '%s' não é consumível (consumesOnUse=false)."), itemName)
+    end
+
+    -- Configura o estado de conjuração
+    self.isCasting = true
+    self.castTimer = 0
+    self.castDuration = useDetails.castTime or 0
+    self.castingItem = itemInstance
+    self.currentCastType = useDetails.extractionType
+
+    print(string.format("  Iniciando conjuração de '%s'. Duração: %.2f seg. Tipo Ext: %s",
+        itemName, self.castDuration, self.currentCastType or "N/A"))
+
+    self.onCastCompleteCallback = function()
+        local extractionTypeForThisCast = self.currentCastType -- Captura o valor atual
+        local itemUsedName = itemName                          -- Captura o nome
+        print(string.format("[CastCallback] Conclusão para '%s'. Tipo Ext: %s",
+            itemUsedName, extractionTypeForThisCast or "N/A"))
+
+        if extractionTypeForThisCast then
+            self:initiateExtraction(extractionTypeForThisCast, useDetails.extractionRandomParams)
+        else
+            if baseData.type == "consumable" and useDetails.extractionType == nil and (string.find(itemInstance.itemBaseId, "teleport", 1, true) or string.find(baseData.name, "Teleporte", 1, true)) then
+                error(string.format("[CastCallback] 'extractionType' é nil para o item de teleporte '%s'.", itemUsedName))
+            else
+                print(string.format("[CastCallback] Nenhum extractionType para '%s', ou item não é de extração.",
+                    itemUsedName))
             end
         end
+    end
+
+    -- Fecha o inventário se estiver visível ao iniciar a conjuração
+    if InventoryScreen.isVisible then
+        InventoryScreen.isVisible = false
+        print("  GameplayScene: Inventário fechado automaticamente ao iniciar a conjuração.")
+        -- O estado de self.isPaused será reavaliado no próximo GameplayScene:update()
+
+        -- Informa imediatamente ao TooltipManager para limpar/esconder o tooltip
+        local mx, my = love.mouse.getPosition() -- Obter posições atuais do mouse
+        TooltipManager.update(0, mx, my, nil)   -- dt=0 é ok aqui, o importante é o 'nil'
+        print("  GameplayScene: TooltipManager.update(0, mx, my, nil) chamado para esconder tooltip.")
     end
 
     -- Se o castTime for 0 (ou muito pequeno), executa o callback e reseta.
     if self.castDuration <= 0.01 then
-        print("GameplayScene: Duração da conjuração é zero ou insignificante, executando callback imediatamente.")
-
-        local callbackToExecute = self.onCastCompleteCallback
-
-        if callbackToExecute then
-            print("GameplayScene: Executando onCastCompleteCallback para conjuração instantânea...")
-            callbackToExecute() -- Executa o callback primeiro
+        print(string.format("  Conjuração de '%s' é instantânea. Executando callback.", itemName))
+        if self.onCastCompleteCallback then
+            self.onCastCompleteCallback()
         else
-            print("GameplayScene: AVISO - onCastCompleteCallback era nil para conjuração instantânea.")
+            print("  [WARN] onCastCompleteCallback é nil para conjuração instantânea.")
         end
-
-        self:resetCastState() -- Reseta o estado DEPOIS que o callback foi executado
+        self:resetCastState()
     else
-        -- Para casts não instantâneos, a lógica de updateCasting cuidará de chamar o callback e resetar.
-        print("GameplayScene: Conjuração com duração > 0.01s. updateCasting irá gerenciar.")
-        -- TODO: Iniciar feedback visual/sonoro de que o cast começou (barra de progresso, etc.)
-        -- A barra já é desenhada em GameplayScene:draw se self.isCasting for true.
+        print(string.format("  Conjuração de '%s' com duração > 0.01s. updateCasting irá gerenciar.", itemName))
     end
 
-    return true
+    return true -- Uso/Cast iniciado com sucesso
 end
 
---- NOVO: Atualiza a lógica de casting.
---- @param dt number Delta time.
+--- Atualiza o estado da conjuração (casting) de um item.
+--- Chamado em GameplayScene:update() se self.isCasting for verdadeiro.
+---@param dt number Delta time.
 function GameplayScene:updateCasting(dt)
-    if not self.isCasting then
-        return -- Só executa se estivermos conjurando
-    end
-
-    -- Impede o progresso se um modal de bloqueio total OU o inventário estiverem ativos.
-    if LevelUpModal.visible or RuneChoiceModal.visible or ItemDetailsModal.isVisible or InventoryScreen.isVisible then
-        print(string.format("GameplayScene:updateCasting - Conjuração PAUSADA. Modal Ativo: %s, Inventário Aberto: %s",
-            tostring(LevelUpModal.visible or RuneChoiceModal.visible or ItemDetailsModal.isVisible),
-            tostring(InventoryScreen.isVisible)))
+    if not self.isCasting or not self.castingItem then
         return
     end
 
-    -- Log para depurar o progresso do timer
-    print(string.format(
-        "GameplayScene:updateCasting - dt: %.4f, castTimer ANTES: %.2f, castDuration: %.2f, isCasting: %s",
-        dt, self.castTimer, self.castDuration, tostring(self.isCasting)))
+    if LevelUpModal.visible or RuneChoiceModal.visible or ItemDetailsModal.isVisible then
+        print("[Casting-PAUSED] Modal visível, timer do cast pausado.")
+        return
+    end
 
     self.castTimer = self.castTimer + dt
 
-    -- TODO: Implementar lógica de interrupção do cast (se necessário AQUI, além de handlePlayerMovementCancellation)
-    -- Exemplo: Se o jogador se mover ou tomar dano (dependendo das regras do item)
-    -- local playerManager = ManagerRegistry:get("playerManager")
-    -- if playerManager and playerManager:hasMovedSinceLastFrame() then -- Método hipotético
-    --     self:interruptCast("Jogador se moveu")
-    --     return
-    -- end
-    -- if playerManager and playerManager:tookDamageThisFrame() then -- Método hipotético
-    --    self:interruptCast("Dano recebido")
-    --    return
-    -- end
-
     if self.castTimer >= self.castDuration then
-        print(string.format(
-            "GameplayScene:updateCasting - Timer (%.2f) atingiu/excedeu duração (%.2f). Completando conjuração.",
-            self.castTimer, self.castDuration))
-        local callbackToExecute = self.onCastCompleteCallback
+        print(string.format("[Casting-COMPLETE] Cast (pós-consumo) concluído para: %s. Timer: %.2f, Duration: %.2f",
+            self.castingItem.name or self.castingItem.itemBaseId, self.castTimer, self.castDuration))
 
-        -- IMPORTANTE: Chamar o callback ANTES de resetar o estado,
-        -- pois o callback pode depender de self.castingItem ou outros estados de conjuração.
-        if callbackToExecute then
-            print("GameplayScene:updateCasting - Executando onCastCompleteCallback...")
-            callbackToExecute()
+        if self.onCastCompleteCallback then
+            print("[Casting-CALLBACK] Executando onCastCompleteCallback...")
+            self.onCastCompleteCallback()
         else
-            print("GameplayScene:updateCasting - AVISO: onCastCompleteCallback era nil ao completar a conjuração.")
+            print("[Casting-CALLBACK] onCastCompleteCallback é nil ao final do cast.")
         end
 
-        self:resetCastState() -- Limpa o estado de conjuração APÓS o callback.
+        self:resetCastState()
+        print("[Casting-END] Estado de cast resetado.")
     end
 end
 
