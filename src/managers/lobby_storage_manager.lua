@@ -575,9 +575,6 @@ function LobbyStorageManager:loadStorage()
         -- Aqui poderia ter lógica de migração se necessário
     end
 
-    -- Carrega o próximo ID de instância
-    nextInstanceId = loadedData.nextInstanceId or 1 -- Usa 1 como fallback
-
     -- Carrega o índice da seção ativa
     self.activeSectionIndex = loadedData.activeSectionIndex or 1
 
@@ -585,7 +582,6 @@ function LobbyStorageManager:loadStorage()
     self.sections = {}
 
     local sectionCount = 0
-    local maxInstanceIdFound = 0 -- Para garantir que nextInstanceId seja maior que qualquer ID carregado
 
     -- Recria as seções e itens a partir dos dados salvos
     if loadedData.sections and type(loadedData.sections) == "table" then
@@ -599,24 +595,24 @@ function LobbyStorageManager:loadStorage()
 
                 if sectionData.items and type(sectionData.items) == "table" then
                     for id, itemSaveData in pairs(sectionData.items) do
-                        local numInstanceId = tonumber(id)
-                        if numInstanceId then
+                        -- O 'id' agora é um UUID (string), não precisa converter para número
+                        local instanceId = id -- Alterado de tonumber(id)
+                        if instanceId then    -- Verifica se o instanceId existe (não deve ser nil/vazio)
                             local baseData = self:_getItemBaseData(itemSaveData.itemBaseId)
                             if baseData then
                                 local width = baseData.gridWidth or 1
                                 local height = baseData.gridHeight or 1
-                                -- <<< LOG ADICIONADO para verificar o ícone >>>
-                                print(string.format("  [LoadStorage] Processando item %s. Tipo do baseData.icon: %s",
-                                    itemSaveData.itemBaseId, type(baseData.icon)))
+                                print(string.format(
+                                    "  [LoadStorage] Processando item %s (ID: %s). Tipo do baseData.icon: %s",
+                                    itemSaveData.itemBaseId, instanceId, type(baseData.icon)))
                                 -- Recria a instância completa do item
                                 local newItemInstance = {
-                                    instanceId = numInstanceId,
+                                    instanceId = instanceId, -- Usa o instanceId (string)
                                     itemBaseId = itemSaveData.itemBaseId,
                                     quantity = itemSaveData.quantity,
                                     row = itemSaveData.row,
                                     col = itemSaveData.col,
-                                    isRotated = itemSaveData.isRotated or false, -- Carrega o estado de rotação
-                                    -- Adiciona dados base novamente
+                                    isRotated = itemSaveData.isRotated or false,
                                     gridWidth = width,
                                     gridHeight = height,
                                     stackable = baseData.stackable or false,
@@ -626,36 +622,38 @@ function LobbyStorageManager:loadStorage()
                                     rarity = baseData.rarity or 'E'
                                 }
                                 print(string.format("    -> Tipo do newItemInstance.icon: %s", type(newItemInstance.icon)))
-                                -- <<< FIM LOG >>>
-                                newSection.items[numInstanceId] = newItemInstance
+                                newSection.items[instanceId] = newItemInstance -- Usa instanceId (string) como chave
 
                                 -- Marca a grade da seção
-                                for r = itemSaveData.row, itemSaveData.row + height - 1 do
-                                    for c = itemSaveData.col, itemSaveData.col + width - 1 do
+                                -- Determina a largura e altura de exibição com base na rotação
+                                local displayW = itemSaveData.isRotated and height or width
+                                local displayH = itemSaveData.isRotated and width or height
+
+                                for r = itemSaveData.row, itemSaveData.row + displayH - 1 do
+                                    for c = itemSaveData.col, itemSaveData.col + displayW - 1 do
                                         if newSection.grid[r] and newSection.grid[r][c] == nil then
-                                            newSection.grid[r][c] = numInstanceId
+                                            newSection.grid[r][c] = instanceId -- Usa instanceId (string)
                                         else
                                             print(string.format(
-                                                "ERRO/AVISO [LobbyStorageManager]: Célula de grid [%d,%d] inválida ou já ocupada ao carregar item %d (%s). Verifique save ou lógica.",
-                                                r, c, numInstanceId, itemSaveData.itemBaseId))
+                                                "ERRO/AVISO [LobbyStorageManager]: Célula de grid [%d,%d] inválida ou já ocupada ao carregar item %s (%s). Verifique save ou lógica.",
+                                                r, c, instanceId, itemSaveData.itemBaseId))
                                         end
                                     end
                                 end
-                                -- Atualiza o maior ID encontrado
-                                maxInstanceIdFound = math.max(maxInstanceIdFound, numInstanceId)
+                                -- Não precisa mais atualizar maxInstanceIdFound
                             else
                                 print(string.format(
-                                    "AVISO [LobbyStorageManager]: Não foi possível encontrar dados base para o item ID '%s' (instância %d) ao carregar save. Item ignorado.",
-                                    tostring(itemSaveData.itemBaseId), numInstanceId))
+                                    "AVISO [LobbyStorageManager]: Não foi possível encontrar dados base para o item ID '%s' (instância %s) ao carregar save. Item ignorado.",
+                                    tostring(itemSaveData.itemBaseId), instanceId))
                             end
                         else
                             print(string.format(
-                                "AVISO [LobbyStorageManager]: ID de instância inválido ('%s') encontrado ao carregar itens da seção %d. Ignorando.",
-                                tostring(id), numIndex))
+                                "AVISO [LobbyStorageManager]: ID de instância inválido (recebido como '%s', tipo %s) encontrado ao carregar itens da seção %d. Ignorando.",
+                                tostring(id), type(id), numIndex))
                         end
                     end
                 end
-                self.sections[numIndex] = newSection -- Usa índice numérico
+                self.sections[numIndex] = newSection
                 sectionCount = sectionCount + 1
             else
                 print(string.format(
@@ -665,31 +663,19 @@ function LobbyStorageManager:loadStorage()
         end
     end
 
-    -- Garante que o próximo ID seja maior que qualquer ID carregado
-    if nextInstanceId <= maxInstanceIdFound then
-        print(string.format(
-            "AVISO [LobbyStorageManager]: nextInstanceId (%d) era menor ou igual ao maior ID carregado (%d). Ajustando para %d.",
-            nextInstanceId, maxInstanceIdFound, maxInstanceIdFound + 1))
-        nextInstanceId = maxInstanceIdFound + 1
-    end
 
     print(string.format(
-        "[LobbyStorageManager] Carregamento concluído. %d seções carregadas. Seção ativa: %d. Próximo ID: %d",
-        sectionCount, self.activeSectionIndex, nextInstanceId))
+        "[LobbyStorageManager] Carregamento concluído. %d seções carregadas. Seção ativa: %d.", -- Removido nextInstanceId do log
+        sectionCount, self.activeSectionIndex))
 
-    -- Se nenhuma seção foi carregada (arquivo de save existia mas estava vazio/corrompido nas seções?)
     if sectionCount == 0 then
         print("[LobbyStorageManager] Nenhuma seção encontrada nos dados carregados. Inicializando com seção padrão.")
         self.sections[1] = self:_createEmptySection(self.sectionRows, self.sectionCols)
         self.activeSectionIndex = 1
-        nextInstanceId = 1 -- Reseta ID se começou do zero
-        -- <<< ADICIONADO: Popula a seção recém-criada >>>
         self:_populateInitialItems()
-        -- <<< FIM ADIÇÃO >>>
-        return false -- Indica que o carregamento não foi totalmente bem-sucedido em termos de conteúdo
+        return false
     end
 
-    -- Garante que activeSectionIndex seja válido após o carregamento
     if not self.sections[self.activeSectionIndex] then
         print(string.format(
             "AVISO [LobbyStorageManager]: activeSectionIndex (%d) inválido após carregar. Resetando para 1.",
@@ -700,18 +686,19 @@ function LobbyStorageManager:loadStorage()
     return true
 end
 
---- Helper para inicializar armazenamento vazio (quando save falha ou não existe).
+--- Inicializa o armazenamento com uma seção padrão vazia.
+-- Chamado quando nenhum arquivo de save é encontrado ou está corrompido.
 function LobbyStorageManager:_initializeEmptyStorage()
-    print("[LobbyStorageManager] Inicializando armazenamento vazio...")
-    self.sections = {}
-    for i = 1, STARTING_SECTIONS do
-        self.sections[i] = self:_createEmptySection(self.sectionRows, self.sectionCols)
-    end
+    print("[LobbyStorageManager] Inicializando armazenamento vazio com 1 seção padrão.")
+    self.sections = {} -- Limpa qualquer estado anterior
+    self.sections[1] = self:_createEmptySection(self.sectionRows, self.sectionCols)
     self.activeSectionIndex = 1
-    nextInstanceId = 1 -- Reseta contador de ID
+    -- nextInstanceId = 1 -- Não gerenciamos mais nextInstanceId numericamente
+    -- self:saveStorage() -- Opcional: salvar imediatamente o estado vazio/inicial. Decidir se é necessário.
 end
 
---- Helper para adicionar itens iniciais (chamado após _initializeEmptyStorage).
+--- Popula o armazenamento com alguns itens iniciais (para teste/novo jogo).
+-- Esta função deve ser chamada DEPOIS que _initializeEmptyStorage garantiu que há seções.
 function LobbyStorageManager:_populateInitialItems()
     print("[LobbyStorageManager] Populando com itens iniciais...")
     local section = self.sections[1] -- Popula a primeira seção
