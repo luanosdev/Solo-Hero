@@ -73,7 +73,8 @@ local weapons = {
         rarity = "B",            -- Raro/Épico? Coloquei B (Epic)
         description = "Adagas curvas que parecem absorver a luz, tiradas da temível Noctilara.",
         icon = nil,              -- TODO: Definir ícone
-        grid = { w = 3, h = 2 }, -- Ocupa 3x2 no inventário
+        gridWidth = 3,
+        gridHeight = 2,
         stackable = false,
         maxStack = 1,
         sellValue = 500,

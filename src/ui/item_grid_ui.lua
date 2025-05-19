@@ -142,20 +142,21 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
                 itemDataCache[itemInfo.itemBaseId] = itemData
             end
 
-            if itemData or itemInfo.name then                                                 -- Usa itemInfo.name como fallback se data falhar
-                -- 1. Fundo Preto
-                love.graphics.setColor(0, 0, 0, 1)                                            -- Preto opaco
-                love.graphics.rectangle("fill", itemSlotX, itemSlotY, visualW, visualH, 3, 3) -- Usa visualW/H
-
-                -- 2. Overlay Transparente da Raridade
+            if itemData or itemInfo.name then -- Usa itemInfo.name como fallback se data falhar
+                -- <<< MODIFICADO: Usar drawTextCard para o fundo >>>
                 local rarity = itemInfo.rarity or 'E'
-                local rarityColor = colors.rarity[rarity] or colors.rarity['E']
+                local cardConfig = {
+                    rankLetterForStyle = rarity,
+                    -- Não precisamos de texto dentro do card de fundo, o ícone virá por cima
+                    text = "",
+                    -- Outras configs de drawTextCard podem ser adicionadas se necessário (cornerRadius, etc.)
+                    -- Se drawTextCard já inclui um brilho/borda adequado, podemos remover drawRarityBorderAndGlow abaixo.
+                    showGlow = true -- Assumindo que queremos o brilho do rank
+                }
+                elements.drawTextCard(itemSlotX, itemSlotY, visualW, visualH, "", cardConfig)
 
-                if rarityColor then
-                    love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], 0.5)   -- Mantém 50% alpha
-                    love.graphics.rectangle("fill", itemSlotX, itemSlotY, visualW, visualH, 3, 3) -- Usa visualW/H
-                end
-                love.graphics.setColor(colors.white)                                              -- Reset para branco antes de desenhar ícone/placeholder
+                -- Restaurar cor padrão caso drawTextCard a modifique e não a restaure
+                love.graphics.setColor(colors.white)
 
                 -- 3. Desenha Ícone (se existir)
                 local iconToDraw = itemInfo.icon
@@ -167,23 +168,37 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
                     local originalW = iconToDraw:getWidth()
                     local originalH = iconToDraw:getHeight()
 
-                    -- <<< INÍCIO: Cálculo de escala e rotação >>>
-                    -- A escala é baseada nas dimensões NÃO ROTACIONADAS do espaço que o item ocupa
-                    local baseVisualW = gridW * slotTotalWidth - gridConfig.padding
-                    local baseVisualH = gridH * slotTotalHeight - gridConfig.padding
-                    local scaleX = baseVisualW / originalW
-                    local scaleY = baseVisualH / originalH
+                    -- <<< INÍCIO: Cálculo de escala e rotação com PADDING INTERNO >>>
+                    local iconPadding = 4 -- Define o padding interno para o ícone
 
-                    -- Centro da área VISUAL para rotação
-                    local centerX = visualW / 2
-                    local centerY = visualH / 2
-                    local drawX = itemSlotX + centerX
-                    local drawY = itemSlotY + centerY
+                    -- A escala é baseada nas dimensões NÃO ROTACIONADAS do espaço que o item ocupa, MENOS o padding
+                    local baseVisualW_noPadding = (gridW * slotTotalWidth - gridConfig.padding) - (iconPadding * 2)
+                    local baseVisualH_noPadding = (gridH * slotTotalHeight - gridConfig.padding) - (iconPadding * 2)
+
+                    local scaleX = baseVisualW_noPadding / originalW
+                    local scaleY = baseVisualH_noPadding / originalH
+                    -- Para manter a proporção do ícone e não distorcer, usamos a menor escala
+                    local scale = math.min(scaleX, scaleY)
+                    if scale <= 0 then scale = 0.01 end -- Evita escala zero ou negativa
+
+                    -- As dimensões reais do ícone desenhado serão:
+                    local scaledIconW = originalW * scale
+                    local scaledIconH = originalH * scale
+
+                    -- Centro da área VISUAL (visualW, visualH do card de fundo) para centralizar o ícone COM padding
+                    local drawOffsetX = (visualW - scaledIconW) / 2
+                    local drawOffsetY = (visualH - scaledIconH) / 2
+
+                    local drawX = itemSlotX + drawOffsetX +
+                        (scaledIconW / 2) -- Adiciona scaledIconW/2 para centralizar a origem da imagem
+                    local drawY = itemSlotY + drawOffsetY +
+                        (scaledIconH / 2) -- Adiciona scaledIconH/2 para centralizar a origem da imagem
+
                     local rotationAngle = isRotated and math.pi / 2 or 0
 
-                    love.graphics.draw(iconToDraw, drawX, drawY, rotationAngle, scaleX, scaleY, originalW / 2,
+                    love.graphics.draw(iconToDraw, drawX, drawY, rotationAngle, scale, scale, originalW / 2,
                         originalH / 2)
-                    -- <<< FIM: Cálculo de escala e rotação >>>
+                    -- <<< FIM: Cálculo de escala e rotação com PADDING INTERNO >>>
                 else
                     -- 4. Desenha placeholder APENAS se não houver ícone
                     love.graphics.setColor(colors.white)
@@ -194,7 +209,7 @@ function ItemGridUI.drawItemGrid(items, gridRows, gridCols, areaX, areaY, areaW,
                 end
 
                 -- 5. Desenha borda/brilho da raridade (Usa a mesma variável 'rarity')
-                elements.drawRarityBorderAndGlow(rarity, itemSlotX, itemSlotY, visualW, visualH) -- Usa visualW/H
+                -- elements.drawRarityBorderAndGlow(rarity, itemSlotX, itemSlotY, visualW, visualH) -- REMOVIDO, pois drawTextCard deve cuidar disso
 
                 -- Desenha a quantidade (se maior que 1)
                 if itemInfo.quantity and itemInfo.quantity > 1 then

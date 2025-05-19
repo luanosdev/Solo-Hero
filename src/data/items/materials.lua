@@ -19,7 +19,7 @@ local materials = {
         type = "material",
         rarity = "E",
         description = "Um pequeno pedaço de osso. Pode ser vendido.",
-        icon = nil,
+        icon = "assets/items/materials/bone_fragment.png",
         grid = { w = 1, h = 1 },
         stackable = true,
         maxStack = 99,

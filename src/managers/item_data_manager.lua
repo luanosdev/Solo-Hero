@@ -4,6 +4,8 @@ local ItemDataManager = {}
 -- Banco de dados central de itens (será preenchido em init)
 ItemDataManager.itemDatabase = {}
 
+local uuid = require("src.utils.uuid")
+
 --- Função privada para carregar e mesclar dados de um único arquivo.
 ---@param self ItemDataManager
 ---@param filePath string O caminho do módulo a ser carregado (ex: "src.data.items.weapons").
@@ -95,9 +97,7 @@ function ItemDataManager:createItemInstanceById(itemBaseId, quantity)
     end
 
     -- Define propriedades específicas da instância
-    -- Gera um instanceId único (itemBaseId + timestamp em microsegundos + aleatório)
-    newInstance.instanceId = itemBaseId ..
-        "_" .. string.format("%.6f", love.timer.getTime()):gsub("%.", "") .. "_" .. tostring(math.random(1000, 9999))
+    newInstance.instanceId = uuid.generate()
     newInstance.quantity = quantity or 1
     newInstance.itemBaseId = itemBaseId -- Garante que itemBaseId está na instância
 

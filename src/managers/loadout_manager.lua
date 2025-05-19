@@ -1,6 +1,7 @@
 local PersistenceManager = require("src.core.persistence_manager")
 local ItemGridLogic = require("src.core.item_grid_logic")
 local Constants = require("src.config.constants")
+local uuid = require("src.utils.uuid")
 
 ---@class LoadoutManager
 local LoadoutManager = {
@@ -77,6 +78,38 @@ function LoadoutManager:getDimensions()
     return self.rows, self.cols
 end
 
+--- NOVO: Obtém a instância do item em coordenadas específicas da grade.
+--- @param targetRow integer Linha alvo (1-indexed).
+--- @param targetCol integer Coluna alvo (1-indexed).
+--- @return table|nil A instância do item se encontrada, caso contrário nil.
+function LoadoutManager:getItemInstanceAtCoords(targetRow, targetCol)
+    if not self.items or not targetRow or not targetCol then return nil end
+    print(string.format("  [LoadoutManager:getItemInstanceAtCoords] Checking for item at [%d,%d]", targetRow, targetCol))
+    local itemCount = 0
+    for _ in pairs(self.items) do itemCount = itemCount + 1 end
+    print(string.format("    Total items in loadout: %d", itemCount))
+
+    for instanceId, item in pairs(self.items) do
+        local itemOriginX, itemOriginY = item.col, item.row
+        local itemDisplayW = item.isRotated and item.gridHeight or item.gridWidth
+        local itemDisplayH = item.isRotated and item.gridWidth or item.gridHeight
+
+        print(string.format("    Checking item: %s (ID %s) at [%d,%d] size [%dx%d] (display: %dx%d, rotated: %s)",
+            item.itemBaseId, instanceId, itemOriginY, itemOriginX, item.gridWidth, item.gridHeight, itemDisplayW,
+            itemDisplayH, tostring(item.isRotated)))
+
+        -- Verifica se (targetRow, targetCol) está dentro da área ocupada pelo item
+        if targetCol >= itemOriginX and targetCol < itemOriginX + itemDisplayW and
+            targetRow >= itemOriginY and targetRow < itemOriginY + itemDisplayH then
+            print(string.format("    FOUND item: %s (ID %s) at coords [%d,%d]", item.itemBaseId, instanceId, targetRow,
+                targetCol))
+            return item -- Encontrou o item que ocupa esta célula
+        end
+    end
+    print(string.format("  [LoadoutManager:getItemInstanceAtCoords] No item found at [%d,%d]", targetRow, targetCol))
+    return nil -- Nenhum item encontrado nesta célula
+end
+
 -- == Funções de Manipulação de Itens ==
 
 --- Limpa todos os itens do loadout, resetando a grade e o contador de instâncias.
@@ -104,6 +137,19 @@ function LoadoutManager:canPlaceItemAt(item, targetRow, targetCol, checkWidth, c
     -- Usa as dimensões fornecidas para a checagem, ou as do item como fallback
     local itemW = checkWidth or item.gridWidth or 1
     local itemH = checkHeight or item.gridHeight or 1
+
+    -- Verifica se já existe um item no slot alvo
+    local itemAtTarget = self:getItemInstanceAtCoords(targetRow, targetCol)
+    if itemAtTarget and itemAtTarget.instanceId ~= item.instanceId then
+        local baseData = self.itemDataManager:getBaseItemData(itemAtTarget.itemBaseId)
+        if baseData and baseData.stackable and itemAtTarget.itemBaseId == item.itemBaseId then
+            local maxStack = baseData.maxStack or 99
+            if itemAtTarget.quantity < maxStack then
+                return true
+            end
+        end
+        return false
+    end
 
     return ItemGridLogic.canPlaceItemAt(self.grid, self.rows, self.cols, item.instanceId, targetRow, targetCol, itemW,
         itemH)
@@ -150,7 +196,7 @@ function LoadoutManager:addItem(itemBaseId, quantity)
         local freeSpace = ItemGridLogic.findFreeSpace(self.grid, self.rows, self.cols, width, height)
 
         if freeSpace then
-            local instanceId = self:_getNextInstanceId() -- Usa o contador local do loadout
+            local instanceId = uuid.generate()
             local newItemInstance = {
                 instanceId = instanceId,
                 itemBaseId = itemBaseId,
@@ -225,9 +271,9 @@ end
 function LoadoutManager:removeItemByInstanceId(instanceId)
     local success = self:removeItemInstance(instanceId, nil) -- Chama a função existente para remover tudo
     if success then
-        print(string.format("[LoadoutManager] Item %d removido.", instanceId))
+        print(string.format("[LoadoutManager] Item %s removido.", instanceId))
     else
-        print(string.format("AVISO [LoadoutManager] Tentativa de remover item %d (não encontrado)", instanceId))
+        print(string.format("AVISO [LoadoutManager] Tentativa de remover item %s (não encontrado)", instanceId))
     end
     return success
 end
@@ -265,7 +311,7 @@ function LoadoutManager:addItemAt(item, targetRow, targetCol, isRotated)
     ItemGridLogic.markGridOccupied(self.grid, self.rows, self.cols, item.instanceId, targetRow, targetCol, actualW,
         actualH)
 
-    print(string.format("(Loadout) Item %d (%s) adicionado/atualizado em [%d,%d], Rotacionado: %s", item.instanceId,
+    print(string.format("(Loadout) Item %s (%s) adicionado/atualizado em [%d,%d], Rotacionado: %s", item.instanceId,
         item.itemBaseId, targetRow,
         targetCol, tostring(item.isRotated)))
     return true
@@ -287,7 +333,7 @@ function LoadoutManager:addItemInstance(itemInstance)
         -- Passa isRotated como nil ou false por padrão aqui, pois estamos apenas adicionando, não movendo um item rotacionado
         return self:addItemAt(itemInstance, freeSpace.row, freeSpace.col, itemInstance.isRotated or false)
     else
-        print(string.format("[LoadoutManager:addItemInstance] Sem espaço para item %d (%s)", itemInstance.instanceId,
+        print(string.format("[LoadoutManager:addItemInstance] Sem espaço para item %s (%s)", itemInstance.instanceId,
             itemInstance.itemBaseId))
         return false
     end

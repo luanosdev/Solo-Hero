@@ -1,5 +1,6 @@
 local PersistenceManager = require("src.core.persistence_manager")
 local ItemGridLogic = require("src.core.item_grid_logic")
+local uuid = require("src.utils.uuid")
 -- local ItemDataManager = require("src.managers.item_data_manager") -- Será injetado
 
 ---@class LobbyStorageManager
@@ -108,6 +109,46 @@ function LobbyStorageManager:getActiveSectionDimensions()
     return self.sectionRows, self.sectionCols
 end
 
+--- NOVO: Obtém a instância do item em coordenadas específicas da grade da seção ativa ou especificada.
+--- @param targetRow integer Linha alvo (1-indexed).
+--- @param targetCol integer Coluna alvo (1-indexed).
+--- @param sectionIndexParam integer (Opcional) Índice da seção a verificar. Usa seção ativa se nil.
+--- @return table|nil A instância do item se encontrada, caso contrário nil.
+function LobbyStorageManager:getItemInstanceAtCoords(targetRow, targetCol, sectionIndexParam)
+    local sectionIdx = sectionIndexParam or self.activeSectionIndex
+    local section = self.sections[sectionIdx]
+
+    if not section or not section.items or not targetRow or not targetCol then
+        return nil
+    end
+    print(string.format("  [LobbyStorageManager:getItemInstanceAtCoords] Section %d: Checking for item at [%d,%d]",
+        sectionIdx, targetRow, targetCol))
+    local itemCount = 0
+    for _ in pairs(section.items) do itemCount = itemCount + 1 end
+    print(string.format("    Total items in section %d: %d", sectionIdx, itemCount))
+
+    for instanceId, item in pairs(section.items) do
+        local itemOriginX, itemOriginY = item.col, item.row
+        local itemDisplayW = item.isRotated and item.gridHeight or item.gridWidth
+        local itemDisplayH = item.isRotated and item.gridWidth or item.gridHeight
+
+        print(string.format("    S%d Checking item: %s (ID %s) at [%d,%d] size [%dx%d] (display: %dx%d, rotated: %s)",
+            sectionIdx, item.itemBaseId, instanceId, itemOriginY, itemOriginX, item.gridWidth, item.gridHeight,
+            itemDisplayW, itemDisplayH, tostring(item.isRotated)))
+
+        -- Verifica se (targetRow, targetCol) está dentro da área ocupada pelo item
+        if targetCol >= itemOriginX and targetCol < itemOriginX + itemDisplayW and
+            targetRow >= itemOriginY and targetRow < itemOriginY + itemDisplayH then
+            print(string.format("    S%d FOUND item: %s (ID %s) at coords [%d,%d]", sectionIdx, item.itemBaseId,
+                instanceId, targetRow, targetCol))
+            return item -- Encontrou o item que ocupa esta célula
+        end
+    end
+    print(string.format("  [LobbyStorageManager:getItemInstanceAtCoords] S%d: No item found at [%d,%d]", sectionIdx,
+        targetRow, targetCol))
+    return nil -- Nenhum item encontrado nesta célula
+end
+
 -- == Funções de Manipulação de Itens (na Seção Ativa) ==
 
 --- Obtém a tabela de itens da seção especificada (ou da ativa).
@@ -163,17 +204,17 @@ function LobbyStorageManager:removeItemByInstanceId(instanceId)
         if section.items[instanceId] then
             local success = self:_removeItemInstanceFromSection(section, instanceId, nil) -- Remove tudo
             if success then
-                print(string.format("[LobbyStorageManager] Item %d removido da seção %d", instanceId, index))
+                print(string.format("[LobbyStorageManager] Item %s removido da seção %d", instanceId, index))
                 return true, index
             else
                 -- Isso não deveria acontecer se o item foi encontrado, mas por segurança:
-                print(string.format("ERRO [LobbyStorageManager] Falha ao remover item %d encontrado na seção %d",
+                print(string.format("ERRO [LobbyStorageManager] Falha ao remover item %s encontrado na seção %d",
                     instanceId, index))
                 return false, index
             end
         end
     end
-    print(string.format("AVISO [LobbyStorageManager] Tentativa de remover item %d (não encontrado)", instanceId))
+    print(string.format("AVISO [LobbyStorageManager] Tentativa de remover item %s (não encontrado)", instanceId))
     return false, nil -- Item não encontrado em nenhuma seção
 end
 
@@ -196,9 +237,21 @@ function LobbyStorageManager:canPlaceItemAt(item, targetRow, targetCol, checkWid
         return false
     end
 
-    -- Usa as dimensões fornecidas para a checagem, ou as do item como fallback
     local itemW = checkWidth or item.gridWidth or 1
     local itemH = checkHeight or item.gridHeight or 1
+
+    -- Verifica se já existe um item no slot alvo
+    local itemAtTarget = self:getItemInstanceAtCoords(targetRow, targetCol)
+    if itemAtTarget and itemAtTarget.instanceId ~= item.instanceId then
+        local baseData = self.itemDataManager:getBaseItemData(itemAtTarget.itemBaseId)
+        if baseData and baseData.stackable and itemAtTarget.itemBaseId == item.itemBaseId then
+            local maxStack = baseData.maxStack or 99
+            if itemAtTarget.quantity < maxStack then
+                return true
+            end
+        end
+        return false
+    end
 
     return ItemGridLogic.canPlaceItemAt(section.grid, section.rows, section.cols, item.instanceId, targetRow, targetCol,
         itemW, itemH)
@@ -217,7 +270,27 @@ function LobbyStorageManager:addItemAt(item, targetRow, targetCol, isRotated)
         return false
     end
     local section = self.sections[self.activeSectionIndex]
-    if not section then return false end
+    if not section then
+        print(string.format("ERRO (addItemAt - Storage): Seção ativa inválida: %d", self.activeSectionIndex))
+        return false
+    end
+
+    print(string.format(
+        "[LobbyStorageManager:addItemAt] Tentando adicionar item ID %s (BaseID %s) na seção %d em [%d,%d], Rotacionado: %s",
+        item.instanceId, item.itemBaseId, self.activeSectionIndex, targetRow, targetCol, tostring(isRotated)))
+    print(string.format("  Item details: gridW=%d, gridH=%d, current qty=%d", item.gridWidth or 1, item.gridHeight or 1,
+        item.quantity or 1))
+
+    -- Log do estado ANTES da modificação
+    local itemCountBefore = 0
+    for _ in pairs(section.items) do itemCountBefore = itemCountBefore + 1 end
+    print(string.format("  Estado ANTES: %d itens na seção. Item com mesmo instanceId (%s) já existe? %s",
+        itemCountBefore, item.instanceId, tostring(section.items[item.instanceId] ~= nil)))
+    if section.items[item.instanceId] then
+        local existing = section.items[item.instanceId]
+        print(string.format("    Detalhes do item existente com mesmo instanceId: BaseID %s, Qty %d, Pos [%d,%d]",
+            existing.itemBaseId, existing.quantity, existing.row, existing.col))
+    end
 
     -- Usa as dimensões REAIS do item (rotação NÃO é aplicada aqui, apenas armazenada)
     local itemW = item.gridWidth or 1
@@ -233,15 +306,23 @@ function LobbyStorageManager:addItemAt(item, targetRow, targetCol, isRotated)
     -- Se já existe (caso de mover item que foi pego da mesma seção), atualiza. Senão, adiciona.
     section.items[item.instanceId] = item
 
-    -- <<< INÍCIO: CORREÇÃO PARA MARCAR GRID >>>
-    -- Calcula dimensões REAIS de ocupação baseadas na rotação ARMAZENADA
     local actualW = item.isRotated and itemH or itemW
     local actualH = item.isRotated and itemW or itemH
 
+    print(string.format("  Marcando grid: instanceId %s, targetRow %d, targetCol %d, actualW %d, actualH %d",
+        item.instanceId, targetRow, targetCol, actualW, actualH))
     ItemGridLogic.markGridOccupied(section.grid, section.rows, section.cols, item.instanceId, targetRow, targetCol,
         actualW, actualH)
 
-    print(string.format("(Storage) Item %d     (%s) adicionado/atualizado na seção %d em [%d,%d], Rotacionado: %s",
+    -- Log do estado DEPOIS da modificação
+    local itemCountAfter = 0
+    for _ in pairs(section.items) do itemCountAfter = itemCountAfter + 1 end
+    print(string.format("  Estado DEPOIS: %d itens na seção.", itemCountAfter))
+    if itemCountAfter < itemCountBefore then
+        print("  ALERTA: Número de itens na seção diminuiu após addItemAt! Isso é inesperado.")
+    end
+
+    print(string.format("(Storage) Item %s (%s) adicionado/atualizado na seção %d em [%d,%d], Rotacionado: %s",
         item.instanceId, item.itemBaseId,
         self.activeSectionIndex, targetRow, targetCol, tostring(item.isRotated)))
     return true
@@ -333,7 +414,7 @@ function LobbyStorageManager:_addItemToSection(section, itemBaseId, quantity)
         local freeSpace = ItemGridLogic.findFreeSpace(section.grid, section.rows, section.cols, width, height)
 
         if freeSpace then
-            local instanceId = self:_getNextInstanceId()
+            local instanceId = uuid.generate()
             local newItemInstance = {
                 instanceId = instanceId,
                 itemBaseId = itemBaseId,
@@ -383,9 +464,15 @@ end
 function LobbyStorageManager:_removeItemInstanceFromSection(section, instanceId, quantity)
     local instance = section.items[instanceId]
     if not instance then
-        print("AVISO [LobbyStorageManager]: Tentativa de remover instância de item inexistente:", instanceId)
+        print(string.format(
+            "AVISO [LobbyStorageManager:_removeItemInstanceFromSection]: Tentativa de remover instância de item inexistente: %s na seção %d (seção ativa: %d)",
+            tostring(instanceId), self:getSectionIndexForItem(instanceId) or -1, self.activeSectionIndex))
         return false
     end
+
+    print(string.format(
+        "[LobbyStorageManager:_removeItemInstanceFromSection] Removendo item ID %s (BaseID %s), Qty a remover: %s, Qty atual: %d",
+        instance.instanceId, instance.itemBaseId, tostring(quantity or 'ALL'), instance.quantity))
 
     local quantityToRemove = quantity or instance.quantity
 
@@ -408,9 +495,20 @@ function LobbyStorageManager:_removeItemInstanceFromSection(section, instanceId,
 
         -- Remove da tabela de itens
         section.items[instanceId] = nil
-        -- print(string.format("Removida instância %d (%s) da seção.", instanceId, instance.itemBaseId))
+        print(string.format("  Instância %s (BaseID %s) completamente removida da lista de itens da seção.", instanceId,
+            instance.itemBaseId))
         return true
     end
+end
+
+-- Helper para encontrar a qual seção um item pertence (se existir)
+function LobbyStorageManager:getSectionIndexForItem(instanceId)
+    for index, sectionData in pairs(self.sections) do
+        if sectionData.items[instanceId] then
+            return index
+        end
+    end
+    return nil
 end
 
 -- == Funções de Persistência ==
@@ -615,8 +713,8 @@ end
 
 --- Helper para adicionar itens iniciais (chamado após _initializeEmptyStorage).
 function LobbyStorageManager:_populateInitialItems()
-    print("[LobbyStorageManager] Populando com itens iniciais...") -- Mantendo um log geral
-    local section = self.sections[1]                               -- Popula a primeira seção
+    print("[LobbyStorageManager] Populando com itens iniciais...")
+    local section = self.sections[1] -- Popula a primeira seção
     if not section then
         print("ERRO: Seção 1 não encontrada ao popular itens iniciais.")
         return

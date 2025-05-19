@@ -20,6 +20,7 @@ local LoadoutManager = require("src.managers.loadout_manager")
 local LobbyStorageManager = require("src.managers.lobby_storage_manager")
 local HunterManager = require("src.managers.hunter_manager")
 local fonts = require("src.ui.fonts")
+local uuid = require("src.utils.uuid")
 
 local lovebird = require("src.libs.lovebird")
 local profiler = require("src.libs.profiler")
@@ -36,6 +37,8 @@ function love.load()
     fonts.load()
     love.graphics.setDefaultFilter("nearest", "nearest")
     love.keyboard.setKeyRepeat(true) -- Habilita repetição de tecla
+
+    math.randomseed(os.time() + tonumber(tostring(os.clock()):reverse():sub(1, 6)))
 
     SceneManager.switchScene("bootloader_scene")
 

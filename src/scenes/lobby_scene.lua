@@ -426,6 +426,18 @@ function LobbyScene:update(dt)
                     end
                 end
             end
+
+            if self.targetSlotCoords then
+                local manager = (self.targetGridId == "storage") and self.lobbyStorageManager or self.loadoutManager
+                local item_at_target = manager:getItemInstanceAtCoords(self.targetSlotCoords.row,
+                    self.targetSlotCoords.col) -- Supondo que aceita nil para sectionIndex no loadout
+                print(string.format(
+                    "LobbyScene:update - Target: %s[%s,%s], Dragged: %s, ValidDrop: %s, ItemAtTarget: %s",
+                    self.targetGridId, self.targetSlotCoords.row, self.targetSlotCoords.col,
+                    self.draggedItem and self.draggedItem.itemBaseId or "nil",
+                    tostring(self.isDropValid),
+                    item_at_target and item_at_target.itemBaseId or "nil"))
+            end
         end
     elseif activeTab and activeTab.id == TabIds.GUILD then
         if self.guildScreen and self.guildScreen.update then
@@ -707,7 +719,12 @@ function LobbyScene:keypressed(key, scancode, isrepeat)
     -- Verifica se estamos arrastando um item na aba de Equipamento
     if self.isDragging and activeTab and activeTab.id == TabIds.EQUIPMENT and self.equipmentScreen then
         -- Delega para a keypressed da EquipmentScreen
-        local wantsToRotate = self.equipmentScreen:keypressed(key)
+        local dragState = {
+            isDragging = self.isDragging,
+            draggedItem = self.draggedItem,
+            draggedItemIsRotated = self.draggedItemIsRotated
+        }
+        local wantsToRotate = self.equipmentScreen:keypressed(key, dragState)
 
         if wantsToRotate and self.draggedItem then
             -- Alterna o estado de rotação VISUAL

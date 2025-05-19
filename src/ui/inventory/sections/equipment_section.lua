@@ -20,26 +20,31 @@ local SLOT_IDS = {
 -- Função HELPER para desenhar um único slot (EQUIPAMENTO ou RUNA)
 -- (Adaptada de inventory_screen)
 local function drawSingleSlot(slotX, slotY, slotW, slotH, itemInstance, label)
-    -- Desenha o fundo e borda do slot no estilo do slot de arma vazio
-    -- elements.drawEmptySlotBackground(slotX, slotY, slotW, slotH) -- REMOVIDO
-
-    -- Desenha o frame estilizado (como na arma)
-    elements.drawWindowFrame(slotX - 2, slotY - 2, slotW + 4, slotH + 4, nil,
-        colors.slot_empty_bg, colors.slot_empty_border) -- Adiciona pequeno padding para o frame
-
-    -- Desenha o fundo interno (como na arma)
-    local bgColor = colors.slot_empty_bg
-    if bgColor then
-        love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
+    if itemInstance then
+        local rarity = (itemInstance and itemInstance.rarity) or 'E'
+        local cardConfig = {
+            rankLetterForStyle = rarity,
+            text = "",
+            showGlow = true,
+            cornerRadius = 3 -- Mantendo o cornerRadius do design anterior
+        }
+        elements.drawTextCard(slotX, slotY, slotW, slotH, "", cardConfig)
+        love.graphics.setColor(colors.white) -- Reset color
     else
-        print("AVISO: colors.slot_empty_bg não encontrado em drawSingleSlot, usando cor padrão.")
-        love.graphics.setColor(0.1, 0.1, 0.1, 0.8) -- Fallback
+        elements.drawWindowFrame(slotX - 2, slotY - 2, slotW + 4, slotH + 4, nil,
+            colors.slot_empty_bg, colors.slot_empty_border)
+        local bgColor = colors.slot_empty_bg
+        if bgColor then
+            love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
+        else
+            print("AVISO: colors.slot_empty_bg não encontrado em drawSingleSlot, usando cor padrão.")
+            love.graphics.setColor(0.1, 0.1, 0.1, 0.8) -- Fallback
+        end
+        love.graphics.rectangle("fill", slotX, slotY, slotW, slotH, 3, 3)
+        love.graphics.setColor(1, 1, 1, 1) -- Reset cor antes de desenhar conteúdo
     end
-    love.graphics.rectangle("fill", slotX, slotY, slotW, slotH, 3, 3)
 
-    -- Reset cor antes de desenhar conteúdo
-    love.graphics.setColor(1, 1, 1, 1)
-
+    -- Desenha Ícone ou Texto (Lógica Mantida)
     if itemInstance and itemInstance.icon and type(itemInstance.icon) == "userdata" then
         local icon = itemInstance.icon
         local iw, ih = icon:getDimensions()
@@ -74,13 +79,12 @@ local function drawSingleSlot(slotX, slotY, slotW, slotH, itemInstance, label)
         love.graphics.setFont(fonts.main)
     end
 
-    -- Desenha borda da raridade (se houver item)
-    if itemInstance then
-        elements.drawRarityBorderAndGlow(itemInstance.rarity or 'E', slotX, slotY, slotW, slotH)
-    end
+    -- Desenha borda da raridade (se houver item E SE drawTextCard não a inclui)
+    -- if itemInstance then
+    --     elements.drawRarityBorderAndGlow(itemInstance.rarity or 'E', slotX, slotY, slotW, slotH)
+    -- end
 end
 
--- NOVO: Função HELPER para desenhar um slot de Runa com informações
 local function drawRuneSlotInfo(slotX, slotY, slotW, slotH, rune)
     -- Desenha o fundo e borda do slot (estilo equipamento/arma)
     elements.drawWindowFrame(slotX - 2, slotY - 2, slotW + 4, slotH + 4, nil,
@@ -251,22 +255,36 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
     end
 
     -- Desenha o fundo do slot usando as cores definidas
-    elements.drawWindowFrame(weaponSlotX - 2, weaponSlotY - 2, weaponSlotW + 4, weaponSlotH + 4, nil,
-        slotBgColor, slotBorderColor)
-    if slotBgColor then
-        love.graphics.setColor(slotBgColor[1], slotBgColor[2], slotBgColor[3], slotBgColor[4] or 1)
+    if weaponInstance then
+        -- <<< NOVO: Desenha fundo com drawTextCard se houver ARMA >>>
+        local rarity = (weaponInstance and weaponInstance.rarity) or 'E'
+        local cardConfig = {
+            rankLetterForStyle = rarity,
+            text = "",
+            showGlow = true,
+            cornerRadius = 3
+        }
+        elements.drawTextCard(weaponSlotX, weaponSlotY, weaponSlotW, weaponSlotH, "", cardConfig)
+        love.graphics.setColor(colors.white) -- Reset color
     else
-        love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
+        -- <<< MANTIDO: Desenho original para slot de ARMA VAZIO >>>
+        elements.drawWindowFrame(weaponSlotX - 2, weaponSlotY - 2, weaponSlotW + 4, weaponSlotH + 4, nil,
+            slotBgColor, slotBorderColor) -- slotBgColor e slotBorderColor são definidos antes para o slot vazio
+        if slotBgColor then
+            love.graphics.setColor(slotBgColor[1], slotBgColor[2], slotBgColor[3], slotBgColor[4] or 1)
+        else
+            love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
+        end
+        love.graphics.rectangle("fill", weaponSlotX, weaponSlotY, weaponSlotW, weaponSlotH, 3, 3)
+        love.graphics.setColor(1, 1, 1, 1) -- Reset
     end
-    love.graphics.rectangle("fill", weaponSlotX, weaponSlotY, weaponSlotW, weaponSlotH, 3, 3)
-    love.graphics.setColor(1, 1, 1, 1) -- Reset
 
     if weaponInstance then
         -- Tenta obter dados base para stats mais detalhados
         local baseData = hunterManager.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
         local name = baseData and baseData.name or (weaponInstance.name or "Arma")
         local rank = baseData and baseData.rarity or (weaponInstance.rarity or 'E')
-        local rankColor = colors.rarity[rank] or colors.white
+        local rankColor = colors.rankDetails[rank].text or colors.white
 
         local damage = baseData and baseData.damage or (weaponInstance.damage or 0)
         local cooldown = baseData and baseData.cooldown or (weaponInstance.cooldown or 0)
@@ -276,27 +294,38 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
             local icon = weaponInstance.icon
             local iw, ih = icon:getDimensions()
             local rotation = 0
-            local scale = 1
             local ox, oy = iw / 2, ih / 2
-            local drawX, drawY
+
+            local maxWidthForItemIcon = weaponSlotW * 0.6  -- Limite de largura para 60%
+            local maxHeightForItemIcon = weaponSlotH * 0.9 -- Limite de altura para 90% (mantido da lógica anterior)
+
+            local scaleBasedOnWidth = maxWidthForItemIcon / iw
+            local scaleBasedOnHeight = maxHeightForItemIcon / ih
+            local scale = math.min(scaleBasedOnWidth, scaleBasedOnHeight)
+
             local baseGridW = baseData and baseData.gridWidth or 1
             local baseGridH = baseData and baseData.gridHeight or 1
-            if baseGridW > baseGridH then
-                rotation = 0
-                -- DEBUG: Print scale calculation factors
-                -- print(string.format("    - Icon Draw (Horizontal): slotW=%.1f, slotH=%.1f, iw=%.1f, ih=%.1f", weaponSlotW, weaponSlotH, iw, ih)) -- DEBUG
-                scale = math.min(weaponSlotW * 0.9 / iw, weaponSlotH * 0.9 / ih)
-                drawX = weaponSlotX + weaponSlotW - (iw * scale / 2)
-                drawY = weaponSlotY + weaponSlotH / 2
-            else
+
+            if baseGridW <= baseGridH and baseGridW ~= 0 and baseGridH ~= 0 then -- Item é vertical ou quadrado, será rotacionado (evita divisão por zero)
+                -- Para itens verticais, a 'ih' (altura original) se torna a largura no slot após rotação.
+                -- Então, o scaleBasedOnWidth deve ser 'maxWidthForItemIcon / ih'.
+                -- E 'iw' (largura original) se torna a altura no slot, então scaleBasedOnHeight é 'maxHeightForItemIcon / iw'.
+                scaleBasedOnWidth = maxWidthForItemIcon / ih
+                scaleBasedOnHeight = maxHeightForItemIcon / iw
+                scale = math.min(scaleBasedOnWidth, scaleBasedOnHeight)
                 rotation = math.pi / 2
-                -- DEBUG: Print scale calculation factors
-                -- print(string.format("    - Icon Draw (Vertical): slotW=%.1f, slotH=%.1f, iw=%.1f, ih=%.1f", weaponSlotW, weaponSlotH, iw, ih)) -- DEBUG
-                scale = math.min(weaponSlotW * 0.9 / ih, weaponSlotH * 0.9 / iw)
-                drawX = weaponSlotX + weaponSlotW - (ih * scale / 2)
-                drawY = weaponSlotY + weaponSlotH / 2
             end
-            -- print(string.format("    - Calculated scale=%.2f, drawX=%.1f, drawY=%.1f, rotation=%.2f", scale, drawX, drawY, rotation)) -- DEBUG
+
+            if scale <= 0 then scale = 0.01 end -- Evitar escala zero ou negativa
+
+            local drawX, drawY
+            local scaledIconVisualWidth = (rotation == 0) and (iw * scale) or (ih * scale)
+            -- Alinha o ícone à direita, mas com um pequeno padding, e centraliza verticalmente.
+            -- O ícone é desenhado a partir de seu centro (ox, oy), então o cálculo do drawX precisa considerar isso.
+            drawX = weaponSlotX + weaponSlotW - (scaledIconVisualWidth / 2) -
+                (weaponSlotW * 0.05) -- 5% padding da direita
+            drawY = weaponSlotY + weaponSlotH / 2
+
             love.graphics.setColor(1, 1, 1, 1)
             love.graphics.draw(icon, drawX, drawY, rotation, scale, scale, ox, oy)
         else
@@ -315,20 +344,41 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
         -- <<< INÍCIO: Desenha Informações da Arma (Nome Estilizado e Stats) >>>
         local infoX = weaponSlotX + 10 -- Começa à esquerda, antes do ícone
         local infoY = weaponSlotY + 5
+        local shadowOffsetX = 1
+        local shadowOffsetY = 1
+        local shadowColor = { 0, 0, 0, 0.5 } -- Preto semi-transparente
 
         -- Nome + Rank [R]
         love.graphics.setFont(fonts.main_large)
-        love.graphics.setColor(rankColor)
         local nameWithRank = string.format("%s [%s]", name, rank)
+        -- Sombra
+        love.graphics.setColor(shadowColor[1], shadowColor[2], shadowColor[3], shadowColor[4])
+        love.graphics.print(nameWithRank, infoX + shadowOffsetX, infoY + shadowOffsetY)
+        -- Texto Principal
+        love.graphics.setColor(rankColor) -- rankColor já definido antes
         love.graphics.print(nameWithRank, infoX, infoY)
         infoY = infoY + fonts.main_large:getHeight() + 5
 
         -- Stats
         love.graphics.setFont(fonts.main)
+        local damageText = string.format("Dano: %.1f", damage)
+        local cooldownText = string.format("Cooldown: %.2f/s", cooldown)
+        local textLimit = weaponSlotW * 0.6
+
+        -- Sombra Dano
+        love.graphics.setColor(shadowColor[1], shadowColor[2], shadowColor[3], shadowColor[4])
+        love.graphics.printf(damageText, infoX + shadowOffsetX, infoY + shadowOffsetY, textLimit, "left")
+        -- Texto Dano
         love.graphics.setColor(colors.text_main)
-        love.graphics.printf(string.format("Dano: %.1f", damage), infoX, infoY, weaponSlotW * 0.6, "left") -- Limita largura para texto
+        love.graphics.printf(damageText, infoX, infoY, textLimit, "left")
         infoY = infoY + fonts.main:getHeight() + 2
-        love.graphics.printf(string.format("Cooldown: %.2f/s", cooldown), infoX, infoY, weaponSlotW * 0.6, "left")
+
+        -- Sombra Cooldown
+        love.graphics.setColor(shadowColor[1], shadowColor[2], shadowColor[3], shadowColor[4])
+        love.graphics.printf(cooldownText, infoX + shadowOffsetX, infoY + shadowOffsetY, textLimit, "left")
+        -- Texto Cooldown
+        love.graphics.setColor(colors.text_main)
+        love.graphics.printf(cooldownText, infoX, infoY, textLimit, "left")
         -- <<< FIM: Desenha Informações da Arma >>>
     else
         -- Slot de arma vazio (sem alterações)
@@ -376,22 +426,37 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
             if itemInstance then
                 runeBaseData = hunterManager.itemDataManager:getBaseItemData(itemInstance.itemBaseId)
                 rank = (runeBaseData and runeBaseData.rarity) or (itemInstance.rarity or 'E')
-                rankColor = colors.rarity[rank] or colors.rarity['E']
+                rankColor = colors.rankDetails[rank].text
                 slotBgColor = { rankColor[1], rankColor[2], rankColor[3], 0.15 }
                 slotBorderColor = rankColor
             end
 
             -- Desenha frame e fundo
-            elements.drawWindowFrame(slotX - 2, slotY - 2, runeSlotW + 4, runeSlotH + 4, nil, slotBgColor,
-                slotBorderColor)
-            if slotBgColor then
-                love.graphics.setColor(slotBgColor[1], slotBgColor[2], slotBgColor[3],
-                    slotBgColor[4] or 1)
+            if itemInstance then
+                -- <<< NOVO: Desenha fundo com drawTextCard se houver RUNA >>>
+                local cardConfig = {
+                    rankLetterForStyle = rank,
+                    text = "",
+                    showGlow = true,
+                    cornerRadius = 3
+                }
+                elements.drawTextCard(slotX, slotY, runeSlotW, runeSlotH, "", cardConfig)
+                love.graphics.setColor(colors.white) -- Reset color
             else
-                love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
+                -- <<< MANTIDO: Desenho original para slot de RUNA VAZIO >>>
+                elements.drawWindowFrame(slotX - 2, slotY - 2, runeSlotW + 4, runeSlotH + 4, nil,
+                    colors.slot_empty_bg,                   -- Usando cor padrão de slot vazio
+                    colors.slot_empty_border)
+                local currentBgColor = colors.slot_empty_bg -- Renomeado para evitar conflito
+                if currentBgColor then
+                    love.graphics.setColor(currentBgColor[1], currentBgColor[2], currentBgColor[3],
+                        currentBgColor[4] or 1)
+                else
+                    love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
+                end
+                love.graphics.rectangle("fill", slotX, slotY, runeSlotW, runeSlotH, 3, 3)
+                love.graphics.setColor(1, 1, 1, 1)
             end
-            love.graphics.rectangle("fill", slotX, slotY, runeSlotW, runeSlotH, 3, 3)
-            love.graphics.setColor(1, 1, 1, 1)
 
             -- <<< INÍCIO: Desenha Ícone e Informações da Runa >>>
             local textStartX = slotX + 10 -- Posição inicial para textos
@@ -441,7 +506,7 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
                         runeBaseData.interval or '?')
                 elseif runeBaseData.effect == "aura" then
                     statText = string.format("Dano/Tick: %s | Intervalo: %.1fs",
-                        tostring(runeBaseData.damage_per_tick or '?'), runeBaseData.tick_interval or '?')
+                        tostring(runeBaseData.damage or '?'), runeBaseData.tick_interval or '?')
                 else
                     statText = "Efeito desconhecido"
                 end

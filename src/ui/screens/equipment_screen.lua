@@ -444,8 +444,31 @@ end
 ---@param dragState table Estado completo do drag-and-drop da cena pai.
 ---@return boolean consumed Se o drop foi tratado por esta tela.
 function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
+    -- Helper para contar itens em uma tabela (pairs pode não funcionar para arrays simples)
+    local function tableCount(tbl)
+        local count = 0
+        if tbl then
+            for _ in pairs(tbl) do
+                count = count + 1
+            end
+        end
+        return count
+    end
+
     if buttonIdx == 1 and dragState.isDragging then
         print("EquipmentScreen: handleMouseRelease chamado.")
+        print(string.format("  DragState: isDragging=%s, draggedItem.id=%s, draggedItem.baseId=%s, qty=%d",
+            tostring(dragState.isDragging),
+            dragState.draggedItem and dragState.draggedItem.instanceId or "nil",
+            dragState.draggedItem and dragState.draggedItem.itemBaseId or "nil",
+            dragState.draggedItem and dragState.draggedItem.quantity or 0))
+        print(string.format("  DragState: sourceGridId=%s, sourceSlotId=%s",
+            tostring(dragState.sourceGridId), tostring(dragState.sourceSlotId)))
+        print(string.format("  DragState: targetGridId=%s, targetSlotCoords=(%s,%s), isDropValid=%s",
+            tostring(dragState.targetGridId),
+            dragState.targetSlotCoords and dragState.targetSlotCoords.row or "nil",
+            dragState.targetSlotCoords and dragState.targetSlotCoords.col or "nil",
+            tostring(dragState.isDropValid)))
 
         -- 1. Verifica drop em SLOT DE EQUIPAMENTO PRIMEIRO
         local droppedOnEquipmentSlot = false
@@ -465,7 +488,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                 print("ERRO (EquipmentScreen): draggedItem é nil ao tentar equipar!")
                 return true -- Consome o evento mesmo com erro para evitar processamento adicional
             end
-            print(string.format("DEBUG (EquipmentScreen): Tentando equipar item ID %d (%s) no slot %s",
+            print(string.format("DEBUG (EquipmentScreen): Tentando equipar item ID %s (%s) no slot %s",
                 itemToEquip.instanceId,
                 itemToEquip.itemBaseId, targetEquipmentSlotId))
 
@@ -559,12 +582,12 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                                 "ERRO GRAVE (EquipmentScreen): Item %d equipado, mas falha ao remover da origem %s!",
                                 itemToEquip.instanceId, dragState.sourceGridId))
                         else
-                            print(string.format("EquipmentScreen: Item %d removido de %s após equipar.",
+                            print(string.format("EquipmentScreen: Item %s removido de %s após equipar.",
                                 itemToEquip.instanceId, dragState.sourceGridId))
                         end
 
                         if oldItemInstance then
-                            print(string.format("EquipmentScreen: Tentando devolver item antigo (%s, ID: %d) para %s",
+                            print(string.format("EquipmentScreen: Tentando devolver item antigo (%s, ID: %s) para %s",
                                 oldItemInstance.itemBaseId, oldItemInstance.instanceId, dragState.sourceGridId))
                             local addedBack = sourceManager:addItemInstance(oldItemInstance)
                             if addedBack then
@@ -599,101 +622,229 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
 
                 local targetManager = (dragState.targetGridId == "storage") and self.lobbyStorageManager or
                     self.loadoutManager
+                local draggedItem = dragState.draggedItem
+                local draggedItemBaseData = self.itemDataManager:getBaseItemData(draggedItem.itemBaseId)
 
-                -- <<< INÍCIO: Lógica para Mover ou Desequipar >>>
+                if not draggedItemBaseData then
+                    print(
+                        "ERRO (EquipmentScreen:handleMouseRelease): Não foi possível obter dados base para o item arrastado " ..
+                        draggedItem.itemBaseId)
+                    return true -- Consome o evento
+                end
+
+                -- A. TENTAR EMPILHAR PRIMEIRO
+                print(string.format("  Attempting stack for: %s, stackable: %s", draggedItem.itemBaseId,
+                    tostring(draggedItemBaseData.stackable)))
+                if draggedItemBaseData.stackable then
+                    local itemsInTargetGrid = targetManager:getItems()
+                    if dragState.targetGridId == "storage" then
+                        itemsInTargetGrid = targetManager:getItems(targetManager:getActiveSectionIndex())
+                    end
+                    print(string.format("  Items in target grid (%s) for stacking check: %d", dragState.targetGridId,
+                        tableCount(itemsInTargetGrid)))
+
+                    local itemAtTargetSlot = nil
+                    -- Procurar item no slot alvo de forma mais robusta
+                    -- Esta lógica assume que getItemInstanceAtCoords existe e funciona como esperado para encontrar um item em dadas coordenadas.
+                    -- Se não, precisaremos de uma função similar ou iterar pelos itens checando a sobreposição de suas áreas com targetSlotCoords.
+                    if targetManager.getItemInstanceAtCoords then -- Verifica se o manager tem um método para isso
+                        itemAtTargetSlot = targetManager:getItemInstanceAtCoords(dragState.targetSlotCoords.row,
+                            dragState.targetSlotCoords.col,
+                            dragState.targetGridId == "storage" and targetManager:getActiveSectionIndex() or nil)
+                        if itemAtTargetSlot then
+                            print(string.format(
+                                "  Found itemAtTargetSlot via getItemInstanceAtCoords: ID %s, BaseID %s, Qty %d",
+                                itemAtTargetSlot.instanceId, itemAtTargetSlot.itemBaseId, itemAtTargetSlot.quantity))
+                        else
+                            print("  No item found at target slot using getItemInstanceAtCoords.")
+                        end
+                    else
+                        -- Fallback para a lógica anterior (mais simples, focada em 1x1 e canto superior esquerdo)
+                        print(
+                            "  targetManager.getItemInstanceAtCoords not found, using simpler fallback for itemAtTargetSlot.")
+                        for _, instance in pairs(itemsInTargetGrid) do
+                            if instance.row == dragState.targetSlotCoords.row and instance.col == dragState.targetSlotCoords.col then
+                                local instanceBaseData = self.itemDataManager:getBaseItemData(instance.itemBaseId)
+                                -- Relaxando a restrição de 1x1 para o item alvo, mas ainda checando o ponto de drop
+                                if instanceBaseData then
+                                    itemAtTargetSlot = instance
+                                    print(string.format(
+                                        "  Found itemAtTargetSlot (fallback): ID %s, BaseID %s, Qty %d at [%d,%d]",
+                                        instance.instanceId, instance.itemBaseId, instance.quantity, instance.row,
+                                        instance.col))
+                                    break
+                                end
+                            end
+                        end
+                        if not itemAtTargetSlot then print("  No itemAtTargetSlot found using fallback.") end
+                    end
+
+
+                    if itemAtTargetSlot and itemAtTargetSlot.itemBaseId == draggedItem.itemBaseId then
+                        print(string.format(
+                            "  Stacking condition met: itemAtTargetSlot.itemBaseId (%s) == draggedItem.itemBaseId (%s)",
+                            itemAtTargetSlot.itemBaseId, draggedItem.itemBaseId))
+                        local targetItemBaseData = self.itemDataManager:getBaseItemData(itemAtTargetSlot.itemBaseId)
+                        if targetItemBaseData and targetItemBaseData.stackable then
+                            print(string.format("  Target item %s is stackable. MaxStack: %d, CurrentQty: %d",
+                                itemAtTargetSlot.itemBaseId, (targetItemBaseData.maxStack or 1),
+                                itemAtTargetSlot.quantity))
+                            local spaceInStack = (targetItemBaseData.maxStack or 1) - itemAtTargetSlot.quantity
+                            print(string.format("  Space in stack for target: %d. Dragged item qty: %d", spaceInStack,
+                                draggedItem.quantity))
+
+                            if spaceInStack > 0 then
+                                local amountToTransfer = math.min(draggedItem.quantity, spaceInStack)
+                                print(string.format("  Amount to transfer: %d", amountToTransfer))
+
+                                if amountToTransfer > 0 then
+                                    itemAtTargetSlot.quantity = itemAtTargetSlot.quantity + amountToTransfer
+                                    draggedItem.quantity = draggedItem.quantity - amountToTransfer
+
+                                    print(string.format(
+                                        "EquipmentScreen: Empilhado %d de '%s' (origem instId %s) em '%s' (alvo instId %s). Qtd alvo: %d. Qtd origem restante: %d",
+                                        amountToTransfer, draggedItem.itemBaseId, draggedItem.instanceId,
+                                        itemAtTargetSlot.itemBaseId, itemAtTargetSlot.instanceId,
+                                        itemAtTargetSlot.quantity, draggedItem.quantity))
+
+                                    local sourceManagerUtil = nil
+                                    if dragState.sourceGridId == "storage" then
+                                        sourceManagerUtil = self.lobbyStorageManager
+                                    elseif dragState.sourceGridId == "loadout" then
+                                        sourceManagerUtil = self.loadoutManager
+                                    end
+
+                                    if draggedItem.quantity <= 0 then
+                                        if dragState.sourceGridId == "equipment" then
+                                            -- Desequipa o item completamente
+                                            self.hunterManager:unequipItem(dragState.sourceSlotId)
+                                            print(string.format(
+                                                "EquipmentScreen: Item '%s' (ID: %s) totalmente empilhado e desequipado da origem %s.",
+                                                draggedItem.itemBaseId, draggedItem.instanceId, dragState.sourceSlotId))
+                                        elseif sourceManagerUtil then
+                                            sourceManagerUtil:removeItemByInstanceId(draggedItem.instanceId)
+                                            print(string.format(
+                                                "EquipmentScreen: Item '%s' (ID: %s) totalmente empilhado e removido da origem %s.",
+                                                draggedItem.itemBaseId, draggedItem.instanceId, dragState.sourceGridId))
+                                        end
+                                    else
+                                        -- Se sobrou quantidade, e a origem é um manager de inventário,
+                                        -- a instância original no sourceManager já reflete a quantidade diminuída.
+                                        -- Se a origem era equipamento e sobrou (caso raro para empilháveis), tratar.
+                                        if dragState.sourceGridId == "equipment" then
+                                            print(string.format(
+                                                "AVISO (EquipmentScreen): Item de equipamento '%s' parcialmente empilhado. Quantidade restante na origem (%s) é %d. Esta situação pode precisar de tratamento especial.",
+                                                draggedItem.itemBaseId, dragState.sourceSlotId, draggedItem.quantity))
+                                            -- A instância original no equipamento ainda terá sua quantidade original, pois não há "update quantity" em equip.
+                                            -- Isso implica que o empilhamento "copiou" uma parte.
+                                        else
+                                            -- Para storage/loadout, a alteração em draggedItem.quantity deve ser refletida
+                                            -- se o manager opera diretamente nas instâncias.
+                                            -- Se os managers salvam/carregam estados, essa mudança precisa ser persistida.
+                                            print(string.format(
+                                                "EquipmentScreen: Item '%s' (ID: %s) parcialmente empilhado. Quantidade restante na origem %s é %d.",
+                                                draggedItem.itemBaseId, draggedItem.instanceId, dragState.sourceGridId,
+                                                draggedItem.quantity))
+                                        end
+                                    end
+                                    return true -- Empilhamento realizado, consome o evento
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- Lógica original para Mover ou Desequipar para a grade (continua se não houve empilhamento ou bloqueio de duplicata)
+                print(string.format("  Proceeding to move/unequip. SourceGrid: %s, SourceSlot: %s",
+                    dragState.sourceGridId, dragState.sourceSlotId))
                 if dragState.sourceGridId == "equipment" then
-                    -- Desequipando item para a grade
-                    print(string.format("EquipmentScreen: Tentando desequipar item do slot %s", dragState.sourceSlotId))
-                    -- Chama a função para desequipar, esperando a instância do item de volta
+                    print(string.format("  Attempting to unequip item from slot %s to %s", dragState.sourceSlotId,
+                        dragState.targetGridId))
                     local unequippedItem = self.hunterManager:unequipItem(dragState.sourceSlotId)
 
                     if unequippedItem then
-                        print(string.format("EquipmentScreen: Item %d (%s) desequipado com sucesso.",
-                            unequippedItem.instanceId,
-                            unequippedItem.itemBaseId))
-
-                        -- DEBUG: Imprime informações antes de adicionar
-                        print(string.format(
-                            "  DEBUG (EquipmentScreen): Tentando adicionar a %s. Item ID: %d. Coords: [%d,%d]. Rotated: %s",
-                            dragState.targetGridId,
-                            unequippedItem.instanceId,
-                            dragState.targetSlotCoords.row,
-                            dragState.targetSlotCoords.col,
+                        print(string.format("  Item %s (ID: %s) unequipped successfully.", unequippedItem.itemBaseId,
+                            unequippedItem.instanceId))
+                        print(string.format("  Attempting to add unequipped item to %s at [%d,%d], rotated: %s",
+                            dragState.targetGridId, dragState.targetSlotCoords.row, dragState.targetSlotCoords.col,
                             tostring(dragState.draggedItemIsRotated)))
-                        print("  DEBUG (EquipmentScreen): targetManager é nil?", targetManager == nil)
 
-                        -- Tenta adicionar ao inventário alvo
                         local added = targetManager:addItemAt(unequippedItem, dragState.targetSlotCoords.row,
                             dragState.targetSlotCoords.col, dragState.draggedItemIsRotated)
 
-                        -- DEBUG: Imprime o resultado do addItemAt
-                        print(string.format("  DEBUG (EquipmentScreen): targetManager:addItemAt retornou: %s",
-                            tostring(added)))
-
                         if not added then
                             print(string.format(
-                                "ERRO CRÍTICO (EquipmentScreen): Falha ao adicionar item desequipado %d a %s! Tentando devolver ao equipamento...",
-                                unequippedItem.instanceId, dragState.targetGridId))
-                            -- Tenta re-equipar (pode falhar se outro item foi equipado enquanto arrastava?)
+                                "ERRO CRÍTICO (EquipmentScreen): Falha ao adicionar item desequipado %s (ID: %s) a %s! Tentando devolver ao equipamento...",
+                                unequippedItem.itemBaseId, unequippedItem.instanceId, dragState.targetGridId))
                             local reequipped, _ = self.hunterManager:equipItem(unequippedItem, dragState.sourceSlotId)
                             if not reequipped then
                                 print(string.format(
-                                    "ERRO GRAVÍSSIMO: Falha ao re-equipar item %d no slot %s! Item perdido?",
-                                    unequippedItem.instanceId, dragState.sourceSlotId))
-                                -- TODO: Implementar sistema de "item caído"?
+                                    "ERRO GRAVÍSSIMO: Falha ao re-equipar item %s (ID: %s) no slot %s! Item perdido?",
+                                    unequippedItem.itemBaseId, unequippedItem.instanceId, dragState.sourceSlotId))
                             end
                         else
                             print(string.format(
-                                "EquipmentScreen: Item desequipado %d adicionado a %s [%d,%d]",
-                                unequippedItem.instanceId, dragState.targetGridId, dragState.targetSlotCoords.row,
+                                "EquipmentScreen: Item desequipado %s (ID: %s) adicionado a %s [%d,%d]",
+                                unequippedItem.itemBaseId, unequippedItem.instanceId, dragState.targetGridId,
+                                dragState.targetSlotCoords.row,
                                 dragState.targetSlotCoords.col))
                         end
                     else
                         print(string.format(
                             "ERRO (EquipmentScreen): Falha ao desequipar item do slot %s (hunterManager:unequipItem falhou).",
                             dragState.sourceSlotId))
-                        -- O item permanece equipado, o arraste falhou.
                     end
-                    -- Mesmo que o desequipamento/adição falhe, consideramos o evento de drop tratado
-                    -- para evitar que a cena tente fazer algo mais.
                     return true
                 else -- Se a origem NÃO era "equipment" (ou seja, era "storage" ou "loadout")
-                    -- Movendo item ENTRE grades (Storage/Loadout)
                     local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
                         self.loadoutManager
-                    local itemToMove = dragState.draggedItem
+                    local itemToMove = dragState.draggedItem -- Já temos como 'draggedItem'
+
+                    print(string.format("  Attempting to move item %s (ID: %s) from %s to %s",
+                        itemToMove.itemBaseId, itemToMove.instanceId, dragState.sourceGridId, dragState.targetGridId))
 
                     -- 1. Remove da origem
+                    print(string.format("  Removing item %s (ID: %s) from sourceManager (%s)", itemToMove.itemBaseId,
+                        itemToMove.instanceId, dragState.sourceGridId))
                     local removed = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
+                    print(string.format("  Removal from source %s status: %s", dragState.sourceGridId, tostring(removed)))
 
                     if removed then
                         -- 2. Adiciona ao destino
+                        print(string.format("  Adding item %s (ID: %s) to targetManager (%s) at [%d,%d], rotated: %s",
+                            itemToMove.itemBaseId, itemToMove.instanceId, dragState.targetGridId,
+                            dragState.targetSlotCoords.row, dragState.targetSlotCoords.col,
+                            tostring(dragState.draggedItemIsRotated)))
                         local added = targetManager:addItemAt(itemToMove, dragState.targetSlotCoords.row,
                             dragState.targetSlotCoords.col, dragState.draggedItemIsRotated)
+                        print(string.format("  Addition to target %s status: %s", dragState.targetGridId, tostring(added)))
+
                         if not added then
                             print(string.format(
-                                "ERRO CRÍTICO (EquipmentScreen): Falha ao adicionar item ao destino (%s) após remover da origem (%s)! Tentando devolver...",
-                                dragState.targetGridId, dragState.sourceGridId))
-                            -- Tenta devolver para a origem
-                            local addedBack = sourceManager:addItemInstance(itemToMove) -- Supõe que addItemInstance tenta achar espaço
+                                "ERRO CRÍTICO (EquipmentScreen): Falha ao adicionar item %s (ID: %s) ao destino (%s) após remover da origem (%s)! Tentando devolver...",
+                                itemToMove.itemBaseId, itemToMove.instanceId, dragState.targetGridId,
+                                dragState.sourceGridId))
+                            local addedBack = sourceManager:addItemInstance(itemToMove)
                             if not addedBack then
                                 print(string.format(
-                                    "ERRO GRAVÍSSIMO: Falha ao devolver item %d para a origem %s! Item perdido?",
-                                    itemToMove.instanceId, dragState.sourceGridId))
+                                    "ERRO GRAVÍSSIMO: Falha ao devolver item %s (ID: %s) para a origem %s! Item perdido?",
+                                    itemToMove.itemBaseId, itemToMove.instanceId, dragState.sourceGridId))
+                            else
+                                print(string.format("  Item %s (ID: %s) successfully returned to source %s.",
+                                    itemToMove.itemBaseId, itemToMove.instanceId, dragState.sourceGridId))
                             end
                         else
-                            print(string.format("EquipmentScreen: Item %d movido de %s para %s [%d,%d]",
-                                itemToMove.instanceId, dragState.sourceGridId, dragState.targetGridId,
+                            print(string.format("EquipmentScreen: Item %s (ID: %s) movido de %s para %s [%d,%d]",
+                                itemToMove.itemBaseId, itemToMove.instanceId, dragState.sourceGridId,
+                                dragState.targetGridId,
                                 dragState.targetSlotCoords.row, dragState.targetSlotCoords.col))
                         end
                     else
-                        print(string.format("ERRO (EquipmentScreen): Falha ao remover item %d da origem %s.",
-                            itemToMove.instanceId, dragState.sourceGridId))
+                        print(string.format("ERRO (EquipmentScreen): Falha ao remover item %s (ID: %s) da origem %s.",
+                            itemToMove.itemBaseId, itemToMove.instanceId, dragState.sourceGridId))
                     end
-                    -- Mesmo que a movimentação falhe, consideramos o evento de drop tratado.
                     return true
                 end
-                -- <<< FIM: Lógica para Mover ou Desequipar >>>
             end -- Fim do if targetGridId == storage or loadout
         end     -- Fim do if isDropValid
 
@@ -706,13 +857,32 @@ end
 
 --- Processa pressionamento de teclas quando esta tela está ativa e um item está sendo arrastado.
 ---@param key string A tecla pressionada (love.keyboard.keys).
+---@param dragState table Estado atual do drag-and-drop da cena pai.
 ---@return boolean wantsToRotate Se a tecla indica uma solicitação de rotação.
-function EquipmentScreen:keypressed(key)
+function EquipmentScreen:keypressed(key, dragState)
     if key == "space" then
-        print("(EquipmentScreen) Rotação solicitada (Espaço)")
-        return true -- Sinaliza para a cena que queremos rotacionar
+        if dragState and dragState.isDragging and dragState.draggedItem then
+            local item = dragState.draggedItem
+            -- Itens com mesma largura e altura da grade (ex: 1x1, 2x2) não devem rotacionar.
+            if item.gridWidth and item.gridHeight and item.gridWidth == item.gridHeight then
+                print(string.format(
+                    "(EquipmentScreen) Rotação NÃO permitida para item %s: dimensões da grade são iguais (%dx%d).",
+                    item.itemBaseId, item.gridWidth, item.gridHeight))
+                return false -- Não rotacionar
+            end
+            print(string.format("(EquipmentScreen) Rotação permitida e solicitada para item %s (%dx%d).",
+                item.itemBaseId, item.gridWidth, item.gridHeight))
+            return true -- Sinaliza para a cena que queremos rotacionar
+        else
+            -- Não está arrastando ou não tem item, permite o comportamento padrão (que pode ser nada)
+            -- ou, se a intenção é APENAS rotacionar itens arrastados, poderia retornar false aqui também.
+            -- Por enquanto, vamos assumir que a rotação só faz sentido se estiver arrastando um item.
+            print(
+                "(EquipmentScreen) Tecla de rotação pressionada, mas não há item sendo arrastado ou dragState está incompleto.")
+            return false
+        end
     end
-    return false    -- Nenhuma ação de rotação solicitada
+    return false -- Nenhuma ação de rotação solicitada por outra tecla
 end
 
 return EquipmentScreen

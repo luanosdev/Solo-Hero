@@ -101,7 +101,7 @@ function InventoryManager:addItem(itemBaseId, quantity)
                 instance.quantity = instance.quantity + amountToStack
                 addedQuantity = addedQuantity + amountToStack
                 remainingQuantity = remainingQuantity - amountToStack
-                print(string.format("Empilhado %d em %s (ID %d). Total: %d/%d", amountToStack, itemBaseId, id,
+                print(string.format("Empilhado %d em %s (ID %s). Total: %d/%d", amountToStack, itemBaseId, id,
                     instance.quantity, maxStack))
                 if remainingQuantity <= 0 then break end -- Sai se já adicionou tudo
             end
@@ -141,7 +141,7 @@ function InventoryManager:addItem(itemBaseId, quantity)
 
             addedQuantity = addedQuantity + amountForThisInstance
             remainingQuantity = remainingQuantity - amountForThisInstance
-            print(string.format("Colocado novo item/stack de %s (ID %d) em [%d,%d] com %d unidade(s).", itemBaseId,
+            print(string.format("Colocado novo item/stack de %s (ID %s) em [%d,%d] com %d unidade(s).", itemBaseId,
                 instanceId, freeSpace.row, freeSpace.col, amountForThisInstance))
 
             if not stackable and remainingQuantity > 0 then
@@ -174,7 +174,7 @@ function InventoryManager:removeItemInstance(instanceId, quantity)
     if instance.stackable and quantityToRemove < instance.quantity then
         -- Remove apenas uma parte da pilha
         instance.quantity = instance.quantity - quantityToRemove
-        print(string.format("Removido %d de %s (ID %d). Restante: %d", quantityToRemove, instance.itemBaseId, instanceId,
+        print(string.format("Removido %d de %s (ID %s). Restante: %d", quantityToRemove, instance.itemBaseId, instanceId,
             instance.quantity))
         return true
     else
@@ -191,7 +191,7 @@ function InventoryManager:removeItemInstance(instanceId, quantity)
 
         -- Remove da lista de itens colocados
         self.placedItems[instanceId] = nil
-        print(string.format("Removida instância %d (%s) de [%d,%d].", instanceId, instance.itemBaseId, instance.row,
+        print(string.format("Removida instância %s (%s) de [%d,%d].", instanceId, instance.itemBaseId, instance.row,
             instance.col))
         return true
     end
@@ -279,7 +279,7 @@ function InventoryManager:addItemAt(itemInstance, targetRow, targetCol, isRotate
     local checkWidth = isRotated and baseH or baseW
     local checkHeight = isRotated and baseW or baseH
 
-    print(string.format("[addItemAt] Tentando adicionar item %s (ID: %d) em [%d,%d], Rotated: %s, Size: %dx%d",
+    print(string.format("[addItemAt] Tentando adicionar item %s (ID: %s) em [%d,%d], Rotated: %s, Size: %dx%d",
         itemInstance.itemBaseId, itemInstance.instanceId, targetRow, targetCol, tostring(isRotated), checkWidth,
         checkHeight))
 
