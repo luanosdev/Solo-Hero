@@ -224,7 +224,7 @@ function InventoryScreen.draw(dragState)
     }
 
     -- Desenha Coluna de Stats
-    HunterStatsColumn.draw(
+    local statsTooltipLines, statsTooltipX, statsTooltipY = HunterStatsColumn.draw(
         statsX + innerColXOffset, centeredContentStartY, innerColW, centeredContentH,
         statsColumnConfig
     )
@@ -306,6 +306,11 @@ function InventoryScreen.draw(dragState)
 
     -- Desenha o tooltip no final
     TooltipManager.draw()
+
+    -- Desenha o Tooltip de Stats (se houver)
+    if statsTooltipLines and #statsTooltipLines > 0 then
+        elements.drawTooltipBox(statsTooltipX, statsTooltipY, statsTooltipLines)
+    end
 
     return InventoryScreen.equipmentSlotAreas, InventoryScreen.inventoryGridArea
 end

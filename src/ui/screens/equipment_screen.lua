@@ -163,6 +163,7 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     end
 
     -- 1. Desenha Coluna de Stats e Arquétipos (usando o novo componente)
+    local statsTooltipLines, statsTooltipX, statsTooltipY -- Para armazenar dados do tooltip de stats
     if self.hunterManager and finalStats and archetypeIds and archetypeManager then
         -- <<<< CRIA TABELA DE CONFIGURAÇÃO >>>>
         local statsColumnConfig = {
@@ -173,7 +174,8 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
             mouseX = mx,                       -- Passa mouse coords
             mouseY = my
         }
-        HunterStatsColumn.draw(statsX, contentStartY, statsW, sectionContentH,
+        statsTooltipLines, statsTooltipX, statsTooltipY = HunterStatsColumn.draw(statsX, contentStartY, statsW,
+            sectionContentH,
             statsColumnConfig -- <<<< Passa a tabela de configuração
         )
     else
@@ -298,6 +300,11 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
 
     -- Desenha o Tooltip no final
     TooltipManager.draw()
+
+    -- Desenha o Tooltip de Stats (se houver)
+    if statsTooltipLines and #statsTooltipLines > 0 then
+        elements.drawTooltipBox(statsTooltipX, statsTooltipY, statsTooltipLines)
+    end
 
     return self.storageGridArea, self.loadoutGridArea, self.equipmentSlotAreas
 end

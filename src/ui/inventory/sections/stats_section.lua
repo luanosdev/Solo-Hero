@@ -501,6 +501,9 @@ end
 ---@param archetypeManager ArchetypeManager Instância do ArchetypeManager.
 ---@param mx number Posição X do mouse.
 ---@param my number Posição Y do mouse.
+---@return table|nil tooltipLines Retorna as linhas do tooltip se houver hover, senão nil.
+---@return number|nil tooltipX Retorna a posição X do tooltip se houver hover, senão nil.
+---@return number|nil tooltipY Retorna a posição Y do tooltip se houver hover, senão nil.
 function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archetypeManager, mx, my) -- <<< NOVOS PARÂMETROS MX, MY
     if not finalStats or not next(finalStats) then
         love.graphics.setFont(fonts.main)
@@ -524,7 +527,8 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
 
     -- Reseta estado do hover a cada frame
     local currentlyHoveringKey = nil
-    tooltipLines = {}
+    local activeTooltipLines = {}               -- Renomeado para evitar conflito com variável de módulo se existir
+    local activeTooltipX, activeTooltipY = 0, 0 -- Renomeado
 
     -- Título da Seção de Atributos
     love.graphics.setFont(fonts.hud)
@@ -603,19 +607,19 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
 
             -- Prepara dados do tooltip SE estiver em hover
             if isHovering then
-                tooltipLines = {} -- Assegura que está limpo para cada hover
-                tooltipX = mx + 15
-                tooltipY = my
+                activeTooltipLines = {} -- Assegura que está limpo para cada hover
+                activeTooltipX = mx + 15
+                activeTooltipY = my
 
                 local baseColor = colors.text_label
                 local fixedBonusColor = colors.positive
-                local percentBonusColor = colors.warning
+                local percentBonusColor = colors.damage_crit
                 local sourceColor = colors.text_muted
                 local finalValueColor = colors.text_highlight
                 local attributeTitleColor = colors.text_title -- Para o nome do atributo no tooltip
 
                 -- Nome do Atributo como Título no Tooltip
-                table.insert(tooltipLines, { text = attr.label, color = attributeTitleColor })
+                table.insert(activeTooltipLines, { text = attr.label, color = attributeTitleColor })
 
                 -- 1. Linha Base (do PlayerState, que já considera arquétipos iniciais se aplicável)
                 if not attr.noDirectBase then -- <<< SÓ ADICIONA SE NÃO FOR noDirectBase
@@ -628,11 +632,11 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                         baseStatValueToDisplay = defaultValue * attr.multiplier
                     end
                     local baseStr = string.format(attr.format, baseStatValueToDisplay) .. (attr.suffix or "")
-                    table.insert(tooltipLines, { text = "  Base: " .. baseStr, color = baseColor })
+                    table.insert(activeTooltipLines, { text = "  Base: " .. baseStr, color = baseColor })
                 end -- <<< FIM DA CONDIÇÃO noDirectBase
 
                 -- Linha Divisória Inicial
-                table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
+                table.insert(activeTooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
 
                 local fixedBonusesTexts = {}
                 local percentBonusesTexts = {}
@@ -730,27 +734,27 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
 
                 if #fixedBonusesTexts > 0 then
                     -- table.insert(tooltipLines, { text = "  Bônus Fixos:", color = sourceColor })
-                    for _, line in ipairs(fixedBonusesTexts) do table.insert(tooltipLines, line) end
+                    for _, line in ipairs(fixedBonusesTexts) do table.insert(activeTooltipLines, line) end
                 end
 
                 if #fixedBonusesTexts > 0 and #percentBonusesTexts > 0 then
-                    table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
+                    table.insert(activeTooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
                 end
 
                 if #percentBonusesTexts > 0 then
                     -- table.insert(tooltipLines, { text = "  Bônus Percentuais:", color = sourceColor })
-                    for _, line in ipairs(percentBonusesTexts) do table.insert(tooltipLines, line) end
+                    for _, line in ipairs(percentBonusesTexts) do table.insert(activeTooltipLines, line) end
                 end
 
                 if #fixedBonusesTexts == 0 and #percentBonusesTexts == 0 then
                     -- table.insert(tooltipLines, { text = "  (Nenhum bônus detalhado encontrado)", color = baseColor })
                 end
 
-                table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
+                table.insert(activeTooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
 
                 -- Tooltip para Dano da Arma (caso especial)
                 if attr.key == "weaponDamage" then
-                    table.insert(tooltipLines,
+                    table.insert(activeTooltipLines,
                         {
                             text = "  Dano Base Arma: " ..
                                 Formatters.formatStatValue("damage", finalStats._baseWeaponDamage or 0, "fixed"),
@@ -758,7 +762,7 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                                 baseColor
                         })
                     if finalStats._playerDamageMultiplier then
-                        table.insert(tooltipLines,
+                        table.insert(activeTooltipLines,
                             {
                                 text = "  Mult. Jogador: " ..
                                     Formatters.formatStatValue("damageMultiplier",
@@ -768,10 +772,16 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                                     baseColor
                             }) -- nil modType para formatação de multiplicador final
                     end
-                    table.insert(tooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
+                    table.insert(activeTooltipLines, { text = "  " .. string.rep("-", 25), color = sourceColor })
                 end
 
-                table.insert(tooltipLines, { text = "  Total: " .. finalStr, color = finalValueColor })
+                table.insert(activeTooltipLines, { text = "  Total: " .. finalStr, color = finalValueColor })
+
+                -- DEBUG: Log para verificar se activeTooltipLines foi populado
+                print(string.format("[StatsSection DEBUG isHovering] Attr: %s, #activeTooltipLines: %d, Content[1]: %s",
+                    attr.key,
+                    #activeTooltipLines,
+                    (#activeTooltipLines > 0 and activeTooltipLines[1].text) or "EMPTY"))
             end
 
             currentY = currentY + lineHeight
@@ -780,14 +790,22 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
         if currentY > sectionStartY + availableHeight - lineHeight then break end
     end
 
-    -- <<< DESENHA TOOLTIP (se houver algo para mostrar) >>>
-    if #tooltipLines > 0 then
-        elements.drawTooltipBox(tooltipX, tooltipY, tooltipLines)
-    end
-    -- <<< FIM DESENHO TOOLTIP >>>
-
     love.graphics.setFont(fonts.main) -- Reset final
     love.graphics.setColor(colors.white)
+
+    if currentlyHoveringKey then
+        print(string.format("[StatsSection DEBUG Pre-Return] HoverKey: %s, #activeTooltipLines: %d, X: %s, Y: %s",
+            currentlyHoveringKey,
+            activeTooltipLines and #activeTooltipLines or -1, -- Evita erro se nil, embora não devesse ser
+            tostring(activeTooltipX),
+            tostring(activeTooltipY)))
+    end
+
+    if currentlyHoveringKey and activeTooltipLines and #activeTooltipLines > 0 then -- Adicionado check para activeTooltipLines não ser nil
+        return activeTooltipLines, activeTooltipX, activeTooltipY
+    end
+
+    return nil, nil, nil -- Nenhum tooltip para mostrar
 end
 
 return StatsSection

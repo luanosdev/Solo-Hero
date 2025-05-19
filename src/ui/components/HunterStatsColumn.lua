@@ -22,6 +22,9 @@ local HunterStatsColumn = {}
 ---	  mouseX = number,              -- Obrigatório: Posição X do mouse
 ---	  mouseY = number               -- Obrigatório: Posição Y do mouse
 ---
+---@return table|nil tooltipLines Retorna as linhas do tooltip de stats se houver hover, senão nil.
+---@return number|nil tooltipX Retorna a posição X do tooltip de stats se houver hover, senão nil.
+---@return number|nil tooltipY Retorna a posição Y do tooltip de stats se houver hover, senão nil.
 function HunterStatsColumn.draw(x, y, w, h, config)
     -- Extrai dados da config para facilitar
     local currentHp = config.currentHp
@@ -122,11 +125,15 @@ function HunterStatsColumn.draw(x, y, w, h, config)
         end)
     end
 
+    local statsTooltipLines, statsTooltipX, statsTooltipY = nil, nil,
+        nil -- Inicializa variáveis para os dados do tooltip
+
     -- 1. Desenha Seção de Stats (usando finalStats da config)
     if finalStats and next(finalStats) then
         -- Passa sortedArchetypes e archetypeManager para StatsSection poder calcular tooltips
         -- print("[HunterStatsColumn DEBUG] Chamando StatsSection.drawBaseStats. finalStats tem _learnedLevelUpBonuses? ", finalStats._learnedLevelUpBonuses ~= nil and not not next(finalStats._learnedLevelUpBonuses or {})) -- COMENTADO
-        StatsSection.drawBaseStats(x, statsY, w, statsSectionH, finalStats, sortedArchetypes, archetypeManager, mx, my)
+        statsTooltipLines, statsTooltipX, statsTooltipY = StatsSection.drawBaseStats(x, statsY, w, statsSectionH,
+            finalStats, sortedArchetypes, archetypeManager, mx, my)
     else
         -- Mensagem de erro se faltar dados de stats
         love.graphics.setColor(colors.red)
@@ -196,7 +203,9 @@ function HunterStatsColumn.draw(x, y, w, h, config)
         love.graphics.printf("Nenhum arquétipo.", x + padding, archetypesListStartY + 5, w - padding * 2, "left")
     end
 
-    love.graphics.setColor(colors.white) -- Reset final
+    love.graphics.setColor(colors.white)                   -- Reset final
+
+    return statsTooltipLines, statsTooltipX, statsTooltipY -- Retorna os dados do tooltip
 end
 
 return HunterStatsColumn
