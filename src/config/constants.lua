@@ -23,6 +23,17 @@ Constants.SLOT_IDS = {
     -- Adicionar outros slots conforme necessário (amuletos, anéis etc.)
 }
 
+--- Ordem de exibição para os slots de equipamento na UI.
+Constants.EQUIPMENT_SLOTS_ORDER = {
+    Constants.SLOT_IDS.WEAPON,
+    Constants.SLOT_IDS.HELMET,
+    Constants.SLOT_IDS.CHEST,
+    Constants.SLOT_IDS.LEGS,
+    Constants.SLOT_IDS.GLOVES,
+    Constants.SLOT_IDS.BOOTS,
+    -- Adicionar outros slots na ordem desejada, ex: anéis, amuletos
+}
+
 --- Default Base Stats for New Hunters (Before Archetypes)
 Constants.HUNTER_DEFAULT_STATS = {
     health = 300,

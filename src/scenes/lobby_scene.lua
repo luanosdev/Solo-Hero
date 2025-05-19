@@ -118,61 +118,100 @@ function LobbyScene:load(args)
     if args and args.extractionSuccessful and args.hunterId then
         print(string.format("[LobbyScene] Processando dados de extração bem-sucedida para o caçador: %s", args.hunterId))
 
-        -- 1. Adicionar itens da mochila ao LobbyStorageManager
-        if args.extractedItems and #args.extractedItems > 0 then
-            if self.lobbyStorageManager.addItemsBatch then -- Assumindo um método para adicionar em lote
-                local success, message = self.lobbyStorageManager:addItemsBatch(args.extractedItems)
-                if success then
-                    print(string.format("[LobbyScene] %d itens extraídos adicionados ao LobbyStorage.",
-                        #args.extractedItems))
-                else
-                    error(string.format("[LobbyScene] Falha ao adicionar itens extraídos ao LobbyStorage: %s",
-                        message or "Erro desconhecido"))
-                    -- Considerar o que fazer aqui: reverter? notificar?
-                end
-            else
-                error(
-                    "[LobbyScene] AVISO: lobbyStorageManager:addItemsBatch() não encontrado. Não foi possível adicionar itens extraídos.")
-            end
+        -- 0. LIMPAR o LoadoutManager antes de adicionar novos itens da extração.
+        -- Isso garante que o loadout reflita EXATAMENTE o que foi extraído da mochila.
+        if self.loadoutManager and self.loadoutManager.clearAllItems then
+            print("[LobbyScene] Limpando o LoadoutManager antes de adicionar itens extraídos...")
+            self.loadoutManager:clearAllItems()
         else
-            print("[LobbyScene] Nenhum item na mochila para adicionar do processo de extração.")
+            error("[LobbyScene] AVISO: self.loadoutManager:clearAllItems() não encontrado. O loadout não será limpo.")
         end
 
-        -- 2. Atualizar equipamentos no LoadoutManager para o caçador específico
-        if args.extractedEquipment then
-            if self.loadoutManager.updateHunterLoadout then -- Assumindo um método que atualiza o loadout de um caçador
-                local success, message = self.loadoutManager:updateHunterLoadout(args.hunterId, args.extractedEquipment)
-                if success then
-                    print(string.format("[LobbyScene] Equipamento extraído atualizado para o caçador %s.", args.hunterId))
+        local itemsSuccessfullyMovedToLoadout = 0
+        local itemsFailedToMoveToLoadout = 0
+
+        -- 1. Adicionar ITENS DA MOCHILA (extractedItems) ao LoadoutManager
+        if args.extractedItems and #args.extractedItems > 0 then
+            print(string.format("[LobbyScene] Tentando adicionar %d itens da mochila ao LoadoutManager...",
+                #args.extractedItems))
+            for i, itemInstance in ipairs(args.extractedItems) do
+                if itemInstance and itemInstance.itemBaseId then
+                    -- Assumindo que GameplayScene fornece instâncias completas prontas para o LoadoutManager.
+                    local added = self.loadoutManager:addItemInstance(itemInstance)
+                    if added then
+                        itemsSuccessfullyMovedToLoadout = itemsSuccessfullyMovedToLoadout + 1
+                    else
+                        itemsFailedToMoveToLoadout = itemsFailedToMoveToLoadout + 1
+                        print(string.format(
+                            "[LobbyScene] AVISO: Falha ao adicionar item da mochila (BaseID: %s, InstID: %s) ao LoadoutManager. Provavelmente está cheio.",
+                            tostring(itemInstance.itemBaseId), tostring(itemInstance.instanceId)))
+                    end
                 else
-                    print(string.format("[LobbyScene] Falha ao atualizar equipamento extraído para o caçador %s: %s",
-                        args.hunterId, message or "Erro desconhecido"))
+                    print("[LobbyScene] AVISO: Item inválido encontrado em extractedItems, pulando.")
                 end
-            else
-                print(
-                    "[LobbyScene] AVISO: loadoutManager:updateHunterLoadout() não encontrado. Não foi possível atualizar equipamentos.")
             end
+            print(string.format("[LobbyScene] Itens da mochila processados. Sucesso: %d, Falha (sem espaço?): %d",
+                itemsSuccessfullyMovedToLoadout, itemsFailedToMoveToLoadout))
         else
-            print("[LobbyScene] Nenhum equipamento extraído para atualizar.")
+            print("[LobbyScene] Nenhum item na mochila (extractedItems) para adicionar ao LoadoutManager.")
+        end
+
+        -- 2. Atualizar EQUIPAMENTOS (extractedEquipment) no HunterManager
+        --    Os equipamentos extraídos NÃO são adicionados ao LoadoutManager novamente,
+        --    pois o LoadoutManager agora reflete a mochila da gameplay.
+        --    O HunterManager é atualizado para refletir o que está equipado.
+        if args.extractedEquipment and next(args.extractedEquipment) then -- Verifica se a tabela não está vazia
+            print(string.format("[LobbyScene] Tentando atualizar %d slots de equipamento para o caçador %s...",
+                table.maxn(args.extractedEquipment), args.hunterId))
+            local equipmentUpdatedInHunter = 0
+
+            for slotId, itemInstanceFromGameplay in pairs(args.extractedEquipment) do
+                if itemInstanceFromGameplay and itemInstanceFromGameplay.itemBaseId then
+                    -- Etapa 2a: Atualizar o HunterManager para que ele saiba que este item está equipado no loadout.
+                    local equippedInHunter = self.hunterManager:equipItemToLoadout(args.hunterId, slotId,
+                        itemInstanceFromGameplay)
+                    if equippedInHunter then
+                        equipmentUpdatedInHunter = equipmentUpdatedInHunter + 1
+                        print(string.format("  - Equipamento no slot '%s' (BaseID: %s) atualizado no HunterManager.",
+                            slotId, itemInstanceFromGameplay.itemBaseId))
+                    else
+                        print(string.format(
+                            "[LobbyScene] AVISO: Falha ao equipar item (BaseID: %s) no slot '%s' do HunterManager para o caçador %s.",
+                            itemInstanceFromGameplay.itemBaseId, slotId, args.hunterId))
+                    end
+                else
+                    print(string.format(
+                        "[LobbyScene] AVISO: Item de equipamento inválido encontrado no slot '%s', pulando.", slotId))
+                end
+            end
+            print(string.format(
+                "[LobbyScene] Equipamentos processados. Atualizados no Hunter: %d.",
+                equipmentUpdatedInHunter))
+        else
+            print("[LobbyScene] Nenhum equipamento (extractedEquipment) para processar.")
         end
 
         -- 3. SALVAR o estado dos managers após a atualização
-        -- É crucial salvar aqui para persistir o resultado da extração.
         print("[LobbyScene] Salvando estado dos managers após extração...")
-        if self.lobbyStorageManager.saveStorage then
-            self.lobbyStorageManager:saveStorage()
-            print("[LobbyScene] LobbyStorageManager salvo.")
-        else
-            print("[LobbyScene] AVISO: lobbyStorageManager:saveStorage() não encontrado.")
-        end
-
+        -- Salva o LoadoutManager PRIMEIRO, pois o HunterManager pode ter referências a instanceIds dele.
         if self.loadoutManager.saveState then
-            self.loadoutManager:saveState() -- Salva todos os loadouts, incluindo o atualizado
+            self.loadoutManager:saveState()
             print("[LobbyScene] LoadoutManager salvo.")
         else
             print("[LobbyScene] AVISO: loadoutManager:saveState() não encontrado.")
         end
-        -- Se a extração foi bem-sucedida, talvez mudar para a aba de Equipamento
+
+        -- Salva o HunterManager DEPOIS, pois ele referencia os itens que agora estão confirmados no LoadoutManager.
+        if self.hunterManager.saveState then
+            self.hunterManager:saveState()
+            print("[LobbyScene] HunterManager salvo.")
+        else
+            print("[LobbyScene] AVISO: hunterManager:saveState() não encontrado.")
+        end
+
+        -- O LobbyStorageManager não foi modificado neste fluxo, então não precisa salvar aqui.
+        -- if self.lobbyStorageManager.saveStorage then ... end
+
         self.activeTab = TabIds.EQUIPMENT
     elseif args and args.extractionSuccessful == false then
         -- Extração falhou ou foi cancelada (ex: morte do jogador na GameplayScene que levou de volta ao Lobby)
@@ -262,11 +301,8 @@ function LobbyScene:update(dt)
     local mx, my = love.mouse.getPosition()
     local activeTab = tabs[self.activeTabIndex]
     local isPortalScreenActive = activeTab and activeTab.id == TabIds.PORTALS
-    local isPortalScreenZoomed = self.portalScreen and
-        self.portalScreen
-        .isZoomedIn -- Verifica estado interno da tela de portal
+    local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
 
-    -- 1. Hover das Tabs inferiores (só se portal screen NÃO estiver com zoom)
     local tabHoverHandled = false
     if not isPortalScreenZoomed then
         for i, tab in ipairs(tabs) do
@@ -277,20 +313,34 @@ function LobbyScene:update(dt)
         for i, tab in ipairs(tabs) do tab.isHovering = false end
     end
 
-    -- 2. Atualiza a Tela de Portais (se ativa ou com zoom)
     if self.portalScreen and (isPortalScreenActive or isPortalScreenZoomed) then
-        -- Determina se hover é permitido dentro da tela de portal
-        -- Hover é permitido se o mouse não estiver sobre uma tab (e o zoom não estiver ativo, o que já filtramos)
         local allowPortalScreenHover = not tabHoverHandled
         self.portalScreen:update(dt, mx, my, allowPortalScreenHover)
     elseif activeTab and activeTab.id == TabIds.EQUIPMENT then
-        -- A EquipmentScreen não tem :update por enquanto, mas a lógica de drag está aqui
+        local currentDragState = {
+            isDragging = self.isDragging,
+            draggedItem = self.draggedItem,
+            draggedItemOffsetX = self.draggedItemOffsetX,
+            draggedItemOffsetY = self.draggedItemOffsetY,
+            sourceGridId = self.sourceGridId,
+            sourceSlotId = self.sourceSlotId, -- Adicionado para consistência, pode ser nil
+            draggedItemIsRotated = self.draggedItemIsRotated,
+            targetGridId = self.targetGridId,
+            targetSlotCoords = self.targetSlotCoords,
+            isDropValid = self.isDropValid,
+            equipmentSlotAreas = self.equipmentSlotAreas -- Passa as áreas de equipamento atuais
+        }
+        if self.equipmentScreen and self.equipmentScreen.update then
+            self.equipmentScreen:update(dt, mx, my, currentDragState)
+        end
+
+        -- A lógica de atualização do self.isDragging, self.targetGridId, etc., continua aqui por enquanto
+        -- pois é a LobbyScene que gerencia o estado de drag entre as colunas do EquipmentScreen.
         if self.isDragging then
             self.targetGridId = nil
             self.targetSlotCoords = nil
             self.isDropValid = false
 
-            -- Calcula dimensões visuais baseadas na rotação
             local visualW = self.draggedItem.gridWidth or 1
             local visualH = self.draggedItem.gridHeight or 1
             if self.draggedItemIsRotated then
@@ -298,46 +348,93 @@ function LobbyScene:update(dt)
                 visualH = self.draggedItem.gridWidth or 1
             end
 
-            -- Verifica hover sobre Storage/Loadout (usa áreas atualizadas no draw anterior)
-            local isMouseOverStorage = mx >= self.storageGridArea.x and
+            local isMouseOverStorage = self.storageGridArea.x and mx >= self.storageGridArea.x and
                 mx < self.storageGridArea.x + self.storageGridArea.w and my >= self.storageGridArea.y and
                 my < self.storageGridArea.y + self.storageGridArea.h
-            local isMouseOverLoadout = mx >= self.loadoutGridArea.x and
+            local isMouseOverLoadout = self.loadoutGridArea.x and mx >= self.loadoutGridArea.x and
                 mx < self.loadoutGridArea.x + self.loadoutGridArea.w and my >= self.loadoutGridArea.y and
                 my < self.loadoutGridArea.y + self.loadoutGridArea.h
 
-            if isMouseOverStorage then
-                self.targetGridId = "storage"
-                local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
-                local ItemGridUI = require("src.ui.item_grid_ui")
-                self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, storageRows, storageCols,
-                    self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h)
-                if self.targetSlotCoords then
-                    self.isDropValid = self.lobbyStorageManager:canPlaceItemAt(
-                        self.draggedItem, self.targetSlotCoords.row, self.targetSlotCoords.col, visualW, visualH)
-                end
-            elseif isMouseOverLoadout then
-                self.targetGridId = "loadout"
-                local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
-                local ItemGridUI = require("src.ui.item_grid_ui")
-                self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, loadoutRows, loadoutCols,
-                    self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h)
-                if self.targetSlotCoords then
-                    self.isDropValid = self.loadoutManager:canPlaceItemAt(self.draggedItem,
-                        self.targetSlotCoords.row, self.targetSlotCoords.col, visualW, visualH)
+            local hoverEquipmentSlot = false
+            if self.equipmentSlotAreas then
+                for slotId, area in pairs(self.equipmentSlotAreas) do
+                    if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
+                        self.targetGridId = "equipment"
+                        self.targetSlotCoords = slotId
+                        hoverEquipmentSlot = true
+                        -- Validação de drop para equipamento (exemplo, precisa de itemDataManager)
+                        if self.itemDataManager and self.draggedItem then
+                            local baseData = self.itemDataManager:getBaseItemData(self.draggedItem.itemBaseId)
+                            local itemType = baseData and baseData.type
+                            local expectedType = nil
+                            if slotId == Constants.SLOT_IDS.WEAPON then
+                                expectedType = "weapon"
+                            elseif slotId == Constants.SLOT_IDS.HELMET then
+                                expectedType = "helmet"
+                            elseif slotId == Constants.SLOT_IDS.CHEST then
+                                expectedType = "chest"
+                            elseif slotId == Constants.SLOT_IDS.GLOVES then
+                                expectedType = "gloves"
+                            elseif slotId == Constants.SLOT_IDS.BOOTS then
+                                expectedType = "boots"
+                            elseif slotId == Constants.SLOT_IDS.LEGS then
+                                expectedType = "legs"
+                            elseif string.sub(slotId, 1, #Constants.SLOT_IDS.RUNE) == Constants.SLOT_IDS.RUNE then
+                                expectedType = "rune"
+                            end
+                            self.isDropValid = (expectedType and expectedType == itemType)
+                        else
+                            self.isDropValid = false
+                        end
+                        break
+                    end
                 end
             end
-            -- TODO: Adicionar verificação de hover sobre os slots de equipamento (usando self.equipmentSlotAreas)
+
+            if not hoverEquipmentSlot then
+                if isMouseOverStorage then
+                    self.targetGridId = "storage"
+                    local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
+                    if storageRows and storageCols then
+                        local ItemGridUI = require("src.ui.item_grid_ui")
+                        self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, storageRows, storageCols,
+                            self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w,
+                            self.storageGridArea.h)
+                        if self.targetSlotCoords then
+                            self.isDropValid = self.lobbyStorageManager:canPlaceItemAt(
+                                self.draggedItem, self.targetSlotCoords.row, self.targetSlotCoords.col, visualW, visualH,
+                                self.draggedItem.instanceId)
+                        end
+                    else
+                        self.isDropValid = false -- Não pode validar se não tem dimensões
+                    end
+                elseif isMouseOverLoadout then
+                    self.targetGridId = "loadout"
+                    local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
+                    if loadoutRows and loadoutCols then
+                        local ItemGridUI = require("src.ui.item_grid_ui")
+                        self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, loadoutRows, loadoutCols,
+                            self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w,
+                            self.loadoutGridArea.h)
+                        if self.targetSlotCoords then
+                            self.isDropValid = self.loadoutManager:canPlaceItemAt(self.draggedItem,
+                                self.targetSlotCoords.row, self.targetSlotCoords.col, visualW, visualH,
+                                self.draggedItem.instanceId)
+                        end
+                    else
+                        self.isDropValid = false -- Não pode validar se não tem dimensões
+                    end
+                end
+            end
         end
     elseif activeTab and activeTab.id == TabIds.GUILD then
-        -- Chama update da GuildScreen se existir
         if self.guildScreen and self.guildScreen.update then
             local allowGuildScreenHover = not tabHoverHandled
             self.guildScreen:update(dt, mx, my, allowGuildScreenHover)
         end
     end
 
-    TooltipManager.update(dt, mx, my)
+    -- TooltipManager.update(dt, mx, my) -- REMOVIDO: Cada tela/componente agora chama update do TooltipManager individualmente
 end
 
 --- Desenha os elementos da cena.

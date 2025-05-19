@@ -225,7 +225,7 @@ function EnemyManager:update(dt)
             end
         end
 
-        -- Remove o inimigo se estiver marcado para remoção
+        -- Remove o inimigo se estiver marcado para remoção (flag setada pelo próprio inimigo em seu update)
         if enemy.shouldRemove then
             table.remove(self.enemies, i)
         end
@@ -332,11 +332,6 @@ function EnemyManager:draw()
         self.lastBossDeathTime = 0 -- Reseta o timer
         self.bossDeathTimer = 0
     end
-
-    -- O DESENHO DOS INIMIGOS AGORA É FEITO PELA GAMEPLAYSCENE ATRAVÉS DA RENDERLIST
-    -- for _, enemy in ipairs(self.enemies) do
-    --     enemy:draw()
-    -- end
 end
 
 --- Coleta todos os inimigos renderizáveis.
@@ -350,7 +345,7 @@ function EnemyManager:collectRenderables(cameraX, cameraY, renderList)
     local screenW, screenH = love.graphics.getDimensions()
 
     for _, enemy in ipairs(self.enemies) do
-        if enemy and enemy.isAlive and enemy.position then
+        if enemy and enemy.position then
             -- Culling básico no espaço do mundo
             -- Usaremos enemy.radius para uma estimativa de tamanho. Se não houver, um fallback.
             local cullRadius = enemy.radius or Constants.TILE_WIDTH / 2

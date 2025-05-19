@@ -33,11 +33,66 @@ function EquipmentScreen:new(itemDataManager, hunterManager, lobbyStorageManager
     instance.hunterManager = hunterManager
     instance.lobbyStorageManager = lobbyStorageManager
     instance.loadoutManager = loadoutManager
-    instance.storageGridArea = {}                           -- Área calculada no draw
-    instance.loadoutGridArea = {}                           -- Área calculada no draw
-    instance.equipmentSlotAreas = {}                        -- Área calculada no draw
-    instance.hoveredItemOwnerSignature = "equipment_screen" -- Identificador único para esta tela
+    instance.storageGridArea = {}    -- Área calculada no draw
+    instance.loadoutGridArea = {}    -- Área calculada no draw
+    instance.equipmentSlotAreas = {} -- Área calculada no draw
+    instance.itemToShowTooltip = nil -- Adicionado
     return instance
+end
+
+--- Adiciona uma função update para EquipmentScreen
+---@param self EquipmentScreen
+---@param dt number Delta time
+---@param mx number Posição X global do mouse
+---@param my number Posição Y global do mouse
+---@param dragState table Estado do drag-and-drop da cena pai
+function EquipmentScreen:update(dt, mx, my, dragState)
+    self.itemToShowTooltip = nil                     -- Reseta a cada frame
+
+    if not (dragState and dragState.isDragging) then -- Só mostra tooltip se não estiver arrastando
+        -- 1. Checa hover em slots de equipamento
+        if self.hunterManager and self.equipmentSlotAreas then
+            local equippedItems = self.hunterManager:getActiveEquippedItems()
+            if equippedItems then
+                for slotId, area in pairs(self.equipmentSlotAreas) do
+                    if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
+                        if equippedItems[slotId] then
+                            self.itemToShowTooltip = equippedItems[slotId]
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 2. Checa hover na grade de Armazenamento (Storage)
+        if not self.itemToShowTooltip and self.lobbyStorageManager and self.storageGridArea.w and self.storageGridArea.w > 0 then
+            local storageItems = self.lobbyStorageManager:getItems(self.lobbyStorageManager:getActiveSectionIndex())
+            local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
+            if storageItems and storageRows and storageCols then -- Adicionada verificação para storageItems, storageRows, storageCols
+                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my, storageItems, storageRows, storageCols,
+                    self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h)
+                if hoveredItem then
+                    self.itemToShowTooltip = hoveredItem
+                end
+            end
+        end
+
+        -- 3. Checa hover na grade de Mochila (Loadout)
+        if not self.itemToShowTooltip and self.loadoutManager and self.loadoutGridArea.w and self.loadoutGridArea.w > 0 then
+            local loadoutItems = self.loadoutManager:getItems()
+            local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
+            if loadoutItems and loadoutRows and loadoutCols then -- Adicionada verificação para loadoutItems, loadoutRows, loadoutCols
+                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my, loadoutItems, loadoutRows, loadoutCols,
+                    self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h)
+                if hoveredItem then
+                    self.itemToShowTooltip = hoveredItem
+                end
+            end
+        end
+    end
+
+    TooltipManager.update(dt, mx, my, self.itemToShowTooltip)
 end
 
 --- Desenha a tela de equipamento completa.
@@ -132,8 +187,9 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
 
     -- 2. Desenha Coluna de Equipamento/Runas (usando o novo componente)
     if self.hunterManager then
+        local activeHunterId = self.hunterManager:getActiveHunterId() -- Garante que temos o ID aqui
         self.equipmentSlotAreas = HunterEquipmentColumn.draw(equipmentX, contentStartY, equipmentW, sectionContentH,
-            self.hunterManager)
+            self.hunterManager, activeHunterId, nil, self.itemDataManager)
     else
         -- Mensagem de erro se HunterManager não estiver disponível
         love.graphics.setColor(colors.red)
@@ -173,58 +229,12 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
         love.graphics.setColor(colors.white)
     end
 
-    local itemToShowTooltip = nil
-    if not dragState.isDragging then -- Só mostra tooltip se não estiver arrastando
-        -- 1. Checa hover em slots de equipamento
-        if self.hunterManager and self.equipmentSlotAreas then
-            local equippedItems = self.hunterManager:getActiveEquippedItems()
-            if equippedItems then
-                for slotId, area in pairs(self.equipmentSlotAreas) do
-                    if mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
-                        if equippedItems[slotId] then
-                            itemToShowTooltip = equippedItems[slotId]
-                            break
-                        end
-                    end
-                end
-            end
-        end
-
-        -- 2. Checa hover na grade de Armazenamento (Storage)
-        if not itemToShowTooltip and self.lobbyStorageManager and self.storageGridArea.w > 0 then
-            local storageItems = self.lobbyStorageManager:getItems(self.lobbyStorageManager:getActiveSectionIndex())
-            local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
-            local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my, storageItems, storageRows, storageCols,
-                self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h)
-            if hoveredItem then
-                itemToShowTooltip = hoveredItem
-            end
-        end
-
-        -- 3. Checa hover na grade de Mochila (Loadout)
-        if not itemToShowTooltip and self.loadoutManager and self.loadoutGridArea.w > 0 then
-            local loadoutItems = self.loadoutManager:getItems()
-            local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
-            local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my, loadoutItems, loadoutRows, loadoutCols,
-                self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h)
-            if hoveredItem then
-                itemToShowTooltip = hoveredItem
-            end
-        end
-    end
-
-    if itemToShowTooltip then
-        TooltipManager.show(itemToShowTooltip, mx, my, self.hoveredItemOwnerSignature)
-    else
-        TooltipManager.requestHide(self.hoveredItemOwnerSignature) -- Só esconde se esta tela pediu pra mostrar
-    end
-
     -- <<< DESENHO DO DRAG-AND-DROP (usa dragState da cena) >>>
     if dragState.isDragging and dragState.draggedItem then
-        local mx, my = love.mouse.getPosition()
+        local current_mx, current_my = love.mouse.getPosition() -- Usa current mouse position para o ghost
         -- Desenha o item fantasma
-        local ghostX = mx - dragState.draggedItemOffsetX
-        local ghostY = my - dragState.draggedItemOffsetY
+        local ghostX = current_mx - dragState.draggedItemOffsetX
+        local ghostY = current_my - dragState.draggedItemOffsetY
         elements.drawItemGhost(ghostX, ghostY, dragState.draggedItem, 0.75, dragState.draggedItemIsRotated)
 
         -- Desenha o indicador de drop (usa target info do dragState)
@@ -246,14 +256,13 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
                     self.loadoutManager
 
                 local targetRows, targetCols
-                if targetManager then -- Garante que o manager existe
+                if targetManager then
                     if dragState.targetGridId == "storage" then
                         targetRows, targetCols = targetManager:getActiveSectionDimensions()
                     else -- loadout
                         targetRows, targetCols = targetManager:getDimensions()
                     end
 
-                    -- Só desenha se obteve as dimensões
                     if targetRows and targetCols then
                         elements.drawDropIndicator(
                             targetArea.x, targetArea.y, targetArea.w, targetArea.h,
@@ -265,14 +274,31 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
                     end
                 end
             elseif dragState.targetGridId == "equipment" then
-                -- TODO: Desenhar indicador de drop sobre slot de equipamento?
-                -- Poderia destacar a borda do slot em self.equipmentSlotAreas[dragState.targetSlotCoords]
+                -- Destaca a borda do slot de equipamento alvo
+                local slotArea = self.equipmentSlotAreas and self.equipmentSlotAreas[dragState.targetSlotCoords]
+                if slotArea then
+                    local r, g, b, a
+                    if dragState.isDropValid then
+                        local validColor = colors.placement_valid or { 0, 1, 0 }
+                        r, g, b = validColor[1], validColor[2], validColor[3]
+                    else
+                        local invalidColor = colors.placement_invalid or { 1, 0, 0 }
+                        r, g, b = invalidColor[1], invalidColor[2], invalidColor[3]
+                    end
+                    love.graphics.setLineWidth(2)
+                    love.graphics.setColor(r, g, b, 0.8)
+                    love.graphics.rectangle('line', slotArea.x, slotArea.y, slotArea.w, slotArea.h)
+                    love.graphics.setLineWidth(1)
+                    love.graphics.setColor(colors.white)
+                end
             end
         end
     end
     -- <<< FIM DRAG-AND-DROP DRAW >>>
 
-    -- Retorna as áreas calculadas para a cena principal usar no update/input
+    -- Desenha o Tooltip no final
+    TooltipManager.draw()
+
     return self.storageGridArea, self.loadoutGridArea, self.equipmentSlotAreas
 end
 
@@ -285,7 +311,6 @@ end
 ---@return table|nil dragStartData Se um drag foi iniciado, contém { item, sourceGridId, offsetX, offsetY }.
 function EquipmentScreen:handleMousePress(x, y, buttonIdx)
     if buttonIdx == 1 then
-        TooltipManager.hide() -- Força esconder tooltip ao clicar em qualquer lugar desta tela
         local itemClicked = nil
         local clickedGridId = nil
         local itemOffsetX, itemOffsetY = 0, 0
@@ -420,7 +445,6 @@ end
 ---@return boolean consumed Se o drop foi tratado por esta tela.
 function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
     if buttonIdx == 1 and dragState.isDragging then
-        TooltipManager.hide() -- Força esconder tooltip ao finalizar um drag nesta tela
         print("EquipmentScreen: handleMouseRelease chamado.")
 
         -- 1. Verifica drop em SLOT DE EQUIPAMENTO PRIMEIRO

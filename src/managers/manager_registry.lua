@@ -12,7 +12,7 @@ local ManagerRegistry = {
 ]]
 function ManagerRegistry:register(name, manager, drawInCamera)
     if self.managers[name] then
-        error(string.format("Manager '%s' já está registrado", name))
+        print(string.format("Manager '%s' já está registrado", name))
     end
     self.managers[name] = {
         instance = manager,

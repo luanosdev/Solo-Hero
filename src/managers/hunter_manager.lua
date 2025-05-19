@@ -22,7 +22,10 @@ local ManagerRegistry = require("src.managers.manager_registry")
 
 local SAVE_FILE = "hunters.dat"
 
--- Equipment slot IDs (static definition - APENAS EQUIPAMENTO BASE)
+---@class HunterManager.EQUIPMENT_SLOTS_BASE
+--- Define os IDs dos slots de equipamento base que todo caçador possui.
+--- Estes são independentes de arquétipos ou outros bônus (ex: slots de runas são dinâmicos).
+---@type table<number, string>
 HunterManager.EQUIPMENT_SLOTS_BASE = {
     "weapon",
     "helmet",
@@ -109,9 +112,6 @@ function HunterManager:_calculateFinalStats(hunterId)
     end
 
     local hunterArchetypeIds = hunterData.archetypeIds or {}
-    if type(hunterArchetypeIds) == "string" then
-        hunterArchetypeIds = { hunterArchetypeIds }
-    end
 
     -- 1. Agrega TODOS os bônus de arquétipo por tipo
     local fixedBonuses = {}
@@ -295,8 +295,8 @@ end
 
 --- Checks if a given slot ID is valid for the ACTIVE hunter.
 -- Considers base slots and the DYNAMIC number of rune slots.
----@param slotId string The slot ID to check (e.g., "weapon", "rune_3").
----@return boolean True if the slot is valid for the active hunter.
+--- @param slotId string The slot ID to check (e.g., "weapon", "rune_3").
+--- @return boolean True if the slot is valid for the active hunter.
 function HunterManager:_isSlotValidForActiveHunter(slotId)
     if not self.activeHunterId then return false end
 
@@ -436,6 +436,76 @@ function HunterManager:unequipItem(slotId)
     return nil
 end
 
+--- NOVO: Equipa um item a um slot específico do loadout de um caçador específico.
+--- Usado pela LobbyScene após a extração para registrar os equipamentos que vieram da gameplay.
+--- Esta função NÃO lida com devolução de itens antigos para o inventário, pois assume
+--- que o inventário (LoadoutManager) já foi tratado separadamente.
+---@param hunterId string O ID do caçador.
+---@param slotId string O ID do slot onde o item será equipado.
+---@param itemInstance table A instância do item a ser equipada.
+---@return boolean True se o item foi equipado com sucesso, false caso contrário.
+function HunterManager:equipItemToLoadout(hunterId, slotId, itemInstance)
+    if not hunterId or not slotId or not itemInstance then
+        print(string.format(
+            "ERROR [HunterManager:equipItemToLoadout]: Argumentos inválidos recebidos. HunterID: %s, SlotID: %s, Item: %s",
+            tostring(hunterId), tostring(slotId), tostring(itemInstance and itemInstance.itemBaseId)))
+        return false
+    end
+
+    local hunterData = self.hunters[hunterId]
+    if not hunterData then
+        print(string.format("ERROR [HunterManager:equipItemToLoadout]: Caçador com ID '%s' não encontrado.", hunterId))
+        return false
+    end
+
+    -- Garante que a estrutura equippedItems exista.
+    hunterData.equippedItems = hunterData.equippedItems or {}
+    self:_initializeEquippedItems(hunterId) -- Garante que todos os slots base e de runas existem
+
+    -- Validação opcional do tipo de item vs slot (similar à :equipItem)
+    -- Por simplicidade e porque a GameplayScene já deve ter validado, vamos omitir por enquanto,
+    -- mas pode ser adicionado aqui se necessário para robustez.
+    local baseData = self.itemDataManager:getBaseItemData(itemInstance.itemBaseId)
+    if not baseData then
+        print(string.format(
+            "ERROR [HunterManager:equipItemToLoadout]: Não foi possível obter dados base para o item %s do caçador %s.",
+            itemInstance.itemBaseId, hunterId))
+        return false
+    end
+
+    local expectedItemType = "unknown"
+    if slotId == Constants.SLOT_IDS.WEAPON then
+        expectedItemType = "weapon"
+    elseif slotId == Constants.SLOT_IDS.HELMET then
+        expectedItemType = "helmet"
+    elseif slotId == Constants.SLOT_IDS.CHEST then
+        expectedItemType = "chest"
+    elseif slotId == Constants.SLOT_IDS.GLOVES then
+        expectedItemType = "gloves"
+    elseif slotId == Constants.SLOT_IDS.BOOTS then
+        expectedItemType = "boots"
+    elseif slotId == Constants.SLOT_IDS.LEGS then
+        expectedItemType = "legs"
+    elseif string.sub(slotId, 1, string.len(Constants.SLOT_IDS.RUNE)) == Constants.SLOT_IDS.RUNE then
+        expectedItemType = "rune"
+        -- Adicionar outros tipos de slot se necessário (ex: amuleto, anel)
+    end
+
+    if expectedItemType ~= "unknown" and baseData.type ~= expectedItemType then
+        print(string.format(
+            "WARNING [HunterManager:equipItemToLoadout]: Tipo de item '%s' (item %s) incompatível com slot '%s' (espera '%s') para caçador %s. Equipamento negado.",
+            baseData.type, itemInstance.itemBaseId, slotId, expectedItemType, hunterId))
+        return false
+    end
+
+    print(string.format(
+        "[HunterManager:equipItemToLoadout] Equipando item (BaseID: %s, InstID: %s) no slot '%s' do caçador '%s'.",
+        tostring(itemInstance.itemBaseId), tostring(itemInstance.instanceId), slotId, hunterId))
+
+    hunterData.equippedItems[slotId] = itemInstance
+    return true
+end
+
 --- Saves the HunterManager state (hunter definitions, active ID, next ID).
 function HunterManager:saveState()
     print("[HunterManager] Requesting state save (activeHunterId, nextHunterId, hunter data)...")
@@ -566,9 +636,6 @@ function HunterManager:_calculateStatsForCandidate(archetypeIdsToCalculate)
     end
 
     local currentArchetypeIds = archetypeIdsToCalculate or {}
-    if type(currentArchetypeIds) == "string" then -- Lida com caso antigo onde poderia ser uma string única
-        currentArchetypeIds = { currentArchetypeIds }
-    end
 
     for _, archetypeId in ipairs(currentArchetypeIds) do
         local archetypeData = self.archetypeManager:getArchetypeData(archetypeId)
@@ -796,42 +863,6 @@ function HunterManager:getArchetypeIds(hunterId)
     end
     print(string.format("WARNING [getArchetypeIds]: Hunter %s not found.", hunterId))
     return nil
-end
-
---- Função auxiliar para agregar bônus de múltiplos arquétipos
----@param archetypeIds table Lista de IDs de arquétipos ativos
----@param bonusType string Tipo de bônus a agregar ("fixed", "percentage", "fixed_percentage_as_fraction")
----@param baseStatsForValidation table Tabela de stats base para validar a existência da chave do stat (opcional mas recomendado)
----@return table Tabela agregada de bônus { [statKey] = totalBonusValue }
-function HunterManager:_getAggregatedBonuses(archetypeIds, bonusType, baseStatsForValidation)
-    local aggregatedBonuses = {}
-    baseStatsForValidation = baseStatsForValidation or
-        Constants.HUNTER_DEFAULT_STATS -- Fallback para stats default globais
-
-    for _, archIdInfo in ipairs(archetypeIds or {}) do
-        local finalArchId = type(archIdInfo) == 'table' and archIdInfo.id or archIdInfo
-        local archetypeData = self.archetypeManager:getArchetypeData(finalArchId)
-
-        if archetypeData and archetypeData.modifiers then
-            for _, mod in ipairs(archetypeData.modifiers) do
-                if mod.type == bonusType then
-                    local statName = mod.stat
-                    local modValue = mod.value or 0
-
-                    if baseStatsForValidation[statName] == nil then
-                        print(string.format(
-                            "AVISO [_getAggregatedBonuses]: Stat base '%s' não definido para arquétipo '%s' (tipo %s). Modificador ignorado.",
-                            statName, finalArchId, bonusType))
-                        goto continue_modifier_loop
-                    end
-
-                    aggregatedBonuses[statName] = (aggregatedBonuses[statName] or 0) + modValue
-                end
-                ::continue_modifier_loop::
-            end
-        end
-    end
-    return aggregatedBonuses
 end
 
 return HunterManager

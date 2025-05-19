@@ -69,6 +69,48 @@ function ItemDataManager:getBaseItemData(itemBaseId)
     return copy
 end
 
+--- Cria uma nova instância de item com base no seu ID base.
+---@param self ItemDataManager
+---@param itemBaseId string O ID base do item a ser instanciado.
+---@param quantity integer (Opcional) A quantidade para a instância (padrão 1).
+---@return table|nil newInstance A nova instância do item, ou nil se o itemBaseId não for encontrado.
+function ItemDataManager:createItemInstanceById(itemBaseId, quantity)
+    if not itemBaseId then
+        print("AVISO [ItemDataManager:createItemInstanceById]: itemBaseId não fornecido.")
+        return nil
+    end
+
+    local baseData = self:getBaseItemData(itemBaseId)
+    if not baseData then
+        print(string.format(
+            "AVISO [ItemDataManager:createItemInstanceById]: Dados base não encontrados para ID: %s. Não é possível criar instância.",
+            itemBaseId))
+        return nil
+    end
+
+    local newInstance = {}
+    -- Copia todos os dados base para a nova instância
+    for k, v in pairs(baseData) do
+        newInstance[k] = v
+    end
+
+    -- Define propriedades específicas da instância
+    -- Gera um instanceId único (itemBaseId + timestamp em microsegundos + aleatório)
+    newInstance.instanceId = itemBaseId ..
+        "_" .. string.format("%.6f", love.timer.getTime()):gsub("%.", "") .. "_" .. tostring(math.random(1000, 9999))
+    newInstance.quantity = quantity or 1
+    newInstance.itemBaseId = itemBaseId -- Garante que itemBaseId está na instância
+
+    -- Adiciona outros campos padrão de instância, se necessário
+    -- Exemplo: newInstance.isRotated = false
+    -- Exemplo: newInstance.currentDurability = baseData.maxDurability or nil
+
+    print(string.format("[ItemDataManager:createItemInstanceById] Instância criada para '%s' (ID: %s), Qtd: %d",
+        itemBaseId, newInstance.instanceId, newInstance.quantity))
+
+    return newInstance
+end
+
 -- Inicialização carrega os dados usando o helper _loadDataFile
 function ItemDataManager:init()
     print("[ItemDataManager] Carregando dados de itens...")

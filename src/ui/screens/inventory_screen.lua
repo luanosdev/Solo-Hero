@@ -15,10 +15,9 @@ local InventoryScreen = {}
 InventoryScreen.isVisible = false
 InventoryScreen.mouseX = 0
 InventoryScreen.mouseY = 0
-InventoryScreen.equipmentSlotAreas = {}                        -- Mantém como cache local, mas será retornado
--- InventoryScreen.loadoutGridArea = {} -- Removido, a coluna de inventário retorna a área dela
-InventoryScreen.inventoryGridArea = {}                         -- Mantém como cache local, mas será retornado
-InventoryScreen.hoveredItemOwnerSignature = "inventory_screen" -- <<< ADICIONADO
+InventoryScreen.equipmentSlotAreas = {} -- Mantém como cache local, mas será retornado
+InventoryScreen.inventoryGridArea = {}  -- Mantém como cache local, mas será retornado
+InventoryScreen.itemToShowTooltip = nil -- Adicionado para armazenar o item para tooltip
 
 -- <<< REMOVENDO Variáveis de Estado de Drag Internas >>>
 -- InventoryScreen.isDragging = false
@@ -46,6 +45,7 @@ function InventoryScreen.show() -- Função para mostrar
     InventoryScreen.isVisible = true
     InventoryScreen.equipmentSlotAreas = {}
     InventoryScreen.inventoryGridArea = {}
+    InventoryScreen.itemToShowTooltip = nil -- Limpa ao mostrar
     -- print("[InventoryScreen.show] Showing and resetting areas.")
 end
 
@@ -54,29 +54,86 @@ function InventoryScreen.toggle()
     if InventoryScreen.isVisible then
         InventoryScreen.equipmentSlotAreas = {}
         InventoryScreen.inventoryGridArea = {}
+        InventoryScreen.itemToShowTooltip = nil -- Limpa ao mostrar
         -- print("[InventoryScreen.toggle] Became visible, resetting areas.")
     else
+        InventoryScreen.itemToShowTooltip = nil -- Limpa ao esconder
         -- print("[InventoryScreen.toggle] Became hidden.")
     end
     return InventoryScreen.isVisible
 end
 
---- Atualiza o estado interno da tela (atualmente, apenas armazena posição do mouse).
---- A lógica de hover/validação de drag foi movida para a cena pai (GameplayScene).
-function InventoryScreen.update(dt, mx, my)
+--- Atualiza o estado interno da tela, incluindo a lógica de hover para tooltips.
+---@param dt number Delta time.
+---@param mx number Posição X do mouse.
+---@param my number Posição Y do mouse.
+---@param dragState table|nil Estado do drag-and-drop gerenciado pela cena pai (pode ser nil)
+function InventoryScreen.update(dt, mx, my, dragState)
     if not InventoryScreen.isVisible then return end
 
     -- Armazena a posição do mouse para uso no draw (ex: tooltips, posição do fantasma)
     InventoryScreen.mouseX = mx
     InventoryScreen.mouseY = my
+    InventoryScreen.itemToShowTooltip = nil -- Reseta a cada frame
 
-    -- A lógica de verificar hover e validar drop foi MOVIDA para GameplayScene.update
+    -- Só mostra tooltip se não estiver arrastando
+    if not (dragState and dragState.isDragging) then
+        local playerManager = ManagerRegistry:get("playerManager")
+        local hunterManager = ManagerRegistry:get("hunterManager")
+        local inventoryManager = ManagerRegistry:get("inventoryManager")
+
+        if not playerManager or not hunterManager or not inventoryManager then
+            -- Não pode determinar tooltip sem managers
+            TooltipManager.update(dt, mx, my, nil)
+            return
+        end
+
+        -- 1. Checa hover em slots de equipamento
+        local currentHunterId = playerManager:getCurrentHunterId()
+        if currentHunterId and InventoryScreen.equipmentSlotAreas then
+            local equippedItems = hunterManager:getEquippedItems(currentHunterId)
+            if equippedItems then
+                for slotId, area in pairs(InventoryScreen.equipmentSlotAreas) do
+                    if mx >= area.x and mx < area.x + area.w and
+                        my >= area.y and my < area.y + area.h then
+                        if equippedItems[slotId] then
+                            InventoryScreen.itemToShowTooltip = equippedItems[slotId]
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 2. Checa hover na grade de Inventário (se não achou no equipamento)
+        if not InventoryScreen.itemToShowTooltip and inventoryManager and
+            InventoryScreen.inventoryGridArea and InventoryScreen.inventoryGridArea.w and
+            InventoryScreen.inventoryGridArea.w > 0 then
+            local invPlacedItems = inventoryManager:getPlacedItemInstances()
+            local gridDims = inventoryManager:getGridDimensions()
+            local invRows = gridDims and gridDims.rows
+            local invCols = gridDims and gridDims.cols
+
+            if invPlacedItems and invRows and invCols then
+                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my,
+                    invPlacedItems, invRows, invCols,
+                    InventoryScreen.inventoryGridArea.x, InventoryScreen.inventoryGridArea.y,
+                    InventoryScreen.inventoryGridArea.w, InventoryScreen.inventoryGridArea.h)
+
+                if hoveredItem then
+                    InventoryScreen.itemToShowTooltip = hoveredItem
+                end
+            end
+        end
+    end
+
+    TooltipManager.update(dt, mx, my, InventoryScreen.itemToShowTooltip)
 end
 
 -- Função principal de desenho da tela (MODIFICADA)
 ---@param dragState table|nil Estado do drag-and-drop gerenciado pela cena pai (pode ser nil)
 function InventoryScreen.draw(dragState)
-    if not InventoryScreen.isVisible then return nil, nil end -- Retorna nil se não visível
+    if not InventoryScreen.isVisible then return nil, nil end
 
     -- Obtém Managers do registro
     local playerManager = ManagerRegistry:get("playerManager")
@@ -188,52 +245,6 @@ function InventoryScreen.draw(dragState)
         itemDataManager
     )
 
-    local itemToShowTooltip = nil
-    -- Só mostra tooltip se não estiver arrastando (dragState é passado para draw)
-    if not (dragState and dragState.isDragging) then
-        -- 1. Checa hover em slots de equipamento
-        local currentHunterId = playerManager:getCurrentHunterId()
-        if currentHunterId and InventoryScreen.equipmentSlotAreas then
-            local equippedItems = hunterManager:getEquippedItems(currentHunterId)
-            if equippedItems then
-                for slotId, area in pairs(InventoryScreen.equipmentSlotAreas) do
-                    if InventoryScreen.mouseX >= area.x and InventoryScreen.mouseX < area.x + area.w and
-                        InventoryScreen.mouseY >= area.y and InventoryScreen.mouseY < area.y + area.h then
-                        if equippedItems[slotId] then
-                            itemToShowTooltip = equippedItems[slotId]
-                            break
-                        end
-                    end
-                end
-            end
-        end
-
-        -- 2. Checa hover na grade de Inventário (se não achou no equipamento)
-        if not itemToShowTooltip and inventoryManager and InventoryScreen.inventoryGridArea.w and InventoryScreen.inventoryGridArea.w > 0 then -- Verifica se a area tem largura
-            local invPlacedItems = inventoryManager:getPlacedItemInstances()                                                                   -- Deve retornar o dicionário self.placedItems
-            local gridDims = inventoryManager:getGridDimensions()
-            local invRows = gridDims and gridDims.rows
-            local invCols = gridDims and gridDims.cols
-
-            if invPlacedItems and invRows and invCols then
-                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(InventoryScreen.mouseX, InventoryScreen.mouseY,
-                    invPlacedItems, invRows, invCols,
-                    InventoryScreen.inventoryGridArea.x, InventoryScreen.inventoryGridArea.y,
-                    InventoryScreen.inventoryGridArea.w, InventoryScreen.inventoryGridArea.h)
-
-                if hoveredItem then
-                    itemToShowTooltip = hoveredItem
-                end
-            end
-        end
-    end
-
-    if itemToShowTooltip then
-        TooltipManager.show(itemToShowTooltip, InventoryScreen.mouseX, InventoryScreen.mouseY,
-            InventoryScreen.hoveredItemOwnerSignature)
-    else
-        TooltipManager.requestHide(InventoryScreen.hoveredItemOwnerSignature)
-    end
     if dragState and dragState.isDragging and dragState.draggedItem then
         -- Usa mouseX/Y local da tela para desenho (assumindo que 'update' ainda armazena)
         local mx_draw, my_draw = InventoryScreen.mouseX, InventoryScreen.mouseY
@@ -293,6 +304,9 @@ function InventoryScreen.draw(dragState)
         end
     end
 
+    -- Desenha o tooltip no final
+    TooltipManager.draw()
+
     return InventoryScreen.equipmentSlotAreas, InventoryScreen.inventoryGridArea
 end
 
@@ -327,7 +341,6 @@ function InventoryScreen.handleMousePress(x, y, button)
     if not InventoryScreen.isVisible then
         return false, nil, nil -- Ignora se não estiver visível
     end
-    TooltipManager.hide()      -- Esconde tooltip ao clicar
 
     -- Managers necessários
     local hunterManager = ManagerRegistry:get("hunterManager")
@@ -470,7 +483,6 @@ end
 function InventoryScreen.handleMouseRelease(dragState)
     -- Captura estado do parâmetro dragState
     local draggedItem = dragState.draggedItem
-    TooltipManager.hide() -- <<< ADICIONADO: Esconde tooltip ao soltar o mouse
 
     local sourceGrid = dragState.sourceGridId
     local sourceSlot = dragState.sourceSlotId

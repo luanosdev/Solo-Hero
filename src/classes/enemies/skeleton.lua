@@ -124,14 +124,14 @@ function Skeleton:draw()
         return
     end
 
+    -- Chama a função original de BaseEnemy para desenhar a área de colisão e barra de vida
+    BaseEnemy.draw(self)
+
     -- Se estiver morto, desenha apenas a animação de morte
     if not self.isAlive then
         AnimatedSkeleton.draw(self.sprite)
         return
     end
-
-    -- Chama a função original de BaseEnemy para desenhar a área de colisão e barra de vida
-    BaseEnemy.draw(self)
 
     -- Desenha o sprite do esqueleto
     love.graphics.setColor(1, 1, 1, 1)

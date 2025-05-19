@@ -34,6 +34,7 @@ local TooltipManager = require("src.ui.tooltip_manager")                        
 ---@field setActiveButton Button|nil Instância do botão 'Definir Ativo'.
 ---@field hoveredItemOwnerSignature string
 ---@field equipmentSlotAreas table|nil Áreas dos slots de equipamento do caçador selecionado
+---@field itemToShowTooltip table|nil
 local GuildScreen = {}
 GuildScreen.__index = GuildScreen
 
@@ -58,10 +59,10 @@ function GuildScreen:new(hunterManager, archetypeManager, itemDataManager, loado
     instance.recruitModalColumns = {}
     instance.recruitModalButtons = {}
     instance.isActiveFrame = false
-    instance.recruitCancelButton = nil                  -- Inicializa botão cancelar
-    instance.setActiveButton = nil                      -- <<< ADICIONADO
-    instance.hoveredItemOwnerSignature = "guild_screen" -- <<< ADICIONADO
-    instance.equipmentSlotAreas = nil                   -- <<< ADICIONADO: Para armazenar áreas dos slots de equipamento
+    instance.recruitCancelButton = nil
+    instance.setActiveButton = nil
+    instance.equipmentSlotAreas = nil
+    instance.itemToShowTooltip = nil
 
     if not instance.hunterManager or not instance.archetypeManager or not instance.itemDataManager or not instance.loadoutManager then
         error(
@@ -132,7 +133,6 @@ function GuildScreen:new(hunterManager, archetypeManager, itemDataManager, loado
         font = fonts.main,
         isEnabled = false -- Começa desabilitado, será atualizado no :update
     })
-    -- <<< FIM CRIAÇÃO BOTÃO >>>
 
     print(string.format("[GuildScreen] Ready. Initial selected hunter: %s", instance.selectedHunterId or "None"))
     return instance
@@ -164,7 +164,7 @@ function GuildScreen:draw(x, y, w, h, mx, my)
 
     -- Rank e Contagem (na linha abaixo)
     love.graphics.setFont(fonts.main_large or fonts.main) -- Usar fonte maior se disponível
-    local rankColor = colors.rank[guildRank] or colors.text_default
+    local rankColor = colors.rankDetails[guildRank].text or colors.text_default
     local rankText = string.format("Rank: %s", guildRank)
     local countText = string.format("Caçadores: %d/%d", currentHunters, maxHunters)
     local rankTextWidth = love.graphics.getFont():getWidth(rankText)
@@ -405,29 +405,10 @@ function GuildScreen:draw(x, y, w, h, mx, my)
         self:_drawRecruitmentModal(0, 0, w, h, mx, my) -- Usa 0,0 porque o pop anterior restaurou
     end
 
-    -- <<< ADICIONADO: Lógica de Tooltip para Equipamentos >>>
-    local itemToShowTooltip = nil
-    if not self.isRecruiting and self.selectedHunterId and self.equipmentSlotAreas then -- <<< MODIFICADO: Usa self.equipmentSlotAreas
-        -- As coordenadas mx, my são globais da tela da Guilda.
-        local equippedItems = self.hunterManager:getEquippedItems(self.selectedHunterId)
-        if equippedItems then
-            for slotId, area in pairs(self.equipmentSlotAreas) do -- <<< MODIFICADO: Usa self.equipmentSlotAreas
-                if mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
-                    if equippedItems[slotId] then
-                        itemToShowTooltip = equippedItems[slotId]
-                        break
-                    end
-                end
-            end
-        end
+    -- Desenha o Tooltip no final, somente se o modal de recrutamento não estiver ativo
+    if not self.isRecruiting then
+        TooltipManager.draw()
     end
-
-    if itemToShowTooltip and not self.isRecruiting then -- <<< MODIFICADO: Garante que não está recrutando
-        TooltipManager.show(itemToShowTooltip, mx, my, self.hoveredItemOwnerSignature)
-    else
-        TooltipManager.requestHide(self.hoveredItemOwnerSignature)
-    end
-    -- <<< FIM LÓGICA TOOLTIP >>>
 end
 
 --- Desenha os modais de seleção de caçador.
@@ -660,6 +641,7 @@ function GuildScreen:update(dt, mx, my, allowHover)
     if self.isActiveFrame then
         self.isActiveFrame = false
     end
+    self.itemToShowTooltip = nil -- Reseta a cada frame
 
     -- <<< ATUALIZA ESTADO E HOVER DO BOTÃO 'Definir Ativo' >>>
     if self.setActiveButton then
@@ -696,6 +678,23 @@ function GuildScreen:update(dt, mx, my, allowHover)
             self.recruitButton.isEnabled = true -- Habilita fora do modal
         end
     end
+
+    -- Lógica de Tooltip para Equipamentos (apenas se modal não estiver ativo)
+    if not self.isRecruiting and self.selectedHunterId and self.equipmentSlotAreas and allowHover then
+        local equippedItems = self.hunterManager:getEquippedItems(self.selectedHunterId)
+        if equippedItems then
+            for slotId, area in pairs(self.equipmentSlotAreas) do
+                if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
+                    if equippedItems[slotId] then
+                        self.itemToShowTooltip = equippedItems[slotId]
+                        break
+                    end
+                end
+            end
+        end
+    end
+    -- Atualiza o TooltipManager. Se estiver recrutando, passa nil para o item.
+    TooltipManager.update(dt, mx, my, self.isRecruiting and nil or self.itemToShowTooltip)
 end
 
 --- Processa cliques do mouse dentro da área da tela da Guilda.

@@ -213,9 +213,7 @@ function Zombie:draw()
     AnimatedCharacter.draw("Zombie", self.sprite)
 
     -- Desenha a barra de vida e área de colisão (apenas se vivo)
-    if self.isAlive then
-        BaseEnemy.draw(self) -- Chama draw base para health bar e collision area (se debug ativado)
-    end
+    BaseEnemy.draw(self) -- Chama draw base para health bar e collision area (se debug ativado)
 end
 
 return Zombie

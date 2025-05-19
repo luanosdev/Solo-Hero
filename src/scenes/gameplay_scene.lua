@@ -28,6 +28,7 @@ GameplayScene.castTimer = 0 ---@type number
 GameplayScene.castDuration = 0 ---@type number
 GameplayScene.castingItem = nil ---@type table|nil Instância do item sendo conjurado
 GameplayScene.onCastCompleteCallback = nil ---@type function|nil
+GameplayScene.currentCastType = nil ---@type string|nil -- Adicionado para armazenar o tipo de extração durante o cast
 
 function GameplayScene:load(args)
     print("GameplayScene:load - Inicializando sistemas de gameplay...")
@@ -149,15 +150,69 @@ end
 
 function GameplayScene:update(dt)
     local mx, my = love.mouse.getPosition()
-    InventoryScreen.update(dt, mx, my)
+
+    -- 1. Atualiza UIs que podem estar visíveis (tooltips, hover de botões, etc.)
+    InventoryScreen.update(dt, mx, my, self.inventoryDragState)
     if LevelUpModal.visible then LevelUpModal:update(dt) end
+    if RuneChoiceModal.visible then RuneChoiceModal:update(dt) end
+    if ItemDetailsModal.isVisible then ItemDetailsModal:update(dt, mx, my) end
 
-    local shouldBePaused = LevelUpModal.visible or RuneChoiceModal.visible or InventoryScreen.isVisible or
-        ItemDetailsModal.isVisible
-    self.isPaused = shouldBePaused
+    -- 2. Determina se alguma UI de bloqueio total está ativa
+    local uiBlockingAllGameplay = LevelUpModal.visible or RuneChoiceModal.visible or ItemDetailsModal.isVisible
 
-    -- 3. <<< LÓGICA DE UPDATE DO DRAG DO INVENTÁRIO >>>
-    -- Deve rodar mesmo se pausado para o feedback visual do drag funcionar
+    -- 3. Lógica de Conjuração de Itens e Cancelamento por Movimento
+    if self.isCasting then
+        -- A conjuração progride a menos que uma UI de bloqueio total (LevelUp, etc.) esteja ativa.
+        if not uiBlockingAllGameplay then
+            self:updateCasting(dt) -- updateCasting já tem logs e pausa por modal
+        end
+        -- Movimento do jogador pode cancelar a conjuração.
+        -- self:handlePlayerMovementCancellation() -- Chamada movida para dentro do if not self.isPaused ou após InputManager
+    end
+
+    -- 4. Define o estado de pausa principal da cena
+    -- O jogo pausa se uma UI de bloqueio total estiver ativa,
+    -- OU se o inventário estiver visível E NENHUMA conjuração estiver em progresso.
+    self.isPaused = uiBlockingAllGameplay or (InventoryScreen.isVisible and not self.isCasting)
+
+    -- 5. Atualiza InputManager (precisa saber se qualquer UI está ativa e o estado de pausa da cena)
+    local inputMgr = ManagerRegistry:get("inputManager")
+    if inputMgr then
+        inputMgr:update(dt, uiBlockingAllGameplay or InventoryScreen.isVisible, self.isPaused)
+    else
+        print("GameplayScene: AVISO - InputManager não encontrado no Registry para update")
+    end
+
+    -- 6. Atualização da lógica principal do jogo e movimentação
+    if not self.isPaused then
+        ManagerRegistry:update(dt) -- Atualiza Player, Enemy, Projectiles, Drops, Orbs, etc.
+
+        -- Atualização do ChunkManager
+        local playerMgrForChunk = ManagerRegistry:get("playerManager")
+        if playerMgrForChunk and playerMgrForChunk.player and playerMgrForChunk.player.position then
+            local tileSize = Constants.TILE_SIZE
+            local playerWorldTileX = math.floor(playerMgrForChunk.player.position.x / tileSize)
+            local playerWorldTileY = math.floor(playerMgrForChunk.player.position.y / (tileSize / 2))
+            ChunkManager:update(playerWorldTileX, playerWorldTileY, Camera.x, Camera.y)
+        else
+            print("GameplayScene WARN: Não foi possível atualizar ChunkManager - player ausente.")
+        end
+
+        -- Lida com cancelamento de movimento AQUI, APÓS o PlayerManager ter sido atualizado por ManagerRegistry:update(dt)
+        -- e ANTES que a próxima frame de input/movimento seja processada.
+        --- self:handlePlayerMovementCancellation()
+    else -- O jogo está pausado
+        -- Mesmo se pausado (ex: pelo inventário aberto, sem conjuração),
+        -- o PlayerManager pode precisar saber a última posição para `hasMovedSinceLastFrame()` funcionar corretamente
+        -- se o jogador puder se mover enquanto o inventário está aberto (o que não deveria acontecer se o InputManager bloquear).
+        -- Chamamos handlePlayerMovementCancellation aqui para garantir que storeLastFramePosition seja chamado.
+        -- A verificação de cancelamento de cast não ocorrerá se isCasting for false, o que é bom.
+        -- if InventoryScreen.isVisible and not uiBlockingAllGameplay then
+        --     self:handlePlayerMovementCancellation()  -- Garante storeLastFramePosition
+        -- end
+    end
+
+    -- 7. Lógica de Update do Drag do Inventário (já presente no código original, mantida)
     if InventoryScreen.isVisible and self.inventoryDragState.isDragging and self.inventoryDragState.draggedItem then
         -- Reseta informações do alvo no início do update
         self.inventoryDragState.targetGridId = nil
@@ -168,7 +223,6 @@ function GameplayScene:update(dt)
         local hunterManager = ManagerRegistry:get("hunterManager")
         local inventoryManager = ManagerRegistry:get("inventoryManager")
         local itemDataManager = ManagerRegistry:get("itemDataManager")
-        local Constants = require("src.config.constants")
 
         if not hunterManager or not inventoryManager or not itemDataManager or not Constants then
             print("ERRO [GameplayScene.update - Drag]: Managers/Constants necessários não encontrados!")
@@ -215,7 +269,6 @@ function GameplayScene:update(dt)
                         elseif string.sub(slotId, 1, #Constants.SLOT_IDS.RUNE) == Constants.SLOT_IDS.RUNE then -- Verifica prefixo 'rune_'
                             expectedType = "rune"
                         end
-
                         if expectedType and expectedType == itemType then
                             self.inventoryDragState.isDropValid = true
                         else
@@ -277,45 +330,6 @@ function GameplayScene:update(dt)
             end
         end
     end
-    -- <<< FIM: Lógica de Update do Drag >>>
-
-    -- 4. Atualiza InputManager (passa se UI está ativa E se está pausado)
-    local inputMgr = ManagerRegistry:get("inputManager")
-    if inputMgr then
-        -- Passa true para uiActive se QUALQUER modal/inventário estiver visível (shouldBePaused)
-        -- Passa o estado de pausa da cena (self.isPaused)
-        inputMgr:update(dt, shouldBePaused, self.isPaused)
-    else
-        print("GameplayScene: AVISO - InputManager não encontrado no Registry para update")
-    end
-
-    -- 5. <<< ATUALIZAÇÃO PRINCIPAL DO JOGO >>>
-    -- Só atualiza a lógica principal do jogo se NÃO estiver pausado
-    if not self.isPaused then
-        -- Atualiza todos os managers do jogo (movimento, inimigos, projéteis, player state, etc.)
-        ManagerRegistry:update(dt)
-        -- Outras lógicas de gameplay que devem pausar...
-        -- Ex: Timers específicos da cena, etc.
-
-        -- <<< ADICIONADO: Atualização do ChunkManager >>>
-        local playerMgr = ManagerRegistry:get("playerManager")
-        if playerMgr and playerMgr.player and playerMgr.player.position then
-            local tileSize = Constants.TILE_SIZE
-            local playerWorldTileX = math.floor(playerMgr.player.position.x / tileSize)
-            local playerWorldTileY = math.floor(playerMgr.player.position.y / (tileSize / 2))
-            ChunkManager:update(playerWorldTileX, playerWorldTileY, Camera.x, Camera.y)
-        else
-            print("GameplayScene WARN: Não foi possível atualizar ChunkManager - player ausente.")
-        end
-    else
-        -- O jogo está pausado.
-        -- Lógica que pode rodar enquanto pausado (se houver, ex: animações de UI que não dependem do dt do jogo)
-        -- ...
-    end
-
-    -- 6. Atualiza ItemDetailsModal se ele precisa de update mesmo pausado
-    -- (Movido para fora do if not self.isPaused, mas pode ir para seção 1 também)
-    ItemDetailsModal:update(dt, mx, my)
 end
 
 function GameplayScene:draw()
@@ -559,24 +573,77 @@ end
 --- @param extractionType string Tipo de extração (ex: "equipment_only", "all_items", "random_equipment").
 --- @param extractionParams table (Opcional) Parâmetros adicionais para a extração (ex: para "random_equipment").
 function GameplayScene:initiateExtraction(extractionType, extractionParams)
-    extractionType = extractionType or "all_items" -- Default se nada for passado
-    extractionParams = extractionParams or {}      -- Default para evitar erros de nil
-    print(string.format("GameplayScene: Iniciando extração... Tipo: '%s'", extractionType))
+    print(string.format("[GameplayScene] Iniciando extração. Tipo: %s", extractionType))
+    self:resetCastState()
 
-    local inventoryManager = ManagerRegistry:get("inventoryManager") ---@type InventoryManager
     local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
+    local inventoryManager = ManagerRegistry:get("inventoryManager") ---@type InventoryManager
+    local itemDataManager = ManagerRegistry:get("itemDataManager") ---@type ItemDataManager
     local hunterManager = ManagerRegistry:get("hunterManager") ---@type HunterManager
+    local archetypeManager = ManagerRegistry:get("archetypeManager") ---@type ArchetypeManager
+    local hunterId = playerManager:getCurrentHunterId()
 
-    if not inventoryManager or not playerManager or not hunterManager then
-        error(
-            "[GameplayScene:initiateExtraction]: Um ou mais managers necessários (Inventory, Player, Hunter) não foram encontrados no Registry.")
+    if not playerManager or not inventoryManager or not itemDataManager or not hunterId or not hunterManager or not archetypeManager then
+        print("ERRO [GameplayScene:initiateExtraction]: Managers essenciais ou HunterID não encontrados!")
+        SceneManager.switchScene("lobby_scene", { extractionSuccessful = false, irregularExit = true })
+        return
     end
 
-    local extractedBackpackItems = {}
+    -- Coleta de dados para HunterStatsColumn ANTES de modificar inventário/equipamentos
+    local finalStatsForSummary = playerManager:getCurrentFinalStats()
+    local archetypeIdsForSummary = hunterManager:getArchetypeIds(hunterId)
+
+    local itemsToExtract = {}
+    local equipmentToExtract = {}
+
+    -- 1. Coleta Equipamentos
+    local currentEquipment = playerManager:getCurrentEquipmentGameplay()
+    if extractionType == "equipment_only" or extractionType == "all_items" or extractionType == "all_items_instant" or extractionType == "random_backpack_items_plus_equipment" then
+        if currentEquipment then
+            for slotId, itemDataFromManager in pairs(currentEquipment) do
+                local finalItemInstance = nil
+                if itemDataFromManager then
+                    if type(itemDataFromManager) == "table" then
+                        -- Já é uma ItemInstance (esperado)
+                        finalItemInstance = itemDataFromManager
+                        print(string.format("  - Coletando equipamento (instância) do slot %s: %s (ID: %s)",
+                            slotId,
+                            finalItemInstance.itemBaseId,
+                            finalItemInstance.instanceId))
+                    elseif type(itemDataFromManager) == "number" then
+                        -- É um itemBaseId, precisa criar a instância
+                        print(string.format(
+                            "  - WARN: Equipamento do slot %s é um itemBaseId numérico: %d. Tentando criar instância.",
+                            slotId, itemDataFromManager))
+                        local newItemInstance = itemDataManager:createItemInstanceById(itemDataFromManager, 1) -- Cria uma instância com quantidade 1
+                        if newItemInstance then
+                            print(string.format("    - Instância criada para ID %d: %s (Instance ID: %s)",
+                                itemDataFromManager, newItemInstance.itemBaseId, newItemInstance.instanceId))
+                            finalItemInstance = newItemInstance
+                        else
+                            print(string.format(
+                                "    - ERRO: Falha ao criar instância para itemBaseId %d do slot %s. Item não será extraído.",
+                                itemDataFromManager, slotId))
+                        end
+                    else
+                        print(string.format(
+                            "  - WARN: Tipo de dado inesperado para equipamento no slot %s: %s. Item não será extraído.",
+                            slotId, type(itemDataFromManager)))
+                    end
+
+                    if finalItemInstance then
+                        equipmentToExtract[slotId] = finalItemInstance
+                    end
+                end
+            end
+        end
+    end
+
+    -- 2. Coleta Itens da Mochila
     if extractionType == "all_items" or extractionType == "all_items_instant" then
         if inventoryManager.getAllItemsGameplay then
-            extractedBackpackItems = inventoryManager:getAllItemsGameplay()
-            print(string.format("GameplayScene: %d itens coletados da mochila (tipo: %s).", #extractedBackpackItems,
+            itemsToExtract = inventoryManager:getAllItemsGameplay()
+            print(string.format("GameplayScene: %d itens coletados da mochila (tipo: %s).", #itemsToExtract,
                 extractionType))
         else
             error(
@@ -587,7 +654,7 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
         if inventoryManager.getAllItemsGameplay then
             local allBackpackItems = inventoryManager:getAllItemsGameplay() or {}
             if #allBackpackItems > 0 then
-                extractedBackpackItems = {}                                              -- Inicia vazio
+                itemsToExtract = {}                                                      -- Inicia vazio
                 local percentageToKeep = (extractionParams.percentageToKeep or 50) / 100 -- Default 50%
                 local numToExtract = math.ceil(#allBackpackItems * percentageToKeep)
                 numToExtract = math.max(1, numToExtract)                                 -- Garante pelo menos 1 se houver itens
@@ -606,10 +673,10 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
                     numToExtract, #allBackpackItems))
                 for i = 1, numToExtract do
                     local randomIndex = backpackIndices[i]
-                    table.insert(extractedBackpackItems, allBackpackItems[randomIndex])
+                    table.insert(itemsToExtract, allBackpackItems[randomIndex])
                 end
                 print(string.format("GameplayScene: %d itens da mochila selecionados aleatoriamente (tipo: %s).",
-                    #extractedBackpackItems, extractionType))
+                    #itemsToExtract, extractionType))
             else
                 print(string.format("GameplayScene: Nenhum item na mochila para selecionar aleatoriamente (tipo: %s).",
                     extractionType))
@@ -623,39 +690,24 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
         print(string.format("GameplayScene: Nenhum item da mochila será extraído (tipo: %s).", extractionType))
     end
 
-    local extractedEquipment = {}
-    if playerManager.getCurrentEquipmentGameplay then
-        local currentEquipment = playerManager:getCurrentEquipmentGameplay()
-
-        -- Para "random_backpack_items_plus_equipment", todos os equipamentos são mantidos
-        if extractionType == "equipment_only" or extractionType == "all_items" or extractionType == "all_items_instant" or extractionType == "random_backpack_items_plus_equipment" then -- <<< ADICIONADO NOVO TIPO AQUI
-            extractedEquipment = currentEquipment
-            local equipCount = 0
-            for _ in pairs(extractedEquipment) do equipCount = equipCount + 1 end
-            print(string.format("GameplayScene: %d equipamentos atuais do jogador coletados (tipo: %s).", equipCount,
-                extractionType))
-
-            -- REMOVIDO: elseif extractionType == "random_equipment" then ... (lógica antiga movida e adaptada acima para mochila)
-        else
-            print(string.format("GameplayScene: Nenhum equipamento será extraído (tipo: %s).", extractionType))
-        end
-    else
-        error(
-            "[GameplayScene:initiateExtraction]: Método playerManager:getCurrentEquipmentGameplay() não encontrado.")
-    end
-
-    local currentHunterId = hunterManager:getActiveHunterId()
-
-    -- Prepara os argumentos para a LobbyScene
+    -- 3. Prepara os argumentos para a LobbyScene
     local extractionArgs = {
         extractionSuccessful = true,
-        hunterId = currentHunterId, -- Passa o ID do caçador que está extraindo
-        extractedItems = extractedBackpackItems,
-        extractedEquipment = extractedEquipment
+        hunterId = hunterId,
+        extractedItems = itemsToExtract,
+        extractedEquipment = equipmentToExtract,
+        -- Novos args para ExtractionSummaryScene
+        portalName = self.currentPortalData and self.currentPortalData.name or "Portal Desconhecido",
+        portalRank = self.currentPortalData and self.currentPortalData.rank or "E",
+        gameplayStats = {}, -- Placeholder para estatísticas futuras
+        -- Adiciona dados para HunterStatsColumn na ExtractionSummaryScene
+        finalStats = finalStatsForSummary,
+        archetypeIds = archetypeIdsForSummary,
+        archetypeManagerInstance = archetypeManager
     }
 
-    print("GameplayScene: Transicionando para LobbyScene com dados de extração.")
-    SceneManager.switchScene("lobby_scene", extractionArgs)
+    print("GameplayScene: Transicionando para ExtractionSummaryScene com dados de extração.")
+    SceneManager.switchScene("extraction_summary_scene", extractionArgs)
 end
 
 --- DEBUG: Adiciona um item especificado diretamente ao inventário do jogador na partida.
@@ -753,49 +805,79 @@ function GameplayScene:requestUseItem(itemInstance)
     end
 
     local useDetails = baseData.useDetails
-    self.isCasting = true
+
+    -- Configura o estado de conjuração independentemente de ser instantâneo ou não
+    -- para que o callback tenha acesso a estas informações.
+    self.isCasting = true -- Mesmo para instantâneo, marcamos como casting brevemente
     self.castTimer = 0
     self.castDuration = useDetails.castTime or 0
-    self.castingItem = itemInstance -- Armazena a instância do item sendo usado
+    self.castingItem = itemInstance                  -- Armazena a instância do item
+    self.currentCastType = useDetails.extractionType -- Armazena o tipo de extração para o callback
 
-    print(string.format("GameplayScene: Iniciando conjuração de '%s' (ID da instância: %s) por %.2f segundos.",
-        baseData.name, tostring(itemInstance.instanceId), self.castDuration))
+    print(string.format(
+        "GameplayScene: Iniciando uso/conjuração de '%s' (ID da Instância: %s) com duração: %.2f seg. Tipo Ext: %s",
+        baseData.name, tostring(itemInstance.instanceId), self.castDuration, self.currentCastType or "N/A"))
 
-    -- Define o que fazer quando a conjuração terminar
+    -- Define o que fazer quando a conjuração terminar (ou se for instantânea)
     self.onCastCompleteCallback = function()
-        print(string.format("GameplayScene: Concluiu conjuração de '%s'.", baseData.name))
+        -- Estas variáveis locais capturam os valores de self.castingItem e self.currentCastType
+        -- no momento da DEFINIÇÃO do callback, tornando-o mais robusto a resets prematuros SE o self fosse usado diretamente.
+        -- No entanto, com a correção de ordem, o self.castingItem e self.currentCastType AINDA ESTARÃO VÁLIDOS AQUI.
+        local itemBeingUsed = self.castingItem
+        local extractionTypeForThisCast = self.currentCastType
+
+        print(string.format("GameplayScene: Callback de conclusão para '%s'. Tipo Ext: %s",
+            (itemBeingUsed and baseData.name) or "Item Desconhecido", extractionTypeForThisCast or "N/A"))
 
         if useDetails.consumesOnUse then
             local inventoryManager = ManagerRegistry:get("inventoryManager")
-            if inventoryManager then
-                inventoryManager:removeItemInstance(self.castingItem.instanceId, 1) -- Remove 1 da pilha
-                print("GameplayScene: Item consumido.")
-            else
+            if inventoryManager and itemBeingUsed then -- Verifica itemBeingUsed
+                print(string.format("GameplayScene: Consumindo item ID da instância: %s",
+                    tostring(itemBeingUsed.instanceId)))
+                inventoryManager:removeItemInstance(itemBeingUsed.instanceId, 1) -- Remove 1 da pilha
+            elseif not itemBeingUsed then
+                print("GameplayScene: ERRO no callback - itemBeingUsed é nil, não pode consumir.")
+            elseif not inventoryManager then
                 error("[GameplayScene:onCastCompleteCallback] InventoryManager não encontrado para consumir item.")
             end
         end
 
-        -- Chama a extração com o tipo específico
-        if useDetails.extractionType then
-            self:initiateExtraction(useDetails.extractionType, baseData.useDetails.extractionRandomParams)
+        if extractionTypeForThisCast then -- Verifica se o tipo de extração é válido
+            self:initiateExtraction(extractionTypeForThisCast, useDetails.extractionRandomParams)
         else
-            error(string.format(
-                "[GameplayScene:onCastCompleteCallback] 'extractionType' não definido nos useDetails do item %s",
-                baseData.name))
+            -- Se extractionTypeForThisCast for nil, mas o item era para ser um teleporte, isso é um erro nos dados do item.
+            -- Se não era um item de teleporte, não fazer nada aqui está correto.
+            if baseData.type == "consumable" and useDetails.extractionType == nil and (string.find(itemInstance.itemBaseId, "teleport", 1, true) or string.find(baseData.name, "Teleporte", 1, true)) then
+                error(string.format(
+                    "[GameplayScene:onCastCompleteCallback] 'extractionType' é nil para o item de teleporte '%s' nos useDetails ou não foi armazenado corretamente.",
+                    baseData.name))
+            else
+                print(string.format(
+                    "GameplayScene:onCastCompleteCallback - Nenhum extractionType definido para '%s', ou item não é de extração.",
+                    baseData.name))
+            end
         end
     end
 
-    -- Se o castTime for 0 (ou muito pequeno), executa imediatamente
+    -- Se o castTime for 0 (ou muito pequeno), executa o callback e reseta.
     if self.castDuration <= 0.01 then
-        print("GameplayScene: Cast time é zero, executando imediatamente.")
-        local callback = self.onCastCompleteCallback
-        self:resetCastState()
-        if callback then
-            callback()
+        print("GameplayScene: Duração da conjuração é zero ou insignificante, executando callback imediatamente.")
+
+        local callbackToExecute = self.onCastCompleteCallback
+
+        if callbackToExecute then
+            print("GameplayScene: Executando onCastCompleteCallback para conjuração instantânea...")
+            callbackToExecute() -- Executa o callback primeiro
+        else
+            print("GameplayScene: AVISO - onCastCompleteCallback era nil para conjuração instantânea.")
         end
+
+        self:resetCastState() -- Reseta o estado DEPOIS que o callback foi executado
     else
-        -- TODO: Iniciar feedback visual/sonoro de que o cast começou
-        -- Ex: player entra em animação de cast, barra de progresso aparece
+        -- Para casts não instantâneos, a lógica de updateCasting cuidará de chamar o callback e resetar.
+        print("GameplayScene: Conjuração com duração > 0.01s. updateCasting irá gerenciar.")
+        -- TODO: Iniciar feedback visual/sonoro de que o cast começou (barra de progresso, etc.)
+        -- A barra já é desenhada em GameplayScene:draw se self.isCasting for true.
     end
 
     return true
@@ -805,13 +887,25 @@ end
 --- @param dt number Delta time.
 function GameplayScene:updateCasting(dt)
     if not self.isCasting then
+        return -- Só executa se estivermos conjurando
+    end
+
+    -- Impede o progresso se um modal de bloqueio total OU o inventário estiverem ativos.
+    if LevelUpModal.visible or RuneChoiceModal.visible or ItemDetailsModal.isVisible or InventoryScreen.isVisible then
+        print(string.format("GameplayScene:updateCasting - Conjuração PAUSADA. Modal Ativo: %s, Inventário Aberto: %s",
+            tostring(LevelUpModal.visible or RuneChoiceModal.visible or ItemDetailsModal.isVisible),
+            tostring(InventoryScreen.isVisible)))
         return
     end
 
-    self.castTimer = self.castTimer + dt
-    -- print(string.format("Casting progress: %.2f / %.2f", self.castTimer, self.castDuration)) -- Log frequente, remover depois
+    -- Log para depurar o progresso do timer
+    print(string.format(
+        "GameplayScene:updateCasting - dt: %.4f, castTimer ANTES: %.2f, castDuration: %.2f, isCasting: %s",
+        dt, self.castTimer, self.castDuration, tostring(self.isCasting)))
 
-    -- TODO: Implementar lógica de interrupção do cast
+    self.castTimer = self.castTimer + dt
+
+    -- TODO: Implementar lógica de interrupção do cast (se necessário AQUI, além de handlePlayerMovementCancellation)
     -- Exemplo: Se o jogador se mover ou tomar dano (dependendo das regras do item)
     -- local playerManager = ManagerRegistry:get("playerManager")
     -- if playerManager and playerManager:hasMovedSinceLastFrame() then -- Método hipotético
@@ -824,11 +918,21 @@ function GameplayScene:updateCasting(dt)
     -- end
 
     if self.castTimer >= self.castDuration then
-        local callback = self.onCastCompleteCallback
-        self:resetCastState() -- Reseta ANTES de chamar o callback para evitar recursão ou estado inconsistente
-        if callback then
-            callback()
+        print(string.format(
+            "GameplayScene:updateCasting - Timer (%.2f) atingiu/excedeu duração (%.2f). Completando conjuração.",
+            self.castTimer, self.castDuration))
+        local callbackToExecute = self.onCastCompleteCallback
+
+        -- IMPORTANTE: Chamar o callback ANTES de resetar o estado,
+        -- pois o callback pode depender de self.castingItem ou outros estados de conjuração.
+        if callbackToExecute then
+            print("GameplayScene:updateCasting - Executando onCastCompleteCallback...")
+            callbackToExecute()
+        else
+            print("GameplayScene:updateCasting - AVISO: onCastCompleteCallback era nil ao completar a conjuração.")
         end
+
+        self:resetCastState() -- Limpa o estado de conjuração APÓS o callback.
     end
 end
 
@@ -851,7 +955,31 @@ function GameplayScene:resetCastState()
     self.castDuration = 0
     self.castingItem = nil
     self.onCastCompleteCallback = nil
+    self.currentCastType = nil -- Limpa também o tipo de extração
     -- TODO: Parar feedback visual/sonoro de cast (barra de progresso, animação)
+end
+
+-- NOVA FUNÇÃO para cancelamento de conjuração por movimento
+--- Lida com o cancelamento da conjuração se o jogador se mover.
+--- Também garante que a última posição do jogador seja armazenada para a verificação no próximo frame.
+function GameplayScene:handlePlayerMovementCancellation()
+    local playerMgr = ManagerRegistry:get("playerManager")
+    if not playerMgr then return end
+
+    -- playerManager:hasMovedSinceLastFrame() precisaria ser implementado no PlayerManager.
+    -- Por enquanto, vamos assumir que ele existe e retorna true se o jogador se moveu.
+    -- Se não existir, esta parte não fará nada até que seja implementada.
+    if playerMgr.hasMovedSinceLastFrame and playerMgr:hasMovedSinceLastFrame() then
+        if self.isCasting then
+            print("GameplayScene: Movimento do jogador cancelou a conjuração.")
+            self:interruptCast("Movimento do jogador")
+        end
+    end
+
+    -- playerManager:storeLastFramePosition() também precisaria ser implementado no PlayerManager.
+    if playerMgr.storeLastFramePosition then
+        playerMgr:storeLastFramePosition()
+    end
 end
 
 return GameplayScene

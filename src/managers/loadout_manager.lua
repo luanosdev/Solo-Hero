@@ -79,6 +79,15 @@ end
 
 -- == Funções de Manipulação de Itens ==
 
+--- Limpa todos os itens do loadout, resetando a grade e o contador de instâncias.
+function LoadoutManager:clearAllItems()
+    print("[LoadoutManager] Limpando todos os itens do loadout...")
+    self:_createEmptyGrid(self.rows, self.cols)
+    self.items = {}
+    nextInstanceId = 1 -- Reseta o contador de ID de instância local
+    print("[LoadoutManager] Loadout limpo.")
+end
+
 --- Verifica se um item pode ser colocado em uma posição específica.
 ---@param item table Instância do item a ser colocado.
 ---@param targetRow integer Linha alvo (1-indexed).

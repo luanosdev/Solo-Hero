@@ -4,9 +4,8 @@
 ]]
 
 local ManagerRegistry = require("src.managers.manager_registry")
-local Camera = require("src.config.camera")                -- ADICIONADO para conversão de coordenadas
-local FloatingText = require("src.entities.floating_text") -- ADICIONADO
-local Colors = require("src.ui.colors")                    -- ADICIONADO para cores do texto
+local FloatingText = require("src.entities.floating_text")
+local Colors = require("src.ui.colors")
 
 ---@class BaseEnemy
 ---@field position {x: number, y: number} Posição do inimigo
@@ -74,7 +73,6 @@ end
 function BaseEnemy:update(dt, playerManager, enemies)
     if not self.isAlive then return end
 
-    -- <<< REVERTIDO: Volta a usar a posição de COLISÃO para calcular direção >>>
     local playerCollision = playerManager:getCollisionPosition()
     if not playerCollision or not playerCollision.position then -- Verifica se a posição existe
         print("BaseEnemy:update - AVISO: Posição de colisão do jogador não encontrada!")
@@ -183,8 +181,6 @@ function BaseEnemy:checkPlayerCollision(dt, playerManager)
 end
 
 function BaseEnemy:draw()
-    if not self.isAlive then return end
-
     if self.activeFloatingTexts then
         self:drawFloatingTexts()
     end
