@@ -9,83 +9,117 @@ CemeteryTheme.groundTile = "assets/tiles/cemetery/ground/default_ground.png" -- 
 
 -- Lista de possíveis tiles de chão com pesos para variação (opcional)
 CemeteryTheme.groundTiles = {
-    { path = "assets/tiles/cemetery/ground/ground_A2.png", weight = 10 },
-    { path = "assets/tiles/cemetery/ground/ground_A3.png", weight = 5 },
+    { path = "assets/tiles/cemetery/ground/ground_A2.png", weight = 2 },
     -- Adicione mais variações de chão aqui
 }
 
--- Lista de possíveis decorações com pesos e regras de posicionamento (opcional)
+-- Lista de assets de decoração para o cemitério
 CemeteryTheme.decorations = {
-    { path = "assets/tiles/cemetery/decoration/car_N.png",    weight = 10, density = 0.05, variants = 2, noiseScaleXY = 20 },
-    { path = "assets/tiles/cemetery/decoration/tree_E_01.png", weight = 5,  density = 0.02, variants = 1, scale = { min = 0.8, max = 1.2 }, noiseScaleXY = 15 },
-    -- Adicione mais tipos de decorações aqui
+    "assets/tiles/cemetery/decoration/car_N_01.png",
+    "assets/tiles/cemetery/decoration/car_N_02.png",
+    "assets/tiles/cemetery/decoration/tree_E_01.png", -- Exemplo, ajuste conforme seus assets
+    -- Adicione mais caminhos de assets de decoração aqui
 }
 
--- Função para gerar decorações para um chunk específico.
--- Esta é uma implementação de exemplo; você precisará adaptá-la às suas necessidades.
---- @param noiseLibInstance table|nil Instância da biblioteca de noise já inicializada.
+-- Presumimos que a base de uma decoração ocupa no máximo a largura de um tile
+-- e a "profundidade" no chão também (para cálculo de margem)
+local DECO_BASE_MAX_WIDTH = Constants.TILE_WIDTH
+local DECO_BASE_MAX_DEPTH = Constants.TILE_HEIGHT
+
+-- Configurações do tema do Cemitério (AJUSTE ESTES VALORES)
+local CHANCE_EMPTY_CHUNK = 0.10            -- 10% de chance de um chunk ser completamente vazio
+local MAX_PLACEMENT_ATTEMPTS_SCATTERED = 5 -- Tentativas para posicionar uma decoração espalhada
+
+--- Gera decorações para um chunk específico usando lógica de clusters e espalhamento.
+--- @param noiseLibInstance table|nil Instância da biblioteca de noise (não usada nesta versão, mas mantida para compatibilidade de assinatura).
 --- @param chunkX number Coordenada X do chunk.
 --- @param chunkY number Coordenada Y do chunk.
 --- @param chunkSize number Tamanho do chunk.
 --- @param globalSeed number Seed global para consistência.
---- @return table Lista de objetos de decoração. Cada objeto deve ter {path, x, y, offsetX, offsetY, scale (opcional)}.
+--- @return table Lista de objetos de decoração.
 function CemeteryTheme.generateDecorations(noiseLibInstance, chunkX, chunkY, chunkSize, globalSeed)
     local decorationsInChunk = {}
+    local chunkPixelWidth = chunkSize * Constants.TILE_WIDTH
+    local chunkPixelHeight = chunkSize * Constants.TILE_HEIGHT
+    -- Seed específica do chunk para resultados determinísticos e variados por chunk
+    local chunkSpecificSeed = (globalSeed or os.time()) + (chunkX * 73856093) + (chunkY * 19349663) +
+        (chunkX * chunkY * 47)
+    math.randomseed(chunkSpecificSeed)
 
-    if not noiseLibInstance or not noiseLibInstance.get then
-        print(
-            "AVISO [CemeteryTheme.generateDecorations]: Instância de NoiseLib inválida ou sem método .get(). Decorações podem não ser geradas como esperado.")
-        return {}
+    -- Chance de ter um chunk vazio
+    if #CemeteryTheme.decorations == 0 then -- Se não houver decorações definidas, retorna vazio
+        return decorationsInChunk
+    end
+    if math.random() < CHANCE_EMPTY_CHUNK then
+        -- print(string.format("[CemeteryTheme DEBUG] Chunk Vazio (%d, %d) gerado.", chunkX, chunkY))
+        return decorationsInChunk
     end
 
-    for tileY = 1, chunkSize do
-        for tileX = 1, chunkSize do
-            local worldTileX = (chunkX * chunkSize) + (tileX - 1)
-            local worldTileY = (chunkY * chunkSize) + (tileY - 1)
+    -- Decorações aleatórias espalhadas
+    local scatteredDecoCount = math.random(5, 10)
+    -- Define o espaçamento mínimo dinâmico aqui, baseado em 150% do tamanho base da decoração
+    local dynamicMinDistance = DECO_BASE_MAX_WIDTH * 1.5
+    local dynamicMinDistanceSq = dynamicMinDistance * dynamicMinDistance
 
-            for _, decorDef in ipairs(CemeteryTheme.decorations or {}) do
-                local noiseValRaw = noiseLibInstance.get(worldTileX / (decorDef.noiseScaleXY or 20),
-                    worldTileY / (decorDef.noiseScaleXY or 20),
-                    globalSeed + 1000) -- Seed offset para este uso
-                -- Normaliza noise de [-1, 1] para [0, 1] para usar como probabilidade
-                local noiseProb = (noiseValRaw + 1) / 2
-
-                if noiseProb < (decorDef.density or 0.01) then -- Ex: density 0.05 -> noiseProb < 0.05
-                    local decorPath = decorDef.path
-                    if decorDef.variants and decorDef.variants > 1 then
-                        local variantNoiseRaw = noiseLibInstance.get(worldTileX / 10,
-                            worldTileY / 10,
-                            globalSeed + 2000 + decorDef.weight)
-                        local variantNoiseProb = (variantNoiseRaw + 1) / 2
-                        local variantNum = math.floor(variantNoiseProb * decorDef.variants) + 1
-                        variantNum = math.max(1, math.min(variantNum, decorDef.variants))
-                        if string.match(decorPath, "_%d%d%.png$") then
-                            decorPath = string.gsub(decorPath, "_%d%d%.png$", string.format("_%02d.png", variantNum))
-                        else
-                            decorPath = string.gsub(decorPath, "%.png$", string.format("_%02d.png", variantNum))
-                        end
-                    end
-
-                    local scale = 1.0
-                    if decorDef.scale then
-                        local scaleNoiseRaw = noiseLibInstance.get(worldTileX / 5,
-                            worldTileY / 5,
-                            globalSeed + 3000 + decorDef.weight)
-                        local scaleNoiseProb = (scaleNoiseRaw + 1) / 2
-                        scale = decorDef.scale.min + (decorDef.scale.max - decorDef.scale.min) * scaleNoiseProb
-                    end
-
-                    table.insert(decorationsInChunk, {
-                        asset = decorPath,                                                    -- Mudado de 'path' para 'asset' para consistência com ChunkManager:collectRenderables
-                        px = (tileX - 0.5) * Constants.TILE_WIDTH + (decorDef.offsetX or 0),  -- Posição X em pixels relativa ao canto do CHUNK
-                        py = (tileY - 0.5) * Constants.TILE_HEIGHT + (decorDef.offsetY or 0), -- Posição Y em pixels relativa ao canto do CHUNK
-                        renderScale = scale,
-                        depthOffset = decorDef.depthOffset or 0
-                    })
+    for _ = 1, scatteredDecoCount do
+        local placed = false
+        for attempt = 1, MAX_PLACEMENT_ATTEMPTS_SCATTERED do
+            local potentialPx = math.random(DECO_BASE_MAX_WIDTH / 2, chunkPixelWidth - DECO_BASE_MAX_WIDTH / 2)
+            local potentialPy = math.random(DECO_BASE_MAX_DEPTH / 2, chunkPixelHeight - DECO_BASE_MAX_DEPTH / 2)
+            local tooClose = false
+            for _, existingDeco in ipairs(decorationsInChunk) do
+                local distSq = (existingDeco.px - potentialPx) ^ 2 + (existingDeco.py - potentialPy) ^ 2
+                -- Usa a distância dinâmica ao quadrado para a verificação
+                if distSq < dynamicMinDistanceSq then
+                    tooClose = true
+                    break
                 end
+            end
+            if not tooClose then
+                table.insert(decorationsInChunk, {
+                    asset = CemeteryTheme.decorations[math.random(#CemeteryTheme.decorations)],
+                    px = potentialPx,
+                    py = potentialPy,
+                    -- renderScale e depthOffset podem ser adicionados aqui se necessário por tipo de asset,
+                    -- ou gerenciados no AssetManager/ChunkManager ao carregar a imagem.
+                })
+                placed = true
+                break
             end
         end
     end
+
+    -- Adiciona clusters (ex: um grupo de túmulos, uma pequena cripta, carros abandonados)
+    local numClusters = math.random(1, 2) -- Ajuste o número de clusters
+    for c = 1, numClusters do
+        local clusterAssetType = CemeteryTheme.decorations
+            [math.random(#CemeteryTheme.decorations)] -- Pode variar o asset por cluster ou fixar
+        local clusterMargin =
+            DECO_BASE_MAX_WIDTH                       -- Margem para o centro do cluster
+        local clusterX = math.random(clusterMargin, chunkPixelWidth - clusterMargin)
+        local clusterY = math.random(clusterMargin, chunkPixelHeight - clusterMargin)
+        local itemsInCluster = math.random(3, 6)                           -- Número de itens no cluster
+        local clusterRadius = Constants.TILE_WIDTH * math.random(0.4, 0.8) -- Raio do cluster
+
+        for i = 1, itemsInCluster do
+            local angle = math.random() * 2 * math.pi
+            local radiusFactor = math.random() -- Para variar a distância do centro
+            local decoPx = math.floor(clusterX + math.cos(angle) * clusterRadius * radiusFactor)
+            local decoPy = math.floor(clusterY + math.sin(angle) * clusterRadius * radiusFactor)
+
+            -- Garante que a decoração esteja dentro das bordas do chunk (considerando sua base)
+            decoPx = math.max(DECO_BASE_MAX_WIDTH / 2, math.min(decoPx, chunkPixelWidth - DECO_BASE_MAX_WIDTH / 2))
+            decoPy = math.max(DECO_BASE_MAX_DEPTH / 2, math.min(decoPy, chunkPixelHeight - DECO_BASE_MAX_DEPTH / 2))
+
+            table.insert(decorationsInChunk, {
+                asset = clusterAssetType, -- Todos os itens neste cluster são do mesmo tipo (para este exemplo)
+                px = decoPx,
+                py = decoPy
+            })
+        end
+    end
+
+    -- print(string.format("[CemeteryTheme DEBUG] Decorações geradas para chunk (%d, %d): %d objetos", chunkX, chunkY, #decorationsInChunk))
     return decorationsInChunk
 end
 
@@ -98,20 +132,35 @@ end
 --- @return string Caminho do asset do tile de chão.
 function CemeteryTheme.getRandomGroundTile(noiseLibInstance, worldX, worldY, globalSeed)
     if not CemeteryTheme.groundTiles or #CemeteryTheme.groundTiles == 0 then
-        return CemeteryTheme.groundTile
+        return CemeteryTheme.groundTile -- Retorna o tile padrão se nenhuma variação for definida
     end
 
     if not noiseLibInstance or not noiseLibInstance.get then
-        print("AVISO [CemeteryTheme.getRandomGroundTile]: Instância de NoiseLib inválida ou sem método .get().")
+        print(
+            "AVISO [CemeteryTheme.getRandomGroundTile]: Instância de NoiseLib inválida ou sem método .get(). Usando tile padrão.")
         return CemeteryTheme.groundTile
     end
 
-    local noiseValueRaw = noiseLibInstance.get(worldX / 30, worldY / 30, globalSeed)
-    local noiseValueProb = (noiseValueRaw + 1) / 2 -- Normaliza para [0, 1]
-    local index = math.floor(noiseValueProb * #CemeteryTheme.groundTiles) + 1
-    index = math.max(1, math.min(index, #CemeteryTheme.groundTiles))
+    -- Usa noise para selecionar um tile, mas de forma mais simples que antes
+    local noiseValueRaw = noiseLibInstance.get(worldX / 20, worldY / 20, globalSeed + 500) -- Scale e seed diferentes
+    local noiseValueProb = (noiseValueRaw + 1) / 2                                         -- Normaliza para [0, 1]
 
-    return CemeteryTheme.groundTiles[index].path
+    -- Distribui a probabilidade entre os tiles disponíveis
+    local totalWeight = 0
+    for _, tileDef in ipairs(CemeteryTheme.groundTiles) do
+        totalWeight = totalWeight + (tileDef.weight or 1)
+    end
+
+    local randomChoice = noiseValueProb * totalWeight
+    local cumulativeWeight = 0
+    for _, tileDef in ipairs(CemeteryTheme.groundTiles) do
+        cumulativeWeight = cumulativeWeight + (tileDef.weight or 1)
+        if randomChoice <= cumulativeWeight then
+            return tileDef.path
+        end
+    end
+
+    return CemeteryTheme.groundTiles[#CemeteryTheme.groundTiles].path -- Fallback para o último em caso de erro de float
 end
 
 return CemeteryTheme

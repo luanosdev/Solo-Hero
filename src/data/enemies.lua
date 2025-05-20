@@ -20,7 +20,7 @@ local enemies = {
         -- Assumindo 8 direções, começando em 0 graus (Leste) e seguindo no sentido horário.
         angles = { 0, 45, 90, 135, 180, 225, 270, 315 },
         frameTimes = {
-            walk = 0.15, -- Segundos por frame
+            walk = 0.08, -- Segundos por frame
             run = 0.10,  -- Segundos por frame
             death_die1 = 0.12,
             death_die2 = 0.12

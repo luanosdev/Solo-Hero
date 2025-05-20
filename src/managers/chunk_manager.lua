@@ -298,7 +298,7 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
                                 TILE_HEIGHT_HALF
 
                             if isoX + Constants.TILE_WIDTH > camMinX and isoX - Constants.TILE_WIDTH < camMaxX and isoY + Constants.TILE_HEIGHT * 2 > camMinY and isoY < camMaxY then
-                                local wallHeightToIgnore = 20                                   -- Altura da "parede" na parte inferior da imagem do tile
+                                local wallHeightToIgnore = 16                                   -- Altura da "parede" na parte inferior da imagem do tile
                                 local quadVisibleContentHeight = imgH -
                                     wallHeightToIgnore                                          -- Altura da face plana na imagem (ex: 80 - 20 = 60)
 
