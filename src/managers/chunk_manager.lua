@@ -22,8 +22,9 @@ Chunk.__index = Chunk
 ---@param chunkSize number Tamanho do chunk (ex: 32).
 ---@param portalThemeData table Dados do tema do portal atual.
 ---@param globalSeed number Seed global para geração procedural.
+---@param noiseLibInstance table|nil Módulo de noise carregado (opcional).
 ---@return Chunk
-function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData, globalSeed)
+function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData, globalSeed, noiseLibInstance)
     local instance = setmetatable({}, Chunk)
     instance.chunkX = chunkX
     instance.chunkY = chunkY
@@ -33,17 +34,25 @@ function Chunk:new(chunkX, chunkY, chunkSize, portalThemeData, globalSeed)
     local themeName = portalThemeData and portalThemeData.mapDefinition and portalThemeData.mapDefinition.theme or
         "forest"
     local theme = require("src.mapthemes." .. themeName)
-    local tileAsset = theme.groundTile
+
+    -- Modificado para usar getRandomGroundTile se disponível
     for y = 1, instance.size do
         instance.tiles[y] = {}
         for x = 1, instance.size do
             local worldX = (chunkX * instance.size) + (x - 1)
             local worldY = (chunkY * instance.size) + (y - 1)
-            instance.tiles[y][x] = { worldX = worldX, worldY = worldY, type = tileAsset }
+            local tileAssetPath
+            if theme.getRandomGroundTile then
+                tileAssetPath = theme.getRandomGroundTile(noiseLibInstance, worldX, worldY, globalSeed)
+            else
+                tileAssetPath = theme.groundTile -- Fallback para o tile padrão único
+            end
+            instance.tiles[y][x] = { worldX = worldX, worldY = worldY, type = tileAssetPath }
         end
     end
+
     if theme.generateDecorations then
-        instance.decorations = theme.generateDecorations(chunkX, chunkY, chunkSize, globalSeed)
+        instance.decorations = theme.generateDecorations(noiseLibInstance, chunkX, chunkY, chunkSize, globalSeed)
     end
     return instance
 end
@@ -85,22 +94,24 @@ end
 ---@field assetManager AssetManager Referência ao AssetManager
 local ChunkManager = {}
 
--- Carrega a biblioteca de noise (DEVE ser chamada ANTES de initialize se for usada lá diretamente)
--- ou dentro de initialize.
-local noiseLoaded, noiseModuleOrError = pcall(require, "src.libs.noise") -- Assumindo que você nomeou o arquivo da lib para noise.lua
-if noiseLoaded then
-    NoiseLib = noiseModuleOrError
-    print("Noise library 'src.libs.noise' loaded successfully.")
-    -- A biblioteca 25A0/love2d-noise precisa de noise.init()
-    if NoiseLib.init then
-        NoiseLib.init() -- Chamar uma vez
-        print("NoiseLib.init() called.")
+-- Carrega a biblioteca de noise no escopo do módulo ChunkManager
+-- A inicialização com seed ocorrerá em ChunkManager:initialize
+do
+    local loaded, moduleOrErr = pcall(require, "src.libs.noise")
+    if loaded and type(moduleOrErr) == "table" then
+        NoiseLib = moduleOrErr
+        print("ChunkManager: Noise library 'src.libs.noise' carregada com sucesso.")
+        if not NoiseLib.init or not NoiseLib.get then
+            print("ChunkManager AVISO: NoiseLib carregada não possui os métodos esperados 'init' ou 'get'.")
+            NoiseLib = nil -- Invalida se não tiver a interface esperada
+        end
+    elseif loaded then
+        print("ChunkManager ERRO: 'src.libs.noise' carregado, mas não é uma tabela. Tipo: " .. type(moduleOrErr))
+        NoiseLib = nil
     else
-        print("WARN: NoiseLib.init() não encontrado. A biblioteca pode não precisar ou não é a esperada.")
+        print("ChunkManager ERRO: Falha ao carregar 'src.libs.noise'. Detalhes: " .. tostring(moduleOrErr))
+        NoiseLib = nil
     end
-else
-    print("ChunkManager ERRO: Falha ao carregar 'src.libs.noise'. Detalhes: " .. tostring(noiseModuleOrError))
-    NoiseLib = nil -- Garante que está nil se falhar
 end
 
 function ChunkManager:initialize(portalThemeData, chunkSize, assetManagerInstance, randomSeed, maxDecorationsPerChunk)
@@ -111,17 +122,27 @@ function ChunkManager:initialize(portalThemeData, chunkSize, assetManagerInstanc
     self.assetManager = assetManagerInstance
     self.currentSeed = randomSeed or os.time()
     self.maxDecorationsPerChunk = maxDecorationsPerChunk
-    self.tileBatches = {}       -- Para SpriteBatch por textura de tile
-    self.tileQuads = {}         -- Para Quads reutilizáveis por textura de tile
-    self.decorationBatches = {} -- Para SpriteBatch por textura de decoração
-    self.decorationQuads = {}   -- Para Quads reutilizáveis por textura de decoração
+    self.tileBatches = {}
+    self.tileQuads = {}
+    self.decorationBatches = {}
+    self.decorationQuads = {}
+
+    if NoiseLib and NoiseLib.init then
+        NoiseLib.init(self.currentSeed) -- Inicializa com a seed do ChunkManager
+        print("ChunkManager: NoiseLib.init() chamado com seed:", self.currentSeed)
+    elseif NoiseLib then
+        print("ChunkManager AVISO: NoiseLib carregado, mas .init(seed) não encontrado.")
+    else
+        print("ChunkManager AVISO: NoiseLib não carregado. Geração procedural baseada em noise será limitada.")
+    end
+
     print(string.format("ChunkManager initialized. ChunkSize: %d, Seed: %s", self.chunkSize, tostring(self.currentSeed)))
 end
 
 function ChunkManager:_getChunkKey(chunkX, chunkY) return chunkX .. "," .. chunkY end
 
 function ChunkManager:_generateChunkData(chunkX, chunkY)
-    local newChunk = Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme, self.currentSeed)
+    local newChunk = Chunk:new(chunkX, chunkY, self.chunkSize, self.currentPortalTheme, self.currentSeed, NoiseLib)
     if self.maxDecorationsPerChunk and newChunk.decorations and #newChunk.decorations > self.maxDecorationsPerChunk then
         local limited = {}
         for i = 1, self.maxDecorationsPerChunk do table.insert(limited, newChunk.decorations[i]) end
@@ -272,44 +293,39 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
                         if tileImage then
                             local imgW, imgH = tileImage:getDimensions()
                             local isoX = (tileData.worldX - tileData.worldY) *
-                                TILE_WIDTH_HALF  -- Correção aqui, já era TILE_WIDTH/2
+                                TILE_WIDTH_HALF
                             local isoY = (tileData.worldX + tileData.worldY) *
-                                TILE_HEIGHT_HALF -- Correção aqui, já era TILE_HEIGHT/2
+                                TILE_HEIGHT_HALF
 
-                            -- Culling básico de tiles (pode ser mais preciso)
                             if isoX + Constants.TILE_WIDTH > camMinX and isoX - Constants.TILE_WIDTH < camMaxX and isoY + Constants.TILE_HEIGHT * 2 > camMinY and isoY < camMaxY then
-                                local scaleX = Constants.TILE_WIDTH / imgW
-                                local scaleY = Constants.TILE_HEIGHT / imgH
+                                local wallHeightToIgnore = 20                                   -- Altura da "parede" na parte inferior da imagem do tile
+                                local quadVisibleContentHeight = imgH -
+                                    wallHeightToIgnore                                          -- Altura da face plana na imagem (ex: 80 - 20 = 60)
 
-                                local finalDrawX = isoX -
-                                    TILE_WIDTH_HALF -- Correção aqui, já era Constants.TILE_WIDTH / 2
-                                local finalDrawY = isoY
+                                local scaleX = Constants.TILE_WIDTH / imgW                      -- Ex: 128 / 128 = 1
+                                -- Escala a face plana (ex: 60px) para a altura da célula do grid (Constants.TILE_HEIGHT, ex: 64px)
+                                local scaleY = Constants.TILE_HEIGHT / quadVisibleContentHeight -- Ex: 64 / 60
 
-                                -- Gerencia SpriteBatch e Quad para esta textura de tile
+                                local finalDrawX = isoX - TILE_WIDTH_HALF
+                                local finalDrawY = isoY -- isoY é o topo da face plana desenhada
+
                                 if not self.tileBatches[tileAssetPath] then
                                     self.tileBatches[tileAssetPath] = love.graphics.newSpriteBatch(tileImage, 2048,
                                         "static")
                                 end
                                 if not self.tileQuads[tileAssetPath] then
-                                    self.tileQuads[tileAssetPath] = love.graphics.newQuad(0, 0, imgW, imgH,
-                                        tileImage:getDimensions())
+                                    -- Cria o Quad para mostrar apenas a face plana, cortando a parede.
+                                    -- O Quad pega (0,0) da imagem com largura imgW e altura quadVisibleContentHeight.
+                                    -- As dimensões totais da imagem (imgW, imgH) são passadas para newQuad para referência correta.
+                                    self.tileQuads[tileAssetPath] = love.graphics.newQuad(0, 0, imgW,
+                                        quadVisibleContentHeight, imgW, imgH)
                                 end
 
                                 local batch = self.tileBatches[tileAssetPath]
                                 local quad = self.tileQuads[tileAssetPath]
+                                -- Adiciona ao batch com a escala calculada.
+                                -- A origem do Quad (0,0) corresponde ao topo da face plana na imagem.
                                 batch:add(quad, finalDrawX, finalDrawY, 0, scaleX, scaleY)
-
-                                -- REMOVIDO: Inserção individual de tiles na renderList
-                                -- table.insert(renderList, {
-                                --     type = "tile",
-                                --     sortY = isoY + Constants.TILE_HEIGHT, -- Ordena pela base do tile
-                                --     image = tileImage,
-                                --     drawX = finalDrawX,
-                                --     drawY = finalDrawY,
-                                --     scaleX = scaleX,
-                                --     scaleY = scaleY,
-                                --     depth = 0 -- Tiles do chão são a base
-                                -- })
                             end
                         end
                     end
@@ -367,16 +383,6 @@ function ChunkManager:collectRenderables(cameraX, cameraY, renderList)
                             -- Adiciona ao batch. A ordenação DENTRO do batch será a ordem de adição.
                             -- Para decorações, isso geralmente é aceitável se não houver muita sobreposição da MESMA decoração.
                             batch:add(quad, drawX, drawY)
-
-                            -- REMOVIDO: Inserção individual da decoração
-                            -- table.insert(renderList, {
-                            --     type = "decoration",
-                            --     sortY = decoration_sortY, -- Ordena pela base da decoração no chão
-                            --     image = decoImage,
-                            --     drawX = drawX,
-                            --     drawY = drawY,
-                            --     depth = 2 -- Decorações agora têm depth 2, acima de jogador/inimigos (1)
-                            -- })
                         end
                     end
                 end

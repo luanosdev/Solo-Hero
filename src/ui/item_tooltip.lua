@@ -503,7 +503,7 @@ function ItemTooltip.draw(item, baseItemData, x, y, playerStats, equippedItem)
             if isDescriptionTextLine then
                 if printY + lineInfo.height < y + descriptionSectionStartY + descriptionHeightVisual - PADDING then
                     accumulatedDescTextOffset = accumulatedDescTextOffset + lineInfo.height
-                end
+            end
             elseif not lineInfo.is_main_section_text then
                 -- Para todas as outras linhas que não são da seção principal nem da descrição,
                 -- avançamos currentDrawY globalmente. A próxima linha desse tipo usará este novo currentDrawY.

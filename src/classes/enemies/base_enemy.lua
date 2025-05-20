@@ -37,7 +37,11 @@ local BaseEnemy = {
     name = "BaseEnemy",
     experienceValue = 10, -- Experiência base para todos os inimigos
     healthBarWidth = 30,  -- Largura padrão da barra de vida
-    id = 0                -- ID único do inimigo
+    id = 0,               -- ID único do inimigo
+    isDying = false,
+    isDeathAnimationComplete = false,
+    deathTimer = 0,
+    deathDuration = 2.0
 }
 
 function BaseEnemy:new(position, id)
@@ -64,6 +68,11 @@ function BaseEnemy:new(position, id)
     enemy.id = id or 0 -- Atribui o ID fornecido ou usa 0 como fallback
     enemy.experienceValue = self.experienceValue
     enemy.healthBarWidth = self.healthBarWidth
+
+    enemy.isDying = self.isDying
+    enemy.isDeathAnimationComplete = self.isDeathAnimationComplete
+    enemy.deathTimer = self.deathTimer
+    enemy.deathDuration = self.deathDuration
 
     print(string.format("BaseEnemy criado com ID: %d", enemy.id)) -- Log para debug
 
@@ -180,10 +189,16 @@ function BaseEnemy:checkPlayerCollision(dt, playerManager)
     end
 end
 
-function BaseEnemy:draw()
-    if self.activeFloatingTexts then
-        self:drawFloatingTexts()
+--- Desenha elementos base do inimigo, como a barra de vida e textos flutuantes.
+-- @param spriteBatches Table (opcional): Tabela contendo SpriteBatches, incluindo um para texto (ex: spriteBatches.textBatch).
+function BaseEnemy:draw(spriteBatches)            -- Modificado para aceitar spriteBatches
+    if not self.isAlive and not self.isDying then -- Se morto e animação de morte não iniciada/completa, não desenha nada.
+        return
     end
+
+    -- Desenha textos flutuantes, passando o batch de texto se disponível
+    local textBatch = spriteBatches and spriteBatches.textBatch -- Supondo uma chave "textBatch"
+    self:drawFloatingTexts(textBatch)
 end
 
 --- Aplica dano ao inimigo.
@@ -191,53 +206,55 @@ end
 ---@param isCritical boolean Se o dano é crítico
 ---@return boolean True se o inimigo morreu, false caso contrário
 function BaseEnemy:takeDamage(damage, isCritical)
-    -- Aplica o dano
-    self.currentHealth = self.currentHealth - damage
-    print(string.format("Inimigo ID: %d, Dano: %d, Vida: %d", self.id, damage, self.currentHealth))
+    if not self.isAlive then return false end -- Não pode tomar dano se já não estiver vivo
 
-    if damage > 0 then -- Só cria texto se houver dano
+    self.currentHealth = self.currentHealth - damage
+    -- print(string.format("Inimigo ID: %d (%s), Dano: %d, Vida: %d/%d", self.id, self.name, damage, self.currentHealth, self.maxHealth))
+
+    if damage > 0 then
         local props = {
             textColor = isCritical and Colors.damage_crit or Colors.damage_enemy,
             scale = isCritical and 1.3 or 1,
             velocityY = isCritical and -55 or -45,
             lifetime = isCritical and 1.1 or 0.8,
             isCritical = isCritical or false,
-            baseOffsetY = -50, -- Offset Y base (acima do centro do inimigo)
-            baseOffsetX = 0    -- Offset X base (pode ser usado para empilhamento se necessário)
+            baseOffsetY = -(self.radius + 20), -- Ajustado para ser relativo ao raio
+            baseOffsetX = 0
         }
 
-        local stackOffsetY = #self.activeFloatingTexts * -12 -- Empilha para cima (valor negativo)
+        local stackOffsetY = #self.activeFloatingTexts * -15
         local textInstance = FloatingText:new(
             self.position,
             tostring(damage),
             props,
-            0,           -- initialDelay
-            stackOffsetY -- initialStackOffsetY
+            0,
+            stackOffsetY
         )
         table.insert(self.activeFloatingTexts, textInstance)
     end
 
     if self.currentHealth <= 0 then
         self.currentHealth = 0
+        self.isAlive = false -- Marca como não vivo (para lógica de update, etc.)
+        self.isDying = true  -- Inicia o estado de "morrendo" para animações
+        self.deathTimer = 0  -- Reseta o timer de morte
 
-        -- Marca o inimigo como morto, mas não o remove ainda
-        self.isAlive = false
-
-        -- Dropa o orbe de experiência
-        local experienceOrbManager = ManagerRegistry:get("experienceOrbManager") ---@type ExperienceOrbManager
-        experienceOrbManager:addOrb(self.position.x, self.position.y, self.experienceValue)
-
-        return true
+        local experienceOrbManager = ManagerRegistry:get("experienceOrbManager")
+        if experienceOrbManager then
+            experienceOrbManager:addOrb(self.position.x, self.position.y, self.experienceValue)
+        end
+        -- print(string.format("Inimigo ID: %d (%s) morreu.", self.id, self.name))
+        return true -- Morreu com este golpe
     end
 
-    return false
+    return false -- Ainda vivo
 end
 
 function BaseEnemy:getCollisionPosition()
     return {
         position = {
             x = self.position.x,
-            y = self.position.y + 10,
+            y = self.position.y + 10, -- Ajuste para melhor colisão visual isométrica
         },
         radius = self.radius
     }
@@ -249,17 +266,20 @@ function BaseEnemy:updateFloatingTexts(dt)
     if not self.activeFloatingTexts then return end
     for i = #self.activeFloatingTexts, 1, -1 do
         local textInstance = self.activeFloatingTexts[i]
-        if not textInstance:update(dt) then -- update retorna false se deve ser removido
+        --  A função update do FloatingText precisa retornar false quando deve ser removido
+        if not textInstance:update(dt) then
             table.remove(self.activeFloatingTexts, i)
         end
     end
 end
 
 --- Desenha os textos flutuantes ativos para este inimigo.
-function BaseEnemy:drawFloatingTexts()
+-- @param textBatch love.SpriteBatch (opcional): O SpriteBatch para adicionar os textos.
+function BaseEnemy:drawFloatingTexts(textBatch) -- Modificado para aceitar textBatch
     if not self.activeFloatingTexts then return end
     for _, textInstance in ipairs(self.activeFloatingTexts) do
-        textInstance:draw()
+        -- A instância de FloatingText:draw() precisará ser modificada para usar o textBatch
+        textInstance:draw(textBatch)
     end
 end
 

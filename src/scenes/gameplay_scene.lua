@@ -16,8 +16,9 @@ local TooltipManager = require("src.ui.tooltip_manager")
 local colors = require("src.ui.colors")
 local AssetManager = require("src.managers.asset_manager")
 local ChunkManager = require("src.managers.chunk_manager")
-local portalDefinitions = require("src.data.portals.portal_definitions") -- Para mapDefinition
+local portalDefinitions = require("src.data.portals.portal_definitions")   -- Para mapDefinition
 local Constants = require("src.config.constants")
+local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- NECESSÁRIO PARA ACESSAR ASSETS
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene -- <<< ADICIONADO __index >>>
@@ -32,7 +33,8 @@ GameplayScene.currentCastType = nil ---@type string|nil -- Adicionado para armaz
 
 function GameplayScene:load(args)
     print("GameplayScene:load - Inicializando sistemas de gameplay...")
-    self.renderList = {} -- <<< ADICIONADO PARA INICIALIZAR A LISTA DE RENDERIZAÇÃO
+    self.renderList = {}             -- <<< ADICIONADO PARA INICIALIZAR A LISTA DE RENDERIZAÇÃO
+    self.animationSpriteBatches = {} -- ADICIONADO: Para gerenciar SpriteBatches de animação
     self.portalId = args and args.portalId or "floresta_assombrada"
     self.hordeConfig = args and args.hordeConfig or nil
     self.hunterId = args and args.hunterId or nil
@@ -81,7 +83,15 @@ function GameplayScene:load(args)
 
     Camera:init()
     print("GameplayScene: Chamado Camera:init() no módulo global.")
-    AnimationLoader.loadAll()
+    AnimationLoader.loadInitial() -- Carrega player e outras animações base
+    if self.currentPortalData and self.currentPortalData.requiredUnitTypes then
+        AnimationLoader.loadUnits(self.currentPortalData.requiredUnitTypes)
+    else
+        print(string.format(
+            "AVISO [GameplayScene:load]: Portal '%s' não possui requiredUnitTypes. Nenhuma animação de unidade específica do portal foi carregada.",
+            self.portalId))
+        -- Você pode querer carregar um conjunto padrão de unidades aqui como fallback, ou deixar vazio.
+    end
 
     Bootstrap.initialize()
 
@@ -99,6 +109,24 @@ function GameplayScene:load(args)
         if not itemDataMgr then table.insert(missing, "ItemDataManager") end
         if not experienceOrbMgr then table.insert(missing, "ExperienceOrbManager") end
         error("ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers: " .. table.concat(missing, ", "))
+    end
+
+    -- CRIAR SPRITEBATCHES PARA ANIMAÇÕES CARREGADAS
+    if AnimatedSpritesheet and AnimatedSpritesheet.assets then
+        for unitType, unitAssets in pairs(AnimatedSpritesheet.assets) do
+            if unitAssets.sheets then
+                for animName, sheetTexture in pairs(unitAssets.sheets) do
+                    if sheetTexture and not self.animationSpriteBatches[sheetTexture] then
+                        -- Usar um tamanho máximo razoável para o batch, pode ser ajustado
+                        local maxSpritesInBatch = enemyMgr and enemyMgr.maxEnemies or 200
+                        self.animationSpriteBatches[sheetTexture] = love.graphics.newSpriteBatch(sheetTexture,
+                            maxSpritesInBatch)
+                        print(string.format("GameplayScene: Criado SpriteBatch para textura de %s - %s", unitType,
+                            animName))
+                    end
+                end
+            end
+        end
     end
 
     playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
@@ -333,18 +361,22 @@ function GameplayScene:update(dt)
 end
 
 function GameplayScene:draw()
-    -- Adicione este log para teste:
     local currentShader = love.graphics.getShader()
     if currentShader then
         print("ALERTA [GameplayScene:draw]: Um shader está ativo no início do frame! Shader: ", currentShader)
-    else
-        -- print("[GameplayScene:draw]: Nenhum shader ativo no início do frame.") -- Log opcional para confirmar que está nil
+        -- else
+        -- print("[GameplayScene:draw]: Nenhum shader ativo no início do frame.")
     end
 
     love.graphics.setBackgroundColor(0.1, 0.1, 0.1)
     love.graphics.clear(0.1, 0.1, 0.1, 1)
 
-    -- 1. Limpa a lista de renderização
+    -- 0. Limpa SpriteBatches de animação
+    for _, batch in pairs(self.animationSpriteBatches) do
+        batch:clear()
+    end
+
+    -- 1. Limpa a lista de renderização (para itens não batched por SpriteBatch)
     for k in pairs(self.renderList) do self.renderList[k] = nil end
 
     -- 2. Coleta todos os renderizáveis
@@ -352,26 +384,27 @@ function GameplayScene:draw()
         ChunkManager:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
 
-    -- Obtém os managers do Registry para garantir que temos as instâncias corretas
     local playerMgr = ManagerRegistry:get("playerManager")
     local enemyMgr = ManagerRegistry:get("enemyManager")
     local dropMgr = ManagerRegistry:get("dropManager")
     local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
 
     if playerMgr then
+        -- Assumindo que player não usa os mesmos batches de animação dos inimigos ou tem seu próprio sistema
         playerMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
     if enemyMgr then
-        enemyMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+        local dt = love.timer.getDelta()
+        enemyMgr:collectRenderables(Camera.x, Camera.y, dt, self.renderList, self.animationSpriteBatches)
     end
-    if dropMgr then -- Supondo que exista e tenha collectRenderables
+    if dropMgr then
         dropMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
     if experienceOrbMgr then
         experienceOrbMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
 
-    -- 3. Ordena a lista de renderização
+    -- 3. Ordena a lista de renderização (para itens NÃO desenhados pelos SpriteBatches principais de animação)
     table.sort(self.renderList, function(a, b)
         if a.depth == b.depth then
             return a.sortY < b.sortY -- Dentro da mesma camada (depth), ordena por sortY
@@ -379,40 +412,86 @@ function GameplayScene:draw()
         return a.depth < b.depth     -- Primariamente, ordena por camada (depth)
     end)
 
-    -- 4. Desenha os objetos ordenados
+    -- 4. Desenha os objetos
+    print("[GameplayScene:draw] Chamando Camera:attach()...")
     Camera:attach()
+
+    -- Processa a renderList para popular os batches de animação (inimigos)
+    -- E desenha elementos que NÃO são inimigos diretamente
+    print("[GameplayScene:draw] Processando renderList e desenhando elementos diretos (tiles, player, etc.)...")
     for _, item in ipairs(self.renderList) do
-        if item.type == "tile_batch" then                         -- <<< NOVA CONDIÇÃO >>>
-            love.graphics.draw(item.batch)                        -- Desenha o SpriteBatch diretamente
-        elseif item.type == "decoration_batch" then               -- <<< NOVA CONDIÇÃO PARA DECORAÇÕES >>>
-            love.graphics.draw(item.batch)                        -- Desenha o SpriteBatch de decorações
-        elseif item.type == "player" or item.type == "enemy" then -- Assumindo que player/enemy adicionam 'drawFunction'
+        if item.type == "enemy_sprite" then
+            local targetBatch = self.animationSpriteBatches[item.texture]
+            if targetBatch then
+                local qx, qy, qw, qh = item.quad:getViewport()
+                if qw == 0 or qh == 0 then
+                    print(string.format(
+                        "AVISO URGENTE [GameplayScene:draw]: Quad para enemy_sprite %s tem dimensões zero!",
+                        tostring(item.texture)))
+                end
+                -- O print extenso de batching foi mantido nos logs que você forneceu e parecia ok, então vou comentá-lo aqui para reduzir o spam.
+                -- print(string.format("GameplayScene: Batching enemy sprite. X: %.1f, Y: %.1f, Scale: %.1f. Texture: %s Quad Viewport: (%.1f, %.1f, %.1f, %.1f)", item.x, item.y, item.scale, tostring(item.texture), qx, qy, qw, qh))
+                targetBatch:add(item.quad, item.x, item.y, item.rotation or 0, item.scale, item.scale, item.ox, item.oy,
+                    0, 0, item.depth)
+            else
+                print(string.format(
+                    "AVISO [GameplayScene:draw]: SpriteBatch não encontrado para textura de enemy_sprite: %s",
+                    tostring(item.texture)))
+            end
+        elseif item.type == "tile_batch" then
+            print(string.format("  -> Desenhando tile_batch: %s", tostring(item.batch)))
+            love.graphics.draw(item.batch)
+        elseif item.type == "decoration_batch" then
+            print(string.format("  -> Desenhando decoration_batch: %s", tostring(item.batch)))
+            love.graphics.draw(item.batch)
+        elseif item.type == "player" then
+            -- print("  -> Desenhando player...") -- Descomente se precisar depurar o player
             if item.drawFunction then
                 item.drawFunction()
-            elseif item.image then -- Fallback simples se tiver imagem e posições
+            elseif item.image then
                 love.graphics.draw(item.image, item.drawX, item.drawY, item.rotation_rad or 0, item.scaleX or 1,
                     item.scaleY or 1, item.ox or 0, item.oy or 0)
             end
         elseif item.type == "rune_ability" then
-            if item.drawFunction then
-                item.drawFunction()
-            end
+            if item.drawFunction then item.drawFunction() end
         elseif item.type == "experience_orb" then
-            if item.drawFunction then
-                item.drawFunction()
-            end
+            if item.drawFunction then item.drawFunction() end
         elseif item.type == "drop_entity" then
-            if item.drawFunction then
-                item.drawFunction()
-            end
+            if item.drawFunction then item.drawFunction() end
         end
-        -- Adicione outros tipos conforme necessário
     end
+
+    -- Desenha os SpriteBatches de animação (que agora contêm os inimigos) APÓS os tiles e outros elementos.
+    print("[GameplayScene:draw] Desenhando animationSpriteBatches (inimigos)...")
+    for texture, batch in pairs(self.animationSpriteBatches) do
+        if batch:getCount() > 0 then
+            print(string.format("  -> Desenhando batch de INIMIGOS para textura: %s (Contagem: %d)", tostring(texture),
+                batch:getCount()))
+            love.graphics.draw(batch)
+        else
+            -- print(string.format("  -> Batch de INIMIGOS para textura %s está vazio, pulando.", tostring(texture)))
+        end
+    end
+
+    print("[GameplayScene:draw] Chamando Camera:detach()...")
     Camera:detach()
 
+    -- Desenha elementos de UI e outros que ficam sobre a câmera (ex: barras de vida de BaseEnemy)
     if playerMgr and playerMgr.drawFloatingTexts then
         playerMgr:drawFloatingTexts()
     end
+    -- Se BaseEnemy:draw desenha barras de vida diretamente, ele precisa ser chamado aqui para cada inimigo visível
+    -- ou suas barras de vida precisam ser adicionadas à renderList com um depth maior.
+    -- Exemplo simples (ineficiente, apenas para ilustração):
+    if enemyMgr and enemyMgr.getEnemies then
+        for _, enemyInstance in ipairs(enemyMgr:getEnemies()) do
+            if enemyInstance.isAlive and enemyInstance.draw then -- Reutilizar enemy.draw para a barra de vida (se adaptado)
+                -- Precisamos garantir que enemy.draw só desenhe a barra de vida agora.
+                -- enemyInstance:draw() -- ESTA ABORDAGEM PRECISA DE REVISÃO CUIDADOSA
+            end
+        end
+    end
+
     -- Desenha UI (fora da câmera, sobre tudo)
     ManagerRegistry:draw() -- Presumindo que isso desenha UI como barras de vida sobre entidades, etc.
     -- Se não, precisará de um ManagerRegistry:drawUI() separado.
@@ -490,6 +569,19 @@ function GameplayScene:draw()
         end
     end
     love.graphics.setFont(fonts.main) -- Reseta fonte
+
+    love.graphics.push()
+    love.graphics.origin() -- Resetar transformações para UI e prints de debug
+
+    -- Print de depuração para testar visibilidade básica
+    love.graphics.setColor(1, 1, 0, 1) -- Amarelo
+    love.graphics.print("DEBUG TEXT VISIBLE?", 10, love.graphics.getHeight() - 20)
+    love.graphics.setColor(1, 1, 1, 1) -- Resetar cor para branco
+    love.graphics.pop()                -- ADICIONADO O POP AUSENTE
+
+    if self.uiManager then
+        -- ... existing code ...
+    end
 end
 
 function GameplayScene:keypressed(key, scancode, isrepeat)

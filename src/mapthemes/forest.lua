@@ -21,7 +21,7 @@ local MIN_DISTANCE_BETWEEN_SCATTERED_TREES_SQ = (Constants.TILE_WIDTH * 3) ^
 local MAX_PLACEMENT_ATTEMPTS_SCATTERED = 5 -- Tentativas para posicionar uma árvore espalhada
 
 --- Gera decorações determinísticas para um chunk
-function ForestTheme.generateDecorations(chunkX, chunkY, chunkSize, globalSeed)
+function ForestTheme.generateDecorations(noiseLibInstance, chunkX, chunkY, chunkSize, globalSeed)
     local decorations = {}
     local chunkPixelWidth = chunkSize * Constants.TILE_WIDTH
     local chunkPixelHeight = chunkSize * Constants.TILE_HEIGHT

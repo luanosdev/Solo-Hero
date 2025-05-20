@@ -6,6 +6,7 @@
 local Skeleton = require("src.classes.enemies.skeleton")
 local Zombie = require("src.classes.enemies.zombie")
 local SpiderBoss = require("src.classes.bosses.spider")
+local ZombieWalkerMale1 = require("src.classes.enemies.zombie_walker_male_1")
 
 local portalDefinitions = {
     -- Exemplo de um portal inicial: Floresta Assombrada
@@ -31,7 +32,7 @@ local portalDefinitions = {
             bossConfig = {
                 spawnTimes = {
                     -- SpiderBoss aparece aos 3 minutos
-                    { time = 60 * 3, class = SpiderBoss }
+                    { time = 60 * 3, class = SpiderBoss, unitType = "spider" }
                 }
             },
 
@@ -41,7 +42,7 @@ local portalDefinitions = {
                 {
                     duration = 60,
                     allowedEnemies = {
-                        { class = Skeleton, weight = 1 },
+                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
                     },
                     majorSpawn = {
                         interval = 15,
@@ -59,8 +60,8 @@ local portalDefinitions = {
                 {
                     duration = 120,
                     allowedEnemies = {
-                        { class = Skeleton, weight = 2 }, -- Mais Skeletons
-                        { class = Zombie,   weight = 1 }
+                        { class = Skeleton, weight = 2, unitType = "skeleton" },
+                        { class = Zombie,   weight = 1, unitType = "zombie" }
                     },
                     majorSpawn = {
                         interval = 12,
@@ -78,8 +79,8 @@ local portalDefinitions = {
                 {
                     duration = 600, -- Dura 10 minutos ou até o fim
                     allowedEnemies = {
-                        { class = Skeleton, weight = 1 },
-                        { class = Zombie,   weight = 1 }
+                        { class = Skeleton, weight = 1, unitType = "skeleton" },
+                        { class = Zombie,   weight = 1, unitType = "zombie" }
                     },
                     majorSpawn = {
                         interval = 10,
@@ -107,6 +108,55 @@ local portalDefinitions = {
         -- Futuras configurações (placeholder)
         randomEvents = {}, -- Tabela para definir eventos aleatórios que podem ocorrer
         assetPack = nil    -- Referência para assets específicos do tema (sprites, sons)
+    },
+
+    UrbanCemetery = {
+        name = "Cemitério Urbano",
+        theme = "CementeryTheme",                       -- O tema real do mapa precisará ser criado
+        rank = "D",
+        requiredUnitTypes = { "zombie_walker_male_1" }, -- Apenas este inimigo por enquanto
+
+        hordeConfig = {
+            mapRank = "D",
+            mvpConfig = { -- Configuração MVP básica
+                spawnInterval = 180,
+                statusMultiplier = 10,
+                speedMultiplier = 1.1,
+                sizeMultiplier = 1.15,
+                experienceMultiplier = 10
+            },
+            bossConfig = {
+                spawnTimes = {} -- Sem bosses por enquanto
+            },
+            cycles = {
+                -- Ciclo único com ZombieWalkerMale1
+                {
+                    duration = 1200, -- 20 minutos
+                    allowedEnemies = {
+                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" }
+                    },
+                    majorSpawn = {
+                        interval = 20,
+                        baseCount = 10,
+                        countScalePerMin = 0.10
+                    },
+                    minorSpawn = {
+                        baseInterval = 3.0,
+                        intervalReductionPerMin = 0.25,
+                        minInterval = 1.2,
+                        count = 3
+                    }
+                }
+            }
+        },
+        mapDefinition = {
+            theme = "cemetery", -- O nome do tema para o ChunkManager
+            -- chunkSize = 32, -- Opcional, pode ser herdado ou definido aqui
+            objectSpawnRules = {},
+            eventSpawnRules = {}
+        },
+        randomEvents = {},
+        assetPack = nil
     },
 
     -- Adicione outras definições de portais aqui...

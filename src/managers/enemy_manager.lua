@@ -1,5 +1,6 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
+local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -229,6 +230,7 @@ function EnemyManager:update(dt)
         if enemy.shouldRemove then
             table.remove(self.enemies, i)
         end
+        ::continue_loop::
     end
 
     -- Atualiza a barra de vida do boss
@@ -334,49 +336,133 @@ function EnemyManager:draw()
     end
 end
 
---- Coleta todos os inimigos renderizáveis.
+--- Coleta renderizáveis dos inimigos para a renderList principal da cena.
 ---@param cameraX number Posição X da câmera.
 ---@param cameraY number Posição Y da câmera.
----@param renderList table Lista onde os objetos renderizáveis serão adicionados.
-function EnemyManager:collectRenderables(cameraX, cameraY, renderList)
+---@param dt number Delta time (pode não ser usado diretamente aqui, mas mantido para consistência se necessário no futuro).
+---@param renderList table Lista onde os dados de renderização dos inimigos serão adicionados.
+---@param spriteBatches_map_by_texture table Tabela de SpriteBatches (usada para referência de textura, mas não para adicionar diretamente aqui).
+function EnemyManager:collectRenderables(cameraX, cameraY, dt, renderList, spriteBatches_map_by_texture)
     if not self.enemies or #self.enemies == 0 then return end
 
-    local Constants = require("src.config.constants") -- Necessário para TILE_WIDTH, TILE_HEIGHT
+    local Constants = require("src.config.constants")
+    local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- Necessário para pegar quads/texturas
     local screenW, screenH = love.graphics.getDimensions()
 
     for _, enemy in ipairs(self.enemies) do
-        if enemy and enemy.position then
-            -- Culling básico no espaço do mundo
-            -- Usaremos enemy.radius para uma estimativa de tamanho. Se não houver, um fallback.
-            local cullRadius = enemy.radius or Constants.TILE_WIDTH / 2
-            if enemy.position.x + cullRadius > cameraX and
-                enemy.position.x - cullRadius < cameraX + screenW and
-                enemy.position.y + cullRadius > cameraY and
-                enemy.position.y - cullRadius < cameraY + screenH then
-                -- Calcular sortY consistentemente com tiles e decorações
-                -- Assumindo que enemy.position.y é o centro, adicionamos o raio para obter a base.
-                local enemyBaseY = enemy.position.y + (enemy.radius or Constants.TILE_HEIGHT / 4) -- Estimativa da base
+        if enemy and enemy.position and enemy.sprite then -- Garante que o inimigo e seu sprite existem
+            local shouldDrawSprite = (enemy.isAlive or (enemy.isDying and not enemy.isDeathAnimationComplete))
+            if not enemy.shouldRemove and shouldDrawSprite then
+                local cullRadius = enemy.radius or Constants.TILE_WIDTH / 2
+                if enemy.position.x + cullRadius > cameraX and
+                    enemy.position.x - cullRadius < cameraX + screenW and
+                    enemy.position.y + cullRadius > cameraY and
+                    enemy.position.y - cullRadius < cameraY + screenH then
+                    local instanceAnimConfig = enemy.sprite
+                    local unitType = instanceAnimConfig.unitType -- Agora temos isso no sprite config
+                    local animState = instanceAnimConfig.animation
 
-                local worldX_eq = enemy.position.x / Constants.TILE_WIDTH
-                local worldY_eq = enemyBaseY / Constants.TILE_HEIGHT -- Usa a base Y para worldY_eq
+                    if not unitType or not animState then
+                        print(string.format(
+                            "AVISO [EM:collectRenderables]: unitType (%s) ou animState faltando para inimigo ID %s",
+                            tostring(unitType), enemy.id or "N/A"))
+                        goto continue_enemy_loop -- Usar goto para pular para o próximo inimigo do loop
+                    end
 
-                local isoY_ref_top = (worldX_eq + worldY_eq) * (Constants.TILE_HEIGHT / 2)
-                local sortY = isoY_ref_top + Constants.TILE_HEIGHT -- REMOVIDO math.ceil
+                    local currentAnimationKey
+                    if animState.isDead then
+                        currentAnimationKey = animState.chosenDeathType
+                    else
+                        currentAnimationKey = animState.activeMovementType
+                    end
 
-                table.insert(renderList, {
-                    type = "enemy",
-                    sortY = sortY,
-                    depth = 1,                       -- Inimigos agora têm depth 1
-                    drawFunction = function()
-                        if enemy and enemy.draw then -- Checa se o inimigo e o método draw ainda existem
-                            enemy:draw()
-                        end
-                    end,
-                    -- Para debug, podemos adicionar a entidade original
-                    -- entity = enemy
-                })
+                    if not currentAnimationKey then
+                        -- print(string.format("AVISO [EM:collectRenderables]: Não foi possível determinar currentAnimationKey para %s (ID %s)", unitType, enemy.id or "N/A"))
+                        goto continue_enemy_loop
+                    end
+
+                    local enemySheetTexture = AnimatedSpritesheet.assets[unitType] and
+                        AnimatedSpritesheet.assets[unitType].sheets and
+                        AnimatedSpritesheet.assets[unitType].sheets[currentAnimationKey]
+
+                    local quadsForAnimation = AnimatedSpritesheet.assets[unitType] and
+                        AnimatedSpritesheet.assets[unitType].quads and
+                        AnimatedSpritesheet.assets[unitType].quads[currentAnimationKey]
+
+                    local maxFramesForCurrentAnim = AnimatedSpritesheet.assets[unitType] and
+                        AnimatedSpritesheet.assets[unitType].maxFrames and
+                        AnimatedSpritesheet.assets[unitType].maxFrames[currentAnimationKey]
+
+
+                    if not enemySheetTexture or not quadsForAnimation or not maxFramesForCurrentAnim or maxFramesForCurrentAnim == 0 then
+                        print(string.format(
+                            "AVISO [EM:collectRenderables]: Textura, quads ou maxFrames ausentes para %s, animKey '%s'.",
+                            unitType, currentAnimationKey))
+                        goto continue_enemy_loop
+                    end
+
+                    local angleToDraw = animState.direction
+                    local quadsForAngle = quadsForAnimation[angleToDraw]
+
+                    if not quadsForAngle then
+                        -- print(string.format("AVISO [EM:collectRenderables]: Quads para ângulo %s não encontrados para %s, animKey '%s'.", angleToDraw, unitType, currentAnimationKey))
+                        goto continue_enemy_loop
+                    end
+
+                    local frameToDraw = animState.currentFrame
+                    if frameToDraw > maxFramesForCurrentAnim or frameToDraw <= 0 then
+                        frameToDraw = 1 -- Fallback para o primeiro frame
+                    end
+                    local quad = quadsForAngle[frameToDraw]
+
+                    if not quad then
+                        -- print(string.format("AVISO [EM:collectRenderables]: Quad específico (frame %s, angulo %s) não encontrado para %s, animKey '%s'.", frameToDraw, angleToDraw, unitType, currentAnimationKey))
+                        goto continue_enemy_loop
+                    end
+
+                    local baseUnitConfig = AnimatedSpritesheet.configs[unitType]
+                    local ox, oy
+                    if baseUnitConfig and baseUnitConfig.origin then
+                        ox = baseUnitConfig.origin.x
+                        oy = baseUnitConfig.origin.y
+                    else
+                        local _, _, q_w, q_h = quad:getViewport()
+                        ox = q_w / 2
+                        oy = q_h / 2
+                    end
+
+                    -- Define sortY para ordenação. Pode ser ajustado.
+                    -- Usar a base do sprite para ordenação é comum.
+                    local sortY = instanceAnimConfig.position.y + oy * instanceAnimConfig.scale
+
+                    table.insert(renderList, {
+                        type = "enemy_sprite",
+                        sortY = sortY,
+                        depth =  3, -- Usar uma constante de profundidade
+                        texture = enemySheetTexture,                  -- A textura (love.graphics.Image)
+                        quad = quad,                                  -- O quad específico
+                        x = instanceAnimConfig.position.x,
+                        y = instanceAnimConfig.position.y,
+                        rotation = 0, -- Adicione rotação se necessário
+                        scale = instanceAnimConfig.scale,
+                        ox = ox,
+                        oy = oy
+                    })
+
+                    -- Barras de vida e outros elementos de BaseEnemy podem ser desenhados separadamente
+                    -- ou também adicionados à renderList se BaseEnemy.draw for adaptado.
+                    -- Por simplicidade, se BaseEnemy:draw desenha diretamente, ele será chamado *depois* que os batches forem desenhados
+                    -- ou precisará ser chamado de uma forma que não conflite com a câmera/batches.
+                    -- Para agora, vamos focar em ter o sprite na renderList.
+                    -- Se BaseEnemy:draw existe, ele deve ser chamado pela GameplayScene após os batches
+                    -- ou seu conteúdo (barra de vida) adicionado à renderList aqui com seu próprio sortY/depth.
+                    if enemy.drawBarraDeVida then -- Exemplo, se existisse tal função
+                        -- enemy:drawBarraDeVida(renderList)
+                    end
+                end
             end
         end
+        ::continue_enemy_loop:: -- Label para o goto
     end
 end
 
