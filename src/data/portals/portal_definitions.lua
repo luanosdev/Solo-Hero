@@ -161,6 +161,98 @@ local portalDefinitions = {
 
     -- Adicione outras definições de portais aqui...
     -- exemplo_portal_2 = { ... }
+
+    portal_teste_spawn_massivo = {
+        name = "TESTE: Spawn Massivo",
+        theme = "CementeryTheme", -- Usando um tema existente para simplicidade
+        rank = "TEST",
+        requiredUnitTypes = { "zombie_walker_male_1" },
+
+        hordeConfig = {
+            mapRank = "TEST",
+            mvpConfig = { -- MVP desligado para este teste
+                spawnInterval = 99999,
+                statusMultiplier = 1,
+                speedMultiplier = 1,
+                sizeMultiplier = 1,
+                experienceMultiplier = 1
+            },
+            bossConfig = {
+                spawnTimes = {} -- Sem bosses
+            },
+            cycles = {
+                {
+                    duration = 600, -- 10 minutos de teste
+                    allowedEnemies = {
+                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" }
+                    },
+                    majorSpawn = {
+                        interval = 10,       -- Spawna a cada 10 segundos
+                        baseCount = 50,      -- Grande quantidade no Major Spawn
+                        countScalePerMin = 0 -- Sem escalonamento para manter o número previsível
+                    },
+                    minorSpawn = {           -- Minor spawn também contribui, mas menos
+                        baseInterval = 5,
+                        intervalReductionPerMin = 0,
+                        minInterval = 5,
+                        count = 5 -- Alguns inimigos extras do minor spawn
+                    }
+                }
+            }
+        },
+        mapDefinition = {
+            theme = "cemetery",
+            objectSpawnRules = {},
+            eventSpawnRules = {}
+        },
+        randomEvents = {},
+        assetPack = nil
+    },
+
+    portal_teste_sem_spawn = {
+        name = "TESTE: Sem Spawn",
+        theme = "CementeryTheme", -- Usando um tema existente para simplicidade
+        rank = "TEST",
+        requiredUnitTypes = {},   -- Nenhum tipo de unidade requerido
+
+        hordeConfig = {
+            mapRank = "TEST",
+            mvpConfig = {
+                spawnInterval = 99999,
+                statusMultiplier = 1,
+                speedMultiplier = 1,
+                sizeMultiplier = 1,
+                experienceMultiplier = 1
+            },
+            bossConfig = {
+                spawnTimes = {} -- Sem bosses
+            },
+            cycles = {
+                {
+                    duration = 600,      -- 10 minutos de teste
+                    allowedEnemies = {}, -- NENHUM inimigo permitido
+                    majorSpawn = {
+                        interval = 60,
+                        baseCount = 0, -- Nenhum inimigo no Major Spawn
+                        countScalePerMin = 0
+                    },
+                    minorSpawn = {
+                        baseInterval = 60,
+                        intervalReductionPerMin = 0,
+                        minInterval = 60,
+                        count = 0 -- Nenhum inimigo no Minor Spawn
+                    }
+                }
+            }
+        },
+        mapDefinition = {
+            theme = "cemetery",
+            objectSpawnRules = {},
+            eventSpawnRules = {}
+        },
+        randomEvents = {},
+        assetPack = nil
+    }
 }
 
 return portalDefinitions

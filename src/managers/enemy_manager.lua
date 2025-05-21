@@ -19,10 +19,12 @@ local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 ---@field lastBossDeathTime number
 ---@field playerManager PlayerManager
 ---@field dropManager DropManager
+---@field enemyPool table<string, table<number, BaseEnemy>> Pool de inimigos reutilizáveis, categorizados por classe
 local EnemyManager = {
     enemies = {},     -- Tabela contendo todas as instâncias de inimigos ativos
     maxEnemies = 400, -- Número máximo de inimigos permitidos na tela simultaneamente
     nextEnemyId = 1,  -- Próximo ID a ser atribuído a um inimigo
+    enemyPool = {},   -- Pool de inimigos inativos para reutilização
 
     -- Estado de Ciclo e Tempo
     worldConfig = nil,      -- Configuração carregada para o mundo (contém a lista de 'cycles')
@@ -59,6 +61,9 @@ function EnemyManager:setupGameplay(config)
     self.timeInCurrentCycle = 0               -- Reinicia o timer do ciclo
     self.currentCycleIndex = 1                -- Começa no primeiro ciclo
     self.nextBossIndex = 1                    -- Reseta índice do boss
+
+    -- Limpa o pool de inimigos (importante se o jogo for reiniciado)
+    self.enemyPool = {}
 
     -- Inicializa a barra de vida do boss
     BossHealthBar:init()
@@ -229,6 +234,7 @@ function EnemyManager:update(dt)
         -- Remove o inimigo se estiver marcado para remoção (flag setada pelo próprio inimigo em seu update)
         if enemy.shouldRemove then
             table.remove(self.enemies, i)
+            self:returnEnemyToPool(enemy) -- Adiciona o inimigo ao pool em vez de apenas remover
         end
         ::continue_loop::
     end
@@ -438,9 +444,9 @@ function EnemyManager:collectRenderables(cameraX, cameraY, dt, renderList, sprit
                     table.insert(renderList, {
                         type = "enemy_sprite",
                         sortY = sortY,
-                        depth =  3, -- Usar uma constante de profundidade
-                        texture = enemySheetTexture,                  -- A textura (love.graphics.Image)
-                        quad = quad,                                  -- O quad específico
+                        depth = 3,                   -- Usar uma constante de profundidade
+                        texture = enemySheetTexture, -- A textura (love.graphics.Image)
+                        quad = quad,                 -- O quad específico
                         x = instanceAnimConfig.position.x,
                         y = instanceAnimConfig.position.y,
                         rotation = 0, -- Adicione rotação se necessário
@@ -478,29 +484,128 @@ function EnemyManager:spawnSpecificEnemy(enemyClass)
         return
     end
 
-    -- Obtém o próximo ID disponível antes de criar o inimigo
-    local enemyId = self.nextEnemyId
-    print(string.format("Próximo ID disponível: %d", enemyId))
+    local enemyClassName = enemyClass.className -- Supondo que a classe do inimigo tenha um campo 'className'
+    if not enemyClassName then
+        -- Tenta obter o nome da classe de uma forma mais genérica se não houver 'className'
+        -- Isso é um fallback e pode não ser ideal. Idealmente, cada classe de inimigo define seu 'className'.
+        for k, v in pairs(_G) do
+            if v == enemyClass then
+                enemyClassName = k
+                break
+            end
+        end
+        if not enemyClassName then
+            print(
+                "ERRO CRÍTICO [EnemyManager:spawnSpecificEnemy]: Não foi possível determinar o className para a enemyClass fornecida.")
+            -- Fallback para um nome de classe genérico se não conseguir determinar
+            -- Isso pode levar a um pooling incorreto se várias classes acabarem com o mesmo nome genérico.
+            -- Seria melhor que cada 'enemyClass' tivesse uma propriedade estática 'className'.
+            -- Por agora, vamos usar um nome padrão e logar um aviso.
+            enemyClassName = "UnknownEnemyType"
+            print(string.format(
+                "AVISO [EnemyManager:spawnSpecificEnemy]: Usando className '%s' para pooling. Isso pode não ser ideal.",
+                enemyClassName))
+            -- Como alternativa, poderia simplesmente não usar o pool para classes sem nome definido:
+            -- print("AVISO [EnemyManager:spawnSpecificEnemy]: enemyClass não tem um 'className' definido. Criando nova instância sem pooling.")
+            -- local newEnemy = enemyClass:new({x = 0, y = 0}, self.nextEnemyId) -- Posição e ID serão definidos depois
+            -- table.insert(self.enemies, newEnemy)
+            -- self.nextEnemyId = self.nextEnemyId + 1
+            -- -- ... (código para definir posição e outras propriedades) ...
+            -- return newEnemy -- Ou apenas retornar se a função for usada para obter um inimigo
+        end
+    end
+
+
+    local enemyInstance = nil
+
+    -- Tenta pegar um inimigo do pool
+    if self.enemyPool[enemyClassName] and #self.enemyPool[enemyClassName] > 0 then
+        enemyInstance = table.remove(self.enemyPool[enemyClassName])
+        -- print(string.format("Reutilizando inimigo da classe %s do pool. Pool agora tem %d.", enemyClassName, #self.enemyPool[enemyClassName]))
+    end
+
+    -- Obtém o próximo ID disponível
+    local enemyId
+    if enemyInstance then
+        -- Reutiliza o ID existente do inimigo se ele já tiver um, ou atribui um novo se necessário.
+        -- A lógica de ID pode precisar de ajuste dependendo de como os IDs são gerenciados (se eles devem ser únicos por instância viva ou únicos globalmente).
+        -- Para este exemplo, vamos assumir que o ID pode ser reutilizado ou que a função de reset cuida disso.
+        -- Se o ID é para ser sempre novo, então mesmo para instâncias do pool, um novo ID deve ser atribuído.
+        -- Vamos atribuir um novo ID para consistência.
+        enemyId = self.nextEnemyId
+        self.nextEnemyId = self.nextEnemyId + 1
+    else
+        enemyId = self.nextEnemyId
+        self.nextEnemyId = self.nextEnemyId + 1
+    end
+
 
     -- Calcula um raio de spawn fora da área visível da tela
     local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
-    -- Gera um ângulo aleatório
     local angle = math.random() * 2 * math.pi
-    -- Calcula as coordenadas X e Y com base no ângulo e raio a partir da posição do jogador
     local spawnX = self.playerManager.player.position.x + math.cos(angle) * minSpawnRadius
     local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
 
-    -- Cria a nova instância do inimigo com o ID
-    local enemy = enemyClass:new({ x = spawnX, y = spawnY }, enemyId)
-
-    -- Incrementa o contador de IDs
-    self.nextEnemyId = self.nextEnemyId + 1
-    print(string.format("ID incrementado para: %d", self.nextEnemyId))
+    if enemyInstance then
+        -- Reinicializa o inimigo existente
+        -- A função 'reset' ou 'reinitialize' deve ser implementada na classe BaseEnemy ou específica do inimigo
+        if enemyInstance.reset then
+            enemyInstance:reset({ x = spawnX, y = spawnY }, enemyId)
+        else
+            -- Fallback de reinicialização manual se 'reset' não existir
+            enemyInstance.position.x = spawnX
+            enemyInstance.position.y = spawnY
+            enemyInstance.id = enemyId
+            enemyInstance.isAlive = true
+            enemyInstance.isDying = false
+            enemyInstance.isDeathAnimationComplete = false
+            enemyInstance.shouldRemove = false
+            enemyInstance.isMVP = false
+            enemyInstance.isBoss = false
+            -- Recarregar vida, etc.
+            if enemyInstance.setup then enemyInstance:setup() end -- Chama setup se existir
+        end
+    else
+        -- Cria uma nova instância do inimigo com o ID se não houver no pool
+        enemyInstance = enemyClass:new({ x = spawnX, y = spawnY }, enemyId)
+    end
 
     -- Adiciona o inimigo à lista de inimigos ativos
-    table.insert(self.enemies, enemy)
+    table.insert(self.enemies, enemyInstance)
 
-    print(string.format("Inimigo ID: %d spawnado em (%.1f, %.1f)", enemy.id, spawnX, spawnY))
+    print(string.format("Inimigo ID: %d (Classe: %s) spawnado em (%.1f, %.1f). Reutilizado: %s", enemyInstance.id,
+        enemyClassName, spawnX, spawnY, tostring(enemyInstance.originalId ~= nil and enemyInstance.originalId == enemyId)))
+end
+
+-- Adiciona um inimigo ao pool para reutilização
+function EnemyManager:returnEnemyToPool(enemy)
+    if not enemy or not enemy.className then
+        print("AVISO [EnemyManager:returnEnemyToPool]: Tentativa de retornar inimigo inválido ou sem className ao pool.")
+        return
+    end
+
+    -- Reseta o estado do inimigo para um estado "limpo"
+    -- Esta função precisará ser implementada na classe BaseEnemy ou nas classes específicas
+    if enemy.resetStateForPooling then
+        enemy:resetStateForPooling()
+    else
+        -- Fallback básico se resetStateForPooling não existir
+        enemy.isAlive = false
+        enemy.isDying = false
+        enemy.isDeathAnimationComplete = false
+        enemy.shouldRemove = false
+        enemy.isMVP = false
+        enemy.isBoss = false
+        -- Adicione outros resets básicos conforme necessário
+    end
+
+    local enemyClassName = enemy.className
+    if not self.enemyPool[enemyClassName] then
+        self.enemyPool[enemyClassName] = {}
+    end
+    table.insert(self.enemyPool[enemyClassName], enemy)
+    -- print(string.format("Inimigo ID %s (Classe: %s) retornado ao pool. Pool para %s agora tem %d.",
+    --     tostring(enemy.id), enemyClassName, enemyClassName, #self.enemyPool[enemyClassName]))
 end
 
 -- Função para transformar um inimigo em MVP

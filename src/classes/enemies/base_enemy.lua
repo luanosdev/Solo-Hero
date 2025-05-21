@@ -19,6 +19,7 @@ local Colors = require("src.ui.colors")
 ---@field damageCooldown number Cooldown entre danos em segundos
 ---@field attackSpeed number Velocidade de ataque do inimigo
 ---@field activeFloatingTexts table Array para armazenar instâncias de FloatingText ativas.
+---@field className string Nome da classe do inimigo, usado para pooling.
 local BaseEnemy = {
     position = {
         x = 0,
@@ -41,7 +42,8 @@ local BaseEnemy = {
     isDying = false,
     isDeathAnimationComplete = false,
     deathTimer = 0,
-    deathDuration = 2.0
+    deathDuration = 2.0,
+    className = "BaseEnemy" -- Adicionado para identificação no pool
 }
 
 function BaseEnemy:new(position, id)
@@ -74,7 +76,12 @@ function BaseEnemy:new(position, id)
     enemy.deathTimer = self.deathTimer
     enemy.deathDuration = self.deathDuration
 
-    print(string.format("BaseEnemy criado com ID: %d", enemy.id)) -- Log para debug
+    -- Define o className para a instância. Se uma subclasse definir className em sua própria tabela,
+    -- o metatable fará com que self.className na instância já seja o correto.
+    -- Mas para garantir, especialmente se a instância for criada diretamente, podemos atribuir aqui.
+    enemy.className = self.className
+
+    print(string.format("BaseEnemy criado com ID: %d, Classe: %s", enemy.id, enemy.className)) -- Log para debug
 
     return enemy
 end
@@ -281,6 +288,98 @@ function BaseEnemy:drawFloatingTexts(textBatch) -- Modificado para aceitar textB
         -- A instância de FloatingText:draw() precisará ser modificada para usar o textBatch
         textInstance:draw(textBatch)
     end
+end
+
+-- Reseta o estado do inimigo para ser devolvido ao pool.
+function BaseEnemy:resetStateForPooling()
+    self.isAlive = false
+    self.isDying = false
+    self.isDeathAnimationComplete = false
+    self.shouldRemove = false -- Flag do EnemyManager, mas bom resetar
+    self.isMVP = false        -- Resetar flags de estado especiais
+    self.isBoss = false
+
+    self.currentHealth = 0
+    self.deathTimer = 0
+    self.lastDamageTime = 0
+
+    -- Limpa quaisquer textos flutuantes ativos
+    if self.activeFloatingTexts then
+        for i = #self.activeFloatingTexts, 1, -1 do
+            table.remove(self.activeFloatingTexts, i)
+        end
+    else
+        self.activeFloatingTexts = {}
+    end
+
+    -- Resetar outros estados específicos se necessário (ex: buffs, debuffs, target)
+    self.target = nil -- Exemplo, se BaseEnemy tivesse um campo target
+
+    -- Importante: Não resetar position aqui, pois o inimigo ainda está "no mundo"
+    -- até ser efetivamente pego do pool e ter sua posição redefinida.
+    -- Não resetar ID aqui, o EnemyManager atribuirá um novo ao reutilizar, ou o ID original pode ser útil para debug do pool.
+
+    -- print(string.format("Inimigo ID %s (Classe: %s) resetado para pooling.", tostring(self.id), self.className))
+end
+
+-- Reinicializa um inimigo pego do pool com novos dados.
+-- @param position table {x: number, y: number} Nova posição inicial.
+-- @param id number Novo ID para o inimigo.
+function BaseEnemy:reset(position, id)
+    -- O metatable __index deve apontar para o protótipo da classe correta (ex: Zombie, Skeleton)
+    -- Portanto, self.__index terá os valores base corretos para essa classe.
+    local prototype = getmetatable(self).__index
+
+    self.position.x = position.x or 0
+    self.position.y = position.y or 0
+    self.id = id or 0
+
+    -- Restaura atributos base a partir do protótipo da classe específica
+    self.radius = prototype.radius
+    self.speed = prototype.speed
+    self.maxHealth = prototype.maxHealth
+    self.currentHealth = prototype.maxHealth -- Vida cheia ao resetar
+    self.damage = prototype.damage
+    self.damageCooldown = prototype.damageCooldown
+    self.attackSpeed = prototype.attackSpeed
+    self.color = prototype.color -- Se for uma tabela, copiar para evitar referência compartilhada
+    if type(prototype.color) == "table" then
+        self.color = { unpack(prototype.color) }
+    else
+        self.color = prototype.color
+    end
+    self.name = prototype.name -- O nome é geralmente específico da subclasse
+    self.experienceValue = prototype.experienceValue
+    self.healthBarWidth = prototype.healthBarWidth
+    self.deathDuration = prototype.deathDuration
+
+    -- Estado inicial
+    self.isAlive = true
+    self.isDying = false
+    self.isDeathAnimationComplete = false
+    self.shouldRemove = false
+    self.isMVP = false
+    self.isBoss = false
+
+    self.deathTimer = 0
+    self.lastDamageTime = 0 -- Pronto para atacar (ou esperar cooldown inicial, se aplicável)
+
+    -- Limpa e reinicializa a tabela de textos flutuantes
+    if self.activeFloatingTexts then
+        for i = #self.activeFloatingTexts, 1, -1 do
+            table.remove(self.activeFloatingTexts, i)
+        end
+    else
+        self.activeFloatingTexts = {}
+    end
+
+    -- Chamada para um método de setup específico da subclasse, se existir.
+    -- Isso permite que subclasses façam sua própria configuração adicional.
+    --if self.setup then
+    --    self:setup()
+    --end
+
+    -- print(string.format("Inimigo ID %s (Classe: %s) resetado e reutilizado.", tostring(self.id), self.className))
 end
 
 return BaseEnemy

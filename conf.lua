@@ -1,6 +1,8 @@
 -- [[ Modo de Depuração Global ]] --
-DEV = true       -- Define o modo de desenvolvimento para este arquivo de configuração
-PROFILER = false -- Define o modo de desenvolvimento para este arquivo de configuração
+DEV = true             -- Define o modo de desenvolvimento para este arquivo de configuração
+PROFILER = true       -- Define o modo de desenvolvimento para este arquivo de configuração
+LOGGERS = true         -- Define o modo de desenvolvimento para este arquivo de configuração
+LOGS_ON_CONSOLE = true -- Define se os logs serão impressos no console
 
 function love.conf(t)
     t.window.title = "Solo Hero"
@@ -11,13 +13,10 @@ function love.conf(t)
 
     -- Define o VSync. Se DEV for true, vsync é 0 (desligado).
     -- Se DEV for false ou nil, vsync é 1 (ligado, padrão).
-    print("[conf.lua] Valor de DEV:", DEV)                    -- DEBUG
     if DEV == true then
-        t.window.vsync = 0                                    -- VSync desligado para DEV mode
-        print("[conf.lua] VSync definido para 0 (DESLIGADO)") -- DEBUG
+        t.window.vsync = 0 -- VSync desligado para DEV mode
     else
-        t.window.vsync = 1                                    -- VSync ligado por padrão
-        print("[conf.lua] VSync definido para 1 (LIGADO)")    -- DEBUG
+        t.window.vsync = 1 -- VSync ligado por padrão
     end
 
     t.modules.joystick = false

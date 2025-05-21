@@ -1,5 +1,5 @@
 -- Gerenciador simples para carregar e cachear assets, começando com imagens.
-
+---@class AssetManager
 local AssetManager = {}
 AssetManager.images = {} -- Cache para imagens
 AssetManager.fonts = {}  -- Cache para fontes (exemplo, pode adicionar depois)

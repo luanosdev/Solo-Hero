@@ -206,7 +206,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
     print(string.format("  - Player final speed for sprite: %.2f", finalSpeed))
     self.player = SpritePlayer.newConfig({
         position = { x = love.graphics.getWidth() / 2, y = love.graphics.getHeight() / 2 },
-        scale = 0.8,
+        scale = 1,
         speed = finalSpeed -- Usa a velocidade calculada
     })
     print(string.format("  - Player Sprite instance created. Type of self.player: %s", type(self.player)))

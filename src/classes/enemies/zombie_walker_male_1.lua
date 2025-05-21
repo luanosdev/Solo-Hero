@@ -4,37 +4,79 @@ local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local EnemyData = require("src.data.enemies")
 local data = EnemyData.zombie_walker_male_1
 
-local ZombieWalkerMale1 = setmetatable({}, { __index = BaseEnemy })
+-- Define o protótipo do ZombieWalkerMale1, herdando de BaseEnemy
+local ZombieWalkerMale1 = {}
+ZombieWalkerMale1.className = "ZombieWalkerMale1" -- Adiciona o className
+ZombieWalkerMale1.name = data.name                -- Nome padrão para esta classe
+ZombieWalkerMale1.speed = data.defaultSpeed
+ZombieWalkerMale1.maxHealth = data.health
+ZombieWalkerMale1.damage = data.damage
+ZombieWalkerMale1.experienceValue = data.experienceValue
+ZombieWalkerMale1.radius = data.radius
+ZombieWalkerMale1.dropTable = data.dropTable
+-- Outros valores padrão que seriam restaurados por BaseEnemy:reset
+-- podem ser definidos aqui se forem diferentes dos de BaseEnemy
 
+setmetatable(ZombieWalkerMale1, { __index = BaseEnemy }) -- Herança
 
 --- Cria uma nova instância do ZombieWalkerMale1.
 --- @param position table: Posição inicial (x, y).
 --- @param id string|number: ID único para o inimigo.
 --- @return table: A instância do ZombieWalkerMale1.
 function ZombieWalkerMale1:new(position, id)
-    -- Chama o construtor da classe base
+    -- Chama o construtor da classe base (BaseEnemy.new).
+    -- self aqui se refere à tabela ZombieWalkerMale1 (o protótipo), então BaseEnemy.new
+    -- usará ZombieWalkerMale1.className, ZombieWalkerMale1.maxHealth etc. como padrões se não sobrescritos.
     local instance = BaseEnemy.new(self, position, id)
 
-    -- Aplicar configurações específicas do ZombieWalkerMale1 a partir de 'data'
-    instance.name = data.name
-    instance.speed = data.defaultSpeed
-    instance.maxHealth = data.health
-    instance.currentHealth = instance.health
-    instance.damage = data.damage
-    instance.experienceValue = data.experienceValue
-    instance.radius = data.radius
-    instance.dropTable = data.dropTable or instance.dropTable
+    -- A metatabela da instância é configurada para apontar para ZombieWalkerMale1,
+    -- permitindo que métodos como :update, :draw sejam chamados na instância.
+    setmetatable(instance, { __index = self })
 
+    -- Atributos específicos que são configurados no new e podem não ser cobertos
+    -- pelo BaseEnemy:reset (que usa o protótipo) ou precisam de lógica especial.
+    -- No caso do sprite, ele é um objeto complexo e precisa ser recriado ou resetado.
     instance.sprite = AnimatedSpritesheet.newConfig(data.unitType, {
-        position = position,
+        position = instance.position, -- Usa a posição da instância já definida
         scale = data.instanceDefaults.scale,
         speed = data.instanceDefaults.speed,
         animation = data.instanceDefaults.animation
     })
-    instance.sprite.unitType = data.unitType
+    instance.sprite.unitType = data.unitType -- Garante que unitType está no sprite
 
-    return setmetatable(instance, { __index = self })
+    -- Se BaseEnemy.new atribuiu valores base e precisamos que eles sejam os de 'data' especificamente,
+    -- reatribuímos aqui. No entanto, BaseEnemy:reset fará isso usando o protótipo de ZombieWalkerMale1.
+    -- A chamada a BaseEnemy.new(self, ...) já deve ter usado os valores de ZombieWalkerMale1 como base.
+    -- Ex: instance.name já será data.name porque ZombieWalkerMale1.name é data.name.
+
+    return instance
 end
+
+-- Sobrescreve reset para lidar com o sprite e outros estados específicos do ZombieWalkerMale1
+function ZombieWalkerMale1:reset(position, id)
+    -- Chama o reset da classe base primeiro para restaurar atributos comuns
+    BaseEnemy.reset(self, position, id)
+
+    -- Reinicializa o sprite. É crucial que o sprite seja configurado para o novo estado.
+    -- Se AnimatedSpritesheet.newConfig cria um novo objeto de configuração de sprite,
+    -- então atribuí-lo novamente é o correto.
+    -- Se o sprite tivesse uma função :reset própria, poderíamos chamá-la.
+    self.sprite = AnimatedSpritesheet.newConfig(data.unitType, {
+        position = self.position, -- Usa a posição já resetada pela classe base
+        scale = data.instanceDefaults.scale,
+        speed = data.instanceDefaults.speed,
+        animation = data.instanceDefaults.animation -- Pode precisar de um estado de animação padrão
+    })
+    self.sprite.unitType = data.unitType
+
+    -- Qualquer outra reinicialização específica do ZombieWalkerMale1 viria aqui.
+    -- Por exemplo, resetar estados de animação ou lógica específica.
+    -- print(string.format("ZombieWalkerMale1 ID %s resetado.", tostring(self.id)))
+end
+
+-- Não há necessidade de sobrescrever resetStateForPooling a menos que ZombieWalkerMale1
+-- tenha estados muito específicos não cobertos por BaseEnemy:resetStateForPooling.
+-- A limpeza do sprite (se necessária ao ir para o pool) poderia ser feita lá.
 
 --- Atualiza a lógica e animação do zumbi.
 --- @param dt number: Delta time.
