@@ -1,6 +1,6 @@
 -- [[ Modo de Depuração Global ]] --
 DEV = true             -- Define o modo de desenvolvimento para este arquivo de configuração
-PROFILER = true       -- Define o modo de desenvolvimento para este arquivo de configuração
+PROFILER = false       -- Define o modo de desenvolvimento para este arquivo de configuração
 LOGGERS = true         -- Define o modo de desenvolvimento para este arquivo de configuração
 LOGS_ON_CONSOLE = true -- Define se os logs serão impressos no console
 

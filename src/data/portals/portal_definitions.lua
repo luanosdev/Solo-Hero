@@ -11,9 +11,10 @@ local ZombieWalkerMale1 = require("src.classes.enemies.zombie_walker_male_1")
 local portalDefinitions = {
     -- Exemplo de um portal inicial: Floresta Assombrada
     floresta_assombrada = {
-        name = "Basic Forest", -- ATUALIZADO
-        theme = "BasicForest", -- ATUALIZADO
-        rank = "E",            -- Ranking de dificuldade base do portal
+        name = "Basic Forest",       -- ATUALIZADO
+        theme = "BasicForest",       -- ATUALIZADO
+        rank = "E",                  -- Ranking de dificuldade base do portal
+        map = "forest", -- NOVO CAMPO
 
         -- Configuração específica das hordas para este portal
         hordeConfig = {
@@ -114,6 +115,7 @@ local portalDefinitions = {
         name = "Cemitério Urbano",
         theme = "CementeryTheme",                       -- O tema real do mapa precisará ser criado
         rank = "D",
+        map = "forest",                    -- NOVO CAMPO
         requiredUnitTypes = { "zombie_walker_male_1" }, -- Apenas este inimigo por enquanto
 
         hordeConfig = {
@@ -164,8 +166,9 @@ local portalDefinitions = {
 
     portal_teste_spawn_massivo = {
         name = "TESTE: Spawn Massivo",
-        theme = "CementeryTheme", -- Usando um tema existente para simplicidade
+        theme = "CementeryTheme",    -- Usando um tema existente para simplicidade
         rank = "TEST",
+        map = "forest", -- NOVO CAMPO
         requiredUnitTypes = { "zombie_walker_male_1" },
 
         hordeConfig = {
@@ -211,9 +214,10 @@ local portalDefinitions = {
 
     portal_teste_sem_spawn = {
         name = "TESTE: Sem Spawn",
-        theme = "CementeryTheme", -- Usando um tema existente para simplicidade
+        theme = "CementeryTheme",    -- Usando um tema existente para simplicidade
         rank = "TEST",
-        requiredUnitTypes = {},   -- Nenhum tipo de unidade requerido
+        map = "forest", -- NOVO CAMPO
+        requiredUnitTypes = {},      -- Nenhum tipo de unidade requerido
 
         hordeConfig = {
             mapRank = "TEST",

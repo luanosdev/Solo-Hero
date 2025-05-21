@@ -41,7 +41,7 @@ local enemies = {
 
         -- Atributos de combate e IA
         health = 100,
-        damage = 10,
+        damage = 1,
         experienceValue = 20
     }
 }

@@ -19,6 +19,7 @@ local ChunkManager = require("src.managers.chunk_manager")
 local portalDefinitions = require("src.data.portals.portal_definitions")   -- Para mapDefinition
 local Constants = require("src.config.constants")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- NECESSÁRIO PARA ACESSAR ASSETS
+local MapManager = require("src.managers.map_manager")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene -- <<< ADICIONADO __index >>>
@@ -32,7 +33,7 @@ GameplayScene.onCastCompleteCallback = nil ---@type function|nil
 GameplayScene.currentCastType = nil ---@type string|nil -- Adicionado para armazenar o tipo de extração durante o cast
 
 function GameplayScene:load(args)
-    print("GameplayScene:load - Inicializando sistemas de gameplay...")
+    Logger.debug("GameplayScene", "GameplayScene:load - Inicializando sistemas de gameplay...")
     self.renderList = {}             -- <<< ADICIONADO PARA INICIALIZAR A LISTA DE RENDERIZAÇÃO
     self.animationSpriteBatches = {} -- ADICIONADO: Para gerenciar SpriteBatches de animação
     self.portalId = args and args.portalId or "floresta_assombrada"
@@ -45,25 +46,33 @@ function GameplayScene:load(args)
     -- Carrega a definição completa do portal atual para mapDefinition
     self.currentPortalData = portalDefinitions[self.portalId]
     if not self.currentPortalData then
-        error(string.format("ERRO CRÍTICO [GameplayScene:load]: Definição do portal '%s' não encontrada!", self.portalId))
+        Logger.error("GameplayScene",
+            string.format("ERRO CRÍTICO [GameplayScene:load]: Definição do portal '%s' não encontrada!", self.portalId))
     end
     -- Se hordeConfig não foi passado via args, pega do portalData (se existir)
     if not self.hordeConfig and self.currentPortalData.hordeConfig then
         self.hordeConfig = self.currentPortalData.hordeConfig
-        print(string.format("GameplayScene: Usando hordeConfig do portalDefinition para '%s'", self.portalId))
+        Logger.debug("GameplayScene",
+            string.format("GameplayScene: Usando hordeConfig do portalDefinition para '%s'", self.portalId))
     end
 
     -- Validações iniciais
     if not self.hordeConfig then
-        error("ERRO CRÍTICO [GameplayScene:load]: Nenhuma hordeConfig fornecida ou encontrada no portalDefinition!")
+        Logger.error("GameplayScene",
+            "ERRO CRÍTICO [GameplayScene:load]: Nenhuma hordeConfig fornecida ou encontrada no portalDefinition!")
     end
-    if not self.hunterId then error("ERRO CRÍTICO [GameplayScene:load]: Nenhum hunterId fornecido!") end
-    print(string.format("  - Carregando portal ID: %s, Hunter ID: %s", self.portalId, self.hunterId))
+    if not self.hunterId then
+        Logger.error("GameplayScene",
+            "ERRO CRÍTICO [GameplayScene:load]: Nenhum hunterId fornecido!")
+    end
+    Logger.debug("GameplayScene",
+        string.format("  - Carregando portal ID: %s, Hunter ID: %s", self.portalId, self.hunterId))
 
     self.isPaused = false
     -- self.camera = nil -- Camera é global
     -- REMOVIDO: self.groundTexture = nil (ChunkManager cuida do chão)
     -- REMOVIDO: self.grid = nil (ChunkManager cuida da grade)
+    self.mapManager = nil -- INICIALIZA O MAPMANAGER AQUI
 
     if not fonts.main then fonts.load() end
 
@@ -73,21 +82,21 @@ function GameplayScene:load(args)
 
     local success, shaderOrErr = pcall(love.graphics.newShader, "assets/shaders/glow.fs")
     if success then
-        elements.setGlowShader(shaderOrErr); InventoryScreen.setGlowShader(shaderOrErr); print(
-            "GameplayScene: Glow shader carregado.")
+        elements.setGlowShader(shaderOrErr); InventoryScreen.setGlowShader(shaderOrErr);
+        Logger.debug("GameplayScene", "Glow shader carregado.")
     else
-        print("GameplayScene: Aviso - Falha ao carregar glow shader.", shaderOrErr)
+        Logger.warn("GameplayScene", "Aviso - Falha ao carregar glow shader.")
     end
 
     -- REMOVIDO: Carregamento de self.groundTexture e self.grid
 
     Camera:init()
-    print("GameplayScene: Chamado Camera:init() no módulo global.")
+    Logger.debug("GameplayScene", "Chamado Camera:init() no módulo global.")
     AnimationLoader.loadInitial() -- Carrega player e outras animações base
     if self.currentPortalData and self.currentPortalData.requiredUnitTypes then
         AnimationLoader.loadUnits(self.currentPortalData.requiredUnitTypes)
     else
-        print(string.format(
+        Logger.error("GameplayScene", string.format(
             "AVISO [GameplayScene:load]: Portal '%s' não possui requiredUnitTypes. Nenhuma animação de unidade específica do portal foi carregada.",
             self.portalId))
         -- Você pode querer carregar um conjunto padrão de unidades aqui como fallback, ou deixar vazio.
@@ -108,7 +117,8 @@ function GameplayScene:load(args)
         if not dropMgr then table.insert(missing, "DropManager") end
         if not itemDataMgr then table.insert(missing, "ItemDataManager") end
         if not experienceOrbMgr then table.insert(missing, "ExperienceOrbManager") end
-        error("ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers: " .. table.concat(missing, ", "))
+        Logger.error("GameplayScene",
+            "ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers: " .. table.concat(missing, ", "))
     end
 
     -- CRIAR SPRITEBATCHES PARA ANIMAÇÕES CARREGADAS
@@ -121,8 +131,9 @@ function GameplayScene:load(args)
                         local maxSpritesInBatch = enemyMgr and enemyMgr.maxEnemies or 200
                         self.animationSpriteBatches[sheetTexture] = love.graphics.newSpriteBatch(sheetTexture,
                             maxSpritesInBatch)
-                        print(string.format("GameplayScene: Criado SpriteBatch para textura de %s - %s", unitType,
-                            animName))
+                        Logger.debug("GameplayScene",
+                            string.format("GameplayScene: Criado SpriteBatch para textura de %s - %s", unitType,
+                                animName))
                     end
                 end
             end
@@ -138,9 +149,9 @@ function GameplayScene:load(args)
         local gameSeed = os.time()                                             -- Ou uma seed específica
         local chunkSize = self.currentPortalData.mapDefinition.chunkSize or 32 -- Pega do mapDef ou usa default
         ChunkManager:initialize(self.currentPortalData, chunkSize, AssetManager, gameSeed)
-        print("GameplayScene: ChunkManager inicializado.")
+        Logger.debug("GameplayScene", "ChunkManager inicializado.")
     else
-        error(
+        Logger.error("GameplayScene",
             "ERRO CRÍTICO [GameplayScene:load]: mapDefinition não encontrado nos dados do portal para inicializar ChunkManager!")
     end
 
@@ -161,7 +172,27 @@ function GameplayScene:load(args)
                 { x = playerPos.x + 50, y = playerPos.y })
         end
     end
-    print("GameplayScene:load concluído.")
+
+    if self.currentPortalData and self.currentPortalData.map then
+        local mapName = self.currentPortalData.map
+        self.mapManager = MapManager:new(mapName, AssetManager) -- AssetManager já é global ou passado
+        if self.mapManager then
+            local mapLoaded = self.mapManager:loadMap()
+            if mapLoaded then
+                Logger.debug("GameplayScene", "MapManager carregou o mapa '" .. mapName .. "' com sucesso.")
+            else
+                Logger.error("GameplayScene", "ERRO - MapManager falhou ao carregar o mapa: " .. mapName)
+            end
+        else
+            Logger.error("GameplayScene",
+                "ERRO CRÍTICO - Falha ao criar instância do MapManager para o mapa: " .. mapName)
+        end
+    else
+        Logger.error("GameplayScene",
+            "ERRO CRÍTICO [GameplayScene:load]: 'map' não definido nos dados do portal para inicializar MapManager!")
+    end
+
+    Logger.debug("GameplayScene", "GameplayScene:load concluído.")
 end
 
 function GameplayScene:createDropNearPlayer(dropId)
@@ -208,22 +239,15 @@ function GameplayScene:update(dt)
     if inputMgr then
         inputMgr:update(dt, uiBlockingAllGameplay or InventoryScreen.isVisible, self.isPaused)
     else
-        print("GameplayScene: AVISO - InputManager não encontrado no Registry para update")
+        Logger.error("GameplayScene", "AVISO - InputManager não encontrado no Registry para update")
     end
 
     -- 6. Atualização da lógica principal do jogo e movimentação
     if not self.isPaused then
         ManagerRegistry:update(dt) -- Atualiza Player, Enemy, Projectiles, Drops, Orbs, etc.
 
-        -- Atualização do ChunkManager
-        local playerMgrForChunk = ManagerRegistry:get("playerManager")
-        if playerMgrForChunk and playerMgrForChunk.player and playerMgrForChunk.player.position then
-            local tileSize = Constants.TILE_SIZE
-            local playerWorldTileX = math.floor(playerMgrForChunk.player.position.x / tileSize)
-            local playerWorldTileY = math.floor(playerMgrForChunk.player.position.y / (tileSize / 2))
-            ChunkManager:update(playerWorldTileX, playerWorldTileY, Camera.x, Camera.y)
-        else
-            print("GameplayScene WARN: Não foi possível atualizar ChunkManager - player ausente.")
+        if self.mapManager then
+            self.mapManager:update(dt)
         end
 
         -- Lida com cancelamento de movimento AQUI, APÓS o PlayerManager ter sido atualizado por ManagerRegistry:update(dt)
@@ -253,7 +277,8 @@ function GameplayScene:update(dt)
         local itemDataManager = ManagerRegistry:get("itemDataManager")
 
         if not hunterManager or not inventoryManager or not itemDataManager or not Constants then
-            print("ERRO [GameplayScene.update - Drag]: Managers/Constants necessários não encontrados!")
+            Logger.error("GameplayScene",
+                "ERRO [GameplayScene.update - Drag]: Managers/Constants necessários não encontrados!")
             -- Poderia resetar o drag aqui, mas talvez seja melhor só não validar
         else
             local draggedItem = self.inventoryDragState.draggedItem
@@ -318,7 +343,7 @@ function GameplayScene:update(dt)
                     self.inventoryDragState.targetGridId = "inventory"
 
                     if not inventoryManager then
-                        print(
+                        Logger.error("GameplayScene",
                             "ERRO GRAVE [GameplayScene.update - Drag]: inventoryManager é NIL ao tentar obter dimensões!")
                         self.inventoryDragState.isDropValid = false -- Impede drop se manager sumir
                     else
@@ -349,7 +374,7 @@ function GameplayScene:update(dt)
                                 self.inventoryDragState.isDropValid = false -- Fora da grade
                             end
                         else
-                            print(
+                            Logger.warn("GameplayScene",
                                 "AVISO [GameplayScene.update - Drag]: inventoryManager:getDimensions() retornou nil ou inválido.")
                             self.inventoryDragState.isDropValid = false -- Impede drop se dimensões falharem
                         end
@@ -363,9 +388,8 @@ end
 function GameplayScene:draw()
     local currentShader = love.graphics.getShader()
     if currentShader then
-        print("ALERTA [GameplayScene:draw]: Um shader está ativo no início do frame! Shader: ", currentShader)
-        -- else
-        -- print("[GameplayScene:draw]: Nenhum shader ativo no início do frame.")
+        Logger.warn("GameplayScene",
+            "ALERTA [GameplayScene:draw]: Um shader está ativo no início do frame! Shader: " .. currentShader)
     end
 
     love.graphics.setBackgroundColor(0.1, 0.1, 0.1)
@@ -377,20 +401,15 @@ function GameplayScene:draw()
     end
 
     -- 1. Limpa a lista de renderização (para itens não batched por SpriteBatch)
-    for k in pairs(self.renderList) do self.renderList[k] = nil end
+    self.renderList = {}
 
-    -- 2. Coleta todos os renderizáveis
-    if ChunkManager then
-        ChunkManager:collectRenderables(Camera.x, Camera.y, self.renderList)
-    end
-
+    -- 2. Coleta renderizáveis NÃO-MAPA (EX: inimigos, jogador, drops)
     local playerMgr = ManagerRegistry:get("playerManager")
     local enemyMgr = ManagerRegistry:get("enemyManager")
     local dropMgr = ManagerRegistry:get("dropManager")
     local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
 
     if playerMgr then
-        -- Assumindo que player não usa os mesmos batches de animação dos inimigos ou tem seu próprio sistema
         playerMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
     if enemyMgr then
@@ -404,7 +423,6 @@ function GameplayScene:draw()
         experienceOrbMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
     end
 
-    -- 3. Ordena a lista de renderização (para itens NÃO desenhados pelos SpriteBatches principais de animação)
     table.sort(self.renderList, function(a, b)
         if a.depth == b.depth then
             return a.sortY < b.sortY -- Dentro da mesma camada (depth), ordena por sortY
@@ -412,40 +430,32 @@ function GameplayScene:draw()
         return a.depth < b.depth     -- Primariamente, ordena por camada (depth)
     end)
 
-    -- 4. Desenha os objetos
-    print("[GameplayScene:draw] Chamando Camera:attach()...")
+    Logger.debug("GameplayScene", "Chamando Camera:attach()...")
     Camera:attach()
 
-    -- Processa a renderList para popular os batches de animação (inimigos)
-    -- E desenha elementos que NÃO são inimigos diretamente
-    print("[GameplayScene:draw] Processando renderList e desenhando elementos diretos (tiles, player, etc.)...")
+    if self.mapManager then
+        self.mapManager:draw(Camera.x, Camera.y)
+    end
+
+    Logger.debug("GameplayScene", "Processando renderList (não-mapa) e desenhando elementos diretos...")
     for _, item in ipairs(self.renderList) do
         if item.type == "enemy_sprite" then
             local targetBatch = self.animationSpriteBatches[item.texture]
             if targetBatch then
                 local qx, qy, qw, qh = item.quad:getViewport()
                 if qw == 0 or qh == 0 then
-                    print(string.format(
+                    Logger.debug("GameplayScene", string.format(
                         "AVISO URGENTE [GameplayScene:draw]: Quad para enemy_sprite %s tem dimensões zero!",
                         tostring(item.texture)))
                 end
-                -- O print extenso de batching foi mantido nos logs que você forneceu e parecia ok, então vou comentá-lo aqui para reduzir o spam.
-                -- print(string.format("GameplayScene: Batching enemy sprite. X: %.1f, Y: %.1f, Scale: %.1f. Texture: %s Quad Viewport: (%.1f, %.1f, %.1f, %.1f)", item.x, item.y, item.scale, tostring(item.texture), qx, qy, qw, qh))
                 targetBatch:add(item.quad, item.x, item.y, item.rotation or 0, item.scale, item.scale, item.ox, item.oy,
                     0, 0, item.depth)
             else
-                print(string.format(
+                Logger.debug("GameplayScene", string.format(
                     "AVISO [GameplayScene:draw]: SpriteBatch não encontrado para textura de enemy_sprite: %s",
                     tostring(item.texture)))
             end
-        elseif item.type == "tile_batch" then
-            print(string.format("  -> Desenhando tile_batch: %s", tostring(item.batch)))
-            love.graphics.draw(item.batch)
-        elseif item.type == "decoration_batch" then
-            print(string.format("  -> Desenhando decoration_batch: %s", tostring(item.batch)))
-            love.graphics.draw(item.batch)
         elseif item.type == "player" then
-            -- print("  -> Desenhando player...") -- Descomente se precisar depurar o player
             if item.drawFunction then
                 item.drawFunction()
             elseif item.image then
@@ -462,18 +472,19 @@ function GameplayScene:draw()
     end
 
     -- Desenha os SpriteBatches de animação (que agora contêm os inimigos) APÓS os tiles e outros elementos.
-    print("[GameplayScene:draw] Desenhando animationSpriteBatches (inimigos)...")
+    Logger.debug("GameplayScene", "Desenhando animationSpriteBatches (inimigos)...")
     for texture, batch in pairs(self.animationSpriteBatches) do
         if batch:getCount() > 0 then
-            print(string.format("  -> Desenhando batch de INIMIGOS para textura: %s (Contagem: %d)", tostring(texture),
-                batch:getCount()))
+            Logger.debug("GameplayScene",
+                string.format("  -> Desenhando batch de INIMIGOS para textura: %s (Contagem: %d)", tostring(texture),
+                    batch:getCount()))
             love.graphics.draw(batch)
         else
             -- print(string.format("  -> Batch de INIMIGOS para textura %s está vazio, pulando.", tostring(texture)))
         end
     end
 
-    print("[GameplayScene:draw] Chamando Camera:detach()...")
+    Logger.debug("GameplayScene", "Chamando Camera:detach()...")
     Camera:detach()
 
     -- Desenha elementos de UI e outros que ficam sobre a câmera (ex: barras de vida de BaseEnemy)
@@ -512,7 +523,7 @@ function GameplayScene:draw()
         local barWidth = 200
         local barHeight = 20
         local barX = (love.graphics.getWidth() - barWidth) / 2
-        local barY = love.graphics.getHeight() - barHeight - 60 -- Acima da HUD inferior
+        local barY = love.graphics.getHeight() - barHeight - 60
         local progress = math.min(1, self.castTimer / self.castDuration)
 
         love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
@@ -520,7 +531,7 @@ function GameplayScene:draw()
         love.graphics.setColor(0.5, 0.7, 1, 0.9)
         love.graphics.rectangle("fill", barX, barY, barWidth * progress, barHeight)
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.setScissor(barX, barY, barWidth * progress, barHeight) -- Para o texto não sair da parte preenchida
+        love.graphics.setScissor(barX, barY, barWidth * progress, barHeight)
         if fonts.main_small then love.graphics.setFont(fonts.main_small) end
         local castItemName = "Conjurando..."
         if self.castingItem then
@@ -539,8 +550,7 @@ function GameplayScene:draw()
     -- Desenha informações de Debug (opcional)
     if enemyMgr then
         local enemies = enemyMgr:getEnemies()
-        if enemies and #enemies > 0 then -- <<< ADICIONADO: Verifica se enemies existe
-            -- Código de debug dos inimigos (transferido e adaptado)
+        if enemies and #enemies > 0 then
             love.graphics.setColor(0, 0, 0, 0.7)
             love.graphics.rectangle('fill', love.graphics.getWidth() - 210, 5, 205, 150)
             love.graphics.setColor(1, 1, 1, 1)
@@ -548,8 +558,8 @@ function GameplayScene:draw()
             local debugText = string.format(
                 "Enemy Info:\nTotal: %d | Ciclo: %d | Timer: %.1f",
                 #enemies,
-                enemyMgr.currentCycleIndex or 0, -- <<< ADICIONADO: Default 0 se nil
-                enemyMgr.gameTimer or 0          -- <<< ADICIONADO: Default 0 se nil
+                enemyMgr.currentCycleIndex or 0,
+                enemyMgr.gameTimer or 0
             )
             local bossCount = 0
             local bossLines = {}
@@ -568,20 +578,16 @@ function GameplayScene:draw()
             love.graphics.print(debugText, love.graphics.getWidth() - 200, 10)
         end
     end
-    love.graphics.setFont(fonts.main) -- Reseta fonte
+    love.graphics.setFont(fonts.main)
 
     love.graphics.push()
-    love.graphics.origin() -- Resetar transformações para UI e prints de debug
+    love.graphics.origin()
 
     -- Print de depuração para testar visibilidade básica
     love.graphics.setColor(1, 1, 0, 1) -- Amarelo
     love.graphics.print("DEBUG TEXT VISIBLE?", 10, love.graphics.getHeight() - 20)
-    love.graphics.setColor(1, 1, 1, 1) -- Resetar cor para branco
-    love.graphics.pop()                -- ADICIONADO O POP AUSENTE
-
-    if self.uiManager then
-        -- ... existing code ...
-    end
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.pop()
 end
 
 function GameplayScene:keypressed(key, scancode, isrepeat)
@@ -657,6 +663,12 @@ function GameplayScene:unload()
     LevelUpModal.visible = false; RuneChoiceModal.visible = false; InventoryScreen.isVisible = false; ItemDetailsModal.isVisible = false
     if HUD.reset then HUD:reset() end
     local enemyMgr = ManagerRegistry:get("enemyManager"); if enemyMgr and enemyMgr.reset then enemyMgr:reset() end
+
+    if self.mapManager and self.mapManager.destroy then
+        self.mapManager:destroy()
+        self.mapManager = nil
+        Logger.debug("GameplayScene", "MapManager destruído.")
+    end
 end
 
 --- Inicia o processo de extração da gameplay.
