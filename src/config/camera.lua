@@ -69,4 +69,13 @@ function Camera:setPosition(x, y)
     self.y = y
 end
 
+function Camera:getViewPort()
+    return {
+        x = self.x,
+        y = self.y,
+        width = self.screenWidth,
+        height = self.screenHeight
+    }
+end
+
 return Camera

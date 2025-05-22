@@ -3,6 +3,7 @@ local BossHealthBar = require("src.ui.boss_health_bar")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local SpatialGridIncremental = require("src.utils.SpatialGridIncremental")
 local TablePool = require("src.utils.TablePool")
+local Camera = require("src.config.camera")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -25,6 +26,7 @@ local TablePool = require("src.utils.TablePool")
 ---@field spatialGrid SpatialGridIncremental
 ---@field mapDimensions table
 ---@field gridCellSize number
+---@field despawnMargin number
 local EnemyManager = {
     enemies = {},     -- Tabela contendo todas as instâncias de inimigos ativos
     maxEnemies = 800, -- Número máximo de inimigos permitidos na tela simultaneamente
@@ -50,10 +52,11 @@ local EnemyManager = {
     spatialGrid = nil,
     mapDimensions = { width = 3000, height = 3000 },
     gridCellSize = 64,
+    despawnMargin = 500,
 }
 
 -- Inicializa o gerenciador de inimigos com uma configuração de horda específica
----@param config table Tabela de configuração contendo { hordeConfig, playerManager, dropManager }
+---@param config table Tabela de configuração contendo { hordeConfig, playerManager, dropManager, mapManager }
 function EnemyManager:setupGameplay(config)
     if not config or not config.hordeConfig or not config.playerManager or not config.dropManager or not config.mapManager then
         error("ERRO CRÍTICO [EnemyManager:setupGameplay]: Configuração inválida ou incompleta fornecida.")
@@ -228,24 +231,37 @@ function EnemyManager:update(dt)
 
     -- 4. Atualiza Inimigos Existentes (sempre executa)
     -- Itera de trás para frente para permitir remoção segura
-    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
-    local cameraX, cameraY = 0, 0
-    if self.playerManager and self.playerManager.player and self.playerManager.player.position then
-        -- Centraliza a "câmera" no jogador (ajuste conforme seu sistema de câmera real)
-        cameraX = self.playerManager.player.position.x - screenW / 2
-        cameraY = self.playerManager.player.position.y - screenH / 2
-    end
-    local margin = 200 -- Margem extra para evitar popping
+    local viewPort = Camera:getViewPort() -- Obtém a visão da câmera
+    
+    local margin = 200 -- Margem para culling de update (isOffScreen)
 
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
 
-        -- Determina se o inimigo está dentro da área visível + margem
-        local cullRadius = enemy.radius or 32
-        local inView = (enemy.position.x + cullRadius > cameraX - margin and
-                        enemy.position.x - cullRadius < cameraX + screenW + margin and
-                        enemy.position.y + cullRadius > cameraY - margin and
-                        enemy.position.y - cullRadius < cameraY + screenH + margin)
+        -- Lógica de Despawn Inteligente (antes do update do inimigo)
+        if enemy and enemy.isAlive and not enemy.isBoss and not enemy.isMVP then
+            local enemyRadius = enemy.radius or 0 -- Raio do inimigo para cálculo de bounding box
+            -- Verifica se o inimigo está fora da área (visão da câmera + despawnMargin)
+            if enemy.position.x + enemyRadius < viewPort.x - self.despawnMargin or
+               enemy.position.x - enemyRadius > viewPort.x + viewPort.width + self.despawnMargin or
+               enemy.position.y + enemyRadius < viewPort.y - self.despawnMargin or -- Usar viewY para o topo da câmera
+               enemy.position.y - enemyRadius > viewPort.y + viewPort.height + self.despawnMargin then
+
+                -- print(string.format("Despawning enemy ID %d (Class: %s) due to distance.", enemy.id, enemy.className)) -- Para Debug
+                if self.spatialGrid then
+                    self.spatialGrid:removeEntityCompletely(enemy)
+                end
+                self:returnEnemyToPool(enemy)
+                table.remove(self.enemies, i)
+                goto continue_enemy_loop -- Pula o resto do update para este inimigo, já que foi removido
+            end
+        end
+
+        -- Determina se o inimigo está dentro da área visível + margem de update
+        local inViewForUpdate = (enemy.position.x + (enemy.radius or 0) > viewPort.x - margin and
+                                 enemy.position.x - (enemy.radius or 0) < viewPort.x + viewPort.width + margin and
+                                 enemy.position.y + (enemy.radius or 0) > viewPort.y - margin and
+                                 enemy.position.y - (enemy.radius or 0) < viewPort.y + viewPort.height + margin)
 
         -- Atualiza a lógica do inimigo
         if enemy and enemy.isAlive then
@@ -253,7 +269,7 @@ function EnemyManager:update(dt)
             if self.spatialGrid then
                 self.spatialGrid:updateEntityInGrid(enemy)
             end
-            enemy:update(dt, self.playerManager, self, not inView) 
+            enemy:update(dt, self.playerManager, self, not inViewForUpdate) 
         end
 
         -- Se o inimigo estiver morto e não estiver em animação de morte
@@ -283,7 +299,7 @@ function EnemyManager:update(dt)
             table.remove(self.enemies, i)
             self:returnEnemyToPool(enemy) 
         end
-        ::continue_loop::
+        ::continue_enemy_loop::
     end
 
     -- Atualiza a barra de vida do boss
