@@ -2,11 +2,11 @@ local SceneManager = require("src.core.scene_manager")
 
 -- <<< NOVOS REQUIRES >>>
 local Camera = require("src.config.camera")
-local AnimationLoader = require("src.animations.animation_loader") -- Embora loadAll seja chamado aqui, pode ser necessário em outros lugares
+local AnimationLoader = require("src.animations.animation_loader")
 local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local HUD = require("src.ui.hud")
-local fonts = require("src.ui.fonts") -- Já era usado no loading, mas essencial aqui
+local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local InventoryScreen = require("src.ui.screens.inventory_screen")
 local ItemDetailsModal = require("src.ui.item_details_modal")
@@ -15,14 +15,14 @@ local Bootstrap = require("src.core.bootstrap")
 local TooltipManager = require("src.ui.tooltip_manager")
 local colors = require("src.ui.colors")
 local AssetManager = require("src.managers.asset_manager")
-local ChunkManager = require("src.managers.chunk_manager")
-local portalDefinitions = require("src.data.portals.portal_definitions")   -- Para mapDefinition
+local portalDefinitions = require("src.data.portals.portal_definitions")
 local Constants = require("src.config.constants")
-local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- NECESSÁRIO PARA ACESSAR ASSETS
+local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local MapManager = require("src.managers.map_manager")
+local RenderPipeline = require("src.core.render_pipeline")
 
 local GameplayScene = {}
-GameplayScene.__index = GameplayScene -- <<< ADICIONADO __index >>>
+GameplayScene.__index = GameplayScene
 
 -- Estado de Conjuração (Casting) para itens usáveis
 GameplayScene.isCasting = false ---@type boolean
@@ -34,8 +34,7 @@ GameplayScene.currentCastType = nil ---@type string|nil -- Adicionado para armaz
 
 function GameplayScene:load(args)
     Logger.debug("GameplayScene", "GameplayScene:load - Inicializando sistemas de gameplay...")
-    self.renderList = {}             -- <<< ADICIONADO PARA INICIALIZAR A LISTA DE RENDERIZAÇÃO
-    self.animationSpriteBatches = {} -- ADICIONADO: Para gerenciar SpriteBatches de animação
+    self.renderPipeline = RenderPipeline:new()
     self.portalId = args and args.portalId or "floresta_assombrada"
     self.hordeConfig = args and args.hordeConfig or nil
     self.hunterId = args and args.hunterId or nil
@@ -126,13 +125,14 @@ function GameplayScene:load(args)
         for unitType, unitAssets in pairs(AnimatedSpritesheet.assets) do
             if unitAssets.sheets then
                 for animName, sheetTexture in pairs(unitAssets.sheets) do
-                    if sheetTexture and not self.animationSpriteBatches[sheetTexture] then
+                    if sheetTexture and not self.renderPipeline.spriteBatchReferences[sheetTexture] then
                         -- Usar um tamanho máximo razoável para o batch, pode ser ajustado
                         local maxSpritesInBatch = enemyMgr and enemyMgr.maxEnemies or 200
-                        self.animationSpriteBatches[sheetTexture] = love.graphics.newSpriteBatch(sheetTexture,
-                            maxSpritesInBatch)
+                        local newBatch = love.graphics.newSpriteBatch(sheetTexture, maxSpritesInBatch)
+                        self.renderPipeline:registerSpriteBatch(sheetTexture, newBatch)
                         Logger.debug("GameplayScene",
-                            string.format("GameplayScene: Criado SpriteBatch para textura de %s - %s", unitType,
+                            string.format("GameplayScene: Criado e Registrado SpriteBatch para textura de %s - %s",
+                                unitType,
                                 animName))
                     end
                 end
@@ -161,7 +161,12 @@ function GameplayScene:load(args)
     end
 
     playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
-    local enemyManagerConfig = { hordeConfig = self.hordeConfig, playerManager = playerMgr, dropManager = dropMgr, mapManager = self.mapManager }
+    local enemyManagerConfig = {
+        hordeConfig = self.hordeConfig,
+        playerManager = playerMgr,
+        dropManager = dropMgr,
+        mapManager = self.mapManager
+    }
     enemyMgr:setupGameplay(enemyManagerConfig)
 
     local playerInitialPos = playerMgr.player.position
@@ -205,8 +210,8 @@ function GameplayScene:update(dt)
     -- 1. Atualiza UIs que podem estar visíveis (tooltips, hover de botões, etc.)
     InventoryScreen.update(dt, mx, my, self.inventoryDragState)
     if LevelUpModal.visible then LevelUpModal:update(dt) end
-    if RuneChoiceModal.visible then RuneChoiceModal:update(dt) end
-    if ItemDetailsModal.isVisible then ItemDetailsModal:update(dt, mx, my) end
+    if RuneChoiceModal.visible then RuneChoiceModal:update() end
+    if ItemDetailsModal.isVisible then ItemDetailsModal:update(dt) end
 
     -- 2. Determina se alguma UI de bloqueio total está ativa
     local uiBlockingAllGameplay = LevelUpModal.visible or RuneChoiceModal.visible or ItemDetailsModal.isVisible
@@ -388,93 +393,32 @@ function GameplayScene:draw()
     love.graphics.clear(0.1, 0.1, 0.1, 1)
 
     -- 0. Limpa SpriteBatches de animação
-    for _, batch in pairs(self.animationSpriteBatches) do
-        batch:clear()
-    end
-
-    -- 1. Limpa a lista de renderização (para itens não batched por SpriteBatch)
-    self.renderList = {}
+    self.renderPipeline:reset()
 
     -- 2. Coleta renderizáveis NÃO-MAPA (EX: inimigos, jogador, drops)
-    local playerMgr = ManagerRegistry:get("playerManager")
-    local enemyMgr = ManagerRegistry:get("enemyManager")
-    local dropMgr = ManagerRegistry:get("dropManager")
-    local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
+    local playerMgr = ManagerRegistry:get("playerManager") ---@type PlayerManager
+    local enemyMgr = ManagerRegistry:get("enemyManager") ---@type EnemyManager
+    local dropMgr = ManagerRegistry:get("dropManager") ---@type DropManager
+    local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager") ---@type ExperienceOrbManager
 
     if playerMgr then
-        playerMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+        playerMgr:collectRenderables(self.renderPipeline)
     end
     if enemyMgr then
-        local dt = love.timer.getDelta()
-        enemyMgr:collectRenderables(Camera.x, Camera.y, dt, self.renderList, self.animationSpriteBatches)
+        enemyMgr:collectRenderables(self.renderPipeline)
     end
     if dropMgr then
-        dropMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+        dropMgr:collectRenderables(self.renderPipeline)
     end
     if experienceOrbMgr then
-        experienceOrbMgr:collectRenderables(Camera.x, Camera.y, self.renderList)
+        experienceOrbMgr:collectRenderables(self.renderPipeline)
     end
-
-    table.sort(self.renderList, function(a, b)
-        if a.depth == b.depth then
-            return a.sortY < b.sortY -- Dentro da mesma camada (depth), ordena por sortY
-        end
-        return a.depth < b.depth     -- Primariamente, ordena por camada (depth)
-    end)
 
     Logger.debug("GameplayScene", "Chamando Camera:attach()...")
     Camera:attach()
 
-    if self.mapManager then
-        self.mapManager:draw(Camera.x, Camera.y)
-    end
-
-    Logger.debug("GameplayScene", "Processando renderList (não-mapa) e desenhando elementos diretos...")
-    for _, item in ipairs(self.renderList) do
-        if item.type == "enemy_sprite" then
-            local targetBatch = self.animationSpriteBatches[item.texture]
-            if targetBatch then
-                local qx, qy, qw, qh = item.quad:getViewport()
-                if qw == 0 or qh == 0 then
-                    Logger.debug("GameplayScene", string.format(
-                        "AVISO URGENTE [GameplayScene:draw]: Quad para enemy_sprite %s tem dimensões zero!",
-                        tostring(item.texture)))
-                end
-                targetBatch:add(item.quad, item.x, item.y, item.rotation or 0, item.scale, item.scale, item.ox, item.oy,
-                    0, 0, item.depth)
-            else
-                Logger.debug("GameplayScene", string.format(
-                    "AVISO [GameplayScene:draw]: SpriteBatch não encontrado para textura de enemy_sprite: %s",
-                    tostring(item.texture)))
-            end
-        elseif item.type == "player" then
-            if item.drawFunction then
-                item.drawFunction()
-            elseif item.image then
-                love.graphics.draw(item.image, item.drawX, item.drawY, item.rotation_rad or 0, item.scaleX or 1,
-                    item.scaleY or 1, item.ox or 0, item.oy or 0)
-            end
-        elseif item.type == "rune_ability" then
-            if item.drawFunction then item.drawFunction() end
-        elseif item.type == "experience_orb" then
-            if item.drawFunction then item.drawFunction() end
-        elseif item.type == "drop_entity" then
-            if item.drawFunction then item.drawFunction() end
-        end
-    end
-
-    -- Desenha os SpriteBatches de animação (que agora contêm os inimigos) APÓS os tiles e outros elementos.
-    Logger.debug("GameplayScene", "Desenhando animationSpriteBatches (inimigos)...")
-    for texture, batch in pairs(self.animationSpriteBatches) do
-        if batch:getCount() > 0 then
-            Logger.debug("GameplayScene",
-                string.format("  -> Desenhando batch de INIMIGOS para textura: %s (Contagem: %d)", tostring(texture),
-                    batch:getCount()))
-            love.graphics.draw(batch)
-        else
-            -- print(string.format("  -> Batch de INIMIGOS para textura %s está vazio, pulando.", tostring(texture)))
-        end
-    end
+    -- Desenha tudo que está sob a câmera usando o RenderPipeline
+    self.renderPipeline:draw(self.mapManager, Camera.x, Camera.y)
 
     Logger.debug("GameplayScene", "Chamando Camera:detach()...")
     Camera:detach()
@@ -488,16 +432,12 @@ function GameplayScene:draw()
     -- Exemplo simples (ineficiente, apenas para ilustração):
     if enemyMgr and enemyMgr.getEnemies then
         for _, enemyInstance in ipairs(enemyMgr:getEnemies()) do
-            if enemyInstance.isAlive and enemyInstance.draw then -- Reutilizar enemy.draw para a barra de vida (se adaptado)
-                -- Precisamos garantir que enemy.draw só desenhe a barra de vida agora.
-                -- enemyInstance:draw() -- ESTA ABORDAGEM PRECISA DE REVISÃO CUIDADOSA
+            if enemyInstance.isAlive and enemyInstance.drawHealthBar then -- Supondo que exista um drawHealthBar
+                -- enemyInstance:drawHealthBar()                             -- Esta função desenharia a barra de vida diretamente na tela
             end
         end
     end
 
-    -- Desenha UI (fora da câmera, sobre tudo)
-    ManagerRegistry:draw() -- Presumindo que isso desenha UI como barras de vida sobre entidades, etc.
-    -- Se não, precisará de um ManagerRegistry:drawUI() separado.
     LevelUpModal:draw()
     RuneChoiceModal:draw()
 

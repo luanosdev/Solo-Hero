@@ -3,10 +3,14 @@
     Uma aura que causa dano aos inimigos próximos periodicamente
 ]]
 
+local RenderPipeline = require("src.render_pipeline")
+
 local Aura = {}
 Aura.__index = Aura -- Para permitir que instâncias herdem métodos
 
 -- Propriedades padrão da classe
+Aura.identifier = "rune_aura"
+Aura.defaultDepth = RenderPipeline.DEPTH_DROPS
 Aura.defaultDamagePerTick = 80
 Aura.defaultTickInterval = 1.0
 Aura.defaultRadius = 100

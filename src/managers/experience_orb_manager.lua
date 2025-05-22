@@ -1,6 +1,8 @@
 local ExperienceOrb = require("src.entities.experience_orb")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Constants = require("src.config.constants")
+local TablePool = require("src.utils.table_pool")
+local RenderPipeline = require("src.core.render_pipeline")
 
 --[[
     Experience Orb Manager
@@ -25,7 +27,6 @@ function ExperienceOrbManager:update(dt)
             local playerManager = ManagerRegistry:get("playerManager")
             -- Adiciona a experiência ao jogador através do PlayerManager
             playerManager:addExperience(orb.experience)
-            table.remove(self.orbs, i)
         end
     end
 end
@@ -36,10 +37,8 @@ function ExperienceOrbManager:addOrb(x, y, experience)
 end
 
 --- Coleta os orbes de experiência renderizáveis para a lista de renderização da cena.
----@param cameraX number Posição X da câmera (não usado diretamente aqui, pois o orbe se desenha em coords mundiais)
----@param cameraY number Posição Y da câmera (não usado diretamente aqui)
----@param renderList table A lista onde os objetos renderizáveis serão adicionados.
-function ExperienceOrbManager:collectRenderables(cameraX, cameraY, renderList)
+---@param renderPipeline RenderPipeline RenderPipeline para adicionar os dados de renderização do orbe.
+function ExperienceOrbManager:collectRenderables(renderPipeline)
     if not self.orbs or #self.orbs == 0 then
         return
     end
@@ -65,20 +64,18 @@ function ExperienceOrbManager:collectRenderables(cameraX, cameraY, renderList)
             -- A profundidade 1 é a mesma de jogadores e inimigos.
             local sortYValue = isoY + (orb.radius or 5) -- Ordena pela base do orbe + seu raio
 
-            table.insert(renderList, {
-                type = "experience_orb",
-                sortY = sortYValue,
-                depth = 1, -- Mesma camada de jogadores/inimigos, mas orbes podem flutuar visualmente acima.
-                drawFunction = function()
+            local renderableItem = TablePool.get()
+            renderableItem.type = "experience_orb"
+            renderableItem.sortY = sortYValue
+            renderableItem.depth = 1 -- Mesma camada de jogadores/inimigos, mas orbes podem flutuar visualmente acima.
+            renderableItem.drawFunction = function()
                     -- Verifica se o orbe ainda existe e não foi coletado antes de tentar desenhar
                     -- Isso é uma salvaguarda, pois o estado pode mudar entre collectRenderables e o momento do desenho.
                     if orb and not orb.collected then
                         orb:draw()
                     end
-                end
-                -- Não precisamos de drawX, drawY aqui, pois a função draw do orbe usa suas próprias
-                -- coordenadas do mundo e a câmera já estará aplicada pela GameplayScene.
-            })
+            end
+            renderPipeline:add(renderableItem)
         end
     end
 end

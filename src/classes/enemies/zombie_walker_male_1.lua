@@ -1,5 +1,4 @@
 local BaseEnemy = require("src.classes.enemies.base_enemy")
-print("[ZombieWalkerMale1.lua] typeof(BaseEnemy) após require:", type(BaseEnemy))
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local EnemyData = require("src.data.enemies")
 local data = EnemyData.zombie_walker_male_1

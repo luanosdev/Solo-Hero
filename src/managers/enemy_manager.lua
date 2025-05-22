@@ -1,9 +1,10 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
-local SpatialGridIncremental = require("src.utils.SpatialGridIncremental")
-local TablePool = require("src.utils.TablePool")
+local SpatialGridIncremental = require("src.utils.spatial_grid_incremental")
+local TablePool = require("src.utils.table_pool")
 local Camera = require("src.config.camera")
+local RenderPipeline = require("src.core.render_pipeline")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -63,7 +64,7 @@ function EnemyManager:setupGameplay(config)
     end
 
     -- Armazena referências diretas para managers se passados na config
-    self.playerManager = config.playerManager 
+    self.playerManager = config.playerManager
     self.dropManager = config.dropManager
     self.mapManager = config.mapManager
     self.mapDimensions = { width = 0, height = 0 } -- Será preenchido abaixo
@@ -75,24 +76,26 @@ function EnemyManager:setupGameplay(config)
     self.mapDimensions.height = self.mapManager:getMapPixelHeight()
 
     if self.mapDimensions.width <= 0 or self.mapDimensions.height <= 0 or self.gridCellSize <= 0 then
-        error(string.format("[EnemyManager:setupGameplay] Erro: Dimensões do mapa (w:%s, h:%s) ou tamanho da célula (%s) inválidos para SpatialGrid.",
+        error(string.format(
+            "[EnemyManager:setupGameplay] Erro: Dimensões do mapa (w:%s, h:%s) ou tamanho da célula (%s) inválidos para SpatialGrid.",
             tostring(self.mapDimensions.width), tostring(self.mapDimensions.height), tostring(self.gridCellSize)))
     end
-    
+
     -- Destruir grid anterior se existir (ao re-entrar no gameplay, por exemplo)
     if self.spatialGrid and self.spatialGrid.destroy then
         self.spatialGrid:destroy()
     end
-    self.spatialGrid = SpatialGridIncremental:new(self.mapDimensions.width, self.mapDimensions.height, self.gridCellSize, self.gridCellSize)
+    self.spatialGrid = SpatialGridIncremental:new(self.mapDimensions.width, self.mapDimensions.height, self.gridCellSize,
+        self.gridCellSize)
 
     self.enemies = {}
     self.enemyPool = {}
 
-    self.nextEnemyId = 1                      
-    self.gameTimer = 0                        
-    self.timeInCurrentCycle = 0               
-    self.currentCycleIndex = 1                
-    self.nextBossIndex = 1                    
+    self.nextEnemyId = 1
+    self.gameTimer = 0
+    self.timeInCurrentCycle = 0
+    self.currentCycleIndex = 1
+    self.nextBossIndex = 1
 
     -- Inicializa a barra de vida do boss
     BossHealthBar:init()
@@ -232,8 +235,8 @@ function EnemyManager:update(dt)
     -- 4. Atualiza Inimigos Existentes (sempre executa)
     -- Itera de trás para frente para permitir remoção segura
     local viewPort = Camera:getViewPort() -- Obtém a visão da câmera
-    
-    local margin = 200 -- Margem para culling de update (isOffScreen)
+
+    local margin = 300                    -- Margem para culling de update (isOffScreen)
 
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
@@ -243,10 +246,9 @@ function EnemyManager:update(dt)
             local enemyRadius = enemy.radius or 0 -- Raio do inimigo para cálculo de bounding box
             -- Verifica se o inimigo está fora da área (visão da câmera + despawnMargin)
             if enemy.position.x + enemyRadius < viewPort.x - self.despawnMargin or
-               enemy.position.x - enemyRadius > viewPort.x + viewPort.width + self.despawnMargin or
-               enemy.position.y + enemyRadius < viewPort.y - self.despawnMargin or -- Usar viewY para o topo da câmera
-               enemy.position.y - enemyRadius > viewPort.y + viewPort.height + self.despawnMargin then
-
+                enemy.position.x - enemyRadius > viewPort.x + viewPort.width + self.despawnMargin or
+                enemy.position.y + enemyRadius < viewPort.y - self.despawnMargin or -- Usar viewY para o topo da câmera
+                enemy.position.y - enemyRadius > viewPort.y + viewPort.height + self.despawnMargin then
                 -- print(string.format("Despawning enemy ID %d (Class: %s) due to distance.", enemy.id, enemy.className)) -- Para Debug
                 if self.spatialGrid then
                     self.spatialGrid:removeEntityCompletely(enemy)
@@ -259,9 +261,9 @@ function EnemyManager:update(dt)
 
         -- Determina se o inimigo está dentro da área visível + margem de update
         local inViewForUpdate = (enemy.position.x + (enemy.radius or 0) > viewPort.x - margin and
-                                 enemy.position.x - (enemy.radius or 0) < viewPort.x + viewPort.width + margin and
-                                 enemy.position.y + (enemy.radius or 0) > viewPort.y - margin and
-                                 enemy.position.y - (enemy.radius or 0) < viewPort.y + viewPort.height + margin)
+            enemy.position.x - (enemy.radius or 0) < viewPort.x + viewPort.width + margin and
+            enemy.position.y + (enemy.radius or 0) > viewPort.y - margin and
+            enemy.position.y - (enemy.radius or 0) < viewPort.y + viewPort.height + margin)
 
         -- Atualiza a lógica do inimigo
         if enemy and enemy.isAlive then
@@ -269,7 +271,7 @@ function EnemyManager:update(dt)
             if self.spatialGrid then
                 self.spatialGrid:updateEntityInGrid(enemy)
             end
-            enemy:update(dt, self.playerManager, self, not inViewForUpdate) 
+            enemy:update(dt, self.playerManager, self, not inViewForUpdate)
         end
 
         -- Se o inimigo estiver morto e não estiver em animação de morte
@@ -297,7 +299,7 @@ function EnemyManager:update(dt)
                 self.spatialGrid:removeEntityCompletely(enemy)
             end
             table.remove(self.enemies, i)
-            self:returnEnemyToPool(enemy) 
+            self:returnEnemyToPool(enemy)
         end
         ::continue_enemy_loop::
     end
@@ -406,16 +408,16 @@ function EnemyManager:draw()
 end
 
 --- Coleta renderizáveis dos inimigos para a renderList principal da cena.
----@param cameraX number Posição X da câmera.
----@param cameraY number Posição Y da câmera.
----@param dt number Delta time (pode não ser usado diretamente aqui, mas mantido para consistência se necessário no futuro).
----@param renderList table Lista onde os dados de renderização dos inimigos serão adicionados.
----@param spriteBatches_map_by_texture table Tabela de SpriteBatches (usada para referência de textura, mas não para adicionar diretamente aqui).
-function EnemyManager:collectRenderables(cameraX, cameraY, dt, renderList, spriteBatches_map_by_texture)
+---@param renderPipelineInstance RenderPipeline Instância do RenderPipeline.
+function EnemyManager:collectRenderables(renderPipelineInstance)
     if not self.enemies or #self.enemies == 0 then return end
 
     local Constants = require("src.config.constants")
     local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- Necessário para pegar quads/texturas
+
+    -- Obtém informações da câmera e tela
+    local camX = Camera.x
+    local camY = Camera.y
     local screenW, screenH = love.graphics.getDimensions()
 
     for _, enemy in ipairs(self.enemies) do
@@ -423,10 +425,10 @@ function EnemyManager:collectRenderables(cameraX, cameraY, dt, renderList, sprit
             local shouldDrawSprite = (enemy.isAlive or (enemy.isDying and not enemy.isDeathAnimationComplete))
             if not enemy.shouldRemove and shouldDrawSprite then
                 local cullRadius = enemy.radius or Constants.TILE_WIDTH / 2
-                if enemy.position.x + cullRadius > cameraX and
-                    enemy.position.x - cullRadius < cameraX + screenW and
-                    enemy.position.y + cullRadius > cameraY and
-                    enemy.position.y - cullRadius < cameraY + screenH then
+                if enemy.position.x + cullRadius > camX and
+                    enemy.position.x - cullRadius < camX + screenW and
+                    enemy.position.y + cullRadius > camY and
+                    enemy.position.y - cullRadius < camY + screenH then
                     local instanceAnimConfig = enemy.sprite
                     local unitType = instanceAnimConfig.unitType -- Agora temos isso no sprite config
                     local animState = instanceAnimConfig.animation
@@ -504,19 +506,20 @@ function EnemyManager:collectRenderables(cameraX, cameraY, dt, renderList, sprit
                     -- Usar a base do sprite para ordenação é comum.
                     local sortY = instanceAnimConfig.position.y + oy * instanceAnimConfig.scale
 
-                    table.insert(renderList, {
-                        type = "enemy_sprite",
-                        sortY = sortY,
-                        depth = 3,                   -- Usar uma constante de profundidade
-                        texture = enemySheetTexture, -- A textura (love.graphics.Image)
-                        quad = quad,                 -- O quad específico
-                        x = instanceAnimConfig.position.x,
-                        y = instanceAnimConfig.position.y,
-                        rotation = 0, -- Adicione rotação se necessário
-                        scale = instanceAnimConfig.scale,
-                        ox = ox,
-                        oy = oy
-                    })
+                    local rendable = TablePool.get()
+                    rendable.type = "enemy_sprite"
+                    rendable.sortY = sortY
+                    rendable.depth = RenderPipeline.DEPTH_ENTITIES
+                    rendable.texture = enemySheetTexture
+                    rendable.quad = quad
+                    rendable.x = instanceAnimConfig.position.x
+                    rendable.y = instanceAnimConfig.position.y
+                    rendable.rotation = 0
+                    rendable.scale = instanceAnimConfig.scale
+                    rendable.ox = ox
+                    rendable.oy = oy
+
+                    renderPipelineInstance:add(rendable)
 
                     -- Barras de vida e outros elementos de BaseEnemy podem ser desenhados separadamente
                     -- ou também adicionados à renderList se BaseEnemy.draw for adaptado.
@@ -526,7 +529,7 @@ function EnemyManager:collectRenderables(cameraX, cameraY, dt, renderList, sprit
                     -- Se BaseEnemy:draw existe, ele deve ser chamado pela GameplayScene após os batches
                     -- ou seu conteúdo (barra de vida) adicionado à renderList aqui com seu próprio sortY/depth.
                     if enemy.drawBarraDeVida then -- Exemplo, se existisse tal função
-                        -- enemy:drawBarraDeVida(renderList)
+                        -- enemy:drawBarraDeVida(renderPipelineInstance) -- Passaria o pipeline
                     end
                 end
             end

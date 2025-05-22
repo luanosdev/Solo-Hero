@@ -11,7 +11,8 @@ local LevelUpAnimation = require("src.animations.level_up_animation")
 local Constants = require("src.config.constants")
 local FloatingText = require("src.entities.floating_text")
 local Colors = require("src.ui.colors")
-local TablePool = require("src.utils.TablePool")
+local RenderPipeline = require("src.core.render_pipeline")
+local TablePool = require("src.utils.table_pool")
 
 ---@class FinalStats
 ---@field health number Vida máxima final.
@@ -450,80 +451,62 @@ function PlayerManager:draw()
 end
 
 --- Coleta o jogador e seus componentes visuais principais para renderização.
----@param cameraX number Posição X da câmera.
----@param cameraY number Posição Y da câmera.
----@param renderList table Lista onde os objetos renderizáveis serão adicionados.
-function PlayerManager:collectRenderables(cameraX, cameraY, renderList)
+---@param renderPipeline RenderPipeline RenderPipeline para adicionar os dados de renderização do jogador.
+function PlayerManager:collectRenderables(renderPipeline)
     if not self.player or not self.state or not self.state.isAlive or not self.player.position then
+        Logger.error("PlayerManager:collectRenderables", "Jogador ou estado inválido para coleta de renderizáveis.")
         return
     end
 
+    local viewPort = Camera:getViewPort() -- Obtém a visão da câmera para culling
+
     local Constants = require("src.config.constants")
-    local screenW, screenH = love.graphics.getDimensions()
 
     -- Culling básico no espaço do mundo
     local cullRadius = self.radius or Constants.TILE_WIDTH / 2 -- Usa o raio de colisão do jogador
-    if self.player.position.x + cullRadius > cameraX and
-        self.player.position.x - cullRadius < cameraX + screenW and
-        self.player.position.y + cullRadius > cameraY and -- Usando o centro Y do jogador para culling
-        self.player.position.y - cullRadius < cameraY + screenH then
-        local playerBaseY = self.player.position.y + 25   -- Base Y consistente com o círculo de colisão
+    if self.player.position.x + cullRadius > viewPort.x and
+        self.player.position.x - cullRadius < viewPort.x + viewPort.width and
+        self.player.position.y + cullRadius > viewPort.y and -- Usando o centro Y do jogador para culling
+        self.player.position.y - cullRadius < viewPort.y + viewPort.height then
+        local playerBaseY = self.player.position.y + 25      -- Base Y consistente com o círculo de colisão
 
         local worldX_eq = self.player.position.x / Constants.TILE_WIDTH
         local worldY_eq = playerBaseY / Constants.TILE_HEIGHT
 
         local isoY_ref_top = (worldX_eq + worldY_eq) * (Constants.TILE_HEIGHT / 2)
-        local sortY = isoY_ref_top + Constants.TILE_HEIGHT -- REMOVIDO math.ceil
+        local sortY = isoY_ref_top + Constants.TILE_HEIGHT
 
         -- Adiciona o jogador principal
-        table.insert(renderList, {
-            type = "player",
-            sortY = sortY,
-            depth = 1, -- Jogador agora tem depth 1
-            drawFunction = function()
-                if self.player then SpritePlayer.draw(self.player) end
-                if self.equippedWeapon and self.equippedWeapon.attackInstance then
-                    self.equippedWeapon.attackInstance:draw()
-                end
-            end,
-            -- entity = self.player -- Para debug
-        })
+        local renderableItem = TablePool.get()
+        renderableItem.type = "player"
+        renderableItem.sortY = sortY
+        renderableItem.depth = RenderPipeline.DEPTH_ENTITIES
+        renderableItem.drawFunction = function()
+            if self.player then SpritePlayer.draw(self.player) end
+            if self.equippedWeapon and self.equippedWeapon.attackInstance then
+                self.equippedWeapon.attackInstance:draw()
+            end
+        end
+        renderPipeline:add(renderableItem)
 
         -- <<< ADICIONADO: Adiciona Habilidades de Runa Ativas à RenderList >>>
         for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
             if abilityInstance.draw then -- Verifica se a habilidade tem um método draw
-                -- Para sortY e depth das runas:
-                -- Aura: geralmente no mesmo nível do jogador ou abaixo.
-                -- Orbital: os orbes podem ser considerados no nível do jogador ou ligeiramente acima.
-                -- Thunder: os raios são efeitos no alvo, o sortY pode ser o do alvo ou um depth alto.
-                -- Vamos usar o sortY do jogador por enquanto e um depth para diferenciá-los.
-                -- Poderíamos ter uma propriedade na runa para depth (ex: abilityInstance.renderDepth)
-                local runeDepth = 1                                           -- Default depth, pode ser ajustado por tipo de runa se necessário
-                if abilityInstance.name == "Aura de Dano (Instância)" then
-                    runeDepth = 0                                             -- Desenha aura abaixo do jogador
-                elseif abilityInstance.name == "Orbes Orbitais (Instância)" then
-                    runeDepth = 2                                             -- Desenha orbes acima do jogador
-                elseif string.find(abilityInstance.name or "", "Trovão") then -- Checa se nome contém Trovão
-                    runeDepth = 3                                             -- Desenha raios mais acima
+                -- Adiciona a habilidade à renderList
+                local renderableItem = TablePool.get()
+                renderableItem.type = "rune_ability"
+                renderableItem.sortY = sortY
+                renderableItem.depth = abilityInstance.defaultDepth
+                renderableItem.drawFunction = function()
+                    abilityInstance:draw()
                 end
-
-                table.insert(renderList, {
-                    type = "rune_ability",
-                    sortY = sortY, -- Usa o mesmo sortY do jogador por simplicidade inicial
-                    -- Poderia ser self.player.position.y para efeitos no chão
-                    depth = runeDepth,
-                    drawFunction = function()
-                        abilityInstance:draw()
-                    end,
-                    -- entity = abilityInstance -- Para debug
-                })
+                renderPipeline:add(renderableItem)
             end
         end
-        -- <<< FIM ADIÇÃO >>>
 
         --[[ Adicional: Se quisermos que o círculo de colisão e a animação de level up
-             sejam ordenados com o mundo, eles podem ser adicionados aqui também com
-             depths ligeiramente diferentes ou o mesmo sortY.
+            sejam ordenados com o mundo, eles podem ser adicionados aqui também com
+            depths ligeiramente diferentes ou o mesmo sortY.
         --]]
     end
 end
@@ -597,7 +580,7 @@ end
 function PlayerManager:takeDamage(amount, source)
     if not self.state or not self.state.isAlive then return end
 
-    
+
     -- 1. Calcula os stats finais para obter a defesa e calcular a redução
     local finalStats = self:getCurrentFinalStats()
     local finalDefense = finalStats.defense
@@ -648,7 +631,6 @@ function PlayerManager:addExperience(amount)
             props.lifetime = 1.0
             props.baseOffsetY = -40
             self:addFloatingText("LEVEL UP!", props)
-            TablePool.release(props)
         end
 
         self:tryShowLevelUpModal()
@@ -1041,12 +1023,12 @@ function PlayerManager:receiveDamage(damageAmount)
     -- NOVA LÓGICA PARA FLOATING TEXT
     if damageTaken > 0 then
         local props = TablePool.get() -- <<< MUDANÇA (se esta seção for descomentada)
-        props.textColor = Colors.damage_player 
+        props.textColor = Colors.damage_player
         props.scale = 1.1
         props.velocityY = -45
         props.lifetime = 0.9
-        props.isCritical = false 
-        props.baseOffsetY = -40  
+        props.isCritical = false
+        props.baseOffsetY = -40
         props.baseOffsetX = 0
         self:addFloatingText("-" .. tostring(damageTaken), props)
         TablePool.release(props) -- <<< MUDANÇA (se esta seção for descomentada)

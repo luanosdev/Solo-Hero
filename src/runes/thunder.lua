@@ -3,10 +3,14 @@
     Faz raios caírem em inimigos aleatórios periodicamente
 ]]
 
+local RenderPipeline = require("src.render_pipeline")
+
 local ThunderRune = {}
 ThunderRune.__index = ThunderRune -- Para permitir que instâncias herdem métodos
 
 -- Propriedades que podem ser consideradas "default" ou "static" para a classe
+ThunderRune.identifier = "rune_thunder"
+ThunderRune.defaultDepth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI
 ThunderRune.defaultDamage = 200
 ThunderRune.defaultCooldown = 2.0
 ThunderRune.defaultRangeMultiplier = 0.6 -- Multiplicador da dimensão da tela para o alcance

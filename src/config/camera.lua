@@ -78,4 +78,8 @@ function Camera:getViewPort()
     }
 end
 
+function Camera:getPosition()
+    return self.x, self.y
+end
+
 return Camera

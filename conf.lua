@@ -1,8 +1,8 @@
 -- [[ Modo de Depuração Global ]] --
 DEV = true             -- Define o modo de desenvolvimento para este arquivo de configuração
 PROFILER = false       -- Define o modo de desenvolvimento para este arquivo de configuração
-LOGGERS = false         -- Define o modo de desenvolvimento para este arquivo de configuração
-LOGS_ON_CONSOLE = false -- Define se os logs serão impressos no console
+LOGGERS = true         -- Define o modo de desenvolvimento para este arquivo de configuração
+LOGS_ON_CONSOLE = true -- Define se os logs serão impressos no console
 
 function love.conf(t)
     t.window.title = "Solo Hero"

@@ -3,10 +3,14 @@
     Cria orbes que orbitam ao redor do jogador e causam dano aos inimigos próximos
 ]]
 
+local RenderPipeline = require("src.render_pipeline")
+
 local OrbitalRune = {}
 OrbitalRune.__index = OrbitalRune -- Para permitir que instâncias herdem métodos
 
 -- Propriedades padrão da classe
+OrbitalRune.identifier = "rune_orbital"
+OrbitalRune.defaultDepth = RenderPipeline.DEPTH_ENTITIES
 OrbitalRune.defaultDamage = 100
 OrbitalRune.defaultOrbitRadius = 90
 OrbitalRune.defaultOrbCount = 3

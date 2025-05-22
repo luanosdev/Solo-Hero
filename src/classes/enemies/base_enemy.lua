@@ -6,7 +6,7 @@
 local ManagerRegistry = require("src.managers.manager_registry")
 local FloatingText = require("src.entities.floating_text")
 local Colors = require("src.ui.colors")
-local TablePool = require("src.utils.TablePool")
+local TablePool = require("src.utils.table_pool")
 local Constants = require("src.config.constants")
 
 ---@class BaseEnemy

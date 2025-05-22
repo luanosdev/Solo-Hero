@@ -6,6 +6,8 @@
 local DropEntity = require("src.entities.drop_entity")
 local Colors = require("src.ui.colors")
 local Constants = require("src.config.constants")
+local TablePool = require("src.utils.table_pool")
+local RenderPipeline = require("src.core.render_pipeline")
 
 ---@class DropManager
 ---@field activeDrops table[] Lista de drops ativos no mundo
@@ -268,10 +270,8 @@ function DropManager:applyDrop(dropConfig)
 end
 
 --- Coleta os drops renderizáveis para a lista de renderização da cena.
----@param cameraX number Posição X da câmera (não usado diretamente aqui, pois o drop se desenha em coords mundiais)
----@param cameraY number Posição Y da câmera (não usado diretamente aqui)
----@param renderList table A lista onde os objetos renderizáveis serão adicionados.
-function DropManager:collectRenderables(cameraX, cameraY, renderList)
+---@param renderPipeline RenderPipeline RenderPipeline para adicionar os dados de renderização do jogador.
+function DropManager:collectRenderables(renderPipeline)
     if not self.activeDrops or #self.activeDrops == 0 then
         return
     end
@@ -289,18 +289,16 @@ function DropManager:collectRenderables(cameraX, cameraY, renderList)
             -- Adicionamos TILE_HEIGHT para que a ordenação seja pela "parte de baixo" do tile que o drop ocupa.
             local isoY_base = (dropWorldX + dropWorldY) * (Constants.TILE_HEIGHT / 2) + Constants.TILE_HEIGHT
 
-            table.insert(renderList, {
-                type = "drop_entity",
-                sortY = isoY_base,
-                depth = 1, -- Mesma camada de jogadores/inimigos/orbes
-                drawFunction = function()
-                    if dropEntity and not dropEntity.collected then
-                        dropEntity:draw()
-                    end
+            local renderableItem = TablePool.get()
+            renderableItem.type = "drop_entity"
+            renderableItem.sortY = isoY_base
+            renderableItem.depth = RenderPipeline.DEPTH_ENTITIES
+            renderableItem.drawFunction = function()
+                if dropEntity and not dropEntity.collected then
+                    dropEntity:draw()
                 end
-                -- Não precisamos de drawX, drawY aqui, pois a função draw da DropEntity usa suas próprias
-                -- coordenadas do mundo e a câmera já estará aplicada pela GameplayScene.
-            })
+            end
+            renderPipeline:add(renderableItem)
         end
     end
 end

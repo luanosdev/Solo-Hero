@@ -1,7 +1,7 @@
 local SpatialGridIncremental = {}
 SpatialGridIncremental.__index = SpatialGridIncremental
 
-local TablePool = require("src.utils.TablePool")
+local TablePool = require("src.utils.table_pool")
 
 function SpatialGridIncremental:new(worldWidth, worldHeight, cellWidth, cellHeight)
     local instance = setmetatable({}, SpatialGridIncremental)
