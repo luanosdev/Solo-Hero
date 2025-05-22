@@ -75,7 +75,7 @@ function love.update(dt)
     -- Delega o update para a cena atual (se não for encerrar)
     SceneManager.update(dt)
 
-    if DEV then
+    if LOGS_ON_CONSOLE then
         lovebird.update()
     end
 end
@@ -102,6 +102,10 @@ function love.keypressed(key, scancode, isrepeat)
     if key == "f11" then
         local isFullscreen, fullscreenType = love.window.getFullscreen()
         love.window.setFullscreen(not isFullscreen, "desktop")
+    end
+    if key == "f10" then
+        Logger.disable()
+        profiler.start()
     end
     if key == "f12" then
         profiler.stop()

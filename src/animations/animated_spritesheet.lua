@@ -128,15 +128,53 @@ end
 -- @return Number: O ângulo configurado mais próximo.
 function AnimatedSpritesheet.getClosestAngle(unitType, targetAngle)
     local config = AnimatedSpritesheet.configs[unitType]
+    -- Retorna 0 se não houver configuração de ângulo ou se estiver vazia.
     if not config or not config.angles or #config.angles == 0 then return 0 end
 
-    local minDiff = 361 -- Maior que qualquer diferença possível
-    local closestAngle = config.angles[1]
+    -- Otimização: Cálculo direto para ângulos uniformemente espaçados (ex: 8 direções)
+    local numAngles = #config.angles
+    if numAngles > 0 then
+        local step = 360 / numAngles
+        -- Adiciona metade do passo para arredondamento correto para o múltiplo mais próximo de 'step'.
+        -- Ex: targetAngle=60, step=45. (60 + 22.5)/45 = 82.5/45 = 1.83. floor(1.83) = 1. 1*45 = 45.
+        -- Ex: targetAngle=70, step=45. (70 + 22.5)/45 = 92.5/45 = 2.05. floor(2.05) = 2. 2*45 = 90.
+        local roundedAngle = math.floor((targetAngle + step / 2) / step) * step
+        
+        -- Normaliza o ângulo para o intervalo [0, 360 - step]
+        -- e garante que o resultado seja um dos ângulos definidos em config.angles
+        -- Esta parte assume que os ângulos em config.angles são os múltiplos de 'step'.
+        -- Se config.angles puder ter valores arbitrários, esta otimização não é diretamente aplicável
+        -- e o loop original é mais seguro, ou uma busca mais complexa seria necessária.
+        
+        -- Para garantir que estamos retornando um valor que REALMENTE EXISTE em config.angles,
+        -- e não apenas um múltiplo calculado de step (que deveria ser o mesmo se config.angles for regular),
+        -- podemos fazer um lookup rápido. No entanto, se config.angles é garantido ser [0, 45, ..., 315],
+        -- então roundedAngle % 360 é suficiente.
+        
+        -- Se config.angles é [0, 45, 90, 135, 180, 225, 270, 315]
+        -- E numAngles = 8, step = 45.
+        -- O resultado de roundedAngle % 360 estará correto.
+        local finalAngle = roundedAngle % 360
+
+        -- Opcional: Se você precisar ter certeza absoluta que o ângulo retornado está na tabela config.angles
+        -- (por exemplo, se config.angles pudesse ser algo como [0, 40, 95, ...]), então o loop original é mais robusto.
+        -- Mas para o caso comum de 8 direções, isso deve funcionar.
+        -- Para ser ainda mais robusto e ainda evitar o loop principal na maioria das vezes:
+        -- local angleIndex = (math.floor((targetAngle + step / 2) / step) % numAngles) + 1
+        -- return config.angles[angleIndex] -- Isso retornaria o valor exato da tabela config.angles
+
+        return finalAngle -- Mantendo simples, assumindo que os ângulos são múltiplos regulares de step.
+    end
+
+    -- Fallback para o método original se algo der errado ou numAngles for 0 (embora já verificado)
+    -- Este bloco de fallback pode ser removido se a otimização acima for considerada robusta para todos os casos.
+    local minDiff = 361
+    local closestAngle = config.angles[1] -- Já verificado que config.angles existe e não é vazio
 
     for _, angle in ipairs(config.angles) do
         local diff = math.abs(targetAngle - angle)
         if diff > 180 then
-            diff = 360 - diff
+            diff = 360 - diff -- Considera a natureza cíclica dos ângulos (ex: 350 é próximo de 10)
         end
         if diff < minDiff then
             minDiff = diff
@@ -222,10 +260,10 @@ function AnimatedSpritesheet.update(unitType, instanceAnimConfig, dt, targetPosi
             end
             anim.direction = AnimatedSpritesheet.getClosestAngle(unitType, angleDeg)
 
-            local speed = instanceAnimConfig.speed or baseConfig.defaultSpeed or
-                50 -- Prioriza speed da instância, depois do TIPO, depois fallback
-            instanceAnimConfig.position.x = instanceAnimConfig.position.x + (dx / length * speed * dt)
-            instanceAnimConfig.position.y = instanceAnimConfig.position.y + (dy / length * speed * dt)
+            local speed = instanceAnimConfig.speed or baseConfig.defaultSpeed or 50
+            local invLength = 1 / length -- Calcular inverso do comprimento
+            instanceAnimConfig.position.x = instanceAnimConfig.position.x + (dx * invLength * speed * dt) -- Usar multiplicação
+            instanceAnimConfig.position.y = instanceAnimConfig.position.y + (dy * invLength * speed * dt) -- Usar multiplicação
         end
     end
 

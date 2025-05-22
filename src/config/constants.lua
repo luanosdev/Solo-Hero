@@ -56,6 +56,12 @@ Constants.HUNTER_DEFAULT_STATS = {
     luck = 1.0,                -- Multiplier (1.0 = 100% luck)
 }
 
+Constants.ENEMY_SPRITE_SIZES = {
+    SMALL = 64,
+    MEDIUM = 128,
+    LARGE = 192,
+}
+
 Constants.DEFENSE_DAMAGE_REDUCTION_K = 52
 Constants.MAX_DAMAGE_REDUCTION = 0.8
 

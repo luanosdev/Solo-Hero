@@ -18,6 +18,9 @@ function MapManager:new(mapName, assetManager)
     instance.tileBatches = {}            -- Tabela para armazenar SpriteBatches por textura de tileset
     instance.assetManager = assetManager -- Guardar a referência do AssetManager
 
+    instance.mapPixelWidth = 0 -- <<< ADICIONADO
+    instance.mapPixelHeight = 0 -- <<< ADICIONADO
+
     if not instance.assetManager then
         Logger.error("MapManager", "AssetManager não fornecido ao criar MapManager para o mapa: " .. mapName)
     end
@@ -34,7 +37,6 @@ function MapManager:loadMap()
 
     Logger.debug("MapManager", "LOAD_MAP: Tentando carregar mapa de: " .. self.mapPath)
 
-    -- Tenta carregar o arquivo e obter a função que ele retorna
     local chunk, loadError = love.filesystem.load(self.mapPath)
 
     if not chunk then
@@ -46,7 +48,6 @@ function MapManager:loadMap()
     Logger.debug("MapManager",
         "LOAD_MAP: love.filesystem.load retornou um chunk para: " .. self.mapPath .. ". Tipo do chunk: " .. type(chunk))
 
-    -- Agora executa o chunk carregado para obter a definição do mapa (que deve ser uma tabela)
     local success, mapDefinitionOrError = pcall(chunk)
 
     if not success then
@@ -64,18 +65,45 @@ function MapManager:loadMap()
         return false
     end
 
-    self.mapData = mapDefinitionOrError -- Atribui o resultado da execução do chunk
+    self.mapData = mapDefinitionOrError
+
+    -- Calcula e armazena as dimensões do mapa em pixels
+    if self.mapData and self.mapData.width and self.mapData.tilewidth then
+        self.mapPixelWidth = self.mapData.width * self.mapData.tilewidth
+    else
+        Logger.error("MapManager", "Dimensões de largura do mapa (mapData.width ou mapData.tilewidth) ausentes ou inválidas.")
+        self.mapPixelWidth = 0 
+    end
+
+    if self.mapData and self.mapData.height and self.mapData.tileheight then
+        -- Para o SpatialGrid, usamos a altura total em tiles * altura do tile.
+        -- Isso define a extensão Y do grid.
+        self.mapPixelHeight = self.mapData.height * self.mapData.tileheight 
+    else
+        Logger.error("MapManager", "Dimensões de altura do mapa (mapData.height ou mapData.tileheight) ausentes ou inválidas.")
+        self.mapPixelHeight = 0
+    end
+
     Logger.debug("MapManager",
         string.format(
-            "LOAD_MAP: Mapa '%s' processado. tilewidth: %s, tileheight: %s, map width: %s, map height: %s. Chamando _prepareTileBatches...",
+            "LOAD_MAP: Mapa '%s' processado. tilewidth: %s, tileheight: %s, map width (tiles): %s, map height (tiles): %s. Pixels: %.0fx%.0f",
             self.mapName, tostring(self.mapData.tilewidth), tostring(self.mapData.tileheight),
-            tostring(self.mapData.width), tostring(self.mapData.height)))
+            tostring(self.mapData.width), tostring(self.mapData.height), self.mapPixelWidth, self.mapPixelHeight))
 
     self:_prepareTileBatches()
 
     Logger.debug("MapManager",
         "LOAD_MAP: Chamada para _prepareTileBatches concluída para '" .. self.mapName .. "'. Mapa pronto.")
     return true
+end
+
+-- Funções getter para as dimensões do mapa em pixels
+function MapManager:getMapPixelWidth()
+    return self.mapPixelWidth or 0
+end
+
+function MapManager:getMapPixelHeight()
+    return self.mapPixelHeight or 0
 end
 
 --- Prepara os SpriteBatches com base nos dados do mapa carregado.

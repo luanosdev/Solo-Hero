@@ -6,6 +6,8 @@
 local ManagerRegistry = require("src.managers.manager_registry")
 local FloatingText = require("src.entities.floating_text")
 local Colors = require("src.ui.colors")
+local TablePool = require("src.utils.TablePool")
+local Constants = require("src.config.constants")
 
 ---@class BaseEnemy
 ---@field position {x: number, y: number} Posição do inimigo
@@ -43,7 +45,22 @@ local BaseEnemy = {
     isDeathAnimationComplete = false,
     deathTimer = 0,
     deathDuration = 2.0,
-    className = "BaseEnemy" -- Adicionado para identificação no pool
+    className = "BaseEnemy", -- Adicionado para identificação no pool
+
+    -- Controle de frequência de atualização
+    updateInterval = 0.1,        -- Intervalo para atualização principal (10 Hz)
+    updateTimer = 0,             -- Timer para atualização principal
+    floatingTextUpdateInterval = 1/15, -- Intervalo para atualização de textos flutuantes (~15 Hz)
+    floatingTextUpdateTimer = 0,  -- Timer para atualização de textos flutuantes
+    slowUpdateTimer = 0,         -- Timer para update lento
+
+    -- Para SpatialGridIncremental
+    lastGridCol = nil,
+    lastGridRow = nil,
+    currentGridCells = nil,
+
+    -- Callbacks
+    collisionType = "enemy",
 }
 
 function BaseEnemy:new(position, id)
@@ -56,7 +73,7 @@ function BaseEnemy:new(position, id)
         x = position.x or 0,
         y = position.y or 0
     }
-    enemy.radius = self.radius
+    enemy.radius = (Constants.ENEMY_SPRITE_SIZES.MEDIUM / 2) * 0.9
     enemy.speed = self.speed
     enemy.maxHealth = self.maxHealth
     enemy.currentHealth = self.maxHealth
@@ -76,121 +93,160 @@ function BaseEnemy:new(position, id)
     enemy.deathTimer = self.deathTimer
     enemy.deathDuration = self.deathDuration
 
+    -- Inicializa timers de controle de update
+    enemy.updateInterval = self.updateInterval
+    enemy.updateTimer = math.random() * enemy.updateInterval -- Espalha o primeiro update
+    enemy.floatingTextUpdateInterval = self.floatingTextUpdateInterval
+    enemy.floatingTextUpdateTimer = math.random() * enemy.floatingTextUpdateInterval -- Espalha o primeiro update
+    enemy.slowUpdateTimer = 0
+
+    -- Para SpatialGridIncremental
+    enemy.lastGridCol = nil
+    enemy.lastGridRow = nil
+    enemy.currentGridCells = nil -- Começa como nil, o grid vai popular com uma tabela do pool
+
     -- Define o className para a instância. Se uma subclasse definir className em sua própria tabela,
     -- o metatable fará com que self.className na instância já seja o correto.
     -- Mas para garantir, especialmente se a instância for criada diretamente, podemos atribuir aqui.
     enemy.className = self.className
 
-    print(string.format("BaseEnemy criado com ID: %d, Classe: %s", enemy.id, enemy.className)) -- Log para debug
+    enemy.collisionType = self.collisionType or "enemy"
+
+    Logger.debug("BaseEnemy", "BaseEnemy criado com ID: " .. enemy.id .. ", Classe: " .. enemy.className)
 
     return enemy
 end
 
-function BaseEnemy:update(dt, playerManager, enemies)
+function BaseEnemy:update(dt, playerManager, enemyManager, isSlowUpdate)
     if not self.isAlive then return end
 
-    local playerCollision = playerManager:getCollisionPosition()
-    if not playerCollision or not playerCollision.position then -- Verifica se a posição existe
-        print("BaseEnemy:update - AVISO: Posição de colisão do jogador não encontrada!")
-        return                                                  -- Não pode atualizar sem a posição
+    -- Controle de update lento para inimigos fora da tela
+    if isSlowUpdate then
+        self.slowUpdateTimer = (self.slowUpdateTimer or 0) + dt
+        if self.slowUpdateTimer < 1.0 then
+            -- Só atualiza floating texts normalmente
+            self.floatingTextUpdateTimer = self.floatingTextUpdateTimer + dt
+            if self.floatingTextUpdateTimer >= self.floatingTextUpdateInterval then
+                local effectiveFloatingTextDt = self.floatingTextUpdateTimer
+                self:updateFloatingTexts(effectiveFloatingTextDt)
+                self.floatingTextUpdateTimer = 0
+            end
+            return
+        end
+        dt = self.slowUpdateTimer -- Usa o tempo acumulado para o movimento
+        self.slowUpdateTimer = 0
     end
-    local dx = playerCollision.position.x - self.position.x
-    local dy = (playerCollision.position.y - self.position.y) * 2 -- Ajusta para o modo isométrico
 
-    -- Normaliza o vetor de direção
-    local length = math.sqrt(dx * dx + dy * dy)
-    if length > 0 then
-        dx = dx / length
-        dy = dy / length
-    end
+    -- Incrementa timers
+    self.updateTimer = self.updateTimer + dt
+    self.floatingTextUpdateTimer = self.floatingTextUpdateTimer + dt
 
-    -- Calcula a posição alvo inicial baseada na direção do jogador
-    local targetX = self.position.x + dx * self.speed * dt
-    local targetY = self.position.y + dy * self.speed * dt
+    -- Controle de frequência para a lógica principal do inimigo
+    if self.updateTimer >= self.updateInterval then
+        self.updateTimer = self.updateTimer - self.updateInterval
 
-    -- Calcula a força de separação total devido a outros inimigos
-    local totalSeparationX = 0
-    local totalSeparationY = 0
-    local separationStrength = 10.0 -- Fator de força da separação (AUMENTADO SIGNIFICATIVAMENTE)
+        local playerCollisionPosData = playerManager:getCollisionPosition()
+        if not playerCollisionPosData or not playerCollisionPosData.position then
+            Logger.warning("BaseEnemy", "BaseEnemy:update - AVISO: Posição de colisão do jogador não encontrada!")
+            return
+        end
+        local dx = playerCollisionPosData.position.x - self.position.x
+        local dy = (playerCollisionPosData.position.y - self.position.y) * 2
 
-    -- Verifica colisão com outros inimigos e calcula separação
-    for _, other in ipairs(enemies) do
-        if other ~= self and other.isAlive then
-            -- Usa a posição atual para verificar a colisão, não a posição alvo
-            local distSq = (other.position.x - self.position.x) ^ 2 +
-                ((other.position.y - self.position.y) * 2) ^
-                2 -- Ajuste isométrico na distância Y
-            local minDist = self.radius + other.radius
+        local lengthSq = dx * dx + dy * dy
+        if lengthSq > 0 then
+            local length = math.sqrt(lengthSq)
+            dx = dx / length
+            dy = dy / length
+        end
 
-            if distSq < minDist * minDist and distSq > 0 then -- Evita divisão por zero se distSq for 0
-                local distance = math.sqrt(distSq)
-                local overlap = minDist - distance
+        local effectiveDt = isSlowUpdate and dt or self.updateInterval
+        local targetX = self.position.x + dx * self.speed * effectiveDt
+        local targetY = self.position.y + dy * self.speed * effectiveDt
 
-                -- Calcula vetor de separação normalizado (de other para self)
-                local sepX = self.position.x - other.position.x
-                local sepY = (self.position.y - other.position.y) * 2 -- Ajuste isométrico
+        local totalSeparationX = 0
+        local totalSeparationY = 0
+        local separationStrength = 20.0
 
-                -- Normaliza
-                sepX = sepX / distance
-                sepY = sepY / distance
+        if enemyManager and enemyManager.spatialGrid then
+            local searchDepth = 1
+            local nearbyEntities = enemyManager.spatialGrid:getNearbyEntities(self.position.x, self.position.y, searchDepth)
 
-                -- Adiciona força de separação proporcional ao overlap
-                -- A força é maior quanto maior o overlap
-                totalSeparationX = totalSeparationX + sepX * overlap * separationStrength
-                totalSeparationY = totalSeparationY + sepY * overlap * separationStrength
-            elseif distSq == 0 then -- Exatamente na mesma posição
-                -- Empurra em uma direção aleatória para separá-los
-                local angle = math.random() * 2 * math.pi
-                totalSeparationX = totalSeparationX + math.cos(angle) * self.radius * separationStrength
-                totalSeparationY = totalSeparationY +
-                    math.sin(angle) * self.radius * separationStrength *
-                    0.5 -- Menos força no Y devido à isometria
+            for _, other in ipairs(nearbyEntities) do
+                if other ~= self then
+                    if other and other.isAlive then
+                        local dx = self.position.x - other.position.x
+                        local dy = (self.position.y - other.position.y) * 2
+                        local distSq = dx * dx + dy * dy
+
+                        if distSq > 0 then
+                            local dist = math.sqrt(distSq)
+                            local desiredDist = (self.radius + other.radius) * 1.5
+                            local force = math.max(0, (desiredDist - dist) / desiredDist)
+
+                            local sepX = (dx / dist) * force
+                            local sepY = (dy / dist) * force
+
+                            totalSeparationX = totalSeparationX + sepX * separationStrength
+                            totalSeparationY = totalSeparationY + sepY * separationStrength
+                        end
+                    end
+                end
             end
         end
+
+        targetX = targetX + totalSeparationX * effectiveDt
+        targetY = targetY + totalSeparationY * effectiveDt
+
+        self.position.x = targetX
+        self.position.y = targetY
+
+        self:checkPlayerCollision(effectiveDt, playerManager)
     end
 
-    -- Adiciona a força de separação ao movimento alvo
-    -- A separação pode temporariamente mover o inimigo "para trás" se for forte o suficiente
-    targetX = targetX + totalSeparationX * dt -- Escala por dt para movimento mais suave
-    targetY = targetY + totalSeparationY * dt
-
-    -- Atualiza a posição do inimigo
-    self.position.x = targetX
-    self.position.y = targetY
-
-    -- Verifica colisão com o jogador usando a posição de colisão
-    self:checkPlayerCollision(dt, playerManager)
-
-    self:updateFloatingTexts(dt)
+    -- if self.floatingTextUpdateTimer >= self.floatingTextUpdateInterval then
+    --    local effectiveFloatingTextDt = self.floatingTextUpdateTimer
+    --    self:updateFloatingTexts(effectiveFloatingTextDt)
+    --    self.floatingTextUpdateTimer = 0
+    --end
 end
 
----@param dt number Delta time.
+---@param dt number Delta time (agora pode ser o effectiveDt do intervalo de update)
 ---@param playerManager PlayerManager
 function BaseEnemy:checkPlayerCollision(dt, playerManager)
-    -- Obtém a posição de colisão do jogador
-    local playerCollision = playerManager:getCollisionPosition()
+    if not playerManager or not playerManager.player or not playerManager.player.position or not playerManager.state or not playerManager.state.isAlive then
+        -- print("AVISO [BaseEnemy:checkPlayerCollision]: PlayerManager ou jogador inválido/morto.")
+        return
+    end
 
-    -- Atualiza o tempo do último dano
     self.lastDamageTime = self.lastDamageTime + dt
 
-    -- Calcula a distância entre a colisão do jogador e o inimigo
-    -- Obtém a posição de colisão do inimigo
-    local enemyCollision = self:getCollisionPosition()
-    local dx = playerCollision.position.x - enemyCollision.position.x
-    local dy = (playerCollision.position.y - enemyCollision.position.y) * 2 -- Ajusta para o modo isométrico
+    -- Posição de colisão do inimigo (lógica que estava em self:getCollisionPosition())
+    local enemyCollisionX = self.position.x
+    local enemyCollisionY = self.position.y + 10 -- Ajuste isométrico para os "pés" do inimigo
+    local enemyRadius = self.radius
 
-    local distance = math.sqrt(dx * dx + dy * dy)
+    -- Dados de colisão do jogador (acessados diretamente e y ajustado)
+    local playerPosX = playerManager.player.position.x
+    local playerPosY = playerManager.player.position.y + 25 -- Ajuste isométrico para os "pés" do jogador
+    local playerRadius = playerManager.radius
 
-    -- Se houver colisão (distância menor que a soma dos raios)
-    if distance <= (self.radius + playerCollision.radius) then
-        -- Verifica se pode causar dano (cooldown)
+    -- Calcula a distância entre os pontos de colisão ajustados
+    local dx = playerPosX - enemyCollisionX
+    -- Para a colisão isométrica entre "pés", a diferença direta em Y (após ajustes) é usada.
+    -- O fator *2 da perspectiva não é aplicado aqui se os ajustes já colocam os pontos no mesmo plano de colisão.
+    local dy = playerPosY - enemyCollisionY 
+
+    local distSq = dx * dx + dy * dy
+    local combinedRadius = enemyRadius + playerRadius
+    local combinedRadiusSq = combinedRadius * combinedRadius
+
+    if distSq <= combinedRadiusSq then
         if self.lastDamageTime >= self.damageCooldown then
-            -- Causa dano ao jogador usando o PlayerManager
-            if playerManager:receiveDamage(self.damage) then
-                -- Se o jogador morreu, remove o inimigo
-                self.isAlive = false
+            if playerManager:receiveDamage(self.damage) then -- receiveDamage deve retornar true se o jogador morreu
+                -- Opcional: Lógica se o jogador morrer por este ataque (ex: inimigo para)
+                -- self.isAlive = false -- Isso faria o inimigo morrer, o que não parece ser a intenção aqui.
             end
-            -- Reseta o cooldown
             self.lastDamageTime = 0
         end
     end
@@ -204,8 +260,8 @@ function BaseEnemy:draw(spriteBatches)            -- Modificado para aceitar spr
     end
 
     -- Desenha textos flutuantes, passando o batch de texto se disponível
-    local textBatch = spriteBatches and spriteBatches.textBatch -- Supondo uma chave "textBatch"
-    self:drawFloatingTexts(textBatch)
+    -- local textBatch = spriteBatches and spriteBatches.textBatch -- Supondo uma chave "textBatch"
+    --self:drawFloatingTexts(textBatch)
 end
 
 --- Aplica dano ao inimigo.
@@ -218,27 +274,27 @@ function BaseEnemy:takeDamage(damage, isCritical)
     self.currentHealth = self.currentHealth - damage
     -- print(string.format("Inimigo ID: %d (%s), Dano: %d, Vida: %d/%d", self.id, self.name, damage, self.currentHealth, self.maxHealth))
 
-    if damage > 0 then
-        local props = {
-            textColor = isCritical and Colors.damage_crit or Colors.damage_enemy,
-            scale = isCritical and 1.3 or 1,
-            velocityY = isCritical and -55 or -45,
-            lifetime = isCritical and 1.1 or 0.8,
-            isCritical = isCritical or false,
-            baseOffsetY = -(self.radius + 20), -- Ajustado para ser relativo ao raio
-            baseOffsetX = 0
-        }
+    -- if damage > 0 then
+    --    local props = {
+    --        textColor = isCritical and Colors.damage_crit or Colors.damage_enemy,
+    --        scale = isCritical and 1.3 or 1,
+    --        velocityY = isCritical and -55 or -45,
+    --        lifetime = isCritical and 1.1 or 0.8,
+    --        isCritical = isCritical or false,
+    --        baseOffsetY = -(self.radius + 20), -- Ajustado para ser relativo ao raio
+    --        baseOffsetX = 0
+    --    }
 
-        local stackOffsetY = #self.activeFloatingTexts * -15
-        local textInstance = FloatingText:new(
-            self.position,
-            tostring(damage),
-            props,
-            0,
-            stackOffsetY
-        )
-        table.insert(self.activeFloatingTexts, textInstance)
-    end
+    --    local stackOffsetY = #self.activeFloatingTexts * -15
+    --    local textInstance = FloatingText:new(
+    --        self.position,
+    --        tostring(damage),
+    --        props,
+    --        0,
+    --        stackOffsetY
+    --    )
+    --    table.insert(self.activeFloatingTexts, textInstance)
+    --end
 
     if self.currentHealth <= 0 then
         self.currentHealth = 0
@@ -268,7 +324,7 @@ function BaseEnemy:getCollisionPosition()
 end
 
 --- Atualiza todos os textos flutuantes ativos para este inimigo.
----@param dt number Delta time.
+---@param dt number Delta time (agora é o tempo acumulado desde o último update de floating texts).
 function BaseEnemy:updateFloatingTexts(dt)
     if not self.activeFloatingTexts then return end
     for i = #self.activeFloatingTexts, 1, -1 do
@@ -304,13 +360,13 @@ function BaseEnemy:resetStateForPooling()
     self.lastDamageTime = 0
 
     -- Limpa quaisquer textos flutuantes ativos
-    if self.activeFloatingTexts then
-        for i = #self.activeFloatingTexts, 1, -1 do
-            table.remove(self.activeFloatingTexts, i)
-        end
-    else
-        self.activeFloatingTexts = {}
-    end
+    -- if self.activeFloatingTexts then
+    --    for i = #self.activeFloatingTexts, 1, -1 do
+    --        table.remove(self.activeFloatingTexts, i)
+    --    end
+    --else
+    --    self.activeFloatingTexts = {}
+    --end
 
     -- Resetar outros estados específicos se necessário (ex: buffs, debuffs, target)
     self.target = nil -- Exemplo, se BaseEnemy tivesse um campo target
@@ -352,6 +408,14 @@ function BaseEnemy:reset(position, id)
     self.experienceValue = prototype.experienceValue
     self.healthBarWidth = prototype.healthBarWidth
     self.deathDuration = prototype.deathDuration
+    
+    -- Reseta timers de controle de update para o estado inicial do protótipo
+    -- E também espalha o primeiro update para evitar picos
+    self.updateInterval = prototype.updateInterval
+    self.updateTimer = math.random() * self.updateInterval 
+    self.floatingTextUpdateInterval = prototype.floatingTextUpdateInterval
+    self.floatingTextUpdateTimer = math.random() * self.floatingTextUpdateInterval
+    self.slowUpdateTimer = 0
 
     -- Estado inicial
     self.isAlive = true
@@ -380,6 +444,8 @@ function BaseEnemy:reset(position, id)
     --end
 
     -- print(string.format("Inimigo ID %s (Classe: %s) resetado e reutilizado.", tostring(self.id), self.className))
+
+    self.currentGridCells = nil -- Reseta ao reutilizar do pool
 end
 
 return BaseEnemy

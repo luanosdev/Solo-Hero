@@ -150,9 +150,10 @@ function ThunderRune:cast(enemies)
         if enemy.isAlive then
             local dx = enemy.position.x - playerX
             local dy = enemy.position.y - playerY
-            local distance = math.sqrt(dx * dx + dy * dy)
+            local distSq = dx * dx + dy * dy -- Calcula o quadrado da distância
+            local rangeSq = self.range * self.range -- Calcula o quadrado do alcance
 
-            if distance <= self.range then
+            if distSq <= rangeSq then -- Compara os quadrados
                 table.insert(validEnemies, enemy)
             end
         end
@@ -163,15 +164,16 @@ function ThunderRune:cast(enemies)
 
         self:applyDamage(target)
 
-        local collisionPosition = target:getCollisionPosition()
-        if not collisionPosition or not collisionPosition.position then
-            print("AVISO [ThunderRune:cast]: target:getCollisionPosition() não retornou uma posição válida.")
+        if not target or not target.position then
+            print("AVISO [ThunderRune:cast]: Alvo ou posição do alvo inválidos para o raio.")
             return
         end
+        local targetPosX = target.position.x
+        local targetPosY = target.position.y + 10 -- Ajuste isométrico similar ao getCollisionPosition de BaseEnemy
 
         table.insert(self.activeBolts, {
-            x = collisionPosition.position.x,
-            y = collisionPosition.position.y + 20,
+            x = targetPosX,
+            y = targetPosY + 20, -- Mantém o ajuste adicional de +20 específico do raio
             timer = 0,
             duration = self.animation.frameCount * self.animation.frameTime, -- Duração baseada na animação completa
             animation = {                                                    -- Estado da animação para ESTE bolt

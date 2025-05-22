@@ -143,6 +143,10 @@ function Logger.draw()
     love.graphics.setColor(1, 1, 1)
 end
 
+function Logger.disable()
+    Logger.enabled = false
+end
+
 --- Alterna a visibilidade dos logs ao pressionar uma tecla
 --- @param key string
 function Logger.keypressed(key)

@@ -11,6 +11,7 @@ local LevelUpAnimation = require("src.animations.level_up_animation")
 local Constants = require("src.config.constants")
 local FloatingText = require("src.entities.floating_text")
 local Colors = require("src.ui.colors")
+local TablePool = require("src.utils.TablePool")
 
 ---@class FinalStats
 ---@field health number Vida máxima final.
@@ -299,8 +300,6 @@ function PlayerManager:update(dt)
         return
     end
 
-    self:updateFloatingTexts(dt) -- ATUALIZA TEXTOS FLUTUANTES
-
     self.gameTime = self.gameTime + dt
 
     -- Tenta mostrar o modal de level up se houver pendências e o modal não estiver visível
@@ -393,7 +392,7 @@ function PlayerManager:update(dt)
     end
 
     -- ATUALIZA TEXTOS FLUTUANTES
-    self:updateFloatingTexts(dt)
+    -- self:updateFloatingTexts(dt)
 end
 
 -- Desenha o player e elementos relacionados
@@ -409,6 +408,7 @@ function PlayerManager:draw()
 
     -- Desenha o círculo de colisão primeiro (embaixo de tudo)
     -- O offset de +25 no Y é em coordenadas do mundo, então o convertemos separadamente
+    --[[
     local collisionCircleWorldY = self.player.position.y + 25
     local _, collisionCircleScreenY = Camera:worldToScreen(self.player.position.x, collisionCircleWorldY)
 
@@ -446,6 +446,7 @@ function PlayerManager:draw()
         local animScreenX, animScreenY = Camera:worldToScreen(self.player.position.x, self.player.position.y)
         self.levelUpAnimation:draw(animScreenX, animScreenY)
     end
+    --]]
 end
 
 --- Coleta o jogador e seus componentes visuais principais para renderização.
@@ -535,43 +536,32 @@ end
 function PlayerManager:updateHealthRecovery(dt)
     if not self.state then return end
 
-    -- Obtém os stats finais UMA VEZ para usar nos cálculos de recuperação
     local finalStats = self:getCurrentFinalStats()
     local finalMaxHealth = finalStats.health
-    local finalHealthRegenPerSecond = finalStats.healthPerTick -- Assumindo que healthPerTick é o regen/s final
-    local finalHealingBonusMultiplier = finalStats
-        .healingBonus                                          -- Assumindo que healingBonus é o multiplicador final (já calculado em getCurrentFinalStats)
-    -- A lógica de delay já está sendo tratada pelo gameTime vs lastDamageTime
+    local finalHealthRegenPerSecond = finalStats.healthPerTick
+    local finalHealingBonusMultiplier = finalStats.healingBonus
 
-    if self.gameTime >= self.lastDamageTime + finalStats.healthRegenDelay then -- Usa delay dos stats
+    if self.gameTime >= self.lastDamageTime + finalStats.healthRegenDelay then
         self.lastRegenTime = self.lastRegenTime + dt
         if self.lastRegenTime >= self.regenInterval then
             self.lastRegenTime = self.lastRegenTime - self.regenInterval
-
-            -- A regeneração agora usa o valor final calculado
             self.accumulatedRegen = self.accumulatedRegen + finalHealthRegenPerSecond
             local healAmount = math.floor(self.accumulatedRegen)
 
-            -- Verifica se precisa curar (usa finalMaxHealth)
             if healAmount >= 1 and self.state.currentHealth < finalMaxHealth then
-                -- Chama heal passando os valores finais necessários
                 local healedAmount = self.state:heal(healAmount, finalMaxHealth, finalHealingBonusMultiplier)
-                self.accumulatedRegen = self.accumulatedRegen -
-                    healedAmount                                                  -- Reduz apenas o que foi curado
+                self.accumulatedRegen = self.accumulatedRegen - healedAmount
 
-                if healedAmount > 0 and self.player and self.player.position then -- Garante que player e sua posição existam
-                    -- NOVA LÓGICA PARA FLOATING TEXT DE CURA
-                    local props = {
-                        textColor = Colors.heal,
-                        scale = 1.1,
-                        velocityY = -30,
-                        lifetime = 1.0,
-                        baseOffsetY = -40, -- Offset Y base (acima da cabeça do jogador)
-                        baseOffsetX = 0
-                        -- isCritical não é relevante para cura
-                    }
-
+                if healedAmount > 0 and self.player and self.player.position then
+                    local props = TablePool.get()
+                    props.textColor = Colors.heal
+                    props.scale = 1.1
+                    props.velocityY = -30
+                    props.lifetime = 1.0
+                    props.baseOffsetY = -40
+                    props.baseOffsetX = 0
                     self:addFloatingText("+" .. healedAmount .. " HP", props)
+                    TablePool.release(props)
                 end
             end
         end
@@ -583,14 +573,12 @@ end
 
 -- Modificado para aceitar o ângulo como argumento
 function PlayerManager:updateAutoAttack(currentAngle)
-    if not self.state then return end -- <<< ADICIONADO: Verifica se state existe
+    if not self.state then return end
     if self.autoAttack and self.equippedWeapon and self.equippedWeapon.attackInstance then
-        -- Monta a tabela de argumentos para cast usando o ângulo recebido
-        local args = {
-            angle = currentAngle
-        }
-        -- Chama cast com a tabela de argumentos
+        local args = TablePool.get()
+        args.angle = currentAngle
         self.equippedWeapon.attackInstance:cast(args)
+        TablePool.release(args)
     elseif self.autoAttack then
         if (self.equippedWeapon and not self.equippedWeapon.attackInstance) then
             error(string.format(
@@ -609,6 +597,7 @@ end
 function PlayerManager:takeDamage(amount, source)
     if not self.state or not self.state.isAlive then return end
 
+    
     -- 1. Calcula os stats finais para obter a defesa e calcular a redução
     local finalStats = self:getCurrentFinalStats()
     local finalDefense = finalStats.defense
@@ -641,29 +630,28 @@ end
 function PlayerManager:addExperience(amount)
     if not self.state then return end
 
-    -- Calcula o ganho de EXP efetivo
     local totalStats = self:getCurrentFinalStats()
-    local levelsGained = self.state:addExperience(amount, totalStats.expBonus) -- << MODIFICADO: Captura levelsGained
+    local levelsGained = self.state:addExperience(amount, totalStats.expBonus)
 
-    if levelsGained > 0 then                                                   -- << MODIFICADO: Verifica se levelsGained > 0
+    if levelsGained > 0 then
         print(string.format("[PlayerManager] Gained %d level(s)! Now level %d. Next level at %d XP.",
             levelsGained, self.state.level, self.state.experienceToNextLevel))
 
-        self.pendingLevelUps = self.pendingLevelUps + levelsGained -- << NOVO: Adiciona à fila
-        self:invalidateStatsCache()                                -- Invalida o cache pois o nível mudou (e bônus podem ter mudado)
+        self.pendingLevelUps = self.pendingLevelUps + levelsGained
+        self:invalidateStatsCache()
 
         for i = 1, levelsGained do
-            local props = {
-                color = { 1, 1, 1 },
-                scale = 1.5,
-                velocityY = -30,
-                lifetime = 1.0,
-                baseOffsetY = -40, -- Offset Y base (acima da cabeça do jogador)
-            }
+            local props = TablePool.get()
+            props.color = { 1, 1, 1 }
+            props.scale = 1.5
+            props.velocityY = -30
+            props.lifetime = 1.0
+            props.baseOffsetY = -40
             self:addFloatingText("LEVEL UP!", props)
+            TablePool.release(props)
         end
 
-        self:tryShowLevelUpModal() -- Tenta abrir o modal imediatamente
+        self:tryShowLevelUpModal()
     end
 end
 
@@ -1033,6 +1021,7 @@ end
 function PlayerManager:receiveDamage(damageAmount)
     if not self.state or not self.state.isAlive then return end
 
+    --[[
     local currentTime = self.gameTime
     if currentTime - self.lastDamageTime < Constants.PLAYER_DAMAGE_COOLDOWN then
         return -- Em cooldown de dano
@@ -1051,19 +1040,18 @@ function PlayerManager:receiveDamage(damageAmount)
 
     -- NOVA LÓGICA PARA FLOATING TEXT
     if damageTaken > 0 then
-        local props = {
-            textColor = Colors.damage_player, -- Cor para dano no jogador
-            scale = 1.1,
-            velocityY = -45,
-            lifetime = 0.9,
-            isCritical = false, -- Dano no jogador normalmente não é "crítico" da mesma forma que o dano do jogador
-            baseOffsetY = -40,  -- Ajustar para ficar bem posicionado em relação ao sprite do jogador
-            baseOffsetX = 0
-        }
-
+        local props = TablePool.get() -- <<< MUDANÇA (se esta seção for descomentada)
+        props.textColor = Colors.damage_player 
+        props.scale = 1.1
+        props.velocityY = -45
+        props.lifetime = 0.9
+        props.isCritical = false 
+        props.baseOffsetY = -40  
+        props.baseOffsetX = 0
         self:addFloatingText("-" .. tostring(damageTaken), props)
+        TablePool.release(props) -- <<< MUDANÇA (se esta seção for descomentada)
     end
-
+    --]]
 
     if not self.state.isAlive then
         self:onDeath()

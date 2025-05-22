@@ -1,7 +1,7 @@
 -- src/ui/guild_screen.lua
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
-local Button = require("src.ui.components.Button")
+local Button = require("src.ui.components.button")
 local YStack = require("src.ui.components.YStack")
 local Text = require("src.ui.components.Text")
 local Card = require("src.ui.components.Card")

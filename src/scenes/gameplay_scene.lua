@@ -140,38 +140,6 @@ function GameplayScene:load(args)
         end
     end
 
-    playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
-    local enemyManagerConfig = { hordeConfig = self.hordeConfig, playerManager = playerMgr, dropManager = dropMgr }
-    enemyMgr:setupGameplay(enemyManagerConfig)
-
-    -- <<< ADICIONADO: Inicialização do ChunkManager >>>
-    if self.currentPortalData and self.currentPortalData.mapDefinition then
-        local gameSeed = os.time()                                             -- Ou uma seed específica
-        local chunkSize = self.currentPortalData.mapDefinition.chunkSize or 32 -- Pega do mapDef ou usa default
-        ChunkManager:initialize(self.currentPortalData, chunkSize, AssetManager, gameSeed)
-        Logger.debug("GameplayScene", "ChunkManager inicializado.")
-    else
-        Logger.error("GameplayScene",
-            "ERRO CRÍTICO [GameplayScene:load]: mapDefinition não encontrado nos dados do portal para inicializar ChunkManager!")
-    end
-
-    local playerInitialPos = playerMgr.player.position
-    if playerInitialPos then
-        local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)
-        local initialCamY = playerInitialPos.y - (Camera.screenHeight / 2)
-        Camera:setPosition(initialCamX, initialCamY)
-    else
-        Camera:setPosition(0, 0)
-    end
-
-    -- Test drop (mantido por enquanto)
-    if dropMgr and playerMgr and playerMgr.player and itemDataMgr then
-        local playerPos = playerMgr.player.position; local testWeaponId = "rune_aura_e"
-        if itemDataMgr:getBaseItemData(testWeaponId) then
-            dropMgr:createDrop({ type = "item", itemId = testWeaponId, quantity = 1 },
-                { x = playerPos.x + 50, y = playerPos.y })
-        end
-    end
 
     if self.currentPortalData and self.currentPortalData.map then
         local mapName = self.currentPortalData.map
@@ -191,6 +159,30 @@ function GameplayScene:load(args)
         Logger.error("GameplayScene",
             "ERRO CRÍTICO [GameplayScene:load]: 'map' não definido nos dados do portal para inicializar MapManager!")
     end
+
+    playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
+    local enemyManagerConfig = { hordeConfig = self.hordeConfig, playerManager = playerMgr, dropManager = dropMgr, mapManager = self.mapManager }
+    enemyMgr:setupGameplay(enemyManagerConfig)
+
+    local playerInitialPos = playerMgr.player.position
+    if playerInitialPos then
+        local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)
+        local initialCamY = playerInitialPos.y - (Camera.screenHeight / 2)
+        Camera:setPosition(initialCamX, initialCamY)
+    else
+        Camera:setPosition(0, 0)
+    end
+
+    --[[
+    -- Test drop (mantido por enquanto)
+    if dropMgr and playerMgr and playerMgr.player and itemDataMgr then
+        local playerPos = playerMgr.player.position; local testWeaponId = "rune_aura_e"
+        if itemDataMgr:getBaseItemData(testWeaponId) then
+            dropMgr:createDrop({ type = "item", itemId = testWeaponId, quantity = 1 },
+                { x = playerPos.x + 50, y = playerPos.y })
+        end
+    end
+    --]]
 
     Logger.debug("GameplayScene", "GameplayScene:load concluído.")
 end
@@ -668,6 +660,12 @@ function GameplayScene:unload()
         self.mapManager:destroy()
         self.mapManager = nil
         Logger.debug("GameplayScene", "MapManager destruído.")
+    end
+
+    if self.enemyManager and self.enemyManager.destroy then
+        self.enemyManager:destroy()
+        self.enemyManager = nil
+        Logger.debug("GameplayScene", "EnemyManager destruído.")
     end
 end
 

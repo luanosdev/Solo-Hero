@@ -1,6 +1,8 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
+local SpatialGridIncremental = require("src.utils.SpatialGridIncremental")
+local TablePool = require("src.utils.TablePool")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -20,9 +22,12 @@ local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 ---@field playerManager PlayerManager
 ---@field dropManager DropManager
 ---@field enemyPool table<string, table<number, BaseEnemy>> Pool de inimigos reutilizáveis, categorizados por classe
+---@field spatialGrid SpatialGridIncremental
+---@field mapDimensions table
+---@field gridCellSize number
 local EnemyManager = {
     enemies = {},     -- Tabela contendo todas as instâncias de inimigos ativos
-    maxEnemies = 400, -- Número máximo de inimigos permitidos na tela simultaneamente
+    maxEnemies = 800, -- Número máximo de inimigos permitidos na tela simultaneamente
     nextEnemyId = 1,  -- Próximo ID a ser atribuído a um inimigo
     enemyPool = {},   -- Pool de inimigos inativos para reutilização
 
@@ -42,35 +47,52 @@ local EnemyManager = {
     bossDeathTimer = 0,
     bossDeathDuration = 3, -- Tempo em segundos para manter a barra visível após a morte
     lastBossDeathTime = 0, -- Momento em que o último boss morreu
+    spatialGrid = nil,
+    mapDimensions = { width = 3000, height = 3000 },
+    gridCellSize = 64,
 }
 
 -- Inicializa o gerenciador de inimigos com uma configuração de horda específica
 ---@param config table Tabela de configuração contendo { hordeConfig, playerManager, dropManager }
 function EnemyManager:setupGameplay(config)
-    if not config or not config.hordeConfig or not config.playerManager or not config.dropManager then
+    if not config or not config.hordeConfig or not config.playerManager or not config.dropManager or not config.mapManager then
         error("ERRO CRÍTICO [EnemyManager:setupGameplay]: Configuração inválida ou incompleta fornecida.")
     end
 
-    self.playerManager = config.playerManager -- ManagerRegistry:get("playerManager")
-    self.dropManager = config.dropManager     -- ManagerRegistry:get("dropManager")
-    self.worldConfig = config.hordeConfig     -- USA A CONFIGURAÇÃO PASSADA DIRETAMENTE
+    -- Armazena referências diretas para managers se passados na config
+    self.playerManager = config.playerManager 
+    self.dropManager = config.dropManager
+    self.mapManager = config.mapManager
+    self.mapDimensions = { width = 0, height = 0 } -- Será preenchido abaixo
+    self.gridCellSize = 64
 
-    self.nextEnemyId = 1                      -- Reseta o contador de IDs
-    self.enemies = {}                         -- Limpa a lista de inimigos
-    self.gameTimer = 0                        -- Reinicia o timer global
-    self.timeInCurrentCycle = 0               -- Reinicia o timer do ciclo
-    self.currentCycleIndex = 1                -- Começa no primeiro ciclo
-    self.nextBossIndex = 1                    -- Reseta índice do boss
+    self.worldConfig = config.hordeConfig
 
-    -- Limpa o pool de inimigos (importante se o jogo for reiniciado)
+    self.mapDimensions.width = self.mapManager:getMapPixelWidth()
+    self.mapDimensions.height = self.mapManager:getMapPixelHeight()
+
+    if self.mapDimensions.width <= 0 or self.mapDimensions.height <= 0 or self.gridCellSize <= 0 then
+        error(string.format("[EnemyManager:setupGameplay] Erro: Dimensões do mapa (w:%s, h:%s) ou tamanho da célula (%s) inválidos para SpatialGrid.",
+            tostring(self.mapDimensions.width), tostring(self.mapDimensions.height), tostring(self.gridCellSize)))
+    end
+    
+    -- Destruir grid anterior se existir (ao re-entrar no gameplay, por exemplo)
+    if self.spatialGrid and self.spatialGrid.destroy then
+        self.spatialGrid:destroy()
+    end
+    self.spatialGrid = SpatialGridIncremental:new(self.mapDimensions.width, self.mapDimensions.height, self.gridCellSize, self.gridCellSize)
+
+    self.enemies = {}
     self.enemyPool = {}
+
+    self.nextEnemyId = 1                      
+    self.gameTimer = 0                        
+    self.timeInCurrentCycle = 0               
+    self.currentCycleIndex = 1                
+    self.nextBossIndex = 1                    
 
     -- Inicializa a barra de vida do boss
     BossHealthBar:init()
-
-    -- REMOVIDO: Carregamento via HordeConfigManager
-    -- worldId = worldId or "default"
-    -- self.worldConfig = HordeConfigManager.loadHordes(worldId)
 
     -- Valida a configuração carregada
     if not self.worldConfig or not self.worldConfig.cycles or #self.worldConfig.cycles == 0 then
@@ -206,11 +228,33 @@ function EnemyManager:update(dt)
 
     -- 4. Atualiza Inimigos Existentes (sempre executa)
     -- Itera de trás para frente para permitir remoção segura
+    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
+    local cameraX, cameraY = 0, 0
+    if self.playerManager and self.playerManager.player and self.playerManager.player.position then
+        -- Centraliza a "câmera" no jogador (ajuste conforme seu sistema de câmera real)
+        cameraX = self.playerManager.player.position.x - screenW / 2
+        cameraY = self.playerManager.player.position.y - screenH / 2
+    end
+    local margin = 200 -- Margem extra para evitar popping
+
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
 
+        -- Determina se o inimigo está dentro da área visível + margem
+        local cullRadius = enemy.radius or 32
+        local inView = (enemy.position.x + cullRadius > cameraX - margin and
+                        enemy.position.x - cullRadius < cameraX + screenW + margin and
+                        enemy.position.y + cullRadius > cameraY - margin and
+                        enemy.position.y - cullRadius < cameraY + screenH + margin)
+
         -- Atualiza a lógica do inimigo
-        enemy:update(dt, self.playerManager, self.enemies)
+        if enemy and enemy.isAlive then
+            -- Atualiza a posição da entidade no grid ANTES de seu update de lógica
+            if self.spatialGrid then
+                self.spatialGrid:updateEntityInGrid(enemy)
+            end
+            enemy:update(dt, self.playerManager, self, not inView) 
+        end
 
         -- Se o inimigo estiver morto e não estiver em animação de morte
         if not enemy.isAlive and not enemy.isDying then
@@ -233,8 +277,11 @@ function EnemyManager:update(dt)
 
         -- Remove o inimigo se estiver marcado para remoção (flag setada pelo próprio inimigo em seu update)
         if enemy.shouldRemove then
+            if self.spatialGrid then -- Adicionado: Remove do grid ao remover da lista
+                self.spatialGrid:removeEntityCompletely(enemy)
+            end
             table.remove(self.enemies, i)
-            self:returnEnemyToPool(enemy) -- Adiciona o inimigo ao pool em vez de apenas remover
+            self:returnEnemyToPool(enemy) 
         end
         ::continue_loop::
     end
@@ -672,6 +719,36 @@ function EnemyManager:spawnBoss(bossClass, powerLevel)
     table.insert(self.enemies, boss)
 
     print(string.format("Boss %s (ID: %d, Nível %d) spawnado!", boss.name, enemyId, boss.powerLevel))
+end
+
+--- Retorna uma instância de inimigo ativa pelo seu ID.
+---@param id number O ID do inimigo a ser procurado.
+---@return BaseEnemy|nil A instância do inimigo se encontrada, caso contrário nil.
+function EnemyManager:getEnemyById(id)
+    if not id then return nil end
+    for _, enemy in ipairs(self.enemies) do
+        if enemy.id == id then
+            return enemy
+        end
+    end
+    if self.currentBoss and self.currentBoss.id == id then
+        return self.currentBoss
+    end
+    return nil
+end
+
+-- Função para ser chamada quando o EnemyManager não for mais necessário (ex: sair do jogo/cena)
+function EnemyManager:destroy()
+    if self.spatialGrid and self.spatialGrid.destroy then
+        self.spatialGrid:destroy()
+        self.spatialGrid = nil
+    end
+    -- Limpar pools de inimigos, etc., se necessário.
+    -- Zerar contadores e listas
+    self.enemies = {}
+    self.enemyPool = {}
+    self.gameTimer = 0
+    print("EnemyManager destruído.")
 end
 
 return EnemyManager

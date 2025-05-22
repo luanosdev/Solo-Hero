@@ -190,8 +190,8 @@ local portalDefinitions = {
                         { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" }
                     },
                     majorSpawn = {
-                        interval = 10,       -- Spawna a cada 10 segundos
-                        baseCount = 50,      -- Grande quantidade no Major Spawn
+                        interval = 5,       -- Spawna a cada 10 segundos
+                        baseCount = 100,      -- Grande quantidade no Major Spawn
                         countScalePerMin = 0 -- Sem escalonamento para manter o número previsível
                     },
                     minorSpawn = {           -- Minor spawn também contribui, mas menos
