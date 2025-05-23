@@ -256,6 +256,52 @@ local portalDefinitions = {
         },
         randomEvents = {},
         assetPack = nil
+    },
+    portal_teste_one_enemy = {
+        name = "TESTE: Um Inimigo",
+        theme = "CementeryTheme",
+        rank = "TEST",
+        map = "forest",
+        requiredUnitTypes = { "zombie_walker_male_1" },
+        hordeConfig = {
+            mapRank = "TEST",
+            mvpConfig = { -- MVP desligado para este teste
+                spawnInterval = 99999,
+                statusMultiplier = 1,
+                speedMultiplier = 1,
+                sizeMultiplier = 1,
+                experienceMultiplier = 1
+            },
+            bossConfig = {
+                spawnTimes = {} -- Sem bosses
+            },
+            cycles = {
+                {
+                    duration = 600, -- 10 minutos de teste
+                    allowedEnemies = {
+                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" }
+                    },
+                    majorSpawn = {
+                        interval = 99999,       -- Spawna a cada 10 segundos
+                        baseCount = 999,      -- Grande quantidade no Major Spawn
+                        countScalePerMin = 0 -- Sem escalonamento para manter o número previsível
+                    },
+                    minorSpawn = {           -- Minor spawn também contribui, mas menos
+                        baseInterval = 5,
+                        intervalReductionPerMin = 0,
+                        minInterval = 1,
+                        count = 1 -- Alguns inimigos extras do minor spawn
+                    }
+                }
+            }
+        },
+        mapDefinition = {
+            theme = "cemetery",
+            objectSpawnRules = {},
+            eventSpawnRules = {}
+        },
+        randomEvents = {},
+        assetPack = nil
     }
 }
 

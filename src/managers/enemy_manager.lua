@@ -266,7 +266,7 @@ function EnemyManager:update(dt)
             enemy.position.y - (enemy.radius or 0) < viewPort.y + viewPort.height + margin)
 
         -- Atualiza a lógica do inimigo
-        if enemy and enemy.isAlive then
+        if enemy and (enemy.isAlive or enemy.isDying) then -- MODIFICADO: Permite update para inimigos morrendo
             -- Atualiza a posição da entidade no grid ANTES de seu update de lógica
             if self.spatialGrid then
                 self.spatialGrid:updateEntityInGrid(enemy)
