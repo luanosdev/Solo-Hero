@@ -3,6 +3,7 @@
 -------------------------------------------------
 
 local ManagerRegistry = require("src.managers.manager_registry")
+local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local FloatingText = require("src.entities.floating_text")
 local Colors = require("src.ui.colors")
 local TablePool = require("src.utils.table_pool")
@@ -10,42 +11,58 @@ local Constants = require("src.config.constants")
 
 ---@class BaseEnemy
 local BaseEnemy = {
-    position = { x = 0, y = 0 },
-    radius = 0,
-    speed = 0,
+    -- Identification
+    id = 0,
+    name = "BaseEnemy",
+    className = "BaseEnemy",
+
+    -- Individual Stats
     maxHealth = 0,
     currentHealth = 0,
-    isAlive = true,
     damage = 0,
-    lastDamageTime = 0,
-    damageCooldown = 1, 
-    color = { 0, 0, 0 },
-    name = "BaseEnemy",
     experienceValue = 0,
-    healthBarWidth = 0,
-    id = 0,
-    isDying = false,
-    isDeathAnimationComplete = false,
-    deathTimer = 0,
-    deathDuration = 2.0,
-    className = "BaseEnemy",
-    collisionType = "enemy",
+
+    -- Gameplay Stats
+    isAlive = true,
     isMVP = false,
     isBoss = false,
+
+    -- Timers
+    lastDamageTime = 0,
+    damageCooldown = 1,
+    deathTimer = 0,
+    deathDuration = 2.0,
     updateInterval = 0.1,
     updateTimer = 0,
-    floatingTextUpdateInterval = 1/15,
+    floatingTextUpdateInterval = 1 / 15,
     floatingTextUpdateTimer = 0,
     slowUpdateTimer = 0,
-    lastGridCol = nil,
-    lastGridRow = nil,
-    currentGridCells = nil,
+
+    -- Floating Texts
     activeFloatingTexts = {},
 
-    -- Animação
+    -- Animation
     unitType = nil,
     sprite = nil,
     spriteData = nil,
+    isDeathAnimationComplete = false,
+    isDying = false,
+
+    -- Physics
+    size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
+    radius = 0,
+
+    -- Movement
+    position = { x = 0, y = 0 },
+    speed = 0,
+
+    lastGridCol = nil,
+    lastGridRow = nil,
+    currentGridCells = nil,
+
+    -- Constants
+    RADIUS_SIZE_DELTA = 0.9,
+    SEPARATION_STRENGTH = 60.0,
 }
 
 --- Constructor
@@ -53,6 +70,7 @@ local BaseEnemy = {
 --- @param id string|number Unique ID for the enemy.
 --- @return table Instance of BaseEnemy.
 function BaseEnemy:new(position, id)
+    Logger.info("BaseEnemy:new", " Criando inimigo.")
     local enemy = {}
     setmetatable(enemy, { __index = self })
 
@@ -68,6 +86,9 @@ function BaseEnemy:new(position, id)
     enemy.deathTimer = 0
     enemy.lastDamageTime = 0
 
+    enemy.directionUpdateInterval = 0.4 + math.random() * 0.4
+    enemy.directionUpdateTimer = 0
+
     enemy.updateTimer = math.random() * enemy.updateInterval
     enemy.floatingTextUpdateTimer = math.random() * enemy.floatingTextUpdateInterval
 
@@ -81,7 +102,9 @@ end
 --- Updates the stats from the prototype
 function BaseEnemy:updateStatsFromPrototype()
     local proto = getmetatable(self).__index
-    self.radius = proto.radius
+
+    self.size = proto.size
+    self.radius = (self.size / 2) * self.RADIUS_SIZE_DELTA
     self.speed = proto.speed
     self.maxHealth = proto.maxHealth
     self.currentHealth = proto.maxHealth
@@ -100,6 +123,14 @@ end
 
 --- Initializes the sprite
 function BaseEnemy:initializeSprite()
+    if not self.unitType then
+        Logger.error("BaseEnemy:initializeSprite", "Missing unitType for enemy: " .. self.className)
+    end
+
+    if not self.spriteData then
+        Logger.error("BaseEnemy:initializeSprite", "Missing spriteData for enemy: " .. self.className)
+    end
+
     if self.unitType and self.spriteData then
         self.sprite = AnimatedSpritesheet.newConfig(self.unitType, {
             position = self.position,
@@ -177,7 +208,6 @@ function BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
 
         -- Separação de outros inimigos
         local sepX, sepY = 0, 0
-        local separationStrength = 60.0
 
         if enemyManager and enemyManager.spatialGrid then
             local nearby = enemyManager.spatialGrid:getNearbyEntities(self.position.x, self.position.y, 1)
@@ -192,8 +222,8 @@ function BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
                         local desired = (self.radius + other.radius) * 1.5
                         local force = math.max(0, (desired - dist) / desired)
 
-                        sepX = sepX + (dx / dist) * force * separationStrength
-                        sepY = sepY + (dy / dist) * force * separationStrength
+                        sepX = sepX + (dx / dist) * force * self.SEPARATION_STRENGTH
+                        sepY = sepY + (dy / dist) * force * self.SEPARATION_STRENGTH
                     end
                 end
             end
@@ -206,7 +236,7 @@ function BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
     end
 end
 
---- Checks if the enemy has collided with the player
+--- Checks if the ensemy has collided with the player
 --- @param dt number Delta time.
 --- @param playerManager PlayerManager The player manager.
 function BaseEnemy:checkPlayerCollision(dt, playerManager)
@@ -230,52 +260,6 @@ function BaseEnemy:checkPlayerCollision(dt, playerManager)
             self.lastDamageTime = 0
         end
     end
-end
-
---- Draws the enemy
---- @param dt number Delta time.
---- @param spriteBatches table SpriteBatches.
-function BaseEnemy:draw(dt, spriteBatches)
-    if self.shouldRemove then return end
-
-    Logger.info("BaseEnemy:draw", "(" .. self.unitType .. "): Desenhando inimigo.")
-
-    if self.sprite then
-        local animKey
-
-        if self.sprite.animation.isDead then
-            animKey = self.sprite.animation.chosenDeathType
-        else
-            animKey = self.sprite.animation.activeMovementType
-        end
-
-        if not animKey then
-            Logger.error("BaseEnemy:draw", "(" .. self.unitType .. "): Não há animação ativa para desenhar.")
-            return
-        end
-
-            local tex = AnimatedSpritesheet.assets[self.unitType].sheets[animKey]
-        
-            if not tex then
-                Logger.error("BaseEnemy:draw", "(" .. self.unitType .. "): Textura para animação '" .. animKey .. "' não encontrada em AnimatedSpritesheet.assets.")
-                return
-            end
-
-            local batch = spriteBatches and spriteBatches[tex]
-
-
-            if not batch then
-                Logger.error("BaseEnemy:draw", "(" .. self.unitType .. "): SpriteBatch para textura da animação '" .. animKey .. "' não encontrado na tabela de batches fornecida.")
-                return
-            end
-
-            if batch then
-                AnimatedSpritesheet.addToBatch(self.unitType, self.sprite, batch)
-            end
-        end
-    end
-
-    self:drawFloatingTexts(spriteBatches and spriteBatches.textBatch)
 end
 
 --- Applies damage to the enemy
@@ -334,7 +318,7 @@ end
 
 --- Resets the enemy
 --- @param position table Position.
---- @param id string|number Unique ID.
+--- @param id number Unique ID.
 function BaseEnemy:reset(position, id)
     self.position.x = position.x or 0
     self.position.y = position.y or 0
@@ -348,6 +332,9 @@ function BaseEnemy:reset(position, id)
     self.shouldRemove = false
     self.deathTimer = 0
     self.lastDamageTime = 0
+
+    self.directionUpdateInterval = 0.4 + math.random() * 0.4
+    self.directionUpdateTimer = 0
 
     self.updateTimer = math.random() * self.updateInterval
     self.floatingTextUpdateTimer = math.random() * self.floatingTextUpdateInterval

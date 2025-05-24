@@ -5,6 +5,7 @@ local SpatialGridIncremental = require("src.utils.spatial_grid_incremental")
 local TablePool = require("src.utils.table_pool")
 local Camera = require("src.config.camera")
 local RenderPipeline = require("src.core.render_pipeline")
+local Culling = require("src.core.culling")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -243,12 +244,8 @@ function EnemyManager:update(dt)
 
         -- Lógica de Despawn Inteligente (antes do update do inimigo)
         if enemy and enemy.isAlive and not enemy.isBoss and not enemy.isMVP then
-            local enemyRadius = enemy.radius or 0 -- Raio do inimigo para cálculo de bounding box
             -- Verifica se o inimigo está fora da área (visão da câmera + despawnMargin)
-            if enemy.position.x + enemyRadius < viewPort.x - self.despawnMargin or
-                enemy.position.x - enemyRadius > viewPort.x + viewPort.width + self.despawnMargin or
-                enemy.position.y + enemyRadius < viewPort.y - self.despawnMargin or -- Usar viewY para o topo da câmera
-                enemy.position.y - enemyRadius > viewPort.y + viewPort.height + self.despawnMargin then
+            if Culling.isOffScreen(enemy, viewPort.x, viewPort.y, viewPort.width, viewPort.height, self.despawnMargin) then
                 -- print(string.format("Despawning enemy ID %d (Class: %s) due to distance.", enemy.id, enemy.className)) -- Para Debug
                 if self.spatialGrid then
                     self.spatialGrid:removeEntityCompletely(enemy)
@@ -260,10 +257,7 @@ function EnemyManager:update(dt)
         end
 
         -- Determina se o inimigo está dentro da área visível + margem de update
-        local inViewForUpdate = (enemy.position.x + (enemy.radius or 0) > viewPort.x - margin and
-            enemy.position.x - (enemy.radius or 0) < viewPort.x + viewPort.width + margin and
-            enemy.position.y + (enemy.radius or 0) > viewPort.y - margin and
-            enemy.position.y - (enemy.radius or 0) < viewPort.y + viewPort.height + margin)
+        local inViewForUpdate = Culling.isInView(enemy, viewPort.x, viewPort.y, viewPort.width, viewPort.height, margin)
 
         -- Atualiza a lógica do inimigo
         if enemy and (enemy.isAlive or enemy.isDying) then -- MODIFICADO: Permite update para inimigos morrendo
@@ -424,11 +418,9 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
         if enemy and enemy.position and enemy.sprite then -- Garante que o inimigo e seu sprite existem
             local shouldDrawSprite = (enemy.isAlive or (enemy.isDying and not enemy.isDeathAnimationComplete))
             if not enemy.shouldRemove and shouldDrawSprite then
-                local cullRadius = enemy.radius or Constants.TILE_WIDTH / 2
-                if enemy.position.x + cullRadius > camX and
-                    enemy.position.x - cullRadius < camX + screenW and
-                    enemy.position.y + cullRadius > camY and
-                    enemy.position.y - cullRadius < camY + screenH then
+                -- Usa Culling.isInView para verificar se o inimigo está na tela para renderização
+                -- Passa uma margem de 0, pois Culling.isInView já considera o entity.radius
+                if Culling.isInView(enemy, camX, camY, screenW, screenH, 0) then
                     local instanceAnimConfig = enemy.sprite
                     local unitType = instanceAnimConfig.unitType -- Agora temos isso no sprite config
                     local animState = instanceAnimConfig.animation
@@ -593,12 +585,10 @@ function EnemyManager:spawnSpecificEnemy(enemyClass)
     -- Obtém o próximo ID disponível
     local enemyId
     if enemyInstance then
-        -- Reutiliza o ID existente do inimigo se ele já tiver um, ou atribui um novo se necessário.
-        -- A lógica de ID pode precisar de ajuste dependendo de como os IDs são gerenciados (se eles devem ser únicos por instância viva ou únicos globalmente).
-        -- Para este exemplo, vamos assumir que o ID pode ser reutilizado ou que a função de reset cuida disso.
-        -- Se o ID é para ser sempre novo, então mesmo para instâncias do pool, um novo ID deve ser atribuído.
-        -- Vamos atribuir um novo ID para consistência.
-        enemyId = self.nextEnemyId
+        -- Se estamos reutilizando um inimigo, ele já tem um ID.
+        -- O reset vai lidar com o ID novo se necessário, mas geralmente o ID é persistente para pooling.
+        -- A lógica de self.nextEnemyId é para novas instâncias.
+        enemyId = self.nextEnemyId -- Atribuímos um novo ID para consistência, mesmo para instâncias do pool.
         self.nextEnemyId = self.nextEnemyId + 1
     else
         enemyId = self.nextEnemyId
@@ -613,24 +603,8 @@ function EnemyManager:spawnSpecificEnemy(enemyClass)
     local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
 
     if enemyInstance then
-        -- Reinicializa o inimigo existente
-        -- A função 'reset' ou 'reinitialize' deve ser implementada na classe BaseEnemy ou específica do inimigo
-        if enemyInstance.reset then
-            enemyInstance:reset({ x = spawnX, y = spawnY }, enemyId)
-        else
-            -- Fallback de reinicialização manual se 'reset' não existir
-            enemyInstance.position.x = spawnX
-            enemyInstance.position.y = spawnY
-            enemyInstance.id = enemyId
-            enemyInstance.isAlive = true
-            enemyInstance.isDying = false
-            enemyInstance.isDeathAnimationComplete = false
-            enemyInstance.shouldRemove = false
-            enemyInstance.isMVP = false
-            enemyInstance.isBoss = false
-            -- Recarregar vida, etc.
-            if enemyInstance.setup then enemyInstance:setup() end -- Chama setup se existir
-        end
+        -- Reinicializa o inimigo existente usando a função reset de BaseEnemy
+        enemyInstance:reset({ x = spawnX, y = spawnY }, enemyId)
     else
         -- Cria uma nova instância do inimigo com o ID se não houver no pool
         enemyInstance = enemyClass:new({ x = spawnX, y = spawnY }, enemyId)
@@ -640,7 +614,7 @@ function EnemyManager:spawnSpecificEnemy(enemyClass)
     table.insert(self.enemies, enemyInstance)
 
     print(string.format("Inimigo ID: %d (Classe: %s) spawnado em (%.1f, %.1f). Reutilizado: %s", enemyInstance.id,
-        enemyClassName, spawnX, spawnY, tostring(enemyInstance.originalId ~= nil and enemyInstance.originalId == enemyId)))
+        enemyClassName, spawnX, spawnY, tostring(enemyInstance ~= nil and enemyId ~= enemyInstance.id))) -- Lógica de reutilizado ajustada
 end
 
 -- Adiciona um inimigo ao pool para reutilização
@@ -651,19 +625,8 @@ function EnemyManager:returnEnemyToPool(enemy)
     end
 
     -- Reseta o estado do inimigo para um estado "limpo"
-    -- Esta função precisará ser implementada na classe BaseEnemy ou nas classes específicas
-    if enemy.resetStateForPooling then
-        enemy:resetStateForPooling()
-    else
-        -- Fallback básico se resetStateForPooling não existir
-        enemy.isAlive = false
-        enemy.isDying = false
-        enemy.isDeathAnimationComplete = false
-        enemy.shouldRemove = false
-        enemy.isMVP = false
-        enemy.isBoss = false
-        -- Adicione outros resets básicos conforme necessário
-    end
+    -- Esta função é implementada na classe BaseEnemy.
+    enemy:resetStateForPooling()
 
     local enemyClassName = enemy.className
     if not self.enemyPool[enemyClassName] then

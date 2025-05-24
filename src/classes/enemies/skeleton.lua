@@ -1,4 +1,4 @@
-local BaseEnemy = require("src.classes.enemies.base_enemy")
+local BaseEnemy = require("src.enemies.base_enemy")
 local AnimatedSkeleton = require("src.animations.animated_skeleton")
 
 local Skeleton = setmetatable({}, { __index = BaseEnemy })

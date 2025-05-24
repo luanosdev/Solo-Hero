@@ -3,18 +3,19 @@
 -- Cada portal tem sua própria temática, ranking, nome e configuração de hordas.
 
 -- Requer as classes de inimigos e bosses que podem aparecer nos portais.
-local Skeleton = require("src.classes.enemies.skeleton")
-local Zombie = require("src.classes.enemies.zombie")
-local SpiderBoss = require("src.classes.bosses.spider")
-local ZombieWalkerMale1 = require("src.classes.enemies.zombie_walker_male_1")
+local ZombieWalkerMale1 = require("src.enemies.common.zombie_walker_male_1")
+local ZombieWalkerFemale1 = require("src.enemies.common.zombie_walker_female_1")
+local ZombieRunnerMale1 = require("src.enemies.common.zombie_runner_male_1")
+local ZombieRunnerFemale1 = require("src.enemies.common.zombie_runner_female_1")
+
 
 local portalDefinitions = {
     -- Exemplo de um portal inicial: Floresta Assombrada
     floresta_assombrada = {
-        name = "Basic Forest",       -- ATUALIZADO
-        theme = "BasicForest",       -- ATUALIZADO
-        rank = "E",                  -- Ranking de dificuldade base do portal
-        map = "forest", -- NOVO CAMPO
+        name = "Basic Forest", -- ATUALIZADO
+        theme = "BasicForest", -- ATUALIZADO
+        rank = "E",            -- Ranking de dificuldade base do portal
+        map = "forest",        -- NOVO CAMPO
 
         -- Configuração específica das hordas para este portal
         hordeConfig = {
@@ -115,7 +116,7 @@ local portalDefinitions = {
         name = "Cemitério Urbano",
         theme = "CementeryTheme",                       -- O tema real do mapa precisará ser criado
         rank = "D",
-        map = "forest",                    -- NOVO CAMPO
+        map = "forest",                                 -- NOVO CAMPO
         requiredUnitTypes = { "zombie_walker_male_1" }, -- Apenas este inimigo por enquanto
 
         hordeConfig = {
@@ -166,9 +167,9 @@ local portalDefinitions = {
 
     portal_teste_spawn_massivo = {
         name = "TESTE: Spawn Massivo",
-        theme = "CementeryTheme",    -- Usando um tema existente para simplicidade
+        theme = "CementeryTheme", -- Usando um tema existente para simplicidade
         rank = "TEST",
-        map = "forest", -- NOVO CAMPO
+        map = "forest",           -- NOVO CAMPO
         requiredUnitTypes = { "zombie_walker_male_1" },
 
         hordeConfig = {
@@ -190,8 +191,8 @@ local portalDefinitions = {
                         { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" }
                     },
                     majorSpawn = {
-                        interval = 5,       -- Spawna a cada 10 segundos
-                        baseCount = 100,      -- Grande quantidade no Major Spawn
+                        interval = 5,        -- Spawna a cada 10 segundos
+                        baseCount = 100,     -- Grande quantidade no Major Spawn
                         countScalePerMin = 0 -- Sem escalonamento para manter o número previsível
                     },
                     minorSpawn = {           -- Minor spawn também contribui, mas menos
@@ -214,10 +215,10 @@ local portalDefinitions = {
 
     portal_teste_sem_spawn = {
         name = "TESTE: Sem Spawn",
-        theme = "CementeryTheme",    -- Usando um tema existente para simplicidade
+        theme = "CementeryTheme", -- Usando um tema existente para simplicidade
         rank = "TEST",
-        map = "forest", -- NOVO CAMPO
-        requiredUnitTypes = {},      -- Nenhum tipo de unidade requerido
+        map = "forest",           -- NOVO CAMPO
+        requiredUnitTypes = {},   -- Nenhum tipo de unidade requerido
 
         hordeConfig = {
             mapRank = "TEST",
@@ -282,8 +283,8 @@ local portalDefinitions = {
                         { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" }
                     },
                     majorSpawn = {
-                        interval = 99999,       -- Spawna a cada 10 segundos
-                        baseCount = 999,      -- Grande quantidade no Major Spawn
+                        interval = 99999,    -- Spawna a cada 10 segundos
+                        baseCount = 999,     -- Grande quantidade no Major Spawn
                         countScalePerMin = 0 -- Sem escalonamento para manter o número previsível
                     },
                     minorSpawn = {           -- Minor spawn também contribui, mas menos
