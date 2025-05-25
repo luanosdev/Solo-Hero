@@ -393,7 +393,7 @@ function PlayerManager:update(dt)
     end
 
     -- ATUALIZA TEXTOS FLUTUANTES
-    -- self:updateFloatingTexts(dt)
+    self:updateFloatingTexts(dt)
 end
 
 -- Desenha o player e elementos relacionados

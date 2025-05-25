@@ -3,6 +3,9 @@
 -- A habilidade ConeSlash é uma habilidade de ataque em cone que causa dano a todos os inimigos na área.
 -------------------------------------------------------
 
+local ManagerRegistry = require("src.managers.manager_registry")
+local TablePool = require("src.utils.table_pool") -- Garante que temos acesso ao TablePool
+
 ---@class ConeSlash
 ---@field name string
 ---@field description string
@@ -44,10 +47,10 @@ end
 ---@param weaponInstance BaseWeapon Instância da arma que está usando esta habilidade.
 function ConeSlash:new(playerManager, weaponInstance)
     local o = setmetatable({}, self)
-    print("[ConeSlash:new] Creating instance...")
+    Logger.info("ConeSlash:new", " Creating instance...")
 
     if not playerManager or not weaponInstance then
-        error("ConeSlash:new - playerManager e weaponInstance são obrigatórios.")
+        Logger.error("ConeSlash:new", "playerManager e weaponInstance são obrigatórios.")
         return nil
     end
 
@@ -61,7 +64,7 @@ function ConeSlash:new(playerManager, weaponInstance)
     -- Busca cores da weaponInstance
     o.visual.preview.color = weaponInstance.previewColor or o.visual.preview.color
     o.visual.attack.color = weaponInstance.attackColor or o.visual.attack.color
-    print("  - Preview/Attack colors set.")
+    Logger.info("ConeSlash:new", "  - Preview/Attack colors set.")
 
     -- Área de efeito será calculada dinamicamente no update
     o.area = {
@@ -75,10 +78,10 @@ function ConeSlash:new(playerManager, weaponInstance)
         o.area.position.x = o.playerManager.player.position.x
         o.area.position.y = o.playerManager.player.position.y
     else
-        print("  - WARN: Player sprite not yet available for initial position.")
+        Logger.warn("ConeSlash:new", "  - WARN: Player sprite not yet available for initial position.")
     end
 
-    print("[ConeSlash:new] Instance created successfully.")
+    Logger.debug("ConeSlash:new", " Instance created successfully.")
     return o
 end
 
@@ -204,20 +207,45 @@ end
 ---@param finalStats table Os stats finais do jogador.
 ---@return boolean Sempre retorna true (indica que a tentativa de ataque foi feita).
 function ConeSlash:executeAttack(finalStats)
-    local enemies = self.playerManager.enemyManager:getEnemies()
-    local enemiesHitCount = 0
-    -- Não precisa chamar updateAreaIfNeeded() pois a área é atualizada em :update
-
     -- Verifica se a área de ataque é válida antes de prosseguir
     if not self.area or not self.area.range or self.area.range <= 0 or not self.area.halfWidth or self.area.halfWidth <= 0 then
         error(string.format(
             "[ConeSlash:executeAttack] AVISO: Área de ataque inválida. Range: %s, HalfWidth: %s. Nenhum inimigo será atingido.",
             tostring(self.area.range), tostring(self.area.halfWidth)))
+        return true -- Retorna true, pois a tentativa foi feita, mas nada aconteceu
     end
 
-    for i, enemy in ipairs(enemies) do
+    local enemiesHitCount = 0
+    -- Não precisa chamar updateAreaIfNeeded() pois a área é atualizada em :update
+
+    -- Obtém inimigos próximos usando o SpatialGridIncremental
+    -- O playerManager tem acesso ao enemyManager, que por sua vez tem o spatialGrid
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    if not enemyManager or not enemyManager.spatialGrid then
+        error("[ConeSlash:executeAttack] ERRO: EnemyManager ou SpatialGrid não acessível.")
+        return true -- Falha em obter o grid
+    end
+
+    -- A entidade requisitante (jogador) para evitar auto-colisão, se aplicável no futuro
+    local requestingEntity = self.playerManager.player
+
+    -- searchRadius é o alcance do cone. A função getNearbyEntities já lida com o raio da entidade alvo.
+    local nearbyEnemies = enemyManager.spatialGrid:getNearbyEntities(
+        self.area.position.x,
+        self.area.position.y,
+        self.area.range, -- Raio da busca é o alcance máximo do cone
+        requestingEntity
+    )
+
+    if not nearbyEnemies then
+        -- Isso não deveria acontecer se getNearbyEntities sempre retorna uma tabela do pool
+        print("[ConeSlash:executeAttack] AVISO: nearbyEnemies é nil após chamada ao spatialGrid.")
+        return true
+    end
+
+    for i, enemy in ipairs(nearbyEnemies) do
         if enemy.isAlive then
-            -- Verifica se o inimigo está dentro da área de ataque
+            -- Verifica se o inimigo está dentro da área de ataque do cone
             if self:isPointInArea(enemy.position) then
                 local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
                 enemiesHitCount = enemiesHitCount + 1
@@ -225,8 +253,12 @@ function ConeSlash:executeAttack(finalStats)
             end
         end
     end
+
+    -- Libera a tabela de inimigos obtida do pool
+    TablePool.release(nearbyEnemies)
+
     if enemiesHitCount > 0 then
-        print(string.format("    [executeAttack] Hit %d enemies.", enemiesHitCount))
+        print(string.format("    [executeAttack] Hit %d enemies (from nearby query).", enemiesHitCount))
     end
 
     return true -- Retorna true mesmo se não atingiu ninguém

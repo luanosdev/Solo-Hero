@@ -155,4 +155,37 @@ function Logger.keypressed(key)
     end
 end
 
+--- Debuga recursivamente uma tabela
+--- @param tbl table
+--- @param indent number
+function Logger.dumpTable(tbl, indent)
+    indent = indent or 0
+    local toprint = string.rep(" ", indent) .. "{\n"
+    indent = indent + 2
+
+    if tbl == nil then
+        return "nil"
+    end
+
+    for k, v in pairs(tbl) do
+        toprint = toprint .. string.rep(" ", indent)
+        if type(k) == "number" then
+            toprint = toprint .. "[" .. k .. "] = "
+        elseif type(k) == "string" then
+            toprint = toprint .. k .. " = "
+        end
+        if type(v) == "number" then
+            toprint = toprint .. v .. ",\n"
+        elseif type(v) == "string" then
+            toprint = toprint .. "\"" .. v .. "\",\n"
+        elseif type(v) == "table" then
+            toprint = toprint .. Logger.dumpTable(v, indent + 2) .. ",\n"
+        else
+            toprint = toprint .. "\"" .. tostring(v) .. "\",\n"
+        end
+    end
+    toprint = toprint .. string.rep(" ", indent - 2) .. "}"
+    return toprint
+end
+
 return Logger
