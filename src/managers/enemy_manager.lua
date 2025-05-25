@@ -235,7 +235,7 @@ function EnemyManager:update(dt)
 
     -- 4. Atualiza Inimigos Existentes (sempre executa)
     -- Itera de trás para frente para permitir remoção segura
-    local viewPort = Camera:getViewPort() -- Obtém a visão da câmera
+    local camX, camY, camWidth, camHeight = Camera:getViewPort() -- Obtém a visão da câmera
 
     local margin = 300                    -- Margem para culling de update (isOffScreen)
 
@@ -245,7 +245,7 @@ function EnemyManager:update(dt)
         -- Lógica de Despawn Inteligente (antes do update do inimigo)
         if enemy and enemy.isAlive and not enemy.isBoss and not enemy.isMVP then
             -- Verifica se o inimigo está fora da área (visão da câmera + despawnMargin)
-            if Culling.isOffScreen(enemy, viewPort.x, viewPort.y, viewPort.width, viewPort.height, self.despawnMargin) then
+            if Culling.isOffScreen(enemy, camX, camY, camWidth, camHeight, self.despawnMargin) then
                 -- print(string.format("Despawning enemy ID %d (Class: %s) due to distance.", enemy.id, enemy.className)) -- Para Debug
                 if self.spatialGrid then
                     self.spatialGrid:removeEntityCompletely(enemy)
@@ -257,7 +257,7 @@ function EnemyManager:update(dt)
         end
 
         -- Determina se o inimigo está dentro da área visível + margem de update
-        local inViewForUpdate = Culling.isInView(enemy, viewPort.x, viewPort.y, viewPort.width, viewPort.height, margin)
+        local inViewForUpdate = Culling.isInView(enemy, camX, camY, camWidth, camHeight, margin)
 
         -- Atualiza a lógica do inimigo
         if enemy and (enemy.isAlive or enemy.isDying) then -- MODIFICADO: Permite update para inimigos morrendo
@@ -406,7 +406,6 @@ end
 function EnemyManager:collectRenderables(renderPipelineInstance)
     if not self.enemies or #self.enemies == 0 then return end
 
-    local Constants = require("src.config.constants")
     local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- Necessário para pegar quads/texturas
 
     -- Obtém informações da câmera e tela

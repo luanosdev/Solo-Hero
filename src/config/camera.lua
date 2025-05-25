@@ -1,3 +1,11 @@
+---@class Camera
+---@field x number
+---@field y number
+---@field scale number
+---@field rotation number
+---@field smoothness number
+---@field screenWidth number
+---@field screenHeight number
 local Camera = {
     x = 0,
     y = 0,
@@ -69,13 +77,9 @@ function Camera:setPosition(x, y)
     self.y = y
 end
 
+---@return number x, number y, number width, number height
 function Camera:getViewPort()
-    return {
-        x = self.x,
-        y = self.y,
-        width = self.screenWidth,
-        height = self.screenHeight
-    }
+    return self.x, self.y, self.screenWidth, self.screenHeight
 end
 
 function Camera:getPosition()

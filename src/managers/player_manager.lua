@@ -458,16 +458,16 @@ function PlayerManager:collectRenderables(renderPipeline)
         return
     end
 
-    local viewPort = Camera:getViewPort() -- Obtém a visão da câmera para culling
+    local camX, camY, camWidth, camHeight = Camera:getViewPort() -- Obtém a visão da câmera para culling
 
     local Constants = require("src.config.constants")
 
     -- Culling básico no espaço do mundo
     local cullRadius = self.radius or Constants.TILE_WIDTH / 2 -- Usa o raio de colisão do jogador
-    if self.player.position.x + cullRadius > viewPort.x and
-        self.player.position.x - cullRadius < viewPort.x + viewPort.width and
-        self.player.position.y + cullRadius > viewPort.y and -- Usando o centro Y do jogador para culling
-        self.player.position.y - cullRadius < viewPort.y + viewPort.height then
+    if self.player.position.x + cullRadius > camX and
+        self.player.position.x - cullRadius < camX + camWidth and
+        self.player.position.y + cullRadius > camY and -- Usando o centro Y do jogador para culling
+        self.player.position.y - cullRadius < camY + camHeight then
         local playerBaseY = self.player.position.y + 25      -- Base Y consistente com o círculo de colisão
 
         local worldX_eq = self.player.position.x / Constants.TILE_WIDTH

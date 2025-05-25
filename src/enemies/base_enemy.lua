@@ -66,9 +66,9 @@ local BaseEnemy = {
 }
 
 --- Constructor
---- @param position table Position initial (x, y).
+--- @param position { x: number, y: number } Position initial (x, y).
 --- @param id string|number Unique ID for the enemy.
---- @return table Instance of BaseEnemy.
+--- @return BaseEnemy Instance of BaseEnemy.
 function BaseEnemy:new(position, id)
     Logger.info("BaseEnemy:new", " Criando inimigo.")
     local enemy = {}
