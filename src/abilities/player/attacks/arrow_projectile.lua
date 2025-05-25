@@ -3,7 +3,8 @@
 -- A habilidade ArrowProjectile é uma habilidade de projétil de flecha que atira flechas em um ângulo e alcance específicos.
 -------------------------------------------------------
 
-local Arrow = require("src.projectiles.arrow") -- Precisaremos criar este arquivo
+local Arrow = require("src.projectiles.arrow")                   -- Precisaremos criar este arquivo
+local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado para buscar o spatialGrid
 
 ---@class ArrowProjectile
 ---@field visual table
@@ -53,8 +54,8 @@ function ArrowProjectile:new(playerManager, weaponInstance)
     if not baseData then
         error(string.format("ArrowProjectile:new - Falha ao obter dados base para %s",
             o.weaponInstance.itemBaseId or "arma desconhecida"))
-        return nil
     end
+
     o.baseDamage = baseData.damage
     o.baseCooldown = baseData.cooldown
     o.baseRange = baseData.range
@@ -136,8 +137,7 @@ function ArrowProjectile:cast(args)
     end
 
     -- Calcula o número total de flechas
-    local baseProjectilesActual = self.baseProjectiles or
-    1                                                                  -- Garante pelo menos 1 projétil base se não definido na arma
+    local baseProjectilesActual = self.baseProjectiles
     local currentMultiAttackChance = finalStats.multiAttackChance or 0 -- Trata nil como 0 para evitar erro
 
     local extraArrowsInteger = math.floor(currentMultiAttackChance)
@@ -172,6 +172,16 @@ function ArrowProjectile:cast(args)
         angleStep = angleForSpread / (totalArrows - 1)
     end
 
+    -- Obter o spatialGrid para passar para as flechas
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    local spatialGrid = enemyManager.spatialGrid -- Assumindo que o spatialGrid está no enemyManager
+    if not spatialGrid then
+        error("[ArrowProjectile:cast] ERRO: spatialGrid não encontrado no enemyManager.")
+        -- Decide como lidar: retornar false, ou deixar as flechas funcionarem sem grid (menos ideal)
+        -- Por agora, vamos permitir que as flechas sejam criadas, mas elas podem não ter detecção de colisão otimizada.
+        -- Idealmente, a classe Arrow lidaria com um spatialGrid opcional ou este erro seria fatal.
+    end
+
     -- Cria e dispara as flechas
     for i = 0, totalArrows - 1 do
         local currentArrowAngle
@@ -201,7 +211,7 @@ function ArrowProjectile:cast(args)
             self.currentRange, -- Pode ser nil, Arrow:new precisa tratar
             finalDamageThisArrow,
             isCritical,
-            self.playerManager.enemyManager,
+            spatialGrid, -- NOVO: passa o spatialGrid. A classe Arrow precisará ser atualizada para usá-lo.
             self.visual.attack.color
         )
         table.insert(self.activeArrows, arrow)
