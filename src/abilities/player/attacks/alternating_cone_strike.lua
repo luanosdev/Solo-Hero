@@ -1,8 +1,11 @@
---[[----------------------------------------------------------------------------
-    Alternating Cone Strike Ability
-    Um ataque em cone rápido que atinge alternadamente a metade esquerda ou direita.
-    Refatorado para receber weaponInstance e buscar stats dinamicamente.
-----------------------------------------------------------------------------]] --
+----------------------------------------------------------------------------
+-- Alternating Cone Strike Ability
+-- Um ataque em cone rápido que atinge alternadamente a metade esquerda ou direita.
+-- Refatorado para receber weaponInstance e buscar stats dinamicamente.
+----------------------------------------------------------------------------
+
+local ManagerRegistry = require("src.managers.manager_registry")
+local TablePool = require("src.utils.table_pool")
 
 local AlternatingConeStrike = {}
 AlternatingConeStrike.__index = AlternatingConeStrike -- Para permitir :new
@@ -208,12 +211,25 @@ end
 ---@param finalStats table Stats finais do jogador.
 ---@return boolean Sempre retorna true (indica que a tentativa de ataque foi feita).
 function AlternatingConeStrike:executeAttack(hitLeft, finalStats)
-    local enemies = self.playerManager.enemyManager:getEnemies()
+    if not self.area or not self.area.range or self.area.range <= 0 then
+        Logger.error("executeAttack", "Área de ataque inválida ou alcance zero, não buscando inimigos.")
+    end
+
+    -- A posição do jogador é o centro da busca
+    local searchX = self.area.position.x
+    local searchY = self.area.position.y
+    -- O raio de busca é o alcance da habilidade
+    local searchRadius = self.area.range
+
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    local spatialGrid = enemyManager.spatialGrid
+    local nearbyEnemies = spatialGrid:getNearbyEntities(searchX, searchY, searchRadius, self.playerManager.player)
+
     local enemiesHitCount = 0
     local side = hitLeft and "LEFT" or "RIGHT"
-    -- print(string.format("    [executeAttack - %s] Checking %d enemies.", side, #enemies))
+    -- Logger.debug("executeAttack", string.format("Checking %d nearby enemies on %s side.", #nearbyEnemies, side))
 
-    for i, enemy in ipairs(enemies) do
+    for i, enemy in ipairs(nearbyEnemies) do
         if enemy.isAlive then
             -- Verifica se o inimigo está na metade correta do cone
             if self:isPointInCorrectHalf(enemy.position, hitLeft) then
@@ -224,6 +240,10 @@ function AlternatingConeStrike:executeAttack(hitLeft, finalStats)
             end
         end
     end
+
+    -- Libera a tabela de inimigos obtida do pool
+    TablePool.release(nearbyEnemies)
+
     if enemiesHitCount > 0 then
         print(string.format("    [executeAttack - %s] Hit %d enemies.", side, enemiesHitCount))
     end
