@@ -4,6 +4,9 @@
 --- Refatorado para receber weaponInstance e buscar stats dinamicamente.
 ----------------------------------------------------------------------------
 
+local ManagerRegistry = require("src.managers.manager_registry")
+local TablePool = require("src.utils.table_pool")
+
 local CircularSmash = {}
 CircularSmash.__index = CircularSmash -- Para permitir :new
 
@@ -228,31 +231,44 @@ end
 ---@param finalStats table A tabela de stats finais do jogador.
 ---@return boolean Sempre retorna true.
 function CircularSmash:executeAttack(finalStats)
-    local enemies = self.playerManager.enemyManager:getEnemies()
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    local spatialGrid = enemyManager.spatialGrid
     local enemiesHitCount = 0
 
     if not self.currentAttackRadius or self.currentAttackRadius <= 0 then
-        print(string.format("    [executeAttack] AVISO: Raio de ataque inválido (%s). Nenhum inimigo será atingido.",
+        error(string.format("    [executeAttack] AVISO: Raio de ataque inválido (%s). Nenhum inimigo será atingido.",
             tostring(self.currentAttackRadius)))
-        return true -- Retorna true, mas não faz nada
     end
+
+    if not spatialGrid then
+        error("[executeAttack] AVISO: spatialGrid não disponível. Não é possível buscar inimigos.")
+    end
+
+    -- Busca inimigos próximos usando o spatialGrid
+    -- O centro da busca é self.targetPos, e o raio é self.currentAttackRadius
+    local nearbyEnemies = spatialGrid:getNearbyEntities(self.targetPos.x, self.targetPos.y, self
+        .currentAttackRadius, nil)
+
     local attackRadiusSq = self.currentAttackRadius * self.currentAttackRadius
 
     local finalCritChance = finalStats.critChance -- Sem fallback
     -- Se finalCritChance for nil, isCritical será false. Isso é aceitável aqui.
     local isCritical = finalCritChance and (math.random() <= finalCritChance)
 
-    -- print(string.format("    [executeAttack] Checking enemies in radius %.1f at (%.1f, %.1f)", math.sqrt(attackRadiusSq), self.targetPos.x, self.targetPos.y))
+    -- print(string.format("    [executeAttack] Checking %d nearby enemies in radius %.1f at (%.1f, %.1f)", #nearbyEnemies, self.currentAttackRadius, self.targetPos.x, self.targetPos.y))
 
-    for i, enemy in ipairs(enemies) do
+    for _, enemy in ipairs(nearbyEnemies) do
         if enemy.isAlive then
-            -- Verifica se o inimigo está dentro do raio do golpe atual
+            -- Verifica se o inimigo está dentro do raio do golpe atual (verificação circular precisa)
             if self:isPointInArea(enemy.position, self.targetPos, attackRadiusSq) then
                 enemiesHitCount = enemiesHitCount + 1
                 self:applyDamage(enemy, isCritical, finalStats)
             end
         end
     end
+
+    TablePool.release(nearbyEnemies)
+
     if enemiesHitCount > 0 then
         print(string.format("    [executeAttack] Hit %d enemies with radius %.1f.", enemiesHitCount,
             self.currentAttackRadius))
@@ -287,13 +303,6 @@ function CircularSmash:applyDamage(target, isCritical, finalStats)
     if isCritical then
         -- Se finalStats.critDamage for nil, a multiplicação resultará em nil.
         totalDamage = totalDamage and finalStats.critDamage and math.floor(totalDamage * finalStats.critDamage)
-    end
-
-    if totalDamage == nil then
-        print(string.format("    [applyDamage] ERRO: totalDamage é nil. Arma: %s, Crit: %s, Stats: %s",
-            tostring(self.weaponInstance and self.weaponInstance.itemBaseId), tostring(isCritical),
-            serpent.block(finalStats)))
-        return false -- Não aplica dano se o dano final for nil
     end
 
     return target:takeDamage(totalDamage, isCritical)

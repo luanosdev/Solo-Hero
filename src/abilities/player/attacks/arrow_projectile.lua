@@ -174,7 +174,7 @@ function ArrowProjectile:cast(args)
 
     -- Obter o spatialGrid para passar para as flechas
     local enemyManager = ManagerRegistry:get("enemyManager")
-    local spatialGrid = enemyManager.spatialGrid -- Assumindo que o spatialGrid está no enemyManager
+    local spatialGrid = enemyManager.spatialGrid
     if not spatialGrid then
         error("[ArrowProjectile:cast] ERRO: spatialGrid não encontrado no enemyManager.")
         -- Decide como lidar: retornar false, ou deixar as flechas funcionarem sem grid (menos ideal)
