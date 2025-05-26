@@ -1,8 +1,10 @@
---[[----------------------------------------------------------------------------
-    Flame Stream Ability
-    Gerencia a criação de um fluxo contínuo de partículas de fogo.
-----------------------------------------------------------------------------]] --
-local FireParticle = require("src.projectiles.fire_particle")                  -- Precisaremos criar este arquivo
+------------------------------------------------------------------------------
+-- Flame Stream Ability
+-- Gerencia a criação de um fluxo contínuo de partículas de fogo.
+------------------------------------------------------------------------------
+
+local FireParticle = require("src.projectiles.fire_particle")
+local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado
 
 ---@class FlameStream
 local FlameStream = {}
@@ -38,7 +40,6 @@ function FlameStream:new(playerManager, weaponInstance)
     if not baseData then
         error(string.format("FlameStream:new - Falha ao obter dados base para %s",
             o.weaponInstance.itemBaseId or "arma desconhecida"))
-        return nil                 -- Retorna nil em caso de erro
     end
     o.baseDamage = baseData.damage -- Mantido, mas o dano final virá de finalStats.weaponDamage
     o.baseCooldown = baseData.cooldown
@@ -132,16 +133,14 @@ function FlameStream:cast(args)                            -- Cast é chamado mu
     local finalStats = self.playerManager:getCurrentFinalStats()
     if not finalStats then
         error("[FlameStream:cast] ERRO: finalStats não disponíveis do PlayerManager. Não é possível disparar.")
-        return false
     end
 
     -- Aplica cooldown
     local totalAttackSpeed = finalStats.attackSpeed
     if not totalAttackSpeed or totalAttackSpeed <= 0 then
-        print(string.format(
+        error(string.format(
             "[FlameStream:cast] AVISO: totalAttackSpeed inválido (%s). Usando fallback de 0.01.",
             tostring(totalAttackSpeed)))
-        totalAttackSpeed = 0.01 -- Evita divisão por zero, mas é um erro de stat
     end
     if self.baseCooldown and totalAttackSpeed then
         self.cooldownRemaining = self.baseCooldown / totalAttackSpeed
@@ -159,15 +158,12 @@ function FlameStream:cast(args)                            -- Cast é chamado mu
 
     if damagePerParticle == nil then
         error("[FlameStream:cast] ERRO: finalStats.weaponDamage é nil. Não é possível calcular o dano da partícula.")
-        return false -- Não dispara se o dano não puder ser calculado
     end
     if criticalChance == nil then
-        print("[FlameStream:cast] AVISO: finalStats.critChance é nil. Chance de crítico será 0.")
-        criticalChance = 0
+        error("[FlameStream:cast] AVISO: finalStats.critChance é nil. Chance de crítico será 0.")
     end
     if criticalMultiplier == nil then
-        print("[FlameStream:cast] AVISO: finalStats.critDamage é nil. Multiplicador de crítico será 1.")
-        criticalMultiplier = 1 -- Dano crítico não terá efeito
+        error("[FlameStream:cast] AVISO: finalStats.critDamage é nil. Multiplicador de crítico será 1.")
     end
 
     -- Calcula o ângulo da partícula com uma pequena dispersão aleatória dentro de currentAngleWidth
@@ -184,7 +180,7 @@ function FlameStream:cast(args)                            -- Cast é chamado mu
 
     -- Calcula a posição inicial da partícula (à frente do jogador, na borda do raio)
     -- self.playerManager.radius é o raio de colisão do player, não um stat de alcance.
-    local startDist = (self.playerManager.radius or 10) * 1.2 -- Fallback para radius se não existir
+    local startDist = (self.playerManager.radius) * 1.2
     local startX = self.currentPosition.x + math.cos(particleAngle) * startDist
     local startY = self.currentPosition.y + math.sin(particleAngle) * startDist
 
@@ -195,6 +191,12 @@ function FlameStream:cast(args)                            -- Cast é chamado mu
         return false
     end
 
+    -- Referência ao SpatialGrid
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    local spatialGrid = enemyManager.spatialGrid
+    if not spatialGrid then
+        error("FlameStream:cast - spatialGrid não encontrado no enemyManager via ManagerRegistry.")
+    end
     -- Cria a partícula de fogo a partir da posição inicial calculada
     local particle = FireParticle:new(
         startX, startY,                   -- Usa as coordenadas iniciais calculadas
@@ -203,7 +205,7 @@ function FlameStream:cast(args)                            -- Cast é chamado mu
         self.currentLifetime,             -- Usa o lifetime atualizado
         finalDamage,                      -- Dano final calculado
         isCritical,
-        self.playerManager.enemyManager,
+        spatialGrid,                      -- Passa o spatialGrid. FireParticle precisará ser atualizada.
         self.visual.attack.color
     )
     table.insert(self.activeParticles, particle)
@@ -218,8 +220,6 @@ function FlameStream:draw()
     if self.visual.preview.active then
         if self.currentPosition and self.currentRange and self.currentAngle and self.currentAngleWidth then
             self:drawPreviewCone(self.visual.preview.color) -- Passa a cor correta
-        else
-            -- print("[FlameStream:draw] AVISO: Não é possível desenhar preview, dados de posição/dimensão ausentes.")
         end
     end
 
