@@ -47,10 +47,8 @@ function AlternatingConeStrike:new(playerManager, weaponInstance)
     o.weaponInstance = weaponInstance -- Armazena a instância da arma
 
     o.cooldownRemaining = 0
-    o.isAttacking = false
-    o.attackProgress = 0
-    o.hitLeftNext = true        -- Começa atacando pela esquerda
-    o.lastAttackWasLeft = false -- Para saber qual metade desenhar
+    o.activeAttacks = {} -- Rastreia animações de ataque individuais
+    o.hitLeftNext = true -- Começa atacando pela esquerda
 
     -- Busca cores da weaponInstance (sobrescreve os padrões)
     o.visual.preview.color = weaponInstance.previewColor or o.visual.preview.color
@@ -125,12 +123,18 @@ function AlternatingConeStrike:update(dt, angle)
         end
     end
 
-    -- Atualiza animação do ataque
-    if self.isAttacking then
-        self.attackProgress = self.attackProgress + (dt / self.visual.attack.animationDuration)
-        if self.attackProgress >= 1 then
-            self.isAttacking = false
-            self.attackProgress = 0
+    -- Atualiza animação dos ataques ativos
+    for i = #self.activeAttacks, 1, -1 do
+        local attackInstance = self.activeAttacks[i]
+        if attackInstance.delay and attackInstance.delay > 0 then
+            attackInstance.delay = attackInstance.delay - dt
+            if attackInstance.delay < 0 then attackInstance.delay = 0 end
+        else
+            attackInstance.progress = attackInstance.progress + (dt / self.visual.attack.animationDuration)
+        end
+
+        if attackInstance.progress >= 1 then
+            table.remove(self.activeAttacks, i)
         end
     end
 end
@@ -150,9 +154,6 @@ function AlternatingConeStrike:cast(args)
     local attackLeftThisCast = self.hitLeftNext
 
     -- Inicia a animação (sempre mostra a animação do PRIMEIRO golpe do cast)
-    self.isAttacking = true
-    self.attackProgress = 0
-    self.lastAttackWasLeft = attackLeftThisCast -- Para o draw
     print(string.format("  - Attacking %s side first.", attackLeftThisCast and "LEFT" or "RIGHT"))
 
     -- Obtém os stats finais do jogador UMA VEZ
@@ -175,9 +176,15 @@ function AlternatingConeStrike:cast(args)
     print(string.format("  - Multi-Attack Chance: %.2f (Extra: %d + %.2f%%)", multiAttackChance, extraAttacks,
         decimalChance * 100))
 
+    -- Parâmetro de delay entre animações de ataques extras
+    local delayStep = 0.05 -- segundos entre cada animação de ataque extra
+    local currentDelay = 0
+
     -- Executa o PRIMEIRO ataque
     local success = self:executeAttack(attackLeftThisCast, finalStats) -- Passa finalStats
+    self:createAttackAnimationInstance(attackLeftThisCast, currentDelay)
     local currentHitIsLeft = attackLeftThisCast                        -- Variável para alternar nos extras
+    currentDelay = currentDelay + delayStep
 
     -- Executa ataques extras inteiros, alternando a CADA extra
     for i = 1, extraAttacks do
@@ -185,6 +192,8 @@ function AlternatingConeStrike:cast(args)
             currentHitIsLeft = not currentHitIsLeft                    -- Alterna para o próximo extra
             print(string.format("    - Executing extra attack #%d (%s side)", i, currentHitIsLeft and "LEFT" or "RIGHT"))
             success = self:executeAttack(currentHitIsLeft, finalStats) -- Passa finalStats
+            self:createAttackAnimationInstance(currentHitIsLeft, currentDelay)
+            currentDelay = currentDelay + delayStep
         else
             print("    - Stopping extra attacks due to previous failure.")
             break
@@ -197,6 +206,7 @@ function AlternatingConeStrike:cast(args)
         print(string.format("    - Executing decimal chance extra attack (%s side)",
             currentHitIsLeft and "LEFT" or "RIGHT"))
         self:executeAttack(currentHitIsLeft, finalStats) -- Passa finalStats
+        self:createAttackAnimationInstance(currentHitIsLeft, currentDelay)
     end
 
     -- IMPORTANTE: Alterna o estado APENAS UMA VEZ no final, preparando o PRÓXIMO cast
@@ -204,6 +214,20 @@ function AlternatingConeStrike:cast(args)
     print(string.format("  - Next cast will start on %s side.", self.hitLeftNext and "LEFT" or "RIGHT"))
 
     return true -- Retorna true porque o cast foi iniciado
+end
+
+--- Cria uma instância de animação de ataque.
+---@param hitLeft boolean True se o ataque foi no lado esquerdo.
+---@param delay number Delay para iniciar a animação.
+function AlternatingConeStrike:createAttackAnimationInstance(hitLeft, delay)
+    local attackAnimationInstance = {
+        progress = 0,
+        hitLeft = hitLeft,
+        delay = delay or 0
+    }
+    table.insert(self.activeAttacks, attackAnimationInstance)
+    -- Logger.debug("[AlternatingConeStrike:createAttackAnimationInstance]",
+    --     string.format("Animation instance created. HitLeft: %s, Delay: %.2f", tostring(hitLeft), delay))
 end
 
 --- Executa a lógica de um único golpe em uma metade específica.
@@ -327,9 +351,11 @@ function AlternatingConeStrike:draw()
     end
 
     -- Desenha a animação do ataque (apenas a metade ativa)
-    if self.isAttacking then
-        -- USA A VERSÃO *SEM* innerRange por enquanto, até restaurarmos no próximo passo
-        self:drawHalfConeFill(self.visual.attack.color, self.attackProgress, self.lastAttackWasLeft)
+    for i = 1, #self.activeAttacks do
+        local attackInstance = self.activeAttacks[i]
+        if attackInstance and (not attackInstance.delay or attackInstance.delay <= 0) then
+            self:drawHalfConeFill(self.visual.attack.color, attackInstance.progress, attackInstance.hitLeft)
+        end
     end
 end
 
