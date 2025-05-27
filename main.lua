@@ -14,6 +14,7 @@ local fonts = require("src.ui.fonts")
 local lovebird = require("src.libs.lovebird")
 local profiler = require("src.libs.profiler")
 local Logger = require("src.libs.logger")
+local luker = require("src.libs.luker")
 
 -- [[ Inicialização LOVE ]] --
 function love.load()
@@ -77,6 +78,10 @@ function love.update(dt)
 
     if LOGS_ON_CONSOLE then
         lovebird.update()
+    end
+
+    if DEV then
+        luker.update(dt)
     end
 end
 
