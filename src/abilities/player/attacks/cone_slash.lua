@@ -34,12 +34,12 @@ ConeSlash.visual = {
     preview = {
         active = false,
         lineLength = 50,
-        color = { 0.7, 0.7, 0.7, 0.2 } -- Cor padrão preview
+        color = { 1, 1, 1, 0.2 } -- Cor padrão preview
     },
     attack = {
         segments = 20,
-        animationDuration = 0.2,         -- Duração da animação em segundos
-        color = { 1, 0.302, 0.302, 0.6 } -- Cor padrão ataque
+        animationDuration = 0.15, -- Duração da animação em segundos
+        color = { 1, 1, 1, 0.8 }  -- Cor padrão ataque
     }
 }
 
@@ -59,11 +59,6 @@ function ConeSlash:new(playerManager, weaponInstance)
 
     o.cooldownRemaining = 0
     o.activeAttacks = {} -- Rastreia animações de ataque individuais
-
-    -- Busca cores da weaponInstance
-    o.visual.preview.color = weaponInstance.previewColor or o.visual.preview.color
-    o.visual.attack.color = weaponInstance.attackColor or o.visual.attack.color
-    Logger.debug("ConeSlash:new", "  - Preview/Attack colors set.")
 
     -- Área de efeito será calculada dinamicamente no update
     o.area = {
@@ -182,7 +177,7 @@ function ConeSlash:cast(args)
     end
 
     -- Parâmetro de delay entre ataques extras
-    local delayStep = 0.07 -- segundos entre cada ataque extra
+    local delayStep = 0.1 -- segundos entre cada ataque extra
     local currentDelay = 0
 
     -- Primeiro ataque sempre ocorre
@@ -395,8 +390,6 @@ end
 ---@param areaInstance table A instância da área para este desenho específico (com position, angle, range, halfWidth, angleWidth).
 function ConeSlash:drawConeFill(color, progress, areaInstance)
     if not areaInstance or not areaInstance.range or areaInstance.range <= 0 or not areaInstance.angleWidth or areaInstance.angleWidth <= 0 then
-        --Logger.warn("[ConeSlash:drawConeFill]", "Área da instância inválida para animação.")
-        -- Pequeno log para não poluir demais, mas útil para debug inicial
         if not areaInstance then
             error("[ConeSlash:drawConeFill] AVISO: areaInstance é nil.")
             return
@@ -416,64 +409,75 @@ function ConeSlash:drawConeFill(color, progress, areaInstance)
 
     local segments = self.visual.attack.segments or 20
     local playerRadius = (self.playerManager.player and self.playerManager.player.radius or 10)
-    local innerRangeFactor = 0.5 -- Fator do raio do jogador para o "buraco" interno, para não começar exatamente no centro.
-    -- Pode ser ajustado ou usar um valor fixo como antes self.playerManager.player.radius*1.5
-    local innerRange = playerRadius * innerRangeFactor
-
-
-    local alpha = color[4] or 1.0
-
-    -- Animação: O cone é "varrido" angularmente com o progresso.
-    -- O range total do cone permanece constante.
     local fullRange = areaInstance.range
-    if not fullRange or fullRange <= 0 then return end -- Garante que o range base é válido
+    if not fullRange or fullRange <= 0 then return end
 
-    love.graphics.setColor(color[1], color[2], color[3], alpha)
+    -- Parâmetros da onda
+    local shellWidth = math.max(24, fullRange * 0.18)
+    local shellRadius = playerRadius + (fullRange - playerRadius) * progress
+    local shellInner = math.max(playerRadius, shellRadius - shellWidth * 0.5)
+    local shellOuter = math.min(fullRange, shellRadius + shellWidth * 0.5)
+    if shellOuter <= shellInner then return end
 
     local cx, cy = areaInstance.position.x, areaInstance.position.y
-
-    -- Define o ângulo inicial do cone (borda esquerda)
     local coneBaseStartAngle = areaInstance.angle - areaInstance.halfWidth
-    -- O ângulo da animação varre da borda esquerda até a borda direita
-    local animatedEndAngle = coneBaseStartAngle + (areaInstance.angleWidth * progress)
-
-    -- Garante que o animatedEndAngle não exceda a borda direita do cone total
     local coneBaseEndAngle = areaInstance.angle + areaInstance.halfWidth
-    animatedEndAngle = math.min(animatedEndAngle, coneBaseEndAngle)
 
-    -- Para a animação de varredura, o startAngle da porção desenhada é sempre o início do cone.
-    -- O endAngle da porção desenhada é o animatedEndAngle.
-    local currentDrawStartAngle = coneBaseStartAngle
-    local currentDrawEndAngle = animatedEndAngle
+    if progress < 0.01 then return end
 
-    -- Se o progresso for muito pequeno, não desenha nada ou desenha uma linha fina
-    if progress < 0.01 or currentDrawEndAngle <= currentDrawStartAngle then
-        return
-    end
-
+    -- Preenchimento principal (onda)
     local vertices = {}
-    -- Arco externo
     for i = 0, segments do
-        local angle = currentDrawStartAngle + (currentDrawEndAngle - currentDrawStartAngle) * (i / segments)
-        table.insert(vertices, cx + fullRange * math.cos(angle))
-        table.insert(vertices, cy + fullRange * math.sin(angle))
+        local angle = coneBaseStartAngle + (coneBaseEndAngle - coneBaseStartAngle) * (i / segments)
+        table.insert(vertices, cx + shellOuter * math.cos(angle))
+        table.insert(vertices, cy + shellOuter * math.sin(angle))
     end
-    -- Arco interno
     for i = segments, 0, -1 do
-        local angle = currentDrawStartAngle + (currentDrawEndAngle - currentDrawStartAngle) * (i / segments)
-        local actualInnerRange = math.min(innerRange, fullRange * 0.9) -- Garante que o buraco não seja maior que 90% do cone
-        if actualInnerRange < 0 then actualInnerRange = 0 end
-        -- Garante que o buraco interno não seja maior ou igual ao raio total, o que causaria erro ou não desenharia nada.
-        if actualInnerRange >= fullRange and fullRange > 0 then actualInnerRange = fullRange * 0.95 end
-
-
-        table.insert(vertices, cx + actualInnerRange * math.cos(angle))
-        table.insert(vertices, cy + actualInnerRange * math.sin(angle))
+        local angle = coneBaseStartAngle + (coneBaseEndAngle - coneBaseStartAngle) * (i / segments)
+        table.insert(vertices, cx + shellInner * math.cos(angle))
+        table.insert(vertices, cy + shellInner * math.sin(angle))
     end
-
     if #vertices >= 6 then
+        love.graphics.setColor(color[1], color[2], color[3], color[4] or 1.0)
         love.graphics.polygon("fill", unpack(vertices))
     end
+
+    -- Faixa inferior mais transparente (gradiente fake)
+    local baseFadeWidth = shellWidth * 0.35
+    local fadeInner = shellInner
+    local fadeOuter = math.min(shellOuter, shellInner + baseFadeWidth)
+    if fadeOuter > fadeInner then
+        local fadeVertices = {}
+        for i = 0, segments do
+            local angle = coneBaseStartAngle + (coneBaseEndAngle - coneBaseStartAngle) * (i / segments)
+            table.insert(fadeVertices, cx + fadeOuter * math.cos(angle))
+            table.insert(fadeVertices, cy + fadeOuter * math.sin(angle))
+        end
+        for i = segments, 0, -1 do
+            local angle = coneBaseStartAngle + (coneBaseEndAngle - coneBaseStartAngle) * (i / segments)
+            table.insert(fadeVertices, cx + fadeInner * math.cos(angle))
+            table.insert(fadeVertices, cy + fadeInner * math.sin(angle))
+        end
+        if #fadeVertices >= 6 then
+            love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1.0) * 0.3)
+            love.graphics.polygon("fill", unpack(fadeVertices))
+        end
+    end
+
+    -- Borda brilhante no arco externo
+    if #vertices >= 6 then
+        love.graphics.setColor(1, 1, 1, 0.7 * (1 - progress))
+        love.graphics.setLineWidth(2)
+        local borderVertices = {}
+        for i = 0, segments do
+            local angle = coneBaseStartAngle + (coneBaseEndAngle - coneBaseStartAngle) * (i / segments)
+            table.insert(borderVertices, cx + shellOuter * math.cos(angle))
+            table.insert(borderVertices, cy + shellOuter * math.sin(angle))
+        end
+        love.graphics.line(unpack(borderVertices))
+        love.graphics.setLineWidth(1)
+    end
+
     love.graphics.setColor(1, 1, 1, 1)
 end
 

@@ -15,9 +15,6 @@ function WoodenSword:new(config)
 
     -- Define propriedades específicas ou padrão para WoodenSword, como cores.
     -- Se as cores estiverem nos dados base, podem ser lidas lá.
-    o.previewColor = { 0.5, 0.3, 0.1, 0.2 }
-    o.attackColor = { 0.3, 0.2, 0.1, 0.6 }
-    print("  - Default preview/attack colors set.")
 
     return o
 end
