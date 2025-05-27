@@ -1003,7 +1003,6 @@ end
 function PlayerManager:receiveDamage(damageAmount)
     if not self.state or not self.state.isAlive then return end
 
-    --[[
     local currentTime = self.gameTime
     if currentTime - self.lastDamageTime < Constants.PLAYER_DAMAGE_COOLDOWN then
         return -- Em cooldown de dano
@@ -1033,7 +1032,6 @@ function PlayerManager:receiveDamage(damageAmount)
         self:addFloatingText("-" .. tostring(damageTaken), props)
         TablePool.release(props) -- <<< MUDANÇA (se esta seção for descomentada)
     end
-    --]]
 
     if not self.state.isAlive then
         self:onDeath()
