@@ -414,13 +414,13 @@ function GameplayScene:draw()
         experienceOrbMgr:collectRenderables(self.renderPipeline)
     end
 
-    Logger.debug("GameplayScene", "Chamando Camera:attach()...")
+    --Logger.debug("GameplayScene", "Chamando Camera:attach()...")
     Camera:attach()
 
     -- Desenha tudo que está sob a câmera usando o RenderPipeline
     self.renderPipeline:draw(self.mapManager, Camera.x, Camera.y)
 
-    Logger.debug("GameplayScene", "Chamando Camera:detach()...")
+    --Logger.debug("GameplayScene", "Chamando Camera:detach()...")
     Camera:detach()
 
     -- Desenha elementos de UI e outros que ficam sobre a câmera (ex: barras de vida de BaseEnemy)

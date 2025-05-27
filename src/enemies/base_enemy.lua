@@ -61,7 +61,7 @@ local BaseEnemy = {
     currentGridCells = nil,
 
     -- Constants
-    RADIUS_SIZE_DELTA = 0.9,
+    RADIUS_SIZE_DELTA = 1.2,
     SEPARATION_STRENGTH = 60.0,
 }
 
@@ -193,7 +193,7 @@ function BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
         if not playerPos then return end
 
         local dx = playerPos.position.x - self.position.x
-        local dy = (playerPos.position.y - self.position.y) * 2
+        local dy = playerPos.position.y - self.position.y
 
         local lenSq = dx * dx + dy * dy
         if lenSq > 0 then
@@ -214,7 +214,7 @@ function BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
             for _, other in ipairs(nearby) do
                 if other ~= self and other.isAlive then
                     local dx = self.position.x - other.position.x
-                    local dy = (self.position.y - other.position.y) * 2
+                    local dy = self.position.y - other.position.y
                     local distSq = dx * dx + dy * dy
 
                     if distSq > 0 then
@@ -224,6 +224,10 @@ function BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
 
                         sepX = sepX + (dx / dist) * force * self.SEPARATION_STRENGTH
                         sepY = sepY + (dy / dist) * force * self.SEPARATION_STRENGTH
+                    else -- distSq == 0, inimigos exatamente sobrepostos
+                        local random_angle = math.random() * 2 * math.pi
+                        sepX = sepX + math.cos(random_angle) * self.SEPARATION_STRENGTH
+                        sepY = sepY + math.sin(random_angle) * self.SEPARATION_STRENGTH
                     end
                 end
             end

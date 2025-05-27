@@ -3,13 +3,13 @@
 local Logger = {}
 
 Logger.enabled = LOGGERS
-Logger.logInterval = 0.5
+Logger.logInterval = 0.001
 Logger.timers = {}
 Logger.logs = {} -- Logs para visualização na tela
 Logger.showOnScreen = true
 Logger.maxLines = 10
 Logger.visibleLevels = { debug = true, info = true, warn = true, error = true }
-Logger.saveToFile = false
+Logger.saveToFile = true
 Logger.logFileName = "log.txt"
 Logger.printToConsole = LOGS_ON_CONSOLE
 Logger.toggleKey = "'"

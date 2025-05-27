@@ -18,8 +18,8 @@ function MapManager:new(mapName, assetManager)
     instance.tileBatches = {}            -- Tabela para armazenar SpriteBatches por textura de tileset
     instance.assetManager = assetManager -- Guardar a referência do AssetManager
 
-    instance.mapPixelWidth = 0 -- <<< ADICIONADO
-    instance.mapPixelHeight = 0 -- <<< ADICIONADO
+    instance.mapPixelWidth = 0           -- <<< ADICIONADO
+    instance.mapPixelHeight = 0          -- <<< ADICIONADO
 
     if not instance.assetManager then
         Logger.error("MapManager", "AssetManager não fornecido ao criar MapManager para o mapa: " .. mapName)
@@ -71,16 +71,18 @@ function MapManager:loadMap()
     if self.mapData and self.mapData.width and self.mapData.tilewidth then
         self.mapPixelWidth = self.mapData.width * self.mapData.tilewidth
     else
-        Logger.error("MapManager", "Dimensões de largura do mapa (mapData.width ou mapData.tilewidth) ausentes ou inválidas.")
-        self.mapPixelWidth = 0 
+        Logger.error("MapManager",
+            "Dimensões de largura do mapa (mapData.width ou mapData.tilewidth) ausentes ou inválidas.")
+        self.mapPixelWidth = 0
     end
 
     if self.mapData and self.mapData.height and self.mapData.tileheight then
         -- Para o SpatialGrid, usamos a altura total em tiles * altura do tile.
         -- Isso define a extensão Y do grid.
-        self.mapPixelHeight = self.mapData.height * self.mapData.tileheight 
+        self.mapPixelHeight = self.mapData.height * self.mapData.tileheight
     else
-        Logger.error("MapManager", "Dimensões de altura do mapa (mapData.height ou mapData.tileheight) ausentes ou inválidas.")
+        Logger.error("MapManager",
+            "Dimensões de altura do mapa (mapData.height ou mapData.tileheight) ausentes ou inválidas.")
         self.mapPixelHeight = 0
     end
 
@@ -355,7 +357,7 @@ function MapManager:draw(cameraX, cameraY) -- cameraX, cameraY podem ser usados 
 
     local batchCount = 0
     for _ in pairs(self.tileBatches) do batchCount = batchCount + 1 end
-    Logger.debug("MapManager:draw", "Iniciando desenho do mapa. Número de batches: " .. batchCount)
+    -- Logger.debug("MapManager:draw", "Iniciando desenho do mapa. Número de batches: " .. batchCount)
 
     love.graphics.push()
     if cameraX and cameraY then
@@ -368,8 +370,8 @@ function MapManager:draw(cameraX, cameraY) -- cameraX, cameraY podem ser usados 
     for image, batch in pairs(self.tileBatches) do
         local countInBatch = batch:getCount()
         if countInBatch > 0 then
-            Logger.debug("MapManager:draw",
-                string.format("  Desenhando batch para imagem %s. Contagem: %d", tostring(image), countInBatch))
+            -- Logger.debug("MapManager:draw",
+            --     string.format("  Desenhando batch para imagem %s. Contagem: %d", tostring(image), countInBatch))
             love.graphics.draw(batch)
         else
             -- Logger.debug("MapManager:draw", string.format("  Pulando batch para imagem %s (vazio).", image:typeOf()))
@@ -388,7 +390,7 @@ function MapManager:draw(cameraX, cameraY) -- cameraX, cameraY podem ser usados 
     --     love.graphics.print("Tiles nos batches: " .. totalTilesInBatches, 10, 50)
     --     love.graphics.setColor(1,1,1)
     -- end
-    Logger.debug("MapManager:draw", "Desenho do mapa concluído.")
+    -- Logger.debug("MapManager:draw", "Desenho do mapa concluído.")
 end
 
 --- Limpa os recursos do mapa.

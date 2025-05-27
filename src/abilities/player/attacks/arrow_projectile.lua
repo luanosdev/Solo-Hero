@@ -263,6 +263,8 @@ function ArrowProjectile:drawPreviewCone(color)
     -- love.graphics.arc("line", "open", cx, cy, range, startAngle, endAngle, segments) -- Descomentar se quiser o arco
     love.graphics.line(cx, cy, cx + range * math.cos(startAngle), cy + range * math.sin(startAngle))
     love.graphics.line(cx, cy, cx + range * math.cos(endAngle), cy + range * math.sin(endAngle))
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function ArrowProjectile:getCooldownRemaining()
