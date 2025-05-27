@@ -40,3 +40,4 @@ luac.out
 *.hex
 
 profiler_report.txt
+log.txt
