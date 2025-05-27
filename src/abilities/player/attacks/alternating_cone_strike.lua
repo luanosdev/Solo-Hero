@@ -7,6 +7,13 @@
 local ManagerRegistry = require("src.managers.manager_registry")
 local TablePool = require("src.utils.table_pool")
 
+--- @class AlternatingConeStrike
+--- @field playerManager PlayerManager
+--- @field weaponInstance BaseWeapon
+--- @field cooldownRemaining number
+--- @field activeAttacks table
+--- @field hitLeftNext boolean
+--- @field visual table
 local AlternatingConeStrike = {}
 AlternatingConeStrike.__index = AlternatingConeStrike -- Para permitir :new
 
@@ -21,7 +28,7 @@ AlternatingConeStrike.visual = {
         color = { 0.7, 0.7, 0.7, 0.2 } -- Cor padrão preview
     },
     attack = {
-        animationDuration = 0.1,
+        animationDuration = 0.515,
         color = { 0.8, 0.1, 0.8, 0.6 } -- Cor padrão ataque
     }
 }
@@ -177,7 +184,7 @@ function AlternatingConeStrike:cast(args)
         decimalChance * 100))
 
     -- Parâmetro de delay entre animações de ataques extras
-    local delayStep = 0.05 -- segundos entre cada animação de ataque extra
+    local delayStep = 0.45 -- segundos entre cada animação de ataque extra
     local currentDelay = 0
 
     -- Executa o PRIMEIRO ataque
@@ -350,11 +357,11 @@ function AlternatingConeStrike:draw()
         self:drawConeOutline(self.visual.preview.color) -- Usa cor da instância
     end
 
-    -- Desenha a animação do ataque (apenas a metade ativa)
+    -- Desenha a animação do ataque
     for i = 1, #self.activeAttacks do
         local attackInstance = self.activeAttacks[i]
         if attackInstance and (not attackInstance.delay or attackInstance.delay <= 0) then
-            self:drawHalfConeFill(self.visual.attack.color, attackInstance.progress, attackInstance.hitLeft)
+            self:drawConeFill(self.visual.attack.color, attackInstance.progress, self.area, attackInstance.hitLeft) -- Passa hitLeft
         end
     end
 end
@@ -388,69 +395,85 @@ function AlternatingConeStrike:drawConeOutline(color)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
---- Desenha o PREENCHIMENTO de METADE do cone (para ataque).
---- RESTAURADO: Usa innerRange novamente.
+--- Desenha o PREENCHIMENTO de METADE do cone com ESTILO DE ONDA (para ataque).
+--- Baseado no drawConeFill do ConeSlash, mas adaptado para desenhar apenas uma metade.
 ---@param color table Cor RGBA a ser usada.
----@param progress number Progresso da animação (0 a 1), pode ser usado para fade in/out.
+---@param progress number Progresso da animação (0 a 1).
+---@param areaInstance table A instância da área para este desenho específico (com position, angle, range, halfWidth, angleWidth).
 ---@param drawLeft boolean True para desenhar a metade esquerda, False para a direita.
-function AlternatingConeStrike:drawHalfConeFill(color, progress, drawLeft)
-    if not self.area or not self.area.range or self.area.range <= 0 or not self.area.halfWidth or self.area.halfWidth <= 0 then
-        error("[AlternatingConeStrike:drawHalfConeFill] AVISO: Área inválida para desenho.")
+function AlternatingConeStrike:drawConeFill(color, progress, areaInstance, drawLeft)
+    if not areaInstance or not areaInstance.range or areaInstance.range <= 0 or not areaInstance.angleWidth or areaInstance.angleWidth <= 0 or not areaInstance.halfWidth or areaInstance.halfWidth <= 0 then
+        print(string.format("[AlternatingConeStrike:drawConeFill] AVISO: Área inválida para desenho. R:%s AW:%s HW:%s",
+            tostring(areaInstance.range), tostring(areaInstance.angleWidth), tostring(areaInstance.halfWidth)))
         return
     end
 
-    local segments = 16
-    local innerRange = (self.playerManager.player and self.playerManager.player.radius or 10) * 1.5
-    local fullRange = self.area.range
+    local segments = (self.visual and self.visual.attack and self.visual.attack.segments) or 16 -- 16 para metade do cone
+    local playerRadius = (self.playerManager.player and self.playerManager.player.radius or 10)
+    local fullRange = areaInstance.range
+    if not fullRange or fullRange <= 0 then return end
 
-    local alpha = color[4] or 1.0
-    love.graphics.setColor(color[1], color[2], color[3], alpha) -- Alpha pode ser constante ou variar
+    -- Parâmetros da onda (shell)
+    local shellWidth = math.max(12, fullRange * 0.18) -- Ajustado para ser potencialmente menor em meio cone
+    local shellRadius = playerRadius + (fullRange - playerRadius) * progress
+    local shellInner = math.max(playerRadius, shellRadius - shellWidth * 0.5)
+    local shellOuter = math.min(fullRange, shellRadius + shellWidth * 0.5)
 
-    local cx, cy = self.area.position.x, self.area.position.y
-    local baseAngle = self.area.angle
-    local halfWidth = self.area.halfWidth
+    -- Garante que há algo para desenhar e que o shell não é inválido
+    if shellOuter <= shellInner or progress < 0.01 then return end
 
-    local currentDrawStartAngle, currentDrawEndAngle
+    local cx, cy = areaInstance.position.x, areaInstance.position.y
+    local baseAngle = areaInstance.angle
+    local halfWidth = areaInstance.halfWidth
+
+    local coneCurrentStartAngle, coneCurrentEndAngle
 
     if drawLeft then
-        -- Metade Esquerda: Slash da borda esquerda (-halfWidth) para o centro (0)
-        currentDrawStartAngle = baseAngle - halfWidth
-        currentDrawEndAngle = (baseAngle - halfWidth) + (halfWidth * progress)
+        -- Metade Esquerda: do ângulo (base - halfWidth) ao ângulo base
+        coneCurrentStartAngle = baseAngle - halfWidth
+        coneCurrentEndAngle = baseAngle
     else
-        -- Metade Direita: Slash da borda direita (+halfWidth) para o centro (0)
-        -- Para animar da direita para a esquerda com progress de 0 a 1:
-        -- O startAngle se move da direita (baseAngle + halfWidth) para o centro (baseAngle)
-        currentDrawStartAngle = baseAngle + halfWidth - (halfWidth * progress)
-        currentDrawEndAngle = baseAngle + halfWidth
+        -- Metade Direita: do ângulo base ao ângulo (base + halfWidth)
+        coneCurrentStartAngle = baseAngle
+        coneCurrentEndAngle = baseAngle + halfWidth
     end
 
-    -- Garante que os ângulos não se cruzem de forma inválida e que haja algo para desenhar
-    if progress < 0.01 or currentDrawEndAngle <= currentDrawStartAngle then
-        return
-    end
-
+    -- Preenchimento principal (onda na metade do cone)
     local vertices = {}
-    -- Arco externo
+    -- Ponto central (ou do jogador) para fechar o polígono da metade do cone
+    -- table.insert(vertices, cx + playerRadius * math.cos(coneCurrentStartAngle)) -- Ponto inicial no raio do jogador
+    -- table.insert(vertices, cy + playerRadius * math.sin(coneCurrentStartAngle))
+
+    -- Arco externo da onda
     for i = 0, segments do
-        local angle = currentDrawStartAngle + (currentDrawEndAngle - currentDrawStartAngle) * (i / segments)
-        table.insert(vertices, cx + fullRange * math.cos(angle))
-        table.insert(vertices, cy + fullRange * math.sin(angle))
-    end
-    -- Arco interno
-    for i = segments, 0, -1 do
-        local angle = currentDrawStartAngle + (currentDrawEndAngle - currentDrawStartAngle) * (i / segments)
-        local actualInnerRange = math.min(innerRange, fullRange * 0.9)
-        if actualInnerRange < 0 then actualInnerRange = 0 end
-        if actualInnerRange >= fullRange and fullRange > 0 then actualInnerRange = fullRange * 0.95 end
-
-        table.insert(vertices, cx + actualInnerRange * math.cos(angle))
-        table.insert(vertices, cy + actualInnerRange * math.sin(angle))
+        local angle = coneCurrentStartAngle + (coneCurrentEndAngle - coneCurrentStartAngle) * (i / segments)
+        table.insert(vertices, cx + shellOuter * math.cos(angle))
+        table.insert(vertices, cy + shellOuter * math.sin(angle))
     end
 
-    if #vertices >= 6 then
+    -- table.insert(vertices, cx + playerRadius * math.cos(coneCurrentEndAngle)) -- Ponto final no raio do jogador
+    -- table.insert(vertices, cy + playerRadius * math.sin(coneCurrentEndAngle))
+
+    if #vertices >= 6 then -- Mínimo para um polígono com inner/outer shell
+        love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1.0) * 0.6)
         love.graphics.polygon("fill", unpack(vertices))
     end
-    love.graphics.setColor(1, 1, 1, 1) -- Reseta cor
+
+    -- Borda brilhante no arco externo da metade do cone
+    if #vertices >= 4 then -- Apenas o arco externo para a linha
+        love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1.0) * 0.5)
+        love.graphics.setLineWidth(2)
+        local borderVertices = {}
+        for i = 0, segments do
+            local angle = coneCurrentStartAngle + (coneCurrentEndAngle - coneCurrentStartAngle) * (i / segments)
+            table.insert(borderVertices, cx + shellOuter * math.cos(angle))
+            table.insert(borderVertices, cy + shellOuter * math.sin(angle))
+        end
+        love.graphics.line(unpack(borderVertices))
+        love.graphics.setLineWidth(1)
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function AlternatingConeStrike:getCooldownRemaining()
