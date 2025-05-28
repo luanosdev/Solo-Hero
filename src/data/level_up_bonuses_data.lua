@@ -74,6 +74,41 @@ LevelUpBonusesData.Bonuses = {
         tags = { "defensivo", "vida", "risco", "negativo" }
     },
 
+    -- Bônus de Força (NOVA SEÇÃO)
+    strength_training_1_fixed = {
+        id = "strength_training_1_fixed",
+        name = "Treino de Força (Fixo)",
+        description_template = "Aumenta a Força em {value} pontos.",
+        icon = "STR+",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "strength", type = "fixed", value = 2 } -- +2 Força fixa por nível
+        },
+        tags = { "ofensivo", "forca", "fixo" }
+    },
+    strength_might_1_percent = {
+        id = "strength_might_1_percent",
+        name = "Poderio Crescente (%)",
+        description_template = "Aumenta a Força em 5%.",
+        icon = "STR%",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "strength", type = "percentage", value = 5 } -- +5% Força por nível (para levelBonus)
+        },
+        tags = { "ofensivo", "forca", "percentual" }
+    },
+    strength_burst_1_combo = {
+        id = "strength_burst_1_combo",
+        name = "Explosão de Força",
+        description_template = "Aumenta Força em 3.",
+        icon = "STR*",
+        max_level = 5,
+        modifiers_per_level = {
+            { stat = "strength", type = "fixed", value = 3 },
+        },
+        tags = { "ofensivo", "forca", "dano", "combo" }
+    },
+
     -- Bônus de Dano/Ataque
     strength_1_percent = {
         id = "strength_1_percent",

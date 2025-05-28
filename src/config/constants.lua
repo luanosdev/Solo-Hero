@@ -54,6 +54,7 @@ Constants.HUNTER_DEFAULT_STATS = {
     healingBonus = 1.0,        -- Multiplier (1.0 = 100% healing received)
     runeSlots = 3,             -- Number of rune slots
     luck = 1.0,                -- Multiplier (1.0 = 100% luck)
+    strength = 1.0,            -- Multiplier (1.0 = 100% strength)
 }
 
 Constants.ENEMY_SPRITE_SIZES = {

@@ -205,6 +205,7 @@ function StatsSection.draw(x, y, w, h, playerManager)
     local attributesToShow = {
         { label = "Vida Máxima",       baseKey = "baseHealth",             percKey = "health",             fixedKey = "health",             totalFunc = state.getTotalHealth,             format = "%d" },
         { label = "Defesa",            baseKey = "baseDefense",            percKey = "defense",            fixedKey = "defense",            totalFunc = state.getTotalDefense,            format = "%d" },
+        { label = "Força",             baseKey = "baseStrength",           percKey = "strength",           fixedKey = "strength",           totalFunc = state.getTotalStrength,           format = "%d" },
         { label = "Velocidade Mov.",   baseKey = "baseSpeed",              percKey = "speed",              fixedKey = "speed",              totalFunc = state.getTotalSpeed,              format = "%.1f" },
         { label = "Chance Crítico",    baseKey = "baseCriticalChance",     percKey = "criticalChance",     fixedKey = "criticalChance",     totalFunc = state.getTotalCriticalChance,     format = "%.1f%%" },
         { label = "Mult. Crítico",     baseKey = "baseCriticalMultiplier", percKey = "criticalMultiplier", fixedKey = "criticalMultiplier", totalFunc = state.getTotalCriticalMultiplier, format = "%.1fx" },
@@ -541,6 +542,7 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
         { label = "Dano",           key = "weaponDamage",      format = "%d",      noDirectBase = true },
         { label = "HP Máximo",      key = "health",            format = "%d",      showTooltip = true },
         { label = "Armadura",       key = "defense",           format = "%d",      showTooltip = true },
+        { label = "Força",          key = "strength",          format = "%d",      showTooltip = true },
         { label = "Vel. Movimento", key = "moveSpeed",         format = "%.2f",    showTooltip = true }, -- Não é %, é valor direto
         { label = "Chance Crítico", key = "critChance",        format = "%.1f%%",  multiplier = 100,   showTooltip = true },
         { label = "Dano Crítico",   key = "critDamage",        format = "+%.0f%%", multiplier = 100,   showTooltip = true },

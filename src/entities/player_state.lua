@@ -30,6 +30,7 @@ local PlayerState = {
     healthRegen = 0.5,     -- HP/s base
     multiAttackChance = 0, -- Como fração (0 = 0%)
     runeSlots = 1,
+    strength = 1,          -- NOVO ATRIBUTO: Força base
 
     -- Atributos Adicionados (com base nos logs de initialStats, com padrões)
     expBonus = 1.0,            -- Multiplicador
@@ -54,6 +55,7 @@ local PlayerState = {
         critDamage = 0,         -- % (Multiplicador adicional, ex: 20 significa +20% no multiplicador total)
         healthRegen = 0,        -- %
         multiAttackChance = 0,  -- %
+        strength = 0,           -- NOVO: Bônus percentual de Força por nível
         -- Adicionar outros bônus de level se aplicável (luck, area, etc.)? Por enquanto não.
         expBonus = 0,           -- %
         healingBonus = 0,       -- %
@@ -78,6 +80,7 @@ local PlayerState = {
         critDamage = 0,         -- Percentual fixo (ex: 0.25 = +25% no multiplicador total)
         healthRegen = 0,        -- Aditivo (HP/s)
         multiAttackChance = 0,  -- Percentual fixo (ex: 0.1 = +10%)
+        strength = 0,           -- NOVO: Bônus fixo de Força
         -- Adicionar outros bônus fixos se aplicável
         expBonus = 0,           -- Percentual fixo
         healingBonus = 0,       -- Percentual fixo
@@ -118,6 +121,7 @@ function PlayerState:init(baseStats)
     self.pickupRadius = baseStats.pickupRadius or PlayerState.pickupRadius -- Adicionado pickupRadius
     self.runeSlots = baseStats.runeSlots or PlayerState.runeSlots
     self.luck = baseStats.luck or PlayerState.luck
+    self.strength = baseStats.strength or PlayerState.strength -- NOVO: Inicializa strength
 
     -- <<< CORREÇÃO: Armazena equippedItems e archetypeIds de baseStats >>>
     self.equippedItems = baseStats.equippedItems or {}

@@ -466,9 +466,9 @@ function PlayerManager:collectRenderables(renderPipeline)
     local cullRadius = self.radius or Constants.TILE_WIDTH / 2 -- Usa o raio de colisão do jogador
     if self.player.position.x + cullRadius > camX and
         self.player.position.x - cullRadius < camX + camWidth and
-        self.player.position.y + cullRadius > camY and -- Usando o centro Y do jogador para culling
+        self.player.position.y + cullRadius > camY and  -- Usando o centro Y do jogador para culling
         self.player.position.y - cullRadius < camY + camHeight then
-        local playerBaseY = self.player.position.y + 25      -- Base Y consistente com o círculo de colisão
+        local playerBaseY = self.player.position.y + 25 -- Base Y consistente com o círculo de colisão
 
         local worldX_eq = self.player.position.x / Constants.TILE_WIDTH
         local worldY_eq = playerBaseY / Constants.TILE_HEIGHT
@@ -846,7 +846,7 @@ function PlayerManager:getCurrentFinalStats()
         -- e para os outros, armazena o valor fixo. Precisamos separar.
         if statKey == "critChance" or statKey == "critDamage" or statKey == "attackSpeed" or statKey == "multiAttackChance" or statKey == "range" or statKey == "attackArea" or statKey == "luck" or statKey == "expBonus" or statKey == "healingBonus" or statKey == "cooldownReduction" then
             totalFixedFractionBonuses[statKey] = (totalFixedFractionBonuses[statKey] or 0) + value
-        else -- health, defense, moveSpeed, healthRegen, pickupRadius, healthRegenDelay, healthPerTick, runeSlots
+        else -- health, defense, moveSpeed, healthRegen, pickupRadius, healthRegenDelay, healthPerTick, runeSlots, strength
             totalFixedBonuses[statKey] = (totalFixedBonuses[statKey] or 0) + value
         end
     end

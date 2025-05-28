@@ -70,11 +70,20 @@ ArchetypesData.Archetypes = {
     },
     sortudo_pequeno = {
         id = "sortudo_pequeno",
-        name = "Sortudo (P)",
+        name = "Um pouco Sortudo",
         rank = "E",
         description = "Um leve aumento na sorte geral.",
         modifiers = {
             { stat = "luck", type = "percentage", value = 5 }
+        }
+    },
+    bruto_pequeno = {
+        id = "bruto_pequeno",
+        name = "Pequeno Bruto",
+        rank = "E",
+        description = "Um leve aumento na Força.",
+        modifiers = {
+            { stat = "strength", type = "fixed", value = 3 }
         }
     },
     -- Rank D
@@ -132,6 +141,16 @@ ArchetypesData.Archetypes = {
         description = "Aumenta a Sorte.",
         modifiers = {
             { stat = "luck", type = "fixed_percentage_as_fraction", value = 0.05 }
+        }
+    },
+    guerreiro_nato = {
+        id = "guerreiro_nato",
+        name = "Guerreiro Nato",
+        rank = "C",
+        description = "Força e Vida aumentadas.",
+        modifiers = {
+            { stat = "strength", type = "fixed", value = 5 },
+            { stat = "health",   type = "fixed", value = 50 }
         }
     },
     blessed = {
@@ -234,6 +253,17 @@ ArchetypesData.Archetypes = {
         modifiers = {
             { stat = "runeSlots",         type = "fixed",      value = 1 },
             { stat = "cooldownReduction", type = "percentage", value = 15 }
+        }
+    },
+    colosso = {
+        id = "colosso",
+        name = "Colosso",
+        rank = "A",
+        description = "Força e Defesa massivamente aumentadas, mas com grande penalidade na velocidade de ataque.",
+        modifiers = {
+            { stat = "strength",    type = "percentage", value = 25 },
+            { stat = "defense",     type = "percentage", value = 20 },
+            { stat = "attackSpeed", type = "percentage", value = -15 }
         }
     },
     -- Rank S
