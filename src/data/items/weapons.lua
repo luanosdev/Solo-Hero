@@ -124,6 +124,7 @@ local weapons = {
         range = 150,                                                   -- Alcance máximo das flechas
         angle = math.pi / 4,                                           -- Ângulo do cone de disparo (30 graus)
         projectiles = 1,                                               -- Número base de flechas
+        piercing = 2,                                                  -- NOVA PROPRIEDADE: Perfuração base da flecha
         attackClass = "src.abilities.player.attacks.arrow_projectile", -- Classe de ataque
     },
     chain_laser = {

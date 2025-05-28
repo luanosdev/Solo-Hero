@@ -80,7 +80,7 @@ function love.update(dt)
         lovebird.update()
     end
 
-    if DEV then
+    if DEV and HOT_RELOAD then
         lurker.update()
     end
 end

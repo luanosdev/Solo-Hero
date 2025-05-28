@@ -3,38 +3,42 @@
 -- A habilidade ArrowProjectile é uma habilidade de projétil de flecha que atira flechas em um ângulo e alcance específicos.
 -------------------------------------------------------
 
-local Arrow = require("src.projectiles.arrow")                   -- Precisaremos criar este arquivo
-local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado para buscar o spatialGrid
+local Arrow = require("src.projectiles.arrow")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 ---@class ArrowProjectile
----@field visual table
----@field currentPosition table
----@field currentAngle number
----@field currentRange number
----@field currentAngleWidth number
----@field currentPreviewLength number
----@field cooldownRemaining number
----@field activeArrows table
----@field baseDamage number
----@field baseCooldown number
----@field baseRange number
----@field baseAngleWidth number
----@field baseProjectiles number
----@field playerManager PlayerManager
----@field weaponInstance BaseWeapon
+---@field visual table Configurações visuais da habilidade.
+---@field currentPosition table Posição atual de origem dos disparos {x, y}.
+---@field currentAngle number Ângulo base atual para o disparo (em radianos).
+---@field currentRange number Alcance final das flechas, afetado por stats.
+---@field currentAngleWidth number Largura do ângulo de dispersão para múltiplos projéteis (afetado por stats de área, se aplicável, ou fixo).
+---@field currentPreviewLength number Comprimento da linha de preview.
+---@field cooldownRemaining number Tempo restante para o próximo uso.
+---@field activeArrows table Tabela de instâncias ativas de Arrow.
+---@field baseDamage number Dano base da arma (não usado diretamente para flechas, weaponDamage de finalStats é usado).
+---@field baseCooldown number Cooldown base da habilidade.
+---@field baseRange number Alcance base da habilidade/arma.
+---@field baseAngleWidth number Largura do ângulo de dispersão base para múltiplos projéteis.
+---@field baseProjectiles number Número base de projéteis por disparo.
+---@field basePiercing number Perfuração base fornecida pela arma (antes de bônus de stats).
+---@field playerManager PlayerManager Referência ao gerenciador do jogador.
+---@field weaponInstance BaseWeapon Referência à instância da arma que usa esta habilidade.
+---@field pooledArrows table Tabela para flechas reutilizáveis.
 local ArrowProjectile = {}
 ArrowProjectile.__index = ArrowProjectile
 
--- Configurações Visuais (pode ser herdado da arma)
+-- Configurações Visuais
 ArrowProjectile.visual = {
     preview = {
         active = false,
-        -- lineLength = 150 -- REMOVIDO: Será calculado dinamicamente
         -- color será definido no :new
     },
     attack = {
-        arrowSpeed = 400 -- Velocidade padrão das flechas (pixels por segundo)
+        arrowSpeed = 450, -- Velocidade padrão das flechas (pixels por segundo)
         -- color será definido no :new
+        -- Define o ângulo máximo de dispersão para múltiplas flechas (em radianos)
+        -- Ex: math.rad(30) para um leque total de 30 graus se houver muitas flechas.
+        maxTotalSpreadAngle = math.rad(20)
     }
 }
 
@@ -48,69 +52,77 @@ function ArrowProjectile:new(playerManager, weaponInstance)
     o.weaponInstance = weaponInstance
     o.cooldownRemaining = 0
     o.activeArrows = {} -- Tabela para guardar as flechas ativas
+    o.pooledArrows = {} -- NOVA TABELA para flechas reutilizáveis
 
-    -- Busca dados base da arma
     local baseData = o.weaponInstance:getBaseData()
     if not baseData then
         error(string.format("ArrowProjectile:new - Falha ao obter dados base para %s",
             o.weaponInstance.itemBaseId or "arma desconhecida"))
     end
 
-    o.baseDamage = baseData.damage
+    o.baseDamage = baseData.damage -- Guardado mas finalStats.weaponDamage é o que será usado por flecha
     o.baseCooldown = baseData.cooldown
     o.baseRange = baseData.range
-    o.baseAngleWidth = baseData.angle
+    o.baseAngleWidth = baseData.angle -- Usado para calcular a dispersão dos projéteis
     o.baseProjectiles = baseData.projectiles
+    -- Assume que a arma tem um atributo 'piercing'. Se não, padrão 1 (atinge 1 e para).
+    -- Este valor pode ser 0 se a flecha deve parar no primeiro inimigo sem bônus de força.
+    -- Para balanceamento, sugiro que arcos tenham piercing base >= 1.
+    o.basePiercing = baseData.piercing or 1
 
-    -- Define cores (usando as da arma ou padrão)
     o.visual.preview.color = o.weaponInstance.previewColor or { 0.7, 0.7, 0.7, 0.2 }
     o.visual.attack.color = o.weaponInstance.attackColor or { 0.2, 0.8, 0.2, 0.7 }
 
-    -- Inicializa valores que serão atualizados no update
     o.currentPosition = { x = 0, y = 0 }
     o.currentAngle = 0
+    -- Valores atuais serão calculados no update com base nos finalStats
     o.currentRange = o.baseRange
-    o.currentAngleWidth = o.baseAngleWidth
-    o.currentPreviewLength = o.currentRange / 2 -- Inicializa preview length
+    o.currentAngleWidth = o.baseAngleWidth -- Este será o 'maxTotalSpreadAngle' efetivo
+    o.currentPreviewLength = o.currentRange / 2
 
     print("[ArrowProjectile:new] Instância criada.")
     return o
 end
 
 function ArrowProjectile:update(dt, angle)
-    -- Atualiza cooldown
     if self.cooldownRemaining > 0 then
         self.cooldownRemaining = self.cooldownRemaining - dt
     end
 
-    -- Atualiza posição e ângulo base
     if self.playerManager and self.playerManager.player and self.playerManager.player.position then
         self.currentPosition = self.playerManager.player.position
     else
-        error("[ArrowProjectile:update] ERRO: Posição do jogador não disponível.")
+        -- Não dar erro fatal, mas logar e talvez impedir disparos se a posição não for conhecida
+        -- print("AVISO [ArrowProjectile:update]: Posição do jogador não disponível.")
+        -- self.currentPosition = {x = 0, y = 0} -- Fallback ou manter a última conhecida
+        return -- Impede atualização se não há jogador
     end
     self.currentAngle = angle
 
-    -- Obtem stats finais do jogador
     local finalStats = self.playerManager:getCurrentFinalStats()
+    if not finalStats then
+        -- print("AVISO [ArrowProjectile:update]: finalStats não disponíveis.")
+        return -- Impede atualização se não há stats
+    end
 
-    -- Calcula valores FINAIS para este frame
-    -- Assumindo que finalStats.range e finalStats.attackArea são multiplicadores totais (ex: 1.1 para +10%)
-    self.currentRange = self.baseRange and finalStats.range and (self.baseRange * finalStats.range)
-    self.currentAngleWidth = self.baseAngleWidth and finalStats.attackArea and
-        (self.baseAngleWidth * finalStats.attackArea)
+    -- Multiplicador de alcance de finalStats (ex: 1.1 para +10%)
+    local rangeMultiplier = finalStats.range or 1
+    self.currentRange = self.baseRange * rangeMultiplier
 
-    -- Calcula preview length baseado no range atual
-    -- Se self.currentRange for nil, self.currentPreviewLength também será nil.
+    -- Multiplicador de área de finalStats (ex: 1.2 para +20% de área/tamanho)
+    -- Este `attackArea` do `finalStats` será o `areaScale` para a flecha.
+    -- O `currentAngleWidth` para dispersão é diferente, usaremos `maxTotalSpreadAngle` da config visual.
+    -- Se quisermos que `attackArea` influencie a dispersão, essa lógica precisaria ser adicionada aqui.
+    -- Por ora, a dispersão é controlada por `maxTotalSpreadAngle`.
+
     self.currentPreviewLength = self.currentRange and (self.currentRange / 2)
 
-    -- Atualiza as flechas ativas
     for i = #self.activeArrows, 1, -1 do
         local arrow = self.activeArrows[i]
         arrow:update(dt)
-        -- Remove flechas que atingiram o alcance máximo ou colidiram
         if not arrow.isActive then
             table.remove(self.activeArrows, i)
+            table.insert(self.pooledArrows, arrow) -- ADICIONADO: Move para o pool
         end
     end
 end
@@ -123,152 +135,181 @@ function ArrowProjectile:cast(args)
     end
 
     local finalStats = self.playerManager:getCurrentFinalStats()
-
-    -- Aplica o cooldown baseado na velocidade de ataque do player
-    local totalAttackSpeed = finalStats.attackSpeed
-    if not totalAttackSpeed or totalAttackSpeed <= 0 then totalAttackSpeed = 0.01 end -- Exceção para evitar divisão por zero
-
-    if self.baseCooldown and totalAttackSpeed then
-        self.cooldownRemaining = self.baseCooldown / totalAttackSpeed
-    else
-        error(string.format(
-            "[ArrowProjectile:cast] ERRO: baseCooldown (%s) ou totalAttackSpeed (%s) é nil/inválido. Cooldown não aplicado corretamente.",
-            tostring(self.baseCooldown), tostring(finalStats.attackSpeed)))
+    if not finalStats then
+        -- print("ERRO [ArrowProjectile:cast]: finalStats não disponíveis. Não é possível disparar.")
+        return false
     end
 
-    -- Calcula o número total de flechas
-    local baseProjectilesActual = self.baseProjectiles
-    local currentMultiAttackChance = finalStats.multiAttackChance or 0 -- Trata nil como 0 para evitar erro
+    local totalAttackSpeed = finalStats.attackSpeed or 1
+    if totalAttackSpeed <= 0 then totalAttackSpeed = 0.01 end
+    self.cooldownRemaining = (self.baseCooldown or 1) / totalAttackSpeed
 
+    -- Cálculo de Flechas (MultiAttack)
+    local baseProjectilesActual = self.baseProjectiles or 1
+    local currentMultiAttackChance = finalStats.multiAttackChance or 0
     local extraArrowsInteger = math.floor(currentMultiAttackChance)
     local decimalChanceForExtra = currentMultiAttackChance - extraArrowsInteger
-
     local totalArrows = baseProjectilesActual + extraArrowsInteger
     if decimalChanceForExtra > 0 and math.random() < decimalChanceForExtra then
         totalArrows = totalArrows + 1
     end
 
-    if totalArrows == nil or totalArrows <= 0 then
-        error(string.format(
-            "[ArrowProjectile:cast] ERRO: totalArrows calculado é inválido (%s). Base: %s, MultiAttack: %s",
-            tostring(totalArrows), tostring(self.baseProjectiles), tostring(finalStats.multiAttackChance)))
-        return false -- Não dispara flechas se o cálculo falhar
+    if totalArrows <= 0 then
+        -- print(string.format("[ArrowProjectile:cast] AVISO: totalArrows calculado é zero ou negativo (%s). Nenhum projétil disparado.", totalArrows))
+        return false
     end
 
-    -- Dano por flecha e stats de crítico dos finalStats
-    local damagePerArrow = finalStats.weaponDamage
-    local criticalChance = finalStats.critChance
-    local criticalMultiplier = finalStats.critDamage
+    -- Dano, Crítico
+    local damagePerArrow = finalStats.weaponDamage or 10 -- Padrão baixo se weaponDamage for nil
+    local criticalChance = finalStats.critChance or 0
+    local criticalMultiplier = finalStats.critDamage or 1.5
 
-    if damagePerArrow == nil then
-        error("[ArrowProjectile:cast] ERRO: finalStats.weaponDamage é nil. Não é possível calcular o dano das flechas.")
+    -- Área de Efeito (para escala da flecha)
+    local areaScaleMultiplier = finalStats.attackArea or 1
+
+    -- Perfuração
+    -- Fator de conversão: quantos pontos de 'strength' para +1 piercing.
+    -- Exemplo: 10 de strength = +1 piercing. Ajuste conforme necessário para balanceamento.
+    local STRENGTH_TO_PIERCING_FACTOR = 0.1 -- (1 / 10)
+    local strengthBonusPiercing = 0
+    if finalStats.strength and finalStats.strength > 0 then
+        strengthBonusPiercing = math.floor(finalStats.strength * STRENGTH_TO_PIERCING_FACTOR)
     end
+    local currentPiercing = (self.basePiercing or 1) + strengthBonusPiercing
 
-    -- Calcula os ângulos das flechas usando currentAngle e currentAngleWidth
-    local angleForSpread = self.currentAngleWidth
-    local startAngle = self.currentAngle - angleForSpread / 2
-    local angleStep = 0
-    if totalArrows > 1 and angleForSpread > 0 then -- Evita divisão por zero se angleForSpread é 0
-        angleStep = angleForSpread / (totalArrows - 1)
-    end
+    -- Alcance (já calculado e armazenado em self.currentRange)
+    local currentArrowRange = self.currentRange
 
-    -- Obter o spatialGrid para passar para as flechas
-    local enemyManager = ManagerRegistry:get("enemyManager")
-    local spatialGrid = enemyManager.spatialGrid
-    if not spatialGrid then
-        error("[ArrowProjectile:cast] ERRO: spatialGrid não encontrado no enemyManager.")
-        -- Decide como lidar: retornar false, ou deixar as flechas funcionarem sem grid (menos ideal)
-        -- Por agora, vamos permitir que as flechas sejam criadas, mas elas podem não ter detecção de colisão otimizada.
-        -- Idealmente, a classe Arrow lidaria com um spatialGrid opcional ou este erro seria fatal.
-    end
+    -- Ângulos para Múltiplas Flechas
+    local arrowAngles = {}
+    if totalArrows == 1 then
+        table.insert(arrowAngles, self.currentAngle) -- Flecha única vai no ângulo central
+    else
+        local actualSpreadAngle = self.visual.attack.maxTotalSpreadAngle
+        -- Se a arma tiver um baseAngleWidth, podemos usá-lo para modificar o spread?
+        -- Por ora, vamos usar um fixed maxTotalSpreadAngle da visual config.
+        -- Se quisermos que finalStats.attackArea aumente o leque, essa lógica entraria aqui.
 
-    -- Cria e dispara as flechas
-    for i = 0, totalArrows - 1 do
-        local currentArrowAngle
-        if totalArrows == 1 or angleForSpread == 0 then
-            currentArrowAngle = self.currentAngle -- Se for só uma flecha ou sem spread, vai reto
-        else
-            currentArrowAngle = startAngle + i * angleStep
+        local angleStep = actualSpreadAngle / (totalArrows - 1)
+        local startAngleOffset = -actualSpreadAngle / 2
+
+        for i = 0, totalArrows - 1 do
+            table.insert(arrowAngles, self.currentAngle + startAngleOffset + (i * angleStep))
         end
+    end
 
-        -- Calcula se é crítico (feito por flecha)
-        local isCritical = criticalChance and (math.random() <= criticalChance)
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    local spatialGrid = enemyManager and enemyManager.spatialGrid
+    if not spatialGrid then
+        -- print("AVISO [ArrowProjectile:cast]: spatialGrid não encontrado. Flechas podem não colidir corretamente.")
+        -- Continuar sem spatialGrid é uma opção, mas a colisão da flecha falhará ou será ineficiente.
+    end
+
+    for _, arrowAngle in ipairs(arrowAngles) do
+        local isCritical = math.random() <= criticalChance
         local finalDamageThisArrow = damagePerArrow
         if isCritical then
-            if criticalMultiplier then
-                finalDamageThisArrow = math.floor(finalDamageThisArrow * criticalMultiplier)
-            else
-                error(
-                    "[ArrowProjectile:cast] AVISO: Acerto crítico mas finalStats.critDamage é nil. Usando dano normal.")
-            end
+            finalDamageThisArrow = math.floor(finalDamageThisArrow * criticalMultiplier)
         end
 
-        local arrow = Arrow:new(
-            self.currentPosition.x,
-            self.currentPosition.y,
-            currentArrowAngle,
-            self.visual.attack.arrowSpeed,
-            self.currentRange, -- Pode ser nil, Arrow:new precisa tratar
-            finalDamageThisArrow,
-            isCritical,
-            spatialGrid, -- NOVO: passa o spatialGrid. A classe Arrow precisará ser atualizada para usá-lo.
-            self.visual.attack.color
-        )
-        table.insert(self.activeArrows, arrow)
+        local arrowInstance = nil
+        if #self.pooledArrows > 0 then
+            -- Reutiliza uma flecha do pool
+            arrowInstance = table.remove(self.pooledArrows)
+            arrowInstance:reset(
+                self.currentPosition.x,
+                self.currentPosition.y,
+                arrowAngle,
+                self.visual.attack.arrowSpeed,
+                currentArrowRange,
+                finalDamageThisArrow,
+                isCritical,
+                spatialGrid,
+                self.visual.attack.color,
+                currentPiercing,
+                areaScaleMultiplier
+            )
+            -- print("Flecha REUTILIZADA do pool. Pool size: " .. #self.pooledArrows)
+        else
+            -- Cria uma nova flecha se o pool estiver vazio
+            arrowInstance = Arrow:new(
+                self.currentPosition.x,
+                self.currentPosition.y,
+                arrowAngle,
+                self.visual.attack.arrowSpeed,
+                currentArrowRange,
+                finalDamageThisArrow,
+                isCritical,
+                spatialGrid,
+                self.visual.attack.color,
+                currentPiercing,
+                areaScaleMultiplier
+            )
+            -- print("Nova flecha CRIADA. Pool size: " .. #self.pooledArrows)
+        end
+        table.insert(self.activeArrows, arrowInstance)
     end
 
     return true
 end
 
 function ArrowProjectile:draw()
-    -- Desenha a prévia da linha/cone se ativa
     if self.visual.preview.active then
-        -- Poderia desenhar o cone completo como em FlameStream, ou só a linha
-        self:drawPreviewLine(self.visual.preview.color)
-        self:drawPreviewCone(self.visual.preview.color)
+        -- Usa self.currentAngle (ângulo central) e self.currentPreviewLength para a linha.
+        -- Para o cone, usa o maxTotalSpreadAngle da configuração visual, não o baseAngleWidth.
+        self:drawPreviewLine(self.visual.preview.color, self.currentAngle, self.currentPreviewLength)
+        self:drawPreviewCone(self.visual.preview.color, self.currentAngle, self.currentPreviewLength,
+            self.visual.attack.maxTotalSpreadAngle)
     end
 
-    -- Desenha as flechas ativas
     for _, arrow in ipairs(self.activeArrows) do
         arrow:draw()
     end
 end
 
-function ArrowProjectile:drawPreviewLine(color)
-    if not self.currentPreviewLength or self.currentPreviewLength <= 0 or not self.currentPosition then return end
+--- Desenha a linha de preview.
+---@param color table Cor da linha.
+---@param angle number Ângulo da linha.
+---@param length number Comprimento da linha.
+function ArrowProjectile:drawPreviewLine(color, angle, length)
+    if not length or length <= 0 or not self.currentPosition then return end
 
     love.graphics.setColor(color)
     love.graphics.line(
         self.currentPosition.x,
         self.currentPosition.y,
-        self.currentPosition.x + math.cos(self.currentAngle) * self.currentPreviewLength, -- Usa currentPreviewLength
-        self.currentPosition.y + math.sin(self.currentAngle) * self.currentPreviewLength  -- Usa currentPreviewLength
+        self.currentPosition.x + math.cos(angle) * length,
+        self.currentPosition.y + math.sin(angle) * length
     )
 end
 
--- Adiciona função para desenhar o cone de preview
-function ArrowProjectile:drawPreviewCone(color)
-    if not self.currentPreviewLength or self.currentPreviewLength <= 0 or
-        not self.currentAngleWidth or self.currentAngleWidth <= 0 or
-        not self.currentPosition then
+--- Desenha o cone de preview.
+---@param color table Cor do cone.
+---@param centerAngle number Ângulo central do cone.
+---@param length number Comprimento das linhas do cone.
+---@param spreadAngleTotal number Largura total do ângulo do cone.
+function ArrowProjectile:drawPreviewCone(color, centerAngle, length, spreadAngleTotal)
+    if not length or length <= 0 or not spreadAngleTotal or spreadAngleTotal <= 0 or not self.currentPosition then
         return
     end
 
     love.graphics.setColor(color)
     local cx, cy = self.currentPosition.x, self.currentPosition.y
-    local range = self.currentPreviewLength -- Usa currentPreviewLength para o tamanho do preview
-    local startAngle = self.currentAngle - self.currentAngleWidth / 2
-    local endAngle = self.currentAngle + self.currentAngleWidth / 2
+    local startAngle = centerAngle - spreadAngleTotal / 2
+    local endAngle = centerAngle + spreadAngleTotal / 2
 
-    -- love.graphics.arc("line", "open", cx, cy, range, startAngle, endAngle, segments) -- Descomentar se quiser o arco
-    love.graphics.line(cx, cy, cx + range * math.cos(startAngle), cy + range * math.sin(startAngle))
-    love.graphics.line(cx, cy, cx + range * math.cos(endAngle), cy + range * math.sin(endAngle))
+    love.graphics.line(cx, cy, cx + length * math.cos(startAngle), cy + length * math.sin(startAngle))
+    love.graphics.line(cx, cy, cx + length * math.cos(endAngle), cy + length * math.sin(endAngle))
+
+    -- Opcional: desenhar um arco para fechar o cone
+    -- local segments = math.ceil(spreadAngleTotal / math.rad(5)) -- Ex: 1 segmento a cada 5 graus
+    -- love.graphics.arc("line", "open", cx, cy, length, startAngle, endAngle, segments)
 
     love.graphics.setColor(1, 1, 1, 1)
 end
 
 function ArrowProjectile:getCooldownRemaining()
-    return self.cooldownRemaining or 0 -- Garante que retorne 0 se for nil
+    return self.cooldownRemaining or 0
 end
 
 function ArrowProjectile:togglePreview()

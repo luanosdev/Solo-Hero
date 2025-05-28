@@ -4,6 +4,8 @@ PROFILER = false                             -- Define o modo de desenvolvimento
 LOGGERS = true                               -- Define o modo de desenvolvimento para este arquivo de configuração
 LOGS_ON_CONSOLE = true                       -- Define se os logs serão impressos no console
 DEBUG_SHOW_PARTICLE_COLLISION_RADIUS = false -- Define se o raio de colisão das partículas deve ser exibido
+HOT_RELOAD = false                           -- Define se o hot reload deve ser ativado
+
 function love.conf(t)
     t.window.title = "Solo Hero"
     t.window.width = 1920
