@@ -19,23 +19,51 @@ for row = 0, 4 do
 end
 
 local animationFrameTime = 0.04 -- Tempo entre frames (ajuste para velocidade desejada)
-local baseScale = 0.8           -- Fator de escala base para a animação (ajuste o tamanho)
+local baseScale = 0.8           -- Fator de escala base padrão para a animação (se não fornecido pela arma/habilidade)
+
+-- Novo fator de ajuste para o tamanho visual e de colisão da partícula.
+-- Reduz o tamanho geral da partícula para melhor adequação à gameplay.
+local PARTICLE_VISUAL_ADJUSTMENT_FACTOR = 0.2 -- Ex: 0.4 significa 40% do tamanho que teria antes.
+
+-- Constantes para a nova lógica de colisão e crescimento
+local BASE_HIT_LOSS = 0.8                 -- 80% de perda de vida base ao atingir
+local PIERCING_REDUCTION_FACTOR = 0.01    -- Quanto cada ponto de piercing reduz a perda (ex: 1 piercing = 1% a menos de perda)
+local MIN_HIT_LOSS = 0.2                  -- Perda mínima de vida ao atingir (20%)
+local INITIAL_GROWTH_DURATION_RATIO = 0.1 -- 10% da vida inicial para crescimento
+local INITIAL_SCALE_MULTIPLIER = 0.15     -- Nasce com 15% do tamanho final
 
 local FireParticle = {}
 FireParticle.__index = FireParticle
 
-function FireParticle:new(x, y, angle, speed, lifetime, damage, isCritical, spatialGrid, color) -- Modificado: enemyManager -> spatialGrid
+function FireParticle:new(x, y, angle, speed, lifetime, damage, isCritical, spatialGrid, color, areaMultiplier, piercing,
+                          playerBaseScale)
     local instance = setmetatable({}, FireParticle)
 
     instance.position = { x = x, y = y }
-    instance.angle = angle -- Embora se mova em linha reta, guardar pode ser útil
+    instance.angle = angle
     instance.speed = speed
+    instance.initialLifetime = lifetime -- Guarda o lifetime original para cálculos
     instance.lifetimeRemaining = lifetime
     instance.damage = damage
-    instance.isCritical = isCritical         -- O crítico é decidido na criação
-    instance.spatialGrid = spatialGrid       -- Adicionado
-    instance.color = color or { 1, 1, 1, 1 } -- Cor base (branco para não tingir por padrão)
-    instance.collisionRadius = 8             -- Raio para colisão (menor que o visual)
+    instance.isCritical = isCritical
+    instance.spatialGrid = spatialGrid
+    instance.color = color or { 1, 1, 1, 1 }
+
+    -- Novos atributos
+    instance.areaMultiplier = areaMultiplier or 1.0
+    instance.piercing = piercing or 0
+
+    -- Ajusta o playerBaseScale com o fator de ajuste visual global do módulo.
+    -- Isso garante que as partículas de fogo tenham um tamanho base consistente com a gameplay,
+    -- mesmo que a arma/habilidade forneça uma escala base.
+    local effectivePlayerBaseScale = (playerBaseScale or baseScale) * PARTICLE_VISUAL_ADJUSTMENT_FACTOR
+    instance.playerBaseScale = effectivePlayerBaseScale -- Armazena a escala base efetivamente usada
+
+    -- Raio de colisão será dinâmico, calculado no update. Iniciamos com um valor pequeno.
+    -- Usa effectivePlayerBaseScale para o cálculo inicial.
+    instance.collisionRadius = (math.min(frameWidth, frameHeight) / 2) * INITIAL_SCALE_MULTIPLIER *
+        instance.playerBaseScale * instance.areaMultiplier
+    instance.currentScaleFactor = INITIAL_SCALE_MULTIPLIER -- Começa pequena
 
     instance.velocity = {
         x = math.cos(angle) * speed,
@@ -43,12 +71,11 @@ function FireParticle:new(x, y, angle, speed, lifetime, damage, isCritical, spat
     }
 
     instance.isActive = true
-    instance.hitEnemies = {}            -- Guarda IDs dos inimigos já atingidos POR ESTA PARTÍCULA
-    instance.initialLifetime = lifetime -- Para calcular fade/shrink
+    instance.hitEnemies = {}
 
     -- Estado da Animação
     instance.animationTimer = 0
-    instance.currentFrame = love.math.random(1, totalFrames) -- Inicia em frame aleatório
+    instance.currentFrame = love.math.random(1, totalFrames)
 
     return instance
 end
@@ -56,16 +83,36 @@ end
 function FireParticle:update(dt)
     if not self.isActive then return end
 
-    -- Move a partícula
-    self.position.x = self.position.x + self.velocity.x * dt
-    self.position.y = self.position.y + self.velocity.y * dt
-
-    -- Atualiza tempo de vida
+    -- Atualiza tempo de vida ANTES de mover para ter o lifeRatio correto para o frame atual
     self.lifetimeRemaining = self.lifetimeRemaining - dt
     if self.lifetimeRemaining <= 0 then
         self.isActive = false
         return
     end
+
+    -- Calcula o progresso da vida (0 = nova, 1 = morta)
+    local lifeProgress = 1 - (self.lifetimeRemaining / self.initialLifetime)
+
+    -- Lógica de crescimento inicial
+    if lifeProgress <= INITIAL_GROWTH_DURATION_RATIO then
+        -- Lerp de INITIAL_SCALE_MULTIPLIER para 1.0
+        local growthProgress = lifeProgress / INITIAL_GROWTH_DURATION_RATIO
+        self.currentScaleFactor = INITIAL_SCALE_MULTIPLIER + (1 - INITIAL_SCALE_MULTIPLIER) * growthProgress
+    else
+        self.currentScaleFactor = 1.0 -- Mantém o tamanho máximo após o crescimento inicial
+    end
+
+    -- Atualiza a escala visual e o raio de colisão
+    -- O tamanho do sprite (frameWidth/Height) é a base, escalado por playerBaseScale,
+    -- depois pelo areaMultiplier e finalmente pelo currentScaleFactor (crescimento/encolhimento).
+    local dynamicScale = self.playerBaseScale * self.areaMultiplier * self.currentScaleFactor
+    -- O raio de colisão deve corresponder à metade da menor dimensão do sprite escalado.
+    -- Assumindo que frameWidth e frameHeight são representativos do "corpo" da partícula.
+    self.collisionRadius = (math.min(frameWidth, frameHeight) / 2) * dynamicScale
+
+    -- Move a partícula
+    self.position.x = self.position.x + self.velocity.x * dt
+    self.position.y = self.position.y + self.velocity.y * dt
 
     -- Atualiza Animação
     self.animationTimer = self.animationTimer + dt
@@ -101,19 +148,27 @@ function FireParticle:checkCollision()
             local dx = enemy.position.x - self.position.x
             local dy = enemy.position.y - self.position.y
             local distanceSq = dx * dx + dy * dy
-            -- Usa o collisionRadius para checar colisão
-            local combinedRadius = enemy.radius + self.collisionRadius
+            local combinedRadius = enemy.radius + self.collisionRadius -- Usa o collisionRadius atualizado
 
             -- Verifica colisão (círculo-círculo)
             if distanceSq <= combinedRadius * combinedRadius then
                 -- Verifica se esta partícula já atingiu este inimigo
-                if not self.hitEnemies[enemy.id] then -- Usa enemy.id
-                    -- Colidiu e ainda não tinha atingido!
+                if not self.hitEnemies[enemy.id] then
                     enemy:takeDamage(self.damage, self.isCritical)
-                    self.hitEnemies[enemy.id] = true -- Marca que esta partícula já atingiu este inimigo.
+                    self.hitEnemies[enemy.id] = true
 
+                    -- Lógica de perda de vida da partícula devido à colisão
+                    local effectiveHitLoss = math.max(MIN_HIT_LOSS,
+                        BASE_HIT_LOSS - (self.piercing * PIERCING_REDUCTION_FACTOR))
+                    local lifeToLose = self.lifetimeRemaining * effectiveHitLoss -- Perde % da vida RESTANTE
+                    self.lifetimeRemaining = self.lifetimeRemaining - lifeToLose
+
+                    if self.lifetimeRemaining <= 0 then
+                        self.isActive = false
+                        TablePool.release(nearbyEnemies) -- Libera a tabela antes de sair
+                        return                           -- Partícula "morre" após esta colisão
+                    end
                     -- A partícula continua (piercing), mas não atingirá este inimigo novamente.
-                    -- Se não fosse piercing, adicionaríamos: self.isActive = false; break
                 end
             end
         end
@@ -125,39 +180,52 @@ end
 function FireParticle:draw()
     if not self.isActive then return end
 
-    -- Calcula a opacidade e escala baseado no tempo de vida restante
+    -- Calcula a opacidade e escala baseado no tempo de vida restante e no crescimento
     local lifeRatio = math.max(0, self.lifetimeRemaining / self.initialLifetime)
-    -- Fade out mais acentuado no final? Ex: lifeRatio = lifeRatio ^ 0.5
-    local currentAlpha = lifeRatio
-    -- Encolhe um pouco no final
-    local currentScale = baseScale * (lifeRatio * 0.5 + 0.5)
+    local currentAlpha = lifeRatio -- Fade out linear com a vida
 
-    if currentScale > 0.1 and currentAlpha > 0.05 then
-        -- Define cor com alpha (sem tingir o sprite, a menos que self.color seja diferente de branco)
+    -- A escala agora é controlada por self.currentScaleFactor e self.areaMultiplier
+    local finalVisualScale = self.playerBaseScale * self.areaMultiplier * self.currentScaleFactor
+
+    -- Adiciona um pequeno encolhimento adicional no final da vida, se desejado,
+    -- mas o crescimento/encolhimento principal é pelo currentScaleFactor.
+    -- Ex: Se quiser que encolha mais agressivamente no final:
+    -- if lifeRatio < 0.2 then finalVisualScale = finalVisualScale * (lifeRatio / 0.2) end
+
+    if finalVisualScale > 0.05 and currentAlpha > 0.05 then -- Ajuste o threshold mínimo se necessário
         love.graphics.setColor(self.color[1], self.color[2], self.color[3], currentAlpha)
 
-        -- Define o modo de mesclagem para aditivo (bom para fogo em fundo preto)
         local previousBlendMode = love.graphics.getBlendMode()
         love.graphics.setBlendMode("add")
 
-        -- Desenha o frame atual da animação
         love.graphics.draw(
             fireSheet,
             quads[self.currentFrame],
             self.position.x,
             self.position.y,
-            0,              -- Rotação (0 para fogo normalmente)
-            currentScale,   -- Escala X
-            currentScale,   -- Escala Y
-            frameWidth / 2, -- Origem X (centro do frame)
-            frameHeight / 2 -- Origem Y (centro do frame)
+            0,                -- Rotação (0 para fogo normalmente)
+            finalVisualScale, -- Escala X
+            finalVisualScale, -- Escala Y
+            frameWidth / 2,   -- Origem X (centro do frame)
+            frameHeight / 2   -- Origem Y (centro do frame)
         )
 
         -- Restaura o modo de mesclagem anterior
         love.graphics.setBlendMode(previousBlendMode)
     end
 
-    -- Reset color
+    -- DEBUG: Desenhar o raio de colisão da partícula se a flag global estiver ativa
+    if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS then
+        love.graphics.push()
+        love.graphics.setShader()
+        local r, gr, b, a = love.graphics.getColor()
+        love.graphics.setColor(0, 1, 0, 0.6) -- Verde semi-transparente para o círculo de debug
+        love.graphics.circle("line", self.position.x, self.position.y, self.collisionRadius)
+        love.graphics.setColor(r, gr, b, a)  -- Restaura a cor anterior
+        love.graphics.pop()
+    end
+
+    -- Reset color (já presente, mas garantindo que esteja após o debug draw se necessário)
     love.graphics.setColor(1, 1, 1, 1)
 end
 

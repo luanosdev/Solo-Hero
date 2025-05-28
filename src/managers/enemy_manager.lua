@@ -237,7 +237,7 @@ function EnemyManager:update(dt)
     -- Itera de trás para frente para permitir remoção segura
     local camX, camY, camWidth, camHeight = Camera:getViewPort() -- Obtém a visão da câmera
 
-    local margin = 300                    -- Margem para culling de update (isOffScreen)
+    local margin = 300                                           -- Margem para culling de update (isOffScreen)
 
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
@@ -511,6 +511,15 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
                     rendable.oy = oy
 
                     renderPipelineInstance:add(rendable)
+
+                    -- DEBUG: Chamar drawDebug para o inimigo aqui
+                    if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS and enemy.drawDebug then
+                        -- A função drawDebug em BaseEnemy desenha imediatamente usando love.graphics.
+                        -- Isso funcionará, mas para um sistema de renderização mais purista,
+                        -- drawDebug poderia também retornar um "renderable" de círculo a ser adicionado ao pipeline.
+                        -- Por ora, o desenho imediato é mais simples para depuração.
+                        enemy:drawDebug()
+                    end
 
                     -- Barras de vida e outros elementos de BaseEnemy podem ser desenhados separadamente
                     -- ou também adicionados à renderList se BaseEnemy.draw for adaptado.

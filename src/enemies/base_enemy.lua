@@ -104,7 +104,7 @@ function BaseEnemy:updateStatsFromPrototype()
     local proto = getmetatable(self).__index
 
     self.size = proto.size
-    self.radius = (self.size / 2) * self.RADIUS_SIZE_DELTA
+    self.radius = (self.size / 6) * self.RADIUS_SIZE_DELTA
     self.speed = proto.speed
     self.maxHealth = proto.maxHealth
     self.currentHealth = proto.maxHealth
@@ -364,6 +364,28 @@ function BaseEnemy:resetStateForPooling()
     self.target = nil
     self.currentGridCells = nil
     self.activeFloatingTexts = {}
+end
+
+--- Draws debug information for the enemy, like its collision radius.
+function BaseEnemy:drawDebug()
+    -- Reutilizando a flag DEBUG_SHOW_PARTICLE_COLLISION_RADIUS por conveniência.
+    -- Considere criar uma flag específica como DEBUG_SHOW_ENEMY_COLLISION_RADIUS
+    -- se precisar controlar a visualização de colisões de inimigos e partículas separadamente.
+    if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS then
+        if self.isAlive and self.radius and self.radius > 0 then
+            local r, g, b, a = love.graphics.getColor()
+            love.graphics.setColor(1, 0, 0, 0.5) -- Vermelho semi-transparente para o raio do inimigo
+
+            -- O raio de colisão do inimigo pode ter um offset em Y se o "pé" do sprite for a origem.
+            -- Baseado em checkPlayerCollision, parece haver um offset. Vamos usar a posição base.
+            -- Se o seu self.radius já considera o centro visual/de colisão correto, use apenas self.position.
+            local drawY = self.sprite.position.y
+            local drawX = self.sprite.position.x
+
+            love.graphics.circle("line", drawX, drawY, self.radius)
+            love.graphics.setColor(r, g, b, a) -- Restaura a cor anterior
+        end
+    end
 end
 
 return BaseEnemy

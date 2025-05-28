@@ -70,9 +70,9 @@ local weapons = {
         id = "dual_noctilara_daggers",
         name = "Adagas Noctilara Gêmeas",
         type = "weapon",
-        rarity = "B",            -- Raro/Épico? Coloquei B (Epic)
+        rarity = "B", -- Raro/Épico? Coloquei B (Epic)
         description = "Adagas curvas que parecem absorver a luz, tiradas da temível Noctilara.",
-        icon = nil,              -- TODO: Definir ícone
+        icon = nil,   -- TODO: Definir ícone
         gridWidth = 3,
         gridHeight = 2,
         stackable = false,
@@ -103,6 +103,10 @@ local weapons = {
         range = 180,                                               -- Distância máxima das partículas
         angle = math.pi / 12,                                      -- Ângulo de DISPERSÃO do fluxo (15 graus)
         attackClass = "src.abilities.player.attacks.flame_stream", -- Classe de ataque
+        -- Atributos específicos do Lança-Chamas
+        baseLifetime = 1.0,                                        -- Tempo de vida base da partícula em segundos
+        particleScale = 0.8,                                       -- Escala base da partícula
+        piercing = 5                                               -- Pontos de perfuração inerentes da arma
     },
     bow = {
         id = "bow",
