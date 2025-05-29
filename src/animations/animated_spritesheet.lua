@@ -5,7 +5,6 @@ local AnimatedSpritesheet = {}
 AnimatedSpritesheet.defaultInstanceConfig = {
     position = { x = 0, y = 0 },
     scale = 1.0,
-    speed = 50,
     animation = {
         currentFrame = 1,
         timer = 0,
@@ -139,18 +138,18 @@ function AnimatedSpritesheet.getClosestAngle(unitType, targetAngle)
         -- Ex: targetAngle=60, step=45. (60 + 22.5)/45 = 82.5/45 = 1.83. floor(1.83) = 1. 1*45 = 45.
         -- Ex: targetAngle=70, step=45. (70 + 22.5)/45 = 92.5/45 = 2.05. floor(2.05) = 2. 2*45 = 90.
         local roundedAngle = math.floor((targetAngle + step / 2) / step) * step
-        
+
         -- Normaliza o ângulo para o intervalo [0, 360 - step]
         -- e garante que o resultado seja um dos ângulos definidos em config.angles
         -- Esta parte assume que os ângulos em config.angles são os múltiplos de 'step'.
         -- Se config.angles puder ter valores arbitrários, esta otimização não é diretamente aplicável
         -- e o loop original é mais seguro, ou uma busca mais complexa seria necessária.
-        
+
         -- Para garantir que estamos retornando um valor que REALMENTE EXISTE em config.angles,
         -- e não apenas um múltiplo calculado de step (que deveria ser o mesmo se config.angles for regular),
         -- podemos fazer um lookup rápido. No entanto, se config.angles é garantido ser [0, 45, ..., 315],
         -- então roundedAngle % 360 é suficiente.
-        
+
         -- Se config.angles é [0, 45, 90, 135, 180, 225, 270, 315]
         -- E numAngles = 8, step = 45.
         -- O resultado de roundedAngle % 360 estará correto.
@@ -259,11 +258,6 @@ function AnimatedSpritesheet.update(unitType, instanceAnimConfig, dt, targetPosi
                 angleDeg = (angleDeg + baseConfig.angleOffset) % 360
             end
             anim.direction = AnimatedSpritesheet.getClosestAngle(unitType, angleDeg)
-
-            local speed = instanceAnimConfig.speed or baseConfig.defaultSpeed or 50
-            local invLength = 1 / length -- Calcular inverso do comprimento
-            instanceAnimConfig.position.x = instanceAnimConfig.position.x + (dx * invLength * speed * dt) -- Usar multiplicação
-            instanceAnimConfig.position.y = instanceAnimConfig.position.y + (dy * invLength * speed * dt) -- Usar multiplicação
         end
     end
 

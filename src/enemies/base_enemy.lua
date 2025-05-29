@@ -61,7 +61,7 @@ local BaseEnemy = {
     currentGridCells = nil,
 
     -- Constants
-    RADIUS_SIZE_DELTA = 1.2,
+    RADIUS_SIZE_DELTA = 0.5,
     SEPARATION_STRENGTH = 60.0,
 }
 
@@ -70,7 +70,6 @@ local BaseEnemy = {
 --- @param id string|number Unique ID for the enemy.
 --- @return BaseEnemy Instance of BaseEnemy.
 function BaseEnemy:new(position, id)
-    Logger.info("BaseEnemy:new", " Criando inimigo.")
     local enemy = {}
     setmetatable(enemy, { __index = self })
 
@@ -94,6 +93,9 @@ function BaseEnemy:new(position, id)
 
     enemy.activeFloatingTexts = {}
 
+    enemy.directionX = 0 -- Nova direção X
+    enemy.directionY = 0 -- Nova direção Y
+
     enemy:initializeSprite()
 
     return enemy
@@ -102,23 +104,40 @@ end
 --- Updates the stats from the prototype
 function BaseEnemy:updateStatsFromPrototype()
     local proto = getmetatable(self).__index
+    local base_defaults = BaseEnemy -- Referência à tabela de classe BaseEnemy para padrões
 
-    self.size = proto.size
-    self.radius = (self.size / 6) * self.RADIUS_SIZE_DELTA
-    self.speed = proto.speed
-    self.maxHealth = proto.maxHealth
-    self.currentHealth = proto.maxHealth
-    self.damage = proto.damage
-    self.damageCooldown = proto.damageCooldown
-    self.attackSpeed = proto.attackSpeed
-    self.color = proto.color and { unpack(proto.color) } or { 1, 1, 1 }
-    self.name = proto.name
-    self.experienceValue = proto.experienceValue
-    self.healthBarWidth = proto.healthBarWidth
-    self.deathDuration = proto.deathDuration
-    self.className = proto.className
-    self.unitType = proto.unitType
-    self.spriteData = proto.spriteData
+    self.size = proto.size or base_defaults.size
+    -- Recalcula o raio com base no tamanho agora garantido
+    self.radius = (self.size / 2) *
+        (proto.RADIUS_SIZE_DELTA or base_defaults.RADIUS_SIZE_DELTA) -- Usa o RADIUS_SIZE_DELTA do proto ou default
+
+    self.speed = proto.speed or base_defaults.speed
+    self.maxHealth = proto.maxHealth or base_defaults.maxHealth
+    -- currentHealth deve ser definido após maxHealth ter seu valor final
+    self.currentHealth = self.maxHealth
+
+    self.damage = proto.damage or base_defaults.damage
+    self.damageCooldown = proto.damageCooldown or base_defaults.damageCooldown
+    self.attackSpeed = proto.attackSpeed or base_defaults.attackSpeed
+
+    -- Trata a cor, que é uma tabela
+    if proto.color then
+        self.color = { unpack(proto.color) }
+    elseif base_defaults.color then
+        self.color = { unpack(base_defaults.color) }
+    else
+        self.color = { 1, 1, 1 } -- Fallback final se nem o base_defaults tiver cor
+    end
+
+    self.name = proto.name or base_defaults.name
+    self.experienceValue = proto.experienceValue or base_defaults.experienceValue
+    self.healthBarWidth = proto.healthBarWidth or base_defaults.healthBarWidth
+    self.deathDuration = proto.deathDuration or base_defaults.deathDuration
+    self.className = proto.className or base_defaults.className -- Geralmente, className deve ser específico
+
+    -- unitType e spriteData são geralmente específicos da subclasse e podem não ter padrões úteis em BaseEnemy
+    self.unitType = proto.unitType or base_defaults.unitType
+    self.spriteData = proto.spriteData or base_defaults.spriteData
 end
 
 --- Initializes the sprite
@@ -135,7 +154,6 @@ function BaseEnemy:initializeSprite()
         self.sprite = AnimatedSpritesheet.newConfig(self.unitType, {
             position = self.position,
             scale = self.spriteData.scale,
-            speed = self.spriteData.speed,
             animation = self.spriteData.animation
         })
         self.sprite.unitType = self.unitType
@@ -157,16 +175,130 @@ function BaseEnemy:update(dt, playerManager, enemyManager, isSlowUpdate)
         return
     end
 
-    if not self.isAlive then return end
+    if not self.isAlive or self.shouldRemove then return end
+
+
+
+    self:updateMovementToPlayer(dt, playerManager, isSlowUpdate) -- Restaurado e usando isSlowUpdate
+    self:applySeparation(enemyManager, dt)
+    self:checkPlayerCollision(dt, playerManager)                 -- Restaurado
 
     -- Update animação idle/movimento
     if self.sprite then
+        self.sprite.position = self.position -- Define a posição da sprite ANTES de atualizar a animação
         AnimatedSpritesheet.update(self.unitType, self.sprite, dt, playerManager.player.position)
-        self.position = self.sprite.position
+    end
+end
+
+function BaseEnemy:applySeparation(enemyManager, dt)
+    -- print("[DEBUG] applySeparation chamado para inimigo " .. tostring(self.id))
+    local sepX, sepY = 0, 0
+    local nearby = nil -- Inicializa para garantir que está no escopo do finally
+
+    if enemyManager and enemyManager.spatialGrid then
+        -- local searchRadius = self.radius * 400 -- Raio de busca original, muito grande
+        local searchRadius = self.radius * 4
+
+        --[[
+        print(string.format(
+            "[BaseEnemy DEBUG] ID: %s, Posição: (%.1f, %.1f), Raio Entidade: %.1f, Raio de Busca Calculado: %.1f",
+            tostring(self.id), self.position.x, self.position.y, self.radius, searchRadius))
+        ]]
+        nearby = enemyManager.spatialGrid:getNearbyEntities(self.position.x, self.position.y, searchRadius, self) -- Adicionado 'self' como requestingEntity
+
+        -- print("[DEBUG] Nearby count:", #nearby)
+
+        for _, other in ipairs(nearby) do
+            if other ~= self and other.isAlive then -- Redundante se requestingEntity for passado e tratado pelo grid, mas seguro.
+                local odx = self.position.x - other.position.x
+                local ody = self.position.y - other.position.y
+                local distSq = odx * odx + ody * ody
+
+                if distSq > 0 then
+                    local dist = math.sqrt(distSq)
+                    -- local desired = (self.radius + other.radius) * 1.5 -- Original do usuário nesta função
+                    local desired = (self.radius + other.radius) * 1.1 -- Sugestão: mais reativo
+                    local force_factor = math.max(0, (desired - dist) / desired)
+
+                    sepX = sepX + (odx / dist) * force_factor * self.SEPARATION_STRENGTH
+                    sepY = sepY + (ody / dist) * force_factor * self.SEPARATION_STRENGTH
+                else -- Inimigos exatamente sobrepostos
+                    local random_angle = math.random() * 2 * math.pi
+                    sepX = sepX + math.cos(random_angle) * self.SEPARATION_STRENGTH
+                    sepY = sepY + math.sin(random_angle) * self.SEPARATION_STRENGTH
+                end
+            end
+        end
     end
 
-    -- Update movimento e colisão
-    BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
+    -- Suaviza e limita a força
+    local scale = dt * 2.5 -- ajuste esse valor com testes
+    sepX = sepX * scale
+    sepY = sepY * scale
+    -- print(string.format("[DEBUG] sepX: %.3f, sepY: %.3f", sepX, sepY))
+
+    -- Salva para debug
+    self.lastSeparationForce = { x = sepX, y = sepY }
+
+    -- Aplica a separação
+    self.position.x = self.position.x + sepX
+    self.position.y = self.position.y + sepY
+
+    if nearby then
+        TablePool.release(nearby) -- <<<< CORREÇÃO CRÍTICA: Liberar a tabela do pool
+    end
+end
+
+--- Updates the movement of the enemy to the player
+--- @param dt number Delta time.
+--- @param playerManager PlayerManager The player manager.
+--- @param isSlowUpdate boolean Whether to update the enemy slowly.
+function BaseEnemy:updateMovementToPlayer(dt, playerManager, isSlowUpdate)
+    if isSlowUpdate then
+        self.slowUpdateTimer = (self.slowUpdateTimer or 0) + dt
+        if self.slowUpdateTimer < 1.0 then
+            return
+        end
+        -- Usa o dt acumulado para o movimento, mas o cálculo de direção abaixo ainda usa o updateInterval
+        dt = self.slowUpdateTimer
+        self.slowUpdateTimer = 0
+    end
+
+    self.updateTimer = self.updateTimer + dt
+    if self.updateTimer >= self.updateInterval then
+        self.updateTimer = self.updateTimer - self.updateInterval
+
+        local playerPos = playerManager:getCollisionPosition()
+        if not playerPos then
+            -- Para de se mover se não há posição do jogador
+            self.directionX = 0
+            self.directionY = 0
+            return
+        end
+
+        local dx = playerPos.position.x - self.position.x
+        local dy = playerPos.position.y - self.position.y
+
+        local lenSq = dx * dx + dy * dy
+        if lenSq > 0 then
+            local len = math.sqrt(lenSq)
+            self.directionX = dx / len
+            self.directionY = dy / len
+        else
+            self.directionX = 0
+            self.directionY = 0
+        end
+    end
+
+    -- Aplica o movimento a cada frame, usando a direção calculada
+    local moveSpeed = self.speed
+    -- Para isSlowUpdate, o dt já foi ajustado acima. Para updates normais, usamos o dt do frame.
+    local currentFrameDt = isSlowUpdate and dt or (dt / self.updateInterval * self.updateInterval)
+    -- Correção: usar dt diretamente para não-slow updates
+    if not isSlowUpdate then currentFrameDt = dt end
+
+    self.position.x = self.position.x + self.directionX * moveSpeed * currentFrameDt
+    self.position.y = self.position.y + self.directionY * moveSpeed * currentFrameDt
 end
 
 --- Updates the movement of the enemy
@@ -200,41 +332,17 @@ function BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
             local len = math.sqrt(lenSq)
             dx = dx / len
             dy = dy / len
+        else
+            dx, dy = 0, 0
         end
 
         local effectiveDt = isSlowUpdate and dt or self.updateInterval
-        local targetX = self.position.x + dx * self.speed * effectiveDt
-        local targetY = self.position.y + dy * self.speed * effectiveDt
+        local moveSpeed = 20
 
-        -- Separação de outros inimigos
-        local sepX, sepY = 0, 0
+        -- 🟢 Movimento de perseguição
+        self.position.x = self.position.x + dx * moveSpeed * effectiveDt
+        self.position.y = self.position.y + dy * moveSpeed * effectiveDt
 
-        if enemyManager and enemyManager.spatialGrid then
-            local nearby = enemyManager.spatialGrid:getNearbyEntities(self.position.x, self.position.y, 1)
-            for _, other in ipairs(nearby) do
-                if other ~= self and other.isAlive then
-                    local dx = self.position.x - other.position.x
-                    local dy = self.position.y - other.position.y
-                    local distSq = dx * dx + dy * dy
-
-                    if distSq > 0 then
-                        local dist = math.sqrt(distSq)
-                        local desired = (self.radius + other.radius) * 1.5
-                        local force = math.max(0, (desired - dist) / desired)
-
-                        sepX = sepX + (dx / dist) * force * self.SEPARATION_STRENGTH
-                        sepY = sepY + (dy / dist) * force * self.SEPARATION_STRENGTH
-                    else -- distSq == 0, inimigos exatamente sobrepostos
-                        local random_angle = math.random() * 2 * math.pi
-                        sepX = sepX + math.cos(random_angle) * self.SEPARATION_STRENGTH
-                        sepY = sepY + math.sin(random_angle) * self.SEPARATION_STRENGTH
-                    end
-                end
-            end
-        end
-
-        self.position.x = targetX + sepX * effectiveDt
-        self.position.y = targetY + sepY * effectiveDt
 
         self:checkPlayerCollision(effectiveDt, playerManager)
     end
@@ -347,6 +455,9 @@ function BaseEnemy:reset(position, id)
     self.currentGridCells = nil
     self.activeFloatingTexts = {}
 
+    self.directionX = 0
+    self.directionY = 0
+
     self:initializeSprite()
 end
 
@@ -368,24 +479,21 @@ end
 
 --- Draws debug information for the enemy, like its collision radius.
 function BaseEnemy:drawDebug()
-    -- Reutilizando a flag DEBUG_SHOW_PARTICLE_COLLISION_RADIUS por conveniência.
-    -- Considere criar uma flag específica como DEBUG_SHOW_ENEMY_COLLISION_RADIUS
-    -- se precisar controlar a visualização de colisões de inimigos e partículas separadamente.
-    if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS then
-        if self.isAlive and self.radius and self.radius > 0 then
-            local r, g, b, a = love.graphics.getColor()
-            love.graphics.setColor(1, 0, 0, 0.5) -- Vermelho semi-transparente para o raio do inimigo
+    if not DEBUG_SHOW_PARTICLE_COLLISION_RADIUS then return end
+    if not self.isAlive then return end
 
-            -- O raio de colisão do inimigo pode ter um offset em Y se o "pé" do sprite for a origem.
-            -- Baseado em checkPlayerCollision, parece haver um offset. Vamos usar a posição base.
-            -- Se o seu self.radius já considera o centro visual/de colisão correto, use apenas self.position.
-            local drawY = self.sprite.position.y
-            local drawX = self.sprite.position.x
-
-            love.graphics.circle("line", drawX, drawY, self.radius)
-            love.graphics.setColor(r, g, b, a) -- Restaura a cor anterior
-        end
+    if self.lastSeparationForce then
+        local fx, fy = self.lastSeparationForce.x or 0, self.lastSeparationForce.y or 0
+        love.graphics.setColor(1, 0, 0, 0.9)
+        love.graphics.line(self.position.x, self.position.y, self.position.x + fx, self.position.y + fy)
     end
+
+    -- Raio de colisão (verde)
+    love.graphics.setColor(0, 1, 0, 0.75)
+    love.graphics.circle("line", self.position.x, self.position.y, self.radius)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print(string.format("r: %.1f", self.radius), self.position.x - self.radius,
+        self.position.y + self.radius + 5)
 end
 
 return BaseEnemy

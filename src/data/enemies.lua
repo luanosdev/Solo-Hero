@@ -28,7 +28,7 @@ local enemies = {
         unitType = "zombie_walker_male_1",
         name = "Zombie Walker",
 
-        speed = 30,
+        speed = 0,
         health = 200,
         damage = 1,
         experienceValue = 20,
@@ -50,7 +50,6 @@ local enemies = {
 
         instanceDefaults = {
             scale = 1,
-            speed = 30,
             animation = {
                 activeMovementType = 'walk' -- Começa andando
             }
@@ -60,7 +59,7 @@ local enemies = {
         unitType = "zombie_runner_male_1",
         name = "Zombie Runner",
 
-        speed = 50,
+        speed = 0,
         health = 100,
         damage = 1,
         experienceValue = 25,
@@ -81,7 +80,6 @@ local enemies = {
 
         instanceDefaults = {
             scale = 1,
-            speed = 50,
             animation = {
                 activeMovementType = 'run' -- Começa andando
             }
@@ -91,7 +89,7 @@ local enemies = {
         unitType = "zombie_walker_female_1",
         name = "Zombie Walker",
 
-        speed = 30,
+        speed = 0,
         health = 200,
         damage = 1,
         experienceValue = 20,
@@ -112,7 +110,6 @@ local enemies = {
 
         instanceDefaults = {
             scale = 1,
-            speed = 30,
             animation = {
                 activeMovementType = 'walk' -- Começa andando
             }
@@ -122,7 +119,7 @@ local enemies = {
         unitType = "zombie_runner_female_1",
         name = "Zombie Runner",
 
-        speed = 50,
+        speed = 0,
         health = 100,
         damage = 1,
         experienceValue = 25,
@@ -143,7 +140,6 @@ local enemies = {
 
         instanceDefaults = {
             scale = 1,
-            speed = 50,
             animation = {
                 activeMovementType = 'run' -- Começa andando
             }
