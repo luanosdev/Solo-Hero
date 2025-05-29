@@ -46,13 +46,13 @@ function SpatialGridIncremental:_addEntityToOccupiedCells(entity)
 
     local minCol, minRow = self:getGridCoords(entity.position.x - entity.radius, entity.position.y - entity.radius)
     local maxCol, maxRow = self:getGridCoords(entity.position.x + entity.radius, entity.position.y + entity.radius)
-    
+
     -- Se entity.currentGridCells já existe e é uma tabela do pool, precisa ser liberada antes de pegar uma nova.
     -- No entanto, a lógica de updateEntityInGrid já chama _removeEntityFromOccupiedCells que a limpa e poderia liberá-la lá.
     -- Por simplicidade aqui, assumimos que quem chama _addEntityToOccupiedCells garante que entity.currentGridCells está pronto para ser preenchido.
     -- Se entity.currentGridCells fosse ser substituído, faríamos TablePool.release(entity.currentGridCells) ANTES de TablePool.get()
     if entity.currentGridCells then TablePool.release(entity.currentGridCells) end -- Libera a antiga se existir
-    entity.currentGridCells = TablePool.get() -- Pega uma nova tabela para as células ocupadas
+    entity.currentGridCells = TablePool.get()                                      -- Pega uma nova tabela para as células ocupadas
 
     for r = minRow, maxRow do
         for c = minCol, maxCol do
@@ -97,10 +97,10 @@ function SpatialGridIncremental:_removeEntityFromOccupiedCells(entity)
                 end
             end
         end
-        TablePool.release(parts) -- Libera 'parts'
+        TablePool.release(parts)               -- Libera 'parts'
     end
     TablePool.release(entity.currentGridCells) -- Libera a tabela currentGridCells da entidade
-    entity.currentGridCells = nil -- Define como nil para que seja obtida uma nova na próxima adição
+    entity.currentGridCells = nil              -- Define como nil para que seja obtida uma nova na próxima adição
 end
 
 -- Atualiza a posição de uma entidade no grid.
@@ -117,11 +117,11 @@ function SpatialGridIncremental:updateEntityInGrid(entity)
 
     if newMainCol ~= entity.lastGridCol or newMainRow ~= entity.lastGridRow then
         -- Célula principal mudou! Precisa remover das células antigas e adicionar às novas.
-        
+
         -- 1. Remove a entidade de todas as células que ela ocupava anteriormente
         --    (baseado em seu raio na posição anterior, que estava em entity.currentGridCells)
-        self:_removeEntityFromOccupiedCells(entity) 
-        
+        self:_removeEntityFromOccupiedCells(entity)
+
         -- 2. Adiciona a entidade a todas as células que ela ocupa AGORA com base em sua nova posição e raio.
         self:_addEntityToOccupiedCells(entity)
 
@@ -129,14 +129,14 @@ function SpatialGridIncremental:updateEntityInGrid(entity)
         entity.lastGridCol = newMainCol
         entity.lastGridRow = newMainRow
     else
-        -- A célula principal não mudou. 
+        -- A célula principal não mudou.
         -- No entanto, se o raio da entidade for significativo, ela ainda pode ter entrado/saído
-        -- de células periféricas mesmo sem mudar a célula principal. 
-        -- Para uma otimização mais completa (e complexa), precisaríamos recalcular 
-        -- as currentGridCells e compará-las com as anteriores. 
+        -- de células periféricas mesmo sem mudar a célula principal.
+        -- Para uma otimização mais completa (e complexa), precisaríamos recalcular
+        -- as currentGridCells e compará-las com as anteriores.
         -- Mas para a solicitação atual (só atualizar se CÉLULA PRINCIPAL mudou), esta otimização para aqui.
         -- Se você quiser a checagem completa de todas as células do raio, podemos ajustar.
-        
+
         -- Para garantir que `currentGridCells` está correto mesmo que a entidade não tenha mudado de célula principal
         -- mas possa ter se movido DENTRO da célula e seu raio agora toque outras células vizinhas,
         -- precisamos re-popular currentGridCells e potencialmente adicionar/remover de células periféricas.
@@ -146,12 +146,12 @@ function SpatialGridIncremental:updateEntityInGrid(entity)
         -- e seu raio começar a tocar novas células vizinhas ou deixar de tocar outras.
 
         local previousCurrentCells = TablePool.get()
-        for k,v in pairs(entity.currentGridCells or {}) do previousCurrentCells[k] = v end
-        
+        for k, v in pairs(entity.currentGridCells or {}) do previousCurrentCells[k] = v end
+
         -- Libera a antiga entity.currentGridCells ANTES de obter uma nova
         if entity.currentGridCells then TablePool.release(entity.currentGridCells) end
-        entity.currentGridCells = TablePool.get() 
-        
+        entity.currentGridCells = TablePool.get()
+
         local minCol, minRow = self:getGridCoords(entity.position.x - entity.radius, entity.position.y - entity.radius)
         local maxCol, maxRow = self:getGridCoords(entity.position.x + entity.radius, entity.position.y + entity.radius)
 
@@ -161,16 +161,16 @@ function SpatialGridIncremental:updateEntityInGrid(entity)
                 local cellKey = c .. ":" .. r
                 newCurrentCells[cellKey] = true
                 if not previousCurrentCells[cellKey] then
-                    self:_addEntityToCell_Internal(entity,c,r)
+                    self:_addEntityToCell_Internal(entity, c, r)
                 end
             end
         end
         for oldCellKey, _ in pairs(previousCurrentCells) do
             if not newCurrentCells[oldCellKey] then
-                 local parts = TablePool.get() -- Usa TablePool
-                 for part in string.gmatch(oldCellKey, "([^-:]+)") do table.insert(parts, tonumber(part)) end
-                 if #parts == 2 then self:_removeEntityFromCell_Internal(entity, parts[1], parts[2]) end
-                 TablePool.release(parts) -- Libera
+                local parts = TablePool.get() -- Usa TablePool
+                for part in string.gmatch(oldCellKey, "([^-:]+)") do table.insert(parts, tonumber(part)) end
+                if #parts == 2 then self:_removeEntityFromCell_Internal(entity, parts[1], parts[2]) end
+                TablePool.release(parts) -- Libera
             end
         end
         -- entity.currentGridCells já é newCurrentCells
@@ -183,14 +183,20 @@ function SpatialGridIncremental:_addEntityToCell_Internal(entity, col, row)
     if col >= 1 and col <= self.numCols and row >= 1 and row <= self.numRows then
         local cell = self.grid[col][row]
         if not cell then -- Célula pode não existir se o grid foi limpo de forma agressiva
+            -- print(string.format("[SpatialGrid DEBUG] Criando nova lista para célula [%d][%d] em _addEntityToCell_Internal", col, row))
             self.grid[col][row] = TablePool.get()
             cell = self.grid[col][row]
         end
         local found = false
         for _, e in ipairs(cell) do
-            if e == entity then found = true; break; end
+            if e == entity then
+                found = true; break;
+            end
         end
-        if not found then table.insert(cell, entity); end
+        if not found then
+            table.insert(cell, entity)
+            -- print(string.format("[SpatialGrid DEBUG] Entidade ID %s adicionada à célula [%d][%d]. Célula agora tem %d entidades.", tostring(entity.id), col, row, #cell))
+        end
     end
 end
 
@@ -214,25 +220,38 @@ function SpatialGridIncremental:removeEntityCompletely(entity)
 end
 
 function SpatialGridIncremental:getNearbyEntities(worldX, worldY, searchRadius, requestingEntity)
-    local nearbyEntities = TablePool.get() -- Pega do pool
-    local checkedEntities = TablePool.get() -- Pega do pool
+    -- print(string.format("[SpatialGrid ENTERING getNearbyEntities] worldX: %.1f, worldY: %.1f, searchRadiusParam: %.1f",
+    --     worldX, worldY, searchRadius))                                                                                                                 -- NOVO LOG
+    local nearbyEntities = TablePool.get()                                                                                                             -- Pega do pool
+    local checkedEntities = TablePool.get()                                                                                                            -- Pega do pool
 
     -- Determina as células que a área de busca (ponto + searchRadius) toca
     local minSearchCol, minSearchRow = self:getGridCoords(worldX - searchRadius, worldY - searchRadius)
     local maxSearchCol, maxSearchRow = self:getGridCoords(worldX + searchRadius, worldY + searchRadius)
 
+    --print(string.format(
+    --    "[SpatialGrid DEBUG] getNearbyEntities: Buscando em colunas %d-%d, linhas %d-%d para entidade no raio %.1f",
+    --    minSearchCol, maxSearchCol, minSearchRow, maxSearchRow, searchRadius))
+
     for r = minSearchRow, maxSearchRow do
         for c = minSearchCol, maxSearchCol do
             if c >= 1 and c <= self.numCols and r >= 1 and r <= self.numRows then
                 local cell = self.grid[c][r]
-                if cell then -- Verifica se a célula existe
+                if cell then
+                    --[[
+                    if #cell > 0 then -- Log apenas para células não vazias
+                        print(string.format(
+                            "[SpatialGrid DEBUG] getNearbyEntities: Verificando célula [%d][%d] com %d entidades.", c, r,
+                            #cell))
+                    end
+                    ]]
                     for _, entityInCell in ipairs(cell) do
                         if entityInCell ~= requestingEntity and not checkedEntities[entityInCell] then
                             -- Opcional: checagem de distância real se searchRadius for preciso
                             local dx = entityInCell.position.x - worldX
                             local dy = entityInCell.position.y - worldY
-                            local distSq = dx*dx + dy*dy
-                            if distSq <= (searchRadius + (entityInCell.radius or 0))^2 then
+                            local distSq = dx * dx + dy * dy
+                            if distSq <= (searchRadius + (entityInCell.radius or 0)) ^ 2 then
                                 table.insert(nearbyEntities, entityInCell)
                                 checkedEntities[entityInCell] = true
                             end
@@ -269,4 +288,4 @@ function SpatialGridIncremental:destroy()
     -- print("SpatialGridIncremental destruído e tabelas liberadas.")
 end
 
-return SpatialGridIncremental 
+return SpatialGridIncremental

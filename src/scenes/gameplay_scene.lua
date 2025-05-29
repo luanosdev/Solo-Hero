@@ -20,6 +20,7 @@ local Constants = require("src.config.constants")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local MapManager = require("src.managers.map_manager")
 local RenderPipeline = require("src.core.render_pipeline")
+local Culling = require("src.core.culling")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
@@ -419,6 +420,22 @@ function GameplayScene:draw()
 
     -- Desenha tudo que está sob a câmera usando o RenderPipeline
     self.renderPipeline:draw(self.mapManager, Camera.x, Camera.y)
+
+    -- DEBUG: Desenha informações de debug dos inimigos (como raios de colisão)
+    if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS and enemyMgr and enemyMgr.getEnemies then
+        local enemies = enemyMgr:getEnemies()
+        if enemies then
+            for _, enemyInstance in ipairs(enemies) do
+                if enemyInstance and enemyInstance.isAlive and enemyInstance.drawDebug then
+                    -- Verifica se o inimigo está aproximadamente na visão da câmera antes de desenhar debug
+                    -- Isso é um culling simples para o debug, pode ser ajustado
+                    if Culling.isInView(enemyInstance, Camera.x, Camera.y, Camera.screenWidth, Camera.screenHeight, 100) then
+                        enemyInstance:drawDebug()
+                    end
+                end
+            end
+        end
+    end
 
     --Logger.debug("GameplayScene", "Chamando Camera:detach()...")
     Camera:detach()
