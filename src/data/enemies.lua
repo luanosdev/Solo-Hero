@@ -28,7 +28,7 @@ local enemies = {
         unitType = "zombie_walker_male_1",
         name = "Zombie Walker",
 
-        speed = 0,
+        speed = 20,
         health = 200,
         damage = 1,
         experienceValue = 20,
@@ -59,7 +59,7 @@ local enemies = {
         unitType = "zombie_runner_male_1",
         name = "Zombie Runner",
 
-        speed = 0,
+        speed = 50,
         health = 100,
         damage = 1,
         experienceValue = 25,
@@ -89,7 +89,7 @@ local enemies = {
         unitType = "zombie_walker_female_1",
         name = "Zombie Walker",
 
-        speed = 0,
+        speed = 20,
         health = 200,
         damage = 1,
         experienceValue = 20,
@@ -119,7 +119,7 @@ local enemies = {
         unitType = "zombie_runner_female_1",
         name = "Zombie Runner",
 
-        speed = 0,
+        speed = 50,
         health = 100,
         damage = 1,
         experienceValue = 25,

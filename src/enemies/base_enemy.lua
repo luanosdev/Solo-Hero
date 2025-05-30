@@ -62,7 +62,7 @@ local BaseEnemy = {
 
     -- Constants
     RADIUS_SIZE_DELTA = 0.5,
-    SEPARATION_STRENGTH = 60.0,
+    SEPARATION_STRENGTH = 30.0,
 }
 
 --- Constructor
@@ -176,8 +176,6 @@ function BaseEnemy:update(dt, playerManager, enemyManager, isSlowUpdate)
     end
 
     if not self.isAlive or self.shouldRemove then return end
-
-
 
     self:updateMovementToPlayer(dt, playerManager, isSlowUpdate) -- Restaurado e usando isSlowUpdate
     self:applySeparation(enemyManager, dt)
@@ -337,7 +335,7 @@ function BaseEnemy:updateMovement(dt, playerManager, enemyManager, isSlowUpdate)
         end
 
         local effectiveDt = isSlowUpdate and dt or self.updateInterval
-        local moveSpeed = 20
+        local moveSpeed = self.speed
 
         -- 🟢 Movimento de perseguição
         self.position.x = self.position.x + dx * moveSpeed * effectiveDt

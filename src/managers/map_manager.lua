@@ -111,13 +111,15 @@ end
 --- Prepara os SpriteBatches com base nos dados do mapa carregado.
 function MapManager:_prepareTileBatches()
     if not self.mapData then -- Adicionada verificação de mapData primeiro
-        Logger.error("MapManager", "_prepareTileBatches chamado sem mapData.")
-        return
+        error("MapManager: _prepareTileBatches chamado sem mapData.")
     end
-    if not self.mapData.layers or not self.mapData.tilesets then
-        Logger.error("MapManager", "Dados do mapa incompletos (sem layers ou tilesets) para preparar batches.")
-        return
+    if not self.mapData.layers then
+        error("MapManager: _prepareTileBatches chamado sem layers.")
     end
+    if not self.mapData.tilesets then
+        error("MapManager: _prepareTileBatches chamado sem tilesets.")
+    end
+
 
     -- Log inicial para verificar a estrutura dos tilesets
     if self.mapData.tilesets[1] and self.mapData.tilesets[1].tiles then
