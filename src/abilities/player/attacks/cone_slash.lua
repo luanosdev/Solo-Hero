@@ -10,8 +10,9 @@
 -------------------------------------------------------
 
 local ManagerRegistry = require("src.managers.manager_registry")
-local TablePool = require("src.utils.table_pool") -- Garante que temos acesso ao TablePool
+local TablePool = require("src.utils.table_pool")         -- Garante que temos acesso ao TablePool
 local Helpers = require("src.utils.helpers")
+local CombatHelpers = require("src.utils.combat_helpers") -- Adicionado
 
 ---@class ConeSlash
 ---@field name string Nome da habilidade.
@@ -56,6 +57,11 @@ function ConeSlash:new(playerManager, weaponInstance)
 
     o.playerManager = playerManager
     o.weaponInstance = weaponInstance
+
+    -- Propriedades de Knockback da arma
+    local baseData = o.weaponInstance:getBaseData()
+    o.knockbackPower = baseData and baseData.knockbackPower or 0
+    o.knockbackForce = baseData and baseData.knockbackForce or 0
 
     o.cooldownRemaining = 0
     o.activeAttacks = {} -- Rastreia animações de ataque individuais
@@ -135,6 +141,9 @@ end
 ---@return boolean True se o ataque foi iniciado, False se estava em cooldown.
 function ConeSlash:cast(args)
     args = args or {}
+
+    -- Rastreia inimigos que já sofreram knockback nesta chamada de cast
+    self.enemiesKnockedBackInThisCast = {}
 
     if self.cooldownRemaining > 0 then
         return false -- Em cooldown
@@ -333,7 +342,24 @@ function ConeSlash:applyDamage(target, finalStats, isCritical)
     end
 
     -- Aplica o dano
-    return target:takeDamage(totalDamage, isCritical)
+    local killed = target:takeDamage(totalDamage, isCritical)
+
+    -- Lógica de Knockback refatorada
+    if self.knockbackPower > 0 and not self.enemiesKnockedBackInThisCast[target.id] then
+        local knockbackApplied = CombatHelpers.applyKnockback(
+            target,              -- targetEnemy
+            self.area.position,  -- attackerPosition (posição do jogador, origem do cone)
+            self.knockbackPower, -- attackKnockbackPower
+            self.knockbackForce, -- attackKnockbackForce
+            finalStats.strength, -- playerStrength
+            nil                  -- knockbackDirectionOverride
+        )
+        if knockbackApplied then
+            self.enemiesKnockedBackInThisCast[target.id] = true
+        end
+    end
+
+    return killed
 end
 
 --- Desenha os elementos visuais da habilidade.

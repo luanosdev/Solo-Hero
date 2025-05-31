@@ -6,6 +6,7 @@
 
 local ManagerRegistry = require("src.managers.manager_registry")
 local TablePool = require("src.utils.table_pool")
+local CombatHelpers = require("src.utils.combat_helpers")
 
 --- @class AlternatingConeStrike
 --- @field playerManager PlayerManager
@@ -14,6 +15,9 @@ local TablePool = require("src.utils.table_pool")
 --- @field activeAttacks table
 --- @field hitLeftNext boolean
 --- @field visual table
+--- @field knockbackPower number
+--- @field knockbackForce number
+--- @field enemiesKnockedBackInThisCast table
 local AlternatingConeStrike = {}
 AlternatingConeStrike.__index = AlternatingConeStrike -- Para permitir :new
 
@@ -52,6 +56,11 @@ function AlternatingConeStrike:new(playerManager, weaponInstance)
 
     o.playerManager = playerManager
     o.weaponInstance = weaponInstance -- Armazena a instância da arma
+
+    -- Propriedades de Knockback da arma
+    local baseData = o.weaponInstance:getBaseData()
+    o.knockbackPower = baseData and baseData.knockbackPower or 0
+    o.knockbackForce = baseData and baseData.knockbackForce or 0
 
     o.cooldownRemaining = 0
     o.activeAttacks = {} -- Rastreia animações de ataque individuais
@@ -152,6 +161,9 @@ end
 function AlternatingConeStrike:cast(args)
     args = args or {}
 
+    -- Rastreia inimigos que já sofreram knockback nesta chamada de cast
+    self.enemiesKnockedBackInThisCast = {}
+
     if self.cooldownRemaining > 0 then
         return false -- Em cooldown
     end
@@ -243,8 +255,10 @@ end
 ---@return boolean Sempre retorna true (indica que a tentativa de ataque foi feita).
 function AlternatingConeStrike:executeAttack(hitLeft, finalStats)
     if not self.area or not self.area.range or self.area.range <= 0 then
-        Logger.error("executeAttack", "Área de ataque inválida ou alcance zero, não buscando inimigos.")
+        error("AlternatingConeStrike:executeAttack: Área de ataque inválida ou alcance zero, não buscando inimigos.")
     end
+
+    local playerStats = self.playerManager:getCurrentFinalStats() -- Usar para strength em knockback
 
     -- A posição do jogador é o centro da busca
     local searchX = self.area.position.x
@@ -267,7 +281,26 @@ function AlternatingConeStrike:executeAttack(hitLeft, finalStats)
                 enemiesHitCount = enemiesHitCount + 1
 
                 local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
-                self:applyDamage(enemy, finalStats, isCritical) -- Passa finalStats para applyDamage
+                local killed = self:applyDamage(enemy, finalStats, isCritical) -- Passa finalStats para applyDamage
+
+                -- Lógica de Knockback refatorada
+                if self.knockbackPower > 0 and not self.enemiesKnockedBackInThisCast[enemy.id] then
+                    local knockbackApplied = CombatHelpers.applyKnockback(
+                        enemy,                -- targetEnemy
+                        self.area.position,   -- attackerPosition (posição do jogador)
+                        self.knockbackPower,  -- attackKnockbackPower
+                        self.knockbackForce,  -- attackKnockbackForce
+                        playerStats.strength, -- playerStrength
+                        nil                   -- knockbackDirectionOverride
+                    )
+                    if knockbackApplied then
+                        self.enemiesKnockedBackInThisCast[enemy.id] = true
+                    end
+                end
+
+                if killed then
+                    table.remove(nearbyEnemies, i) -- Remove para não re-processar
+                end
             end
         end
     end
@@ -345,7 +378,9 @@ function AlternatingConeStrike:applyDamage(target, finalStats, isCritical)
 
     -- Aplica o dano
     -- print(string.format("      Applying %s damage (%s) to target.", tostring(totalDamage), isCritical and "CRIT" or "normal"))
-    return target:takeDamage(totalDamage, isCritical)
+    local killed = target:takeDamage(totalDamage, isCritical)
+
+    return killed
 end
 
 --- Desenha os elementos visuais da habilidade.

@@ -38,6 +38,13 @@ local BaseEnemy = {
     floatingTextUpdateTimer = 0,
     slowUpdateTimer = 0,
 
+    -- Knockback
+    knockbackResistance = 1,
+    knockbackForceMultiplier = 1, -- Multiplicador para força de knockback recebida
+    isUnderKnockback = false,
+    knockbackVelocity = { x = 0, y = 0 },
+    knockbackTimer = 0,
+
     -- Floating Texts
     activeFloatingTexts = {},
 
@@ -62,7 +69,7 @@ local BaseEnemy = {
 
     -- Constants
     RADIUS_SIZE_DELTA = 0.5,
-    SEPARATION_STRENGTH = 30.0,
+    SEPARATION_STRENGTH = 20.0,
 }
 
 --- Constructor
@@ -95,6 +102,11 @@ function BaseEnemy:new(position, id)
 
     enemy.directionX = 0 -- Nova direção X
     enemy.directionY = 0 -- Nova direção Y
+
+    -- Inicialização de Knockback
+    enemy.isUnderKnockback = false
+    enemy.knockbackVelocity = { x = 0, y = 0 }
+    enemy.knockbackTimer = 0
 
     enemy:initializeSprite()
 
@@ -134,6 +146,10 @@ function BaseEnemy:updateStatsFromPrototype()
     self.healthBarWidth = proto.healthBarWidth or base_defaults.healthBarWidth
     self.deathDuration = proto.deathDuration or base_defaults.deathDuration
     self.className = proto.className or base_defaults.className -- Geralmente, className deve ser específico
+
+    -- Atributos de Knockback
+    self.knockbackResistance = proto.knockbackResistance or base_defaults.knockbackResistance or 1
+    self.knockbackForceMultiplier = proto.knockbackForceMultiplier or base_defaults.knockbackForceMultiplier or 1
 
     -- unitType e spriteData são geralmente específicos da subclasse e podem não ter padrões úteis em BaseEnemy
     self.unitType = proto.unitType or base_defaults.unitType
@@ -177,9 +193,30 @@ function BaseEnemy:update(dt, playerManager, enemyManager, isSlowUpdate)
 
     if not self.isAlive or self.shouldRemove then return end
 
-    self:updateMovementToPlayer(dt, playerManager, isSlowUpdate) -- Restaurado e usando isSlowUpdate
-    self:applySeparation(enemyManager, dt)
-    self:checkPlayerCollision(dt, playerManager)                 -- Restaurado
+    -- Atualiza o estado de knockback
+    if self.isUnderKnockback then
+        self.position.x = self.position.x + self.knockbackVelocity.x * dt
+        self.position.y = self.position.y + self.knockbackVelocity.y * dt
+        self.knockbackTimer = self.knockbackTimer - dt
+        if self.knockbackTimer <= 0 then
+            self.isUnderKnockback = false
+            self.knockbackVelocity = { x = 0, y = 0 }
+        end
+    end
+
+    -- Só permite movimento normal se não estiver sofrendo knockback
+    if not self.isUnderKnockback then
+        self:updateMovementToPlayer(dt, playerManager, isSlowUpdate)
+        self:applySeparation(enemyManager, dt)
+        self:checkPlayerCollision(dt, playerManager)
+    else
+        -- Se estiver sob knockback, a separação ainda pode ser útil para evitar empilhamento excessivo
+        -- mas não deve substituir completamente o movimento de knockback.
+        -- Uma abordagem mais simples por agora é desativar a separação durante o knockback
+        -- ou aplicar uma versão muito mais fraca.
+        -- Por simplicidade, vamos pular applySeparation e checkPlayerCollision se sob knockback.
+        -- Isso significa que o inimigo não pode causar dano enquanto está em knockback.
+    end
 
     -- Update animação idle/movimento
     if self.sprite then
@@ -453,6 +490,11 @@ function BaseEnemy:reset(position, id)
     self.currentGridCells = nil
     self.activeFloatingTexts = {}
 
+    -- Reset Knockback State
+    self.isUnderKnockback = false
+    self.knockbackVelocity = { x = 0, y = 0 }
+    self.knockbackTimer = 0
+
     self.directionX = 0
     self.directionY = 0
 
@@ -473,6 +515,11 @@ function BaseEnemy:resetStateForPooling()
     self.target = nil
     self.currentGridCells = nil
     self.activeFloatingTexts = {}
+
+    -- Reset Knockback State
+    self.isUnderKnockback = false
+    self.knockbackVelocity = { x = 0, y = 0 }
+    self.knockbackTimer = 0
 end
 
 --- Draws debug information for the enemy, like its collision radius.
@@ -492,6 +539,35 @@ function BaseEnemy:drawDebug()
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print(string.format("r: %.1f", self.radius), self.position.x - self.radius,
         self.position.y + self.radius + 5)
+end
+
+--- Draws debug information for the enemy, like its collision radius.
+--- @param directionX number X component of the attack direction.
+--- @param directionY number Y component of the attack direction.
+--- @param knockbackSpeed number The calculated speed of the knockback.
+function BaseEnemy:applyKnockback(directionX, directionY, knockbackSpeed)
+    if not self.isAlive or self.isDying then return end
+    if self.knockbackResistance <= 0 then return end -- Imune a knockback se resistência for 0 ou negativa
+
+    -- A força do knockback efetiva é a velocidade calculada multiplicada pelo multiplicador do inimigo.
+    -- No entanto, a 'knockbackSpeed' já deve vir calculada da arma/jogador.
+    -- A 'knockbackResistance' do inimigo já foi considerada no cálculo de 'knockbackSpeed'
+    -- (knockbackVelocity = (strength + knockbackForce) / 18), e a condição knockbackPower >= knockbackResistance.
+
+    -- A direção do knockback é oposta à direção do ataque.
+    -- directionX e directionY já devem representar o vetor DE ONDE o ataque veio para EMPURRAR o inimigo.
+    -- Se directionX/Y é o vetor do atacante PARA o inimigo, então o knockback é nessa direção.
+    -- Se directionX/Y é o vetor do inimigo PARA o atacante, então o knockback é na direção oposta.
+    -- Assumindo que directionX, directionY é o vetor de força (de onde o golpe veio).
+    -- Então, o inimigo é empurrado NESSA direção.
+
+    self.isUnderKnockback = true
+    self.knockbackVelocity.x = directionX * knockbackSpeed
+    self.knockbackVelocity.y = directionY * knockbackSpeed
+    self.knockbackTimer = Constants.KNOCKBACK_DURATION
+
+    -- Opcional: Interromper a ação atual do inimigo, se houver alguma.
+    -- self.isMoving = false -- Exemplo, se você tiver tal flag
 end
 
 return BaseEnemy

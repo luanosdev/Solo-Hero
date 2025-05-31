@@ -1,3 +1,4 @@
+--- @class Constants
 local Constants = {}
 
 --- IDs constantes para as abas do Lobby.
@@ -82,5 +83,36 @@ Constants.TILE_WIDTH = 128
 Constants.TILE_HEIGHT = 64
 
 Constants.PLAYER_DAMAGE_COOLDOWN = 0.5
+
+Constants.KNOCKBACK_RESISTANCE = {
+    NONE        = 0,   -- Inimigos muito leves (ratos, zumbis fracos)
+    LOW         = 2,   -- Humanoides, zumbis normais
+    MEDIUM      = 5,   -- Guerreiros, elites
+    HIGH        = 9,   -- Golems, tanques
+    IMMUNE      = math.huge -- Bosses, inimigos com resistência total
+}
+
+--- Valor que representa a "capacidade" do ataque de iniciar um knockback
+Constants.KNOCKBACK_POWER = {
+    NONE      = 0,    -- Não empurra (ex: magias contínuas, dano ao longo do tempo)
+    VERY_LOW  = 1,    -- Flechas, ataques leves
+    LOW       = 3,    -- Adagas, ataques rápidos
+    MEDIUM    = 6,    -- Espadas médias, lança-chamas
+    HIGH      = 10,   -- Armas pesadas, martelo, explosões
+    VERY_HIGH = 15,   -- Ultimates, armas divinas, ataques especiais
+}
+
+Constants.KNOCKBACK_FORCE = {
+    NONE              = 0,   -- Magias de dano contínuo, projéteis fracos
+    CHAIN_LASER       = 0,   -- Lança-chamas com alto knockback
+    FLAMETHROWER      = 0,   -- Força moderada em função da pressão contínua
+    DUAL_DAGGERS      = 5,   -- Golpes rápidos, mas pouco impacto
+    BOW               = 3,   -- Flechas empurram levemente (útil com força alta)
+    SWORDS            = 10,  -- Golpes médios (espadas comuns)
+    HAMMER            = 25,  -- Armas pesadas com alto knockback
+}
+
+-- Duração padrão do knockback em segundos
+Constants.KNOCKBACK_DURATION = 0.3
 
 return Constants

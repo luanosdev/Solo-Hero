@@ -70,6 +70,10 @@ function ArrowProjectile:new(playerManager, weaponInstance)
     -- Para balanceamento, sugiro que arcos tenham piercing base >= 1.
     o.basePiercing = baseData.piercing or 1
 
+    -- Knockback properties from weapon
+    o.knockbackPower = baseData.knockbackPower or 0
+    o.knockbackForce = baseData.knockbackForce or 0
+
     o.visual.preview.color = o.weaponInstance.previewColor or { 0.7, 0.7, 0.7, 0.2 }
     o.visual.attack.color = o.weaponInstance.attackColor or { 0.2, 0.8, 0.2, 0.7 }
 
@@ -227,7 +231,10 @@ function ArrowProjectile:cast(args)
                 spatialGrid,
                 self.visual.attack.color,
                 currentPiercing,
-                areaScaleMultiplier
+                areaScaleMultiplier,
+                self.knockbackPower,
+                self.knockbackForce,
+                finalStats.strength or 0
             )
             -- print("Flecha REUTILIZADA do pool. Pool size: " .. #self.pooledArrows)
         else
@@ -243,7 +250,10 @@ function ArrowProjectile:cast(args)
                 spatialGrid,
                 self.visual.attack.color,
                 currentPiercing,
-                areaScaleMultiplier
+                areaScaleMultiplier,
+                self.knockbackPower,
+                self.knockbackForce,
+                finalStats.strength or 0
             )
             -- print("Nova flecha CRIADA. Pool size: " .. #self.pooledArrows)
         end

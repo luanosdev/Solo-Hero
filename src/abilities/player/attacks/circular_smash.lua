@@ -6,6 +6,7 @@
 
 local ManagerRegistry = require("src.managers.manager_registry")
 local TablePool = require("src.utils.table_pool")
+local CombatHelpers = require("src.utils.combat_helpers")
 
 local CircularSmash = {}
 CircularSmash.__index = CircularSmash -- Para permitir :new
@@ -57,6 +58,10 @@ function CircularSmash:new(playerManager, weaponInstance)
     -- Os bônus do jogador (range, attackArea) os modificarão.
     local baseData = o.weaponInstance:getBaseData()
     o.baseAreaEffectRadius = baseData and baseData.baseAreaEffectRadius
+
+    -- Propriedades de Knockback da arma
+    o.knockbackPower = baseData and baseData.knockbackPower or 0
+    o.knockbackForce = baseData and baseData.knockbackForce or 0
 
     -- Estes serão os raios FINAIS calculados em update
     o.finalImpactDistance = o.baseAreaEffectRadius
@@ -118,6 +123,9 @@ end
 function CircularSmash:cast(args)
     args = args or {}
     local angle = args.angle
+
+    -- Rastreia inimigos que já sofreram knockback nesta chamada de cast
+    self.enemiesKnockedBackInThisCast = {}
 
     if not angle then
         print("[CircularSmash:cast] WARN: Angle not provided in args, using current angle.")
@@ -234,6 +242,7 @@ function CircularSmash:executeAttack(finalStats)
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager.spatialGrid
     local enemiesHitCount = 0
+    local playerStats = self.playerManager:getCurrentFinalStats()
 
     if not self.currentAttackRadius or self.currentAttackRadius <= 0 then
         error(string.format("    [executeAttack] AVISO: Raio de ataque inválido (%s). Nenhum inimigo será atingido.",
@@ -246,8 +255,7 @@ function CircularSmash:executeAttack(finalStats)
 
     -- Busca inimigos próximos usando o spatialGrid
     -- O centro da busca é self.targetPos, e o raio é self.currentAttackRadius
-    local nearbyEnemies = spatialGrid:getNearbyEntities(self.targetPos.x, self.targetPos.y, self
-        .currentAttackRadius, nil)
+    local nearbyEnemies = spatialGrid:getNearbyEntities(self.targetPos.x, self.targetPos.y, self.currentAttackRadius, nil)
 
     local attackRadiusSq = self.currentAttackRadius * self.currentAttackRadius
 
@@ -257,21 +265,49 @@ function CircularSmash:executeAttack(finalStats)
 
     -- print(string.format("    [executeAttack] Checking %d nearby enemies in radius %.1f at (%.1f, %.1f)", #nearbyEnemies, self.currentAttackRadius, self.targetPos.x, self.targetPos.y))
 
-    for _, enemy in ipairs(nearbyEnemies) do
-        if enemy.isAlive then
-            -- Verifica se o inimigo está dentro do raio do golpe atual (verificação circular precisa)
-            if self:isPointInArea(enemy.position, self.targetPos, attackRadiusSq) then
+    for i = #nearbyEnemies, 1, -1 do
+        local enemy = nearbyEnemies[i]
+        if enemy and enemy.isAlive and not enemy.isDying then
+            -- Verifica se o inimigo está dentro do raio do ataque (targetPos é o centro do círculo)
+            local dx = enemy.position.x - self.targetPos.x
+            local dy = enemy.position.y - self.targetPos.y
+            local distSq = dx * dx + dy * dy
+
+            if distSq <= self.currentAttackRadius * self.currentAttackRadius then
+                -- Colisão detectada
                 enemiesHitCount = enemiesHitCount + 1
+                local enemyHasKilled
                 self:applyDamage(enemy, isCritical, finalStats)
+
+                -- Lógica de Knockback refatorada
+                if self.knockbackPower > 0 and not self.enemiesKnockedBackInThisCast[enemy.id] then
+                    local knockbackApplied = CombatHelpers.applyKnockback(
+                        enemy,                -- targetEnemy
+                        self.targetPos,       -- attackerPosition (centro do smash)
+                        self.knockbackPower,  -- attackKnockbackPower
+                        self.knockbackForce,  -- attackKnockbackForce
+                        playerStats.strength, -- playerStrength
+                        nil                   -- knockbackDirectionOverride (nil para este tipo de ataque)
+                    )
+                    if knockbackApplied then
+                        self.enemiesKnockedBackInThisCast[enemy.id] = true
+                    end
+                end
+
+                if enemyHasKilled then
+                    -- Se o inimigo morreu, pode ser removido da lista para evitar re-processamento se houver
+                    table.remove(nearbyEnemies, i)
+                end
             end
         end
     end
 
+    -- Libera a tabela do pool após o uso
     TablePool.release(nearbyEnemies)
 
     if enemiesHitCount > 0 then
-        print(string.format("    [executeAttack] Hit %d enemies with radius %.1f.", enemiesHitCount,
-            self.currentAttackRadius))
+        -- Tocar som de impacto, etc.
+        -- print(string.format("  - Hit %d enemies.", enemiesHitCount))
     end
     return true
 end

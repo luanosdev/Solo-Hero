@@ -5,6 +5,7 @@
 
 local ManagerRegistry = require("src.managers.manager_registry")
 local TablePool = require("src.utils.table_pool")
+local CombatHelpers = require("src.utils.combat_helpers")
 
 ---@class ChainLightning
 local ChainLightning = {}
@@ -53,6 +54,9 @@ function ChainLightning:new(playerManager, weaponInstance)
     o.baseJumpRange = baseData and baseData.jumpRange
     o.baseThickness = o.visual.attack.thickness
 
+    -- Knockback properties from weapon
+    o.knockbackPower = baseData.knockbackPower or 0
+    o.knockbackForce = baseData.knockbackForce or 0
 
     -- Define cores (usando as da arma ou padrão)
     o.visual.preview.color = o.weaponInstance.previewColor or { 0.2, 0.8, 1, 0.2 }
@@ -225,6 +229,8 @@ function ChainLightning:cast(args)
         error("[ChainLightning:cast] ERRO: finalStats.weaponDamage é nil. Não é possível calcular o dano.")
     end
 
+    local playerStrength = finalStats.strength or 0 -- Força do jogador para knockback
+
     -- Calcula o número total de saltos permitidos
     -- Usa finalStats.range como multiplicador para o baseChainCount
     local totalAllowedJumps = self.baseChainCount and finalStats.range and
@@ -311,6 +317,20 @@ function ChainLightning:cast(args)
         targetsHit[firstHitEnemy.id] = firstHitEnemy
         excludedIDs[firstHitEnemy.id] = true
         startChainingFrom = firstHitEnemy
+
+        -- Lógica de Knockback para o PRIMEIRO ALVO refatorada
+        if self.knockbackPower > 0 then -- A verificação de isAlive, etc., é feita pelo helper
+            CombatHelpers.applyKnockback(
+                firstHitEnemy,          -- targetEnemy
+                startPos,               -- attackerPosition (jogador)
+                self.knockbackPower,    -- attackKnockbackPower
+                self.knockbackForce,    -- attackKnockbackForce
+                playerStrength,         -- playerStrength
+                nil                     -- knockbackDirectionOverride
+            )
+            -- Não precisamos mais do enemiesKnockedBackInThisCast para ChainLightning,
+            -- pois cada inimigo só é atingido uma vez pela corrente.
+        end
     else
         Logger.debug("[ChainLightning:cast] First segment MISSED. Endpoint: (%.1f, %.1f)", endX, endY)
         table.insert(hitPositions, { x = endX, y = endY })
@@ -354,6 +374,18 @@ function ChainLightning:cast(args)
             targetsHit[currentTarget.id] = currentTarget
             excludedIDs[currentTarget.id] = true
             successfulJumps = successfulJumps + 1
+
+            -- Lógica de Knockback refatorada para saltos subsequentes
+            if self.knockbackPower > 0 then
+                CombatHelpers.applyKnockback(
+                    currentTarget,       -- targetEnemy
+                    lastHitPosition,     -- attackerPosition (inimigo anterior)
+                    self.knockbackPower, -- attackKnockbackPower
+                    self.knockbackForce, -- attackKnockbackForce
+                    playerStrength,      -- playerStrength
+                    nil                  -- knockbackDirectionOverride
+                )
+            end
         else
             Logger.debug("[ChainLightning:cast]",
                 "  - Jump FAILED: No next target found within jump radius or not excluded.")
@@ -371,7 +403,7 @@ function ChainLightning:cast(args)
                 Logger.debug("[ChainLightning:cast]", "AVISO: Acerto crítico, mas finalStats.critMultiplier é nil.")
             end
         end
-        enemy:takeDamage(finalDamage, isCritical)
+        self:applyDamage(enemy, isCritical, finalStats)
     end
 
     if #hitPositions > 1 then

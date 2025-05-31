@@ -1,6 +1,7 @@
 -- src/projectiles/fire_particle.lua
 
 local TablePool = require("src.utils.table_pool")
+local CombatHelpers = require("src.utils.combat_helpers")
 
 -- Carrega o spritesheet e cria os Quads uma vez
 local fireSheet = love.graphics.newImage("assets/attacks/fire_particle/fireSheet5x5.png")
@@ -35,28 +36,44 @@ local INITIAL_SCALE_MULTIPLIER = 0.15     -- Nasce com 15% do tamanho final
 local FireParticle = {}
 FireParticle.__index = FireParticle
 
-function FireParticle:new(x, y, angle, speed, lifetime, damage, isCritical, spatialGrid, color, areaMultiplier, piercing,
-                          playerBaseScale)
+--- Constructor for FireParticle.
+--- @param params table Table of parameters including:
+---   x, y, angle, speed, lifetime, damage, isCritical, spatialGrid, color,
+---   areaMultiplier, piercing, playerBaseScale, owner, playerManager, weaponInstance,
+---   baseHitLoss, piercingReductionFactor, minHitLoss,
+---   knockbackPower, knockbackForce, playerStrength
+function FireParticle:new(params)
     local instance = setmetatable({}, FireParticle)
 
-    instance.position = { x = x, y = y }
-    instance.angle = angle
-    instance.speed = speed
-    instance.initialLifetime = lifetime -- Guarda o lifetime original para cálculos
-    instance.lifetimeRemaining = lifetime
-    instance.damage = damage
-    instance.isCritical = isCritical
-    instance.spatialGrid = spatialGrid
-    instance.color = color or { 1, 1, 1, 1 }
+    instance.position = { x = params.x, y = params.y }
+    instance.angle = params.angle
+    instance.speed = params.speed
+    instance.initialLifetime = params.lifetime -- Guarda o lifetime original para cálculos
+    instance.lifetimeRemaining = params.lifetime
+    instance.damage = params.damage
+    instance.isCritical = params.isCritical
+    instance.spatialGrid = params.spatialGrid
+    instance.color = params.color or { 1, 1, 1, 1 }
 
-    -- Novos atributos
-    instance.areaMultiplier = areaMultiplier or 1.0
-    instance.piercing = piercing or 0
+    -- Novos atributos de colisão e arma
+    instance.areaMultiplier = params.areaMultiplier or 1.0
+    instance.piercing = params.piercing or 0
+    instance.owner = params.owner
+    instance.playerManager = params.playerManager
+    instance.weaponInstance = params.weaponInstance
+    instance.baseHitLoss = params.baseHitLoss or BASE_HIT_LOSS
+    instance.piercingReductionFactor = params.piercingReductionFactor or PIERCING_REDUCTION_FACTOR
+    instance.minHitLoss = params.minHitLoss or MIN_HIT_LOSS
+
+    -- Knockback properties
+    instance.knockbackPower = params.knockbackPower or 0
+    instance.knockbackForce = params.knockbackForce or 0
+    instance.playerStrength = params.playerStrength or 0
 
     -- Ajusta o playerBaseScale com o fator de ajuste visual global do módulo.
     -- Isso garante que as partículas de fogo tenham um tamanho base consistente com a gameplay,
     -- mesmo que a arma/habilidade forneça uma escala base.
-    local effectivePlayerBaseScale = (playerBaseScale or baseScale) * PARTICLE_VISUAL_ADJUSTMENT_FACTOR
+    local effectivePlayerBaseScale = (params.playerBaseScale or baseScale) * PARTICLE_VISUAL_ADJUSTMENT_FACTOR
     instance.playerBaseScale = effectivePlayerBaseScale -- Armazena a escala base efetivamente usada
 
     -- Raio de colisão será dinâmico, calculado no update. Iniciamos com um valor pequeno.
@@ -66,8 +83,8 @@ function FireParticle:new(x, y, angle, speed, lifetime, damage, isCritical, spat
     instance.currentScaleFactor = INITIAL_SCALE_MULTIPLIER -- Começa pequena
 
     instance.velocity = {
-        x = math.cos(angle) * speed,
-        y = math.sin(angle) * speed
+        x = math.cos(params.angle) * params.speed,
+        y = math.sin(params.angle) * params.speed
     }
 
     instance.isActive = true
@@ -154,12 +171,46 @@ function FireParticle:checkCollision()
             if distanceSq <= combinedRadius * combinedRadius then
                 -- Verifica se esta partícula já atingiu este inimigo
                 if not self.hitEnemies[enemy.id] then
-                    enemy:takeDamage(self.damage, self.isCritical)
+                    -- Aplicar Knockback ANTES de registrar o hit
+                    if self.knockbackPower > 0 then
+                        local dirX, dirY = 0, 0
+                        local velocityMagnitude = math.sqrt(self.velocity.x ^ 2 + self.velocity.y ^ 2)
+                        if velocityMagnitude > 0 then
+                            dirX = self.velocity.x / velocityMagnitude
+                            dirY = self.velocity.y / velocityMagnitude
+                        else
+                            -- Se a partícula está parada, calcula direção do centro da partícula para o inimigo
+                            local dxP = enemy.position.x - self.position.x
+                            local dyP = enemy.position.y - self.position.y
+                            local distSqP = dxP * dxP + dyP * dyP
+                            if distSqP > 0 then
+                                local distP = math.sqrt(distSqP)
+                                dirX = dxP / distP
+                                dirY = dyP / distP
+                            else -- Fallback para direção aleatória se sobrepostos
+                                local randomAngle = math.random() * 2 * math.pi
+                                dirX = math.cos(randomAngle)
+                                dirY = math.sin(randomAngle)
+                            end
+                        end
+
+                        CombatHelpers.applyKnockback(
+                            enemy,                 -- targetEnemy
+                            nil,                   -- attackerPosition (projétil usa override)
+                            self.knockbackPower,   -- attackKnockbackPower
+                            self.knockbackForce,   -- attackKnockbackForce
+                            self.playerStrength,   -- playerStrength
+                            { x = dirX, y = dirY } -- knockbackDirectionOverride
+                        )
+                        -- Não precisa mais marcar aqui, pois o helper não retorna se aplicou ou não para este caso
+                    end
+
+                    local killed = enemy:takeDamage(self.damage, self.isCritical)
                     self.hitEnemies[enemy.id] = true
 
                     -- Lógica de perda de vida da partícula devido à colisão
                     local effectiveHitLoss = math.max(MIN_HIT_LOSS,
-                        BASE_HIT_LOSS - (self.piercing * PIERCING_REDUCTION_FACTOR))
+                        self.baseHitLoss - (self.piercing * self.piercingReductionFactor))
                     local lifeToLose = self.lifetimeRemaining * effectiveHitLoss -- Perde % da vida RESTANTE
                     self.lifetimeRemaining = self.lifetimeRemaining - lifeToLose
 

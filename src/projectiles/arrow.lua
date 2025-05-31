@@ -1,4 +1,5 @@
 local TablePool = require("src.utils.table_pool")
+local CombatHelpers = require("src.utils.combat_helpers")
 
 -- Carrega a imagem da flecha uma vez
 local arrowImage = love.graphics.newImage("assets/attacks/arrow/arrow.png")
@@ -49,7 +50,11 @@ Arrow.__index = Arrow
 ---@param color table Cor da flecha (opcional).
 ---@param piercing number Capacidade de perfuração inicial da flecha.
 ---@param areaScale number Multiplicador de escala da área de efeito (afeta tamanho visual e raio de colisão).
-function Arrow:new(x, y, angle, speed, range, damage, isCritical, spatialGrid, color, piercing, areaScale)
+---@param knockbackPower number Poder de knockback da flecha.
+---@param knockbackForce number Força de knockback da flecha.
+---@param playerStrength number Força do jogador no momento do disparo.
+function Arrow:new(x, y, angle, speed, range, damage, isCritical, spatialGrid, color, piercing, areaScale, knockbackPower,
+                   knockbackForce, playerStrength)
     local instance = setmetatable({}, Arrow)
 
     instance.position = { x = x, y = y }
@@ -62,6 +67,11 @@ function Arrow:new(x, y, angle, speed, range, damage, isCritical, spatialGrid, c
     instance.color = color or { 1, 1, 1, 1 }
     instance.currentPiercing = piercing or 1
     local currentAreaScale = areaScale or 1
+
+    -- Knockback properties
+    instance.knockbackPower = knockbackPower or 0
+    instance.knockbackForce = knockbackForce or 0
+    instance.playerStrength = playerStrength or 0
 
     instance.velocity = {
         x = math.cos(angle) * speed,
@@ -99,7 +109,11 @@ end
 ---@param color table Cor da flecha (opcional).
 ---@param piercing number Capacidade de perfuração inicial da flecha.
 ---@param areaScale number Multiplicador de escala da área de efeito.
-function Arrow:reset(x, y, angle, speed, range, damage, isCritical, spatialGrid, color, piercing, areaScale)
+---@param knockbackPower number Poder de knockback da flecha.
+---@param knockbackForce number Força de knockback da flecha.
+---@param playerStrength number Força do jogador no momento do disparo.
+function Arrow:reset(x, y, angle, speed, range, damage, isCritical, spatialGrid, color, piercing, areaScale,
+                     knockbackPower, knockbackForce, playerStrength)
     self.position.x = x
     self.position.y = y
     self.angle = angle
@@ -111,6 +125,11 @@ function Arrow:reset(x, y, angle, speed, range, damage, isCritical, spatialGrid,
     self.color = color or { 1, 1, 1, 1 }
     self.currentPiercing = piercing or 1
     local currentAreaScale = areaScale or 1
+
+    -- Knockback properties
+    self.knockbackPower = knockbackPower or 0
+    self.knockbackForce = knockbackForce or 0
+    self.playerStrength = playerStrength or 0
 
     self.velocity.x = math.cos(angle) * speed
     self.velocity.y = math.sin(angle) * speed
@@ -182,6 +201,39 @@ function Arrow:checkCollision()
 
             if distanceSq <= sumOfRadiiSq then
                 -- Colidiu!
+
+                -- Lógica de Knockback refatorada
+                if self.knockbackPower > 0 then
+                    local dirX, dirY = 0, 0
+                    if self.speed > 0 then -- self.speed é a magnitude original de self.velocity
+                        dirX = self.velocity.x / self.speed
+                        dirY = self.velocity.y / self.speed
+                    else
+                        -- Se a flecha está parada, calcula direção da ponta para o inimigo
+                        local dxTipToEnemy = enemy.position.x - tipX -- tipX, tipY já calculados acima
+                        local dyTipToEnemy = enemy.position.y - tipY
+                        local distTipToEnemySq = dxTipToEnemy * dxTipToEnemy + dyTipToEnemy * dyTipToEnemy
+                        if distTipToEnemySq > 0 then
+                            local distTip = math.sqrt(distTipToEnemySq)
+                            dirX = dxTipToEnemy / distTip
+                            dirY = dyTipToEnemy / distTip
+                        else -- Fallback para direção aleatória se sobrepostos
+                            local randomAngle = math.random() * 2 * math.pi
+                            dirX = math.cos(randomAngle)
+                            dirY = math.sin(randomAngle)
+                        end
+                    end
+
+                    CombatHelpers.applyKnockback(
+                        enemy,                 -- targetEnemy
+                        nil,                   -- attackerPosition (projétil usa override)
+                        self.knockbackPower,   -- attackKnockbackPower
+                        self.knockbackForce,   -- attackKnockbackForce
+                        self.playerStrength,   -- playerStrength
+                        { x = dirX, y = dirY } -- knockbackDirectionOverride
+                    )
+                end
+
                 enemy:takeDamage(self.damage, self.isCritical)
                 self.hitEnemies[enemyId] = true
                 self.currentPiercing = self.currentPiercing - 1

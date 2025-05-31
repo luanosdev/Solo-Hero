@@ -65,6 +65,10 @@ function FlameStream:new(playerManager, weaponInstance)
         FlameStream.visual.attack
         .baseScale -- Escala base da partícula vinda da arma
 
+    -- Knockback properties from weapon
+    o.knockbackPower = baseData.knockbackPower or 0
+    o.knockbackForce = baseData.knockbackForce or 0
+
     -- Define cores (usando as da arma ou padrão)
     o.visual.preview.color = o.weaponInstance.previewColor or { 1, 0.5, 0, 0.2 }
     o.visual.attack.color = o.weaponInstance.attackColor or { 1, 0.3, 0, 0.7 }
@@ -261,20 +265,33 @@ function FlameStream:cast(args)                            -- Cast é chamado mu
             goto continue_loop -- Pula para a próxima iteração do loop
         end
 
-        local particle = FireParticle:new(
-            startX, startY,
-            particleAngle,
-            self.visual.attack.particleSpeed,
-            self.currentLifetime, -- Lifetime já calculado em update e considera o range
-            finalDamage,
-            isCritical,
-            spatialGrid,
-            particleColor,              -- Cor normal ou de multiAttack
-            self.currentAreaMultiplier, -- Passa o multiplicador de área atual
-            self.currentPiercing,       -- Passa o piercing atual
-            self.baseParticleScale      -- Passa a escala base da partícula (da arma/habilidade)
-        )
-        table.insert(self.activeParticles, particle)
+        -- Cria a partícula de fogo
+        local particle = FireParticle:new({
+            x = self.currentPosition.x,
+            y = self.currentPosition.y,
+            angle = particleAngle,
+            speed = self.visual.attack.particleSpeed,
+            lifetime = self.currentLifetime,
+            damage = finalDamage,
+            isCritical = isCritical,
+            owner = self.playerManager.player,    -- Para referência, se necessário
+            playerManager = self.playerManager,   -- Para stats e callbacks
+            weaponInstance = self.weaponInstance, -- Para callbacks como onHit
+            color = particleColor,
+            scale = self.baseParticleScale * (self.currentAreaMultiplier or 1.0),
+            piercing = self.currentPiercing, -- Passa o piercing calculado
+            spatialGrid = spatialGrid,       -- Passa o spatialGrid
+            baseHitLoss = self.visual.attack.baseHitLoss,
+            piercingReductionFactor = self.visual.attack.piercingReductionFactor,
+            minHitLoss = self.visual.attack.minHitLoss,
+            knockbackPower = self.knockbackPower,     -- Passa o knockback power da arma/habilidade
+            knockbackForce = self.knockbackForce,     -- Passa o knockback force da arma/habilidade
+            playerStrength = finalStats.strength or 0 -- Passa a força atual do jogador
+        })
+
+        if particle then
+            table.insert(self.activeParticles, particle)
+        end
 
         ::continue_loop::
     end
