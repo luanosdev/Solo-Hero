@@ -11,8 +11,14 @@ local CombatHelpers = {}
 --- @param playerStrength number A força atual do jogador.
 --- @param knockbackDirectionOverride? {x: number, y: number} Vetor de direção normalizado opcional para o knockback (usado por projéteis).
 --- @return boolean True se o knockback foi aplicado, false caso contrário.
-function CombatHelpers.applyKnockback(targetEnemy, attackerPosition, attackKnockbackPower, attackKnockbackForce,
-                                      playerStrength, knockbackDirectionOverride)
+function CombatHelpers.applyKnockback(
+    targetEnemy,
+    attackerPosition,
+    attackKnockbackPower,
+    attackKnockbackForce,
+    playerStrength,
+    knockbackDirectionOverride
+)
     if not targetEnemy or not targetEnemy.isAlive or targetEnemy.isDying or not targetEnemy.knockbackResistance then
         return false
     end
@@ -51,7 +57,7 @@ function CombatHelpers.applyKnockback(targetEnemy, attackerPosition, attackKnock
 
         -- Garante que playerStrength é um número
         local strength = playerStrength or 0
-        local knockbackVelocityValue = (strength + attackKnockbackForce) / 18 -- Conforme a fórmula
+        local knockbackVelocityValue = (strength + attackKnockbackForce) / 1 -- Conforme a fórmula
 
         if knockbackVelocityValue > 0 then
             targetEnemy:applyKnockback(dirX, dirY, knockbackVelocityValue)

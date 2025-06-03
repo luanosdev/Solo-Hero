@@ -12,7 +12,7 @@ local weapons = {
         gridHeight = 4,
         stackable = false,
         maxStack = 1,
-        damage = 180,
+        damage = 120,
         cooldown = 1.2,                                              -- Cooldown base em segundos (era attackSpeed = 0.83)
         baseAreaEffectRadius = 30,                                   -- Raio da área de impacto
         attackClass = "src.abilities.player.attacks.circular_smash", -- Classe de ataque
@@ -30,7 +30,7 @@ local weapons = {
         gridHeight = 3,
         stackable = false,
         maxStack = 1,
-        damage = 100,
+        damage = 80,
         cooldown = 1.4,                                          -- Cooldown base em segundos (AJUSTE SE NECESSÁRIO)
         range = 150,                                             -- Alcance do cone (AJUSTE SE NECESSÁRIO)
         angle = math.pi / 10,                                    -- Ângulo do cone (60 graus) (AJUSTE SE NECESSÁRIO)
