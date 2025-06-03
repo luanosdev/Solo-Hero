@@ -29,7 +29,7 @@ function HunterEquipmentColumn.draw(x, y, w, h, hunterManager, hunterId, overrid
 
         -- Layout inspirado em EquipmentSection.lua
         local currentY = y
-        local generalPadding = 10 -- Espaçamento geral
+        local generalPadding = 5 -- Espaçamento geral
         local columnInnerWidth = w - generalPadding * 2
         local columnInnerX = x + generalPadding
 

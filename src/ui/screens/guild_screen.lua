@@ -286,7 +286,7 @@ function GuildScreen:draw(x, y, w, h, mx, my)
             local detailsPadding = 10
             local titleFont = fonts.title or love.graphics.getFont()
             local titleHeight = titleFont:getHeight()
-            local titleMarginBottom = 15 -- Espaço abaixo do título
+            local titleMarginBottom = 5 -- Espaço abaixo do título (Reduzido de 15 para 5)
 
             -- Posição Y inicial para os TÍTULOS
             local titlesY = contentY + detailsPadding

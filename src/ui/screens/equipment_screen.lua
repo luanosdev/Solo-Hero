@@ -113,7 +113,7 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     local sectionTopY = areaY
     local titleFont = fonts.title or love.graphics.getFont()
     local titleHeight = titleFont:getHeight()
-    local contentMarginY = 20 -- Margem vertical entre título e conteúdo
+    local contentMarginY = 10 -- Margem vertical entre título e conteúdo (Reduzido de 20 para 10)
     local contentStartY = sectionTopY + titleHeight + contentMarginY
     local sectionContentH = areaH - contentStartY - padding
     local totalPaddingWidth = padding * 5

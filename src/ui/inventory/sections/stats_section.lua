@@ -520,8 +520,7 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
         return
     end
 
-    local lineHeight = fonts.main:getHeight() * 1.1
-    local hudLineHeight = fonts.hud:getHeight() * 1.5
+    local lineHeight = fonts.main:getHeight() * 1
     local currentY = y
     local sectionStartY = y
     local availableHeight = h
@@ -531,40 +530,48 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
     local activeTooltipLines = {}               -- Renomeado para evitar conflito com variável de módulo se existir
     local activeTooltipX, activeTooltipY = 0, 0 -- Renomeado
 
-    -- Título da Seção de Atributos
-    love.graphics.setFont(fonts.hud)
-    love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("ATRIBUTOS DO CAÇADOR", x, currentY, w, "left")
-    currentY = currentY + hudLineHeight
-
     local ATTRIBUTES_DISPLAY_ORDER = {
 
-        { label = "Dano",           key = "weaponDamage",      format = "%d",      noDirectBase = true },
-        { label = "HP Máximo",      key = "health",            format = "%d",      showTooltip = true },
-        { label = "Armadura",       key = "defense",           format = "%d",      showTooltip = true },
-        { label = "Força",          key = "strength",          format = "%d",      showTooltip = true },
-        { label = "Vel. Movimento", key = "moveSpeed",         format = "%.2f",    showTooltip = true }, -- Não é %, é valor direto
-        { label = "Chance Crítico", key = "critChance",        format = "%.1f%%",  multiplier = 100,   showTooltip = true },
-        { label = "Dano Crítico",   key = "critDamage",        format = "+%.0f%%", multiplier = 100,   showTooltip = true },
-        { label = "Regen. Vida",    key = "healthPerTick",     format = "%.2f/s",  showTooltip = true },
-        { label = "Atraso Regen.",  key = "healthRegenDelay",  format = "%.1fs",   showTooltip = true }, -- Opcional, pode poluir
-        { label = "Vel. Ataque",    key = "attackSpeed",       format = "%.2f/s",  showTooltip = true }, -- Representa ataques por segundo
-        { label = "Multi-Ataque",   key = "multiAttackChance", format = "%.1f%%",  multiplier = 100,   showTooltip = true, formatter = Formatters.formatMultiAttackValue },
-        { label = "Red. Recarga",   key = "cooldownReduction", format = "%.0f%%",  multiplier = 100,   showTooltip = true },
-        { label = "Alcance",        key = "range",             format = "+%.0f%%", multiplier = 100,   showTooltip = true }, -- Ajustado para multiplicador
-        { label = "Área de Efeito", key = "attackArea",        format = "+%.0f%%", multiplier = 100,   showTooltip = true }, -- Ajustado para multiplicador
-        { label = "Bônus EXP",      key = "expBonus",          format = "+%.0f%%", multiplier = 100,   showTooltip = true },
-        { label = "Área de Coleta", key = "pickupRadius",      format = "%d",      showTooltip = true },
-        { label = "Bônus Cura",     key = "healingBonus",      format = "%.0f%%",  multiplier = 100,   showTooltip = true },
-        { label = "Slots Runa",     key = "runeSlots",         format = "%d",      showTooltip = true },
-        { label = "Sorte",          key = "luck",              format = "%.1f%%",  multiplier = 100,   showTooltip = true },
+        { label = "Dano",           key = "weaponDamage",              format = "%d",      noDirectBase = true },
+        { label = "HP Máximo",      key = "health",                    format = "%d",      showTooltip = true },
+        { label = "Armadura",       key = "defense",                   format = "%d",      showTooltip = true },
+        { label = "Redução Dano",   key = "calculatedDamageReduction", format = "%.1f%%",  noDirectBase = true },
+        { label = "Força",          key = "strength",                  format = "%d",      showTooltip = true },
+        { label = "Vel. Movimento", key = "moveSpeed",                 format = "%.2f",    showTooltip = true }, -- Não é %, é valor direto
+        { label = "Chance Crítico", key = "critChance",                format = "%.1f%%",  multiplier = 100,   showTooltip = true },
+        { label = "Dano Crítico",   key = "critDamage",                format = "+%.0f%%", multiplier = 100,   showTooltip = true },
+        { label = "Regen. Vida",    key = "healthPerTick",             format = "%.2f/s",  showTooltip = true },
+        { label = "Atraso Regen.",  key = "healthRegenDelay",          format = "%.1fs",   showTooltip = true }, -- Opcional, pode poluir
+        { label = "Vel. Ataque",    key = "attackSpeed",               format = "%.2f/s",  showTooltip = true }, -- Representa ataques por segundo
+        { label = "Multi-Ataque",   key = "multiAttackChance",         format = "%.1f%%",  multiplier = 100,   showTooltip = true, formatter = Formatters.formatMultiAttackValue },
+        { label = "Red. Recarga",   key = "cooldownReduction",         format = "%.0f%%",  multiplier = 100,   showTooltip = true },
+        { label = "Alcance",        key = "range",                     format = "+%.0f%%", multiplier = 100,   showTooltip = true }, -- Ajustado para multiplicador
+        { label = "Área de Efeito", key = "attackArea",                format = "+%.0f%%", multiplier = 100,   showTooltip = true }, -- Ajustado para multiplicador
+        { label = "Bônus EXP",      key = "expBonus",                  format = "+%.0f%%", multiplier = 100,   showTooltip = true },
+        { label = "Área de Coleta", key = "pickupRadius",              format = "%d",      showTooltip = true },
+        { label = "Bônus Cura",     key = "healingBonus",              format = "%.0f%%",  multiplier = 100,   showTooltip = true },
+        { label = "Slots Runa",     key = "runeSlots",                 format = "%d",      showTooltip = true },
+        { label = "Sorte",          key = "luck",                      format = "%.1f%%",  multiplier = 100,   showTooltip = true },
         -- Adicionar novos atributos aqui para que apareçam na lista e no tooltip
     }
 
     love.graphics.setFont(fonts.main)
 
     for _, attr in ipairs(ATTRIBUTES_DISPLAY_ORDER) do
-        local finalValue = finalStats[attr.key]
+        local finalValue
+        if attr.key == "calculatedDamageReduction" then
+            local defenseValue = finalStats["defense"] or 0
+            local K = Constants.DEFENSE_DAMAGE_REDUCTION_K -- Presume que Constants está disponível e K definido
+            local reduction = 0
+            if K and K > 0 then                            -- Evita divisão por zero se K for 0 ou nil
+                reduction = defenseValue / (defenseValue + K)
+            end
+            reduction = math.min(reduction, Constants.MAX_DAMAGE_REDUCTION or 0.8) -- Cap reduction
+            finalValue = reduction * 100
+        else
+            finalValue = finalStats[attr.key]
+        end
+
         local defaultValue = baseStats[attr.key] -- Pode ser nil para stats como weaponDamage
 
         if attr.key == "luck" then
@@ -579,13 +586,13 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
             local finalDisplayValue = finalValue
             local displayFormat = attr.format
 
-            if attr.key == "attackArea" or attr.key == "range" then -- <<< ADICIONADO para attackArea e range
+            if attr.key == "cooldownReduction" then
+                finalDisplayValue = (1 - finalValue) * 100 -- CORRIGIDO: (1 - finalValue)
+            elseif attr.key == "attackArea" or attr.key == "range" then
                 finalDisplayValue = (finalValue - 1) * displayMultiplier
-            elseif attr.isReduction then                            -- Caso especial Redução Recarga
-                finalDisplayValue = (1 - finalValue) * 100
             elseif attr.key == "critDamage" then
-                finalDisplayValue = finalValue * 100 -- Mostra 150x, 170x
-            else
+                finalDisplayValue = finalValue * 100                                -- Mostra 150x, 170x
+            elseif attr.key ~= "calculatedDamageReduction" and attr.multiplier then -- Não aplicar multiplicador a valores já calculados como % e apenas se houver multiplicador
                 finalDisplayValue = finalValue * displayMultiplier
             end
             local finalStr = string.format(displayFormat, finalDisplayValue) .. (attr.suffix or "")
@@ -626,12 +633,13 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                 table.insert(activeTooltipLines, { text = attr.label, color = attributeTitleColor })
 
                 -- 1. Linha Base (do PlayerState, que já considera arquétipos iniciais se aplicável)
-                if not attr.noDirectBase then                               -- <<< SÓ ADICIONA SE NÃO FOR noDirectBase
+                if not attr.noDirectBase then -- <<< SÓ ADICIONA SE NÃO FOR noDirectBase
                     local baseStatValueToDisplay = defaultValue
-                    if attr.key == "attackArea" or attr.key == "range" then -- <<< ADICIONADO para attackArea e range
+                    if attr.key == "cooldownReduction" then
+                        baseStatValueToDisplay = (1 - defaultValue) *
+                            (attr.multiplier or 1) -- CORRIGIDO: (1 - defaultValue)
+                    elseif attr.key == "attackArea" or attr.key == "range" then
                         baseStatValueToDisplay = (defaultValue - 1) * (attr.multiplier or 1)
-                    elseif attr.isReduction then
-                        baseStatValueToDisplay = (1 - defaultValue) * 100
                     elseif attr.key == "critDamage" then -- Para critDamage, o 'base' é o multiplicador * 100
                         baseStatValueToDisplay = defaultValue * 100
                     elseif attr.multiplier then          -- Para outros com multiplicador na definição de attributesToShow
