@@ -1,0 +1,63 @@
+Regras de IA e Cálculo de Atributos
+=====================================
+
+Esta documentação visa centralizar as regras e lógicas de cálculo importantes para referência da IA e dos desenvolvedores.
+
+Regra Principal de Cálculo de Atributos do Jogador:
+-------------------------------------------------
+
+Ao calcular os atributos finais do jogador (seja no HunterManager para a base do caçador, ou no PlayerManager para o estado em jogo com bônus de level-up), a seguinte ordem de operações deve ser respeitada:
+
+1.  **Valor Base:** Comece com o valor fundamental do atributo, geralmente definido em `Constants.HUNTER_DEFAULT_STATS`.
+
+2.  **Soma de Bônus Fixos:** Adicione todos os bônus de valor fixo. Isso inclui:
+    *   Modificadores de arquétipo do tipo `"fixed"`.
+    *   Bônus de `PlayerState.fixedBonus` que são valores fixos.
+
+3.  **Soma de Bônus de Fração Fixa:** Adicione todos os bônus que são frações decimais e são aditivos (geralmente para atributos que são naturalmente expressos como porcentagens ou multiplicadores, como chance de crítico, ou multiplicadores de velocidade de ataque que são aplicados aditivamente à base 1.0 antes da conversão para ataques/segundo). Isso inclui:
+    *   Modificadores de arquétipo do tipo `"fixed_percentage_as_fraction"`.
+    *   Bônus de `PlayerState.fixedBonus` que são frações fixas (ex: para `critChance`).
+
+4.  **Aplicação de Multiplicadores Percentuais:** Multiplique o resultado dos passos anteriores por todos os bônus percentuais. A fórmula para cada bônus percentual `P` (onde `P` é o valor percentual, ex: 10 para 10%) é `ResultadoIntermediario * (1 + P / 100)`. Se houver múltiplos bônus percentuais, eles são geralmente aditivos entre si antes de formar um multiplicador final (ex: um bônus de +10% e outro de +15% resultam em um multiplicador de `(1 + (10+15)/100) = 1.25`). Isso inclui:
+    *   Modificadores de arquétipo do tipo `"percentage"`.
+    *   Bônus de `PlayerState.levelBonus`.
+
+**Exemplo de Fluxo para um Atributo Genérico 'StatX':**
+
+`Base_StatX = Constants.HUNTER_DEFAULT_STATS.StatX`
+
+`Soma_Fixos_StatX = Soma(Arquétipos.fixed.StatX) + Soma(PlayerState.fixedBonus.StatX_fixo)`
+`Soma_FraçõesFixas_StatX = Soma(Arquétipos.fixed_percentage_as_fraction.StatX) + Soma(PlayerState.fixedBonus.StatX_fração)`
+
+`Resultado_Intermediario_StatX = Base_StatX + Soma_Fixos_StatX + Soma_FraçõesFixas_StatX`
+
+`Soma_Percentuais_StatX = Soma(Arquétipos.percentage.StatX) + Soma(PlayerState.levelBonus.StatX)`
+
+`Final_StatX = Resultado_Intermediario_StatX * (1 + Soma_Percentuais_StatX / 100)`
+
+
+Casos Especiais e Detalhes:
+----------------------------
+
+*   **Dano da Arma (`weaponDamage`):**
+    *   O dano base é obtido dos dados da arma equipada.
+    *   Multiplicadores de dano (ex: `damageMultiplier` de `PlayerState`, `strength`) são aplicados a este dano base da arma seguindo a mesma lógica (fixo sobre o multiplicador base de 1.0, depois percentual).
+    *   `Final_WeaponDamage = BaseWeaponDamage * Final_DamageMultiplier`
+
+*   **Velocidade de Ataque (`attackSpeed`):**
+    *   O valor em `Constants` (e após bônus) geralmente representa um multiplicador da velocidade de ataque base. Por exemplo, 1.0 é normal, 1.2 é 20% mais rápido.
+    *   Para exibir como "Ataques por Segundo", se a arma tiver um `cooldownBase`, a fórmula é `(1 / cooldownBase) * attackSpeedMultiplier`. Se não houver cooldown base da arma, o `attackSpeedMultiplier` pode ser diretamente interpretado como ataques por segundo (se `1.0` = 1 ataque/s).
+
+*   **Redução de Recarga (`cooldownReduction`):**
+    *   Um valor de `cooldownReduction` de, por exemplo, 0.1 (ou 10%) significa que os cooldowns são multiplicados por `(1 - 0.1) = 0.9`.
+    *   Se os bônus são armazenados como "+X% de redução", então o multiplicador final é `1 - (SomaTotalDasReduçõesPercentuais / 100)`.
+
+*   **Área de Efeito (`attackArea`) e Alcance (`range`):**
+    *   Nos `Constants.HUNTER_DEFAULT_STATS`, estes são definidos como multiplicadores (1.0 = base, 1.5 = +50% de bônus).
+    *   Ao exibir como bônus percentual na UI, a fórmula é `(MultiplicadorFinal - 1) * 100%`.
+
+Lembretes para a IA:
+--------------------
+*   Ao modificar funções de cálculo de stats (`HunterManager:_calculateFinalStats`, `PlayerManager:getCurrentFinalStats`), sempre valide se esta ordem de operações está sendo mantida.
+*   Ao interpretar dados de tooltip ou logs, lembre-se que a UI pode formatar os valores de maneiras diferentes (ex: multiplicadores como percentagens de bônus).
+*   A inicialização de `PlayerState` via `HunterManager` fornece os stats com arquétipos já aplicados (pela lógica de `HunterManager:_calculateFinalStats`). A função `PlayerManager:getCurrentFinalStats` recalcula tudo do zero (`Constants.HUNTER_DEFAULT_STATS`) e adiciona os bônus de arquétipos *novamente* junto com os bônus de `PlayerState` para garantir a ordem correta de aplicação combinada. 

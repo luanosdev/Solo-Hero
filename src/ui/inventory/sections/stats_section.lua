@@ -579,7 +579,9 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
             local finalDisplayValue = finalValue
             local displayFormat = attr.format
 
-            if attr.isReduction then -- Caso especial Redução Recarga
+            if attr.key == "attackArea" or attr.key == "range" then -- <<< ADICIONADO para attackArea e range
+                finalDisplayValue = (finalValue - 1) * displayMultiplier
+            elseif attr.isReduction then                            -- Caso especial Redução Recarga
                 finalDisplayValue = (1 - finalValue) * 100
             elseif attr.key == "critDamage" then
                 finalDisplayValue = finalValue * 100 -- Mostra 150x, 170x
@@ -624,9 +626,11 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                 table.insert(activeTooltipLines, { text = attr.label, color = attributeTitleColor })
 
                 -- 1. Linha Base (do PlayerState, que já considera arquétipos iniciais se aplicável)
-                if not attr.noDirectBase then -- <<< SÓ ADICIONA SE NÃO FOR noDirectBase
+                if not attr.noDirectBase then                               -- <<< SÓ ADICIONA SE NÃO FOR noDirectBase
                     local baseStatValueToDisplay = defaultValue
-                    if attr.isReduction then
+                    if attr.key == "attackArea" or attr.key == "range" then -- <<< ADICIONADO para attackArea e range
+                        baseStatValueToDisplay = (defaultValue - 1) * (attr.multiplier or 1)
+                    elseif attr.isReduction then
                         baseStatValueToDisplay = (1 - defaultValue) * 100
                     elseif attr.key == "critDamage" then -- Para critDamage, o 'base' é o multiplicador * 100
                         baseStatValueToDisplay = defaultValue * 100

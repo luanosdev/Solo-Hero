@@ -829,8 +829,8 @@ function PlayerManager:getCurrentFinalStats()
     -- 1. Pega os stats BASE do PlayerState (que vieram dos defaults + arquétipos INICIAIS)
     local baseStats = {}
     local defaultStats = Constants.HUNTER_DEFAULT_STATS
-    for key, _ in pairs(defaultStats) do
-        baseStats[key] = self.state[key] or defaultStats[key]
+    for key, value in pairs(defaultStats) do
+        baseStats[key] = value
     end
 
     -- 2. Agrega BÔNUS (Level Up + Arquétipos)
