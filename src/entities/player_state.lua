@@ -269,30 +269,40 @@ function PlayerState:addAttributeBonus(attribute, percentage, fixed)
     end
 end
 
---- Adiciona experiência ao jogador e verifica se houve level up.
---- NÃO realiza mais a cura ao subir de nível.
----@param amount number Quantidade de experiência a adicionar.
----@param finalExpBonus number O multiplicador final de experiência.
----@return number levelsGained O número de níveis que o jogador ganhou (0 se nenhum).
+--- Adiciona experiência ao jogador e calcula o ganho de níveis com base na nova fórmula.
+---
+--- A fórmula usada para determinar a experiência necessária para o próximo nível é:
+--- `experienceToNextLevel = floor(30 * level ^ 1.5)`
+---
+--- Esse escalonamento gera uma progressão suave, onde cada nível exige mais XP que o anterior,
+--- mas de forma controlada (não exponencial demais), ideal para runs curtas e médias como em roguelikes.
+---
+--- O sistema permite múltiplos níveis ganhos de uma vez, caso a quantidade de XP recebida seja alta.
+---
+--- @param amount number A quantidade de experiência bruta recebida.
+--- @param finalExpBonus number Um multiplicador aplicado sobre a experiência (ex: 1.2 para +20% XP).
+--- @return number levelsGained A quantidade total de níveis ganhos com essa adição de XP.
 function PlayerState:addExperience(amount, finalExpBonus)
     if not self.isAlive then return 0 end
 
     local effectiveAmount = amount * finalExpBonus
     self.experience = self.experience + effectiveAmount
 
-    local levelsGained = 0 -- Modificado para contar os níveis
+    local levelsGained = 0
 
     while self.experience >= self.experienceToNextLevel do
         self.level = self.level + 1
         local previousRequired = self.experienceToNextLevel
         self.experience = self.experience - previousRequired
-        local xpFactor = Constants and Constants.XP_LEVEL_FACTOR or 1.15
-        self.experienceToNextLevel = math.floor(self.experienceToNextLevel * xpFactor)
-        levelsGained = levelsGained + 1 -- Incrementa o contador
+
+        self.experienceToNextLevel = math.floor(30 * self.level ^ 1.5)
+
+        levelsGained = levelsGained + 1
     end
 
-    return levelsGained -- Retorna o número de níveis ganhos
+    return levelsGained
 end
+
 
 --- Retorna todos os bônus de level up aprendidos (ID do bônus -> nível aprendido)
 ---@return table<string, number>
