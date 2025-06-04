@@ -22,6 +22,7 @@ local MapManager = require("src.managers.map_manager")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local gameOverMessagesData = require("src.data.game_over_messages_data")
+local ArchetypesData = require("src.data.archetypes_data")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
@@ -41,6 +42,17 @@ GameplayScene.gameOverMessage = "" ---@type string
 GameplayScene.canExitGameOver = false ---@type boolean
 GameplayScene.gameOverFadeAlpha = 0 ---@type number -- Opacidade do fade escuro
 GameplayScene.gameOverMessageAlpha = 0 ---@type number -- Opacidade da mensagem
+
+-- NOVO: Variáveis para a tela de Game Over
+GameplayScene.gameOverHunterName = "" ---@type string
+GameplayScene.gameOverHunterRank = "" ---@type string
+GameplayScene.gameOverTimestamp = "" ---@type string
+GameplayScene.gameOverFooterMessage = "Aperte qualquer tecla para continuar" ---@type string
+GameplayScene.gameOverFooterAlpha = 0 ---@type number
+GameplayScene.gameOverFooterBlinkTimer = 0 ---@type number
+GameplayScene.gameOverShowLossMessage = false ---@type boolean
+GameplayScene.gameOverLossMessageTimer = 0 ---@type number
+GameplayScene.gameOverLossMessageDuration = 1.5 ---@type number -- Tempo para a msg de perda aparecer
 
 function GameplayScene:load(args)
     Logger.debug("GameplayScene", "GameplayScene:load - Inicializando sistemas de gameplay...")
@@ -89,13 +101,35 @@ function GameplayScene:load(args)
     -- Garante que a fonte de game over seja carregada
     if not fonts.gameOver then
         -- Tenta carregar uma fonte maior, se não existir, usa a principal
-        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Bold.ttf", 48)
+        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Bold.ttf", 48) -- Fonte maior para msg principal
         if success then
             fonts.gameOver = font
             Logger.debug("GameplayScene", "Fonte de Game Over carregada (Roboto-Bold 48).")
         else
             Logger.warn("GameplayScene", "Falha ao carregar fonte Roboto-Bold 48 para Game Over. Usando fonte principal.")
-            fonts.gameOver = fonts.main_large or fonts.main -- Fallback
+            fonts.gameOver = fonts.title_large or fonts.main -- Fallback
+        end
+    end
+    if not fonts.gameOverDetails then
+        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Regular.ttf", 24) -- Fonte para detalhes
+        if success then
+            fonts.gameOverDetails = font
+            Logger.debug("GameplayScene", "Fonte de Detalhes de Game Over carregada (Roboto-Regular 24).")
+        else
+            Logger.warn("GameplayScene",
+                "Falha ao carregar fonte Roboto-Regular 24 para Detalhes de Game Over. Usando fonte principal.")
+            fonts.gameOverDetails = fonts.main_small or fonts.main -- Fallback
+        end
+    end
+    if not fonts.gameOverFooter then
+        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Regular.ttf", 20) -- Fonte para rodapé
+        if success then
+            fonts.gameOverFooter = font
+            Logger.debug("GameplayScene", "Fonte de Rodapé de Game Over carregada (Roboto-Regular 20).")
+        else
+            Logger.warn("GameplayScene",
+                "Falha ao carregar fonte Roboto-Regular 20 para Rodapé de Game Over. Usando fonte principal.")
+            fonts.gameOverFooter = fonts.debug or fonts.main_small -- Fallback
         end
     end
 
@@ -585,11 +619,8 @@ end
 function GameplayScene:keypressed(key, scancode, isrepeat)
     -- Input de Game Over tem prioridade
     if self.isGameOver then
-        if self.canExitGameOver and key == "return" then -- "return" é a tecla Enter
+        if self.canExitGameOver and key ~= "escape" then -- Qualquer tecla exceto escape (para manter o quit do love)
             Logger.info("GameplayScene", "Saindo da tela de Game Over.")
-            -- TODO: Decidir para qual cena ir (Lobby? Title?)
-            -- Por agora, vamos assumir que tem uma ExtractionSummaryScene ou similar
-            -- ou voltamos para a Lobby. Se não houver extração, talvez direto para Lobby/Title.
             local playerManager = ManagerRegistry:get("playerManager")
             local hunterId = playerManager and playerManager:getCurrentHunterId() or nil
 
@@ -1118,6 +1149,13 @@ function GameplayScene:resetGameOverState()
     self.canExitGameOver = false
     self.gameOverFadeAlpha = 0
     self.gameOverMessageAlpha = 0
+    self.gameOverHunterName = ""
+    self.gameOverHunterRank = ""
+    self.gameOverTimestamp = ""
+    self.gameOverFooterAlpha = 0
+    self.gameOverFooterBlinkTimer = 0
+    self.gameOverShowLossMessage = false
+    self.gameOverLossMessageTimer = 0
     Logger.debug("GameplayScene", "Estado de Game Over resetado.")
 end
 
@@ -1176,6 +1214,8 @@ function GameplayScene:triggerGameOver()
     self.canExitGameOver = false
     self.gameOverFadeAlpha = 0
     self.gameOverMessageAlpha = 0
+    self.gameOverShowLossMessage = false
+    self.gameOverLossMessageTimer = 0
 
     -- Para garantir que o input não seja capturado por outras UIs
     if InventoryScreen.isVisible then InventoryScreen.isVisible = false end
@@ -1188,7 +1228,52 @@ function GameplayScene:triggerGameOver()
         self:interruptCast("Morte do jogador")
     end
 
-    -- TODO: Adicionar som de "Game Over" ou música triste
+    -- Obtém dados do caçador para a tela de Game Over
+    local playerManager = ManagerRegistry:get("playerManager")
+    local hunterManager = ManagerRegistry:get("hunterManager")
+    local hunterId = playerManager and playerManager:getCurrentHunterId()
+
+    if hunterId and hunterManager and hunterManager.getHunterData then
+        local hunterData = hunterManager:getHunterData(hunterId)
+        if hunterData then
+            self.gameOverHunterName = hunterData.name or "Caçador Desconhecido"
+            if hunterData.finalRankId and ArchetypesData and ArchetypesData.Ranks and ArchetypesData.Ranks[hunterData.finalRankId] then
+                self.gameOverHunterRank = ArchetypesData.Ranks[hunterData.finalRankId].name or hunterData.finalRankId
+            else
+                self.gameOverHunterRank = hunterData.finalRankId or "Rank Desconhecido"
+            end
+        else
+            self.gameOverHunterName = "Caçador Desconhecido"
+            self.gameOverHunterRank = "Rank Desconhecido"
+        end
+    else
+        self.gameOverHunterName = "Caçador Fantasma"
+        self.gameOverHunterRank = "Rank Incerto"
+        Logger.warn("GameplayScene:triggerGameOver", "Não foi possível obter dados do HunterManager.")
+    end
+
+    -- Obtém timestamp
+    self.gameOverTimestamp = os.date("Hora da morte: %d/%m/%Y %H:%M:%S")
+
+    -- Mostra a mensagem de perda de itens após um tempo
+    if not self.gameOverShowLossMessage and self.gameOverTimer > self.gameOverLossMessageDuration then
+        self.gameOverShowLossMessage = true
+    end
+
+    -- Permite sair após a duração total
+    if not self.canExitGameOver and self.gameOverTimer >= self.gameOverDuration then
+        self.canExitGameOver = true
+        Logger.debug("GameplayScene", "Game Over: Agora pode sair.")
+    end
+
+    -- Lógica de piscar para o rodapé (se puder sair)
+    if self.canExitGameOver then
+        self.gameOverFooterBlinkTimer = self.gameOverFooterBlinkTimer + dt
+        local blinkSpeed = math.pi * 2 -- Ajuste a velocidade do piscar aqui (ciclos por segundo)
+        self.gameOverFooterAlpha = (math.sin(self.gameOverFooterBlinkTimer * blinkSpeed) + 1) / 2
+    else
+        self.gameOverFooterAlpha = 0
+    end
 end
 
 --- Atualiza a lógica da tela de Game Over.
@@ -1214,12 +1299,24 @@ function GameplayScene:updateGameOver(dt)
         self.gameOverMessageAlpha = 0
     end
 
+    -- Mostra a mensagem de perda de itens após um tempo
+    if not self.gameOverShowLossMessage and self.gameOverTimer > self.gameOverLossMessageDuration then
+        self.gameOverShowLossMessage = true
+    end
 
     -- Permite sair após a duração total
     if not self.canExitGameOver and self.gameOverTimer >= self.gameOverDuration then
         self.canExitGameOver = true
-        self.gameOverMessage = self.gameOverMessage .. "\\n\\n< Pressione Enter para continuar >"
         Logger.debug("GameplayScene", "Game Over: Agora pode sair.")
+    end
+
+    -- Lógica de piscar para o rodapé (se puder sair)
+    if self.canExitGameOver then
+        self.gameOverFooterBlinkTimer = self.gameOverFooterBlinkTimer + dt
+        local blinkSpeed = math.pi * 2 -- Ajuste a velocidade do piscar aqui (ciclos por segundo)
+        self.gameOverFooterAlpha = (math.sin(self.gameOverFooterBlinkTimer * blinkSpeed) + 1) / 2
+    else
+        self.gameOverFooterAlpha = 0
     end
 end
 
@@ -1227,34 +1324,67 @@ end
 function GameplayScene:drawGameOver()
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
+    local yOffset = 0
 
     -- 1. Desenha o fundo escurecido
     love.graphics.setColor(0, 0, 0, self.gameOverFadeAlpha * 0.85) -- 85% de opacidade máxima para o fade
     love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
 
-    -- 2. Desenha a mensagem de Game Over
-    if fonts.gameOver and self.gameOverMessageAlpha > 0 then
+    -- 2. Desenha a mensagem principal de Game Over (frase aleatória)
+    if fonts.gameOver and self.gameOverMessageAlpha > 0 and self.gameOverMessage ~= "" then
         love.graphics.setFont(fonts.gameOver)
-        local text = self.gameOverMessage
-        local textWidth = fonts.gameOver:getWidth(text)
-        local textHeight = fonts.gameOver:getHeight(text) -- Para múltiplas linhas, pode precisar de getWrap
+        love.graphics.setColor(1, 0.1, 0.1, self.gameOverMessageAlpha) -- Vermelho escuro
 
-        -- Prepara para centralizar texto com múltiplas linhas (se houver \\n)
         local lines = {}
-        for s in text:gmatch("([^\r\n]+)") do
-            table.insert(lines, s)
-        end
+        for s in self.gameOverMessage:gmatch("([^\r\n]+)") do table.insert(lines, s) end
         local totalTextHeight = #lines * fonts.gameOver:getHeight()
+        local startY = (screenHeight / 2) -
+            (totalTextHeight + (fonts.gameOverDetails:getHeight() * 3 + 30)) /
+            2 -- Ajuste para centralizar todo o bloco
 
-        local yPos = (screenHeight - totalTextHeight) / 2
-
-        love.graphics.setColor(1, 0.1, 0.1, self.gameOverMessageAlpha) -- Vermelho escuro, tom de "YOU DIED"
+        yOffset = startY
 
         for i, line in ipairs(lines) do
             local lineWidth = fonts.gameOver:getWidth(line)
-            love.graphics.printf(line, (screenWidth - lineWidth) / 2, yPos + (i - 1) * fonts.gameOver:getHeight(),
-                screenWidth, "left")
+            love.graphics.printf(line, (screenWidth - lineWidth) / 2, yOffset, screenWidth, "left")
+            yOffset = yOffset + fonts.gameOver:getHeight()
         end
+    end
+
+    yOffset = yOffset + 20 -- Espaço após a mensagem principal
+
+    -- 3. Desenha nome e rank do caçador
+    if fonts.gameOverDetails and self.gameOverMessageAlpha > 0 then
+        love.graphics.setFont(fonts.gameOverDetails)
+        love.graphics.setColor(0.8, 0.8, 0.8, self.gameOverMessageAlpha) -- Cinza claro
+
+        local hunterInfoText = string.format("%s, %s", self.gameOverHunterName, self.gameOverHunterRank)
+        local infoWidth = fonts.gameOverDetails:getWidth(hunterInfoText)
+        love.graphics.printf(hunterInfoText, (screenWidth - infoWidth) / 2, yOffset, screenWidth, "left")
+        yOffset = yOffset + fonts.gameOverDetails:getHeight() + 5
+
+        -- 4. Desenha hora da morte
+        local timeWidth = fonts.gameOverDetails:getWidth(self.gameOverTimestamp)
+        love.graphics.printf(self.gameOverTimestamp, (screenWidth - timeWidth) / 2, yOffset, screenWidth, "left")
+        yOffset = yOffset + fonts.gameOverDetails:getHeight() + 20 -- Espaço maior antes da msg de perda
+    end
+
+    -- 5. Desenha mensagem "Você perdeu seu caçador e todos os seus itens"
+    if fonts.gameOverDetails and self.gameOverShowLossMessage and self.gameOverMessageAlpha > 0 then
+        love.graphics.setFont(fonts.gameOverDetails)
+        love.graphics.setColor(0.9, 0.5, 0.5, self.gameOverMessageAlpha) -- Um vermelho mais suave
+        local lossMessage = "Você perdeu seu caçador e todos os seus itens."
+        local lossMessageWidth = fonts.gameOverDetails:getWidth(lossMessage)
+        love.graphics.printf(lossMessage, (screenWidth - lossMessageWidth) / 2, yOffset, screenWidth, "left")
+    end
+
+    -- 6. Desenha o rodapé piscando
+    if fonts.gameOverFooter and self.canExitGameOver and self.gameOverFooterAlpha > 0 then
+        love.graphics.setFont(fonts.gameOverFooter)
+        love.graphics.setColor(1, 0.1, 0.1, self.gameOverFooterAlpha) -- Vermelho piscando
+        local footerWidth = fonts.gameOverFooter:getWidth(self.gameOverFooterMessage)
+        love.graphics.printf(self.gameOverFooterMessage, (screenWidth - footerWidth) / 2, screenHeight - 50, screenWidth,
+            "left")
     end
 
     love.graphics.setFont(fonts.main)  -- Reseta a fonte
