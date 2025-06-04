@@ -232,18 +232,67 @@ function ChainLightning:cast(args)
     local playerStrength = finalStats.strength or 0 -- Força do jogador para knockback
 
     -- Calcula o número total de saltos permitidos
-    -- Usa finalStats.range como multiplicador para o baseChainCount
-    local totalAllowedJumps = self.baseChainCount and finalStats.range and
-        math.floor(self.baseChainCount * finalStats.range)
-    if totalAllowedJumps == nil then
-        error(string.format(
-            "[ChainLightning:cast] ERRO: Não foi possível calcular totalAllowedJumps. BaseChainCount: %s, FS.range: %s",
-            tostring(self.baseChainCount), tostring(finalStats.range)))
-        totalAllowedJumps = 0 -- Evita erro, mas o raio não saltará
+    -- Pesos para os atributos que influenciam os saltos
+    local RANGE_MULTIPLIER_EFFECT = 1.0    -- Range continua sendo um multiplicador direto do baseChainCount
+    local MULTI_ATTACK_BONUS_WEIGHT = 0.50 -- Cada ponto de multiAttack (acima de 1) adiciona 0.5 saltos * baseChainCount
+    local STRENGTH_BONUS_WEIGHT = 0.25     -- Cada ponto de strength (acima de 1) adiciona 0.25 saltos * baseChainCount
+
+    -- Obtém os valores dos atributos, com padrão 1 se nulos (para não quebrar o cálculo de bônus)
+    local currentRange = finalStats.range or 1
+    local currentMultiAttack = finalStats.multiAttack or 1
+    local currentStrength = finalStats.strength or 1 -- Mantendo a sua alteração de force para strength
+
+    local rawPotentialJumps
+    if self.baseChainCount then
+        -- Inicia com o baseChainCount multiplicado pelo efeito do range
+        local baseJumpsAfterRange = self.baseChainCount * (currentRange * RANGE_MULTIPLIER_EFFECT)
+
+        -- Calcula bônus de saltos de multiAttack e strength
+        -- O bônus é aplicado se o atributo for maior que 1
+        local multiAttackBonusJumps = 0
+        if currentMultiAttack > 1 then
+            multiAttackBonusJumps = (currentMultiAttack - 1) * self.baseChainCount * MULTI_ATTACK_BONUS_WEIGHT
+        end
+
+        local strengthBonusJumps = 0
+        if currentStrength > 1 then
+            strengthBonusJumps = (currentStrength - 1) * self.baseChainCount * STRENGTH_BONUS_WEIGHT
+        end
+
+        rawPotentialJumps = baseJumpsAfterRange + multiAttackBonusJumps + strengthBonusJumps
+    else
+        rawPotentialJumps = 0 -- Para acionar o erro abaixo explicitamente se baseChainCount for nil
     end
+
+    if not self.baseChainCount or self.baseChainCount <= 0 then -- Checagem mais robusta
+        error(string.format(
+            "[ChainLightning:cast] ERRO: baseChainCount inválido ou não definido (%s). Impossível calcular saltos.",
+            tostring(self.baseChainCount)))
+        rawPotentialJumps = 0 -- Segurança, mas o erro já foi lançado
+    end
+
+    -- Determina os saltos finais com base na parte inteira e chance da fracionária
+    local guaranteedJumps = math.floor(rawPotentialJumps)
+    local additionalJumpChance = rawPotentialJumps - guaranteedJumps
+
+    local totalAllowedJumps = guaranteedJumps
+    if additionalJumpChance > 0 and math.random() < additionalJumpChance then
+        totalAllowedJumps = totalAllowedJumps + 1
+    end
+
+    if totalAllowedJumps == nil then -- Segurança, embora improvável com a lógica acima
+        error(string.format(
+            "[ChainLightning:cast] ERRO CRÍTICO: totalAllowedJumps resultou em nil. rawPotentialJumps: %s, baseChainCount: %s, FS.range: %s, FS.multiAttack: %s, FS.strength: %s",
+            tostring(rawPotentialJumps), tostring(self.baseChainCount), tostring(finalStats.range),
+            tostring(finalStats.multiAttack), tostring(finalStats.strength)))
+        totalAllowedJumps = 0
+    end
+
     print(string.format(
-        "[ChainLightning:cast] Calculated totalAllowedJumps: %s (baseChainCount: %s, finalStats.range: %s)",
-        tostring(totalAllowedJumps), tostring(self.baseChainCount), tostring(finalStats.range)))
+        "[ChainLightning:cast] Jumps Calc: baseC: %s, range:%.2f(x%.2f), multiA:%.2f(w%.2f), str:%.2f(w%.2f) -> raw:%.2f, guaranteed:%d, chance:%.2f -> finalJumps:%d",
+        tostring(self.baseChainCount), currentRange, RANGE_MULTIPLIER_EFFECT, currentMultiAttack,
+        MULTI_ATTACK_BONUS_WEIGHT, currentStrength, STRENGTH_BONUS_WEIGHT,
+        rawPotentialJumps, guaranteedJumps, additionalJumpChance, totalAllowedJumps))
 
     -- Busca entidades próximas ao jogador para o primeiro segmento
     local enemyManager = ManagerRegistry:get("enemyManager")

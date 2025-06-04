@@ -56,6 +56,22 @@ Casos Especiais e Detalhes:
     *   Nos `Constants.HUNTER_DEFAULT_STATS`, estes são definidos como multiplicadores (1.0 = base, 1.5 = +50% de bônus).
     *   Ao exibir como bônus percentual na UI, a fórmula é `(MultiplicadorFinal - 1) * 100%`.
 
+*   **Chain Lightning - Número de Saltos (`totalAllowedJumps`):**
+    *   A habilidade Chain Lightning (Corrente Elétrica) possui um número base de saltos (`baseChainCount`) definido pela arma.
+    *   O cálculo do número final de saltos é influenciado pelos atributos do jogador (`finalStats`) e pesos específicos:
+        *   `finalStats.range`: Atua como um multiplicador direto sobre `baseChainCount`. (Peso implícito: 1.0).
+        *   `finalStats.multiAttack`: Contribui com saltos adicionais. Cada ponto de `multiAttack` acima de 1.0 adiciona `(multiAttack - 1) * baseChainCount * 0.5` saltos ao potencial total.
+        *   `finalStats.strength`: Similarmente, cada ponto de `strength` (Força) acima de 1.0 adiciona `(strength - 1) * baseChainCount * 0.25` saltos ao potencial total.
+    *   Cálculo do Potencial Bruto de Saltos (`rawPotentialJumps`):
+        1.  `baseJumpsAfterRange = baseChainCount * (finalStats.range or 1)`
+        2.  `multiAttackBonus = ((finalStats.multiAttack or 1) - 1) * baseChainCount * 0.5` (bônus é zero se multiAttack <= 1)
+        3.  `strengthBonus = ((finalStats.strength or 1) - 1) * baseChainCount * 0.25` (bônus é zero se strength <= 1)
+        4.  `rawPotentialJumps = baseJumpsAfterRange + multiAttackBonus + strengthBonus`
+    *   Determinação dos Saltos Finais:
+        *   Os saltos garantidos são `math.floor(rawPotentialJumps)`.
+        *   A parte fracionária (`rawPotentialJumps - math.floor(rawPotentialJumps)`) representa a chance de um salto adicional. Por exemplo, se `rawPotentialJumps` for 3.75, há 3 saltos garantidos e 75% de chance de um 4º salto.
+    *   `baseChainCount` deve ser maior que zero. Se `finalStats` não possuir `range`, `multiAttack` ou `strength`, seus valores são considerados `1.0` para o cálculo do bônus (ou seja, não adicionam nem removem saltos).
+
 Lembretes para a IA:
 --------------------
 *   Ao modificar funções de cálculo de stats (`HunterManager:_calculateFinalStats`, `PlayerManager:getCurrentFinalStats`), sempre valide se esta ordem de operações está sendo mantida.
