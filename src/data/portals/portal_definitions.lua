@@ -159,6 +159,125 @@ local portalDefinitions = {
     },
     -- END TESTS --
 
+    portal_ranking_e_placeholder = {
+        name = "Portal Placeholder Rank E",
+        theme = "CementeryTheme",
+        rank = "E",
+        map = "forest",
+        requiredUnitTypes = {
+            "zombie_walker_male_1",
+            "zombie_walker_female_1",
+            "zombie_runner_male_1",
+            "zombie_runner_female_1",
+        },
+        hordeConfig = {
+            mapRank = "E",
+            mvpConfig = {
+                spawnInterval = 180, -- A cada 3 min
+                statusMultiplier = 14,
+                speedMultiplier = 1.15,
+                sizeMultiplier = 1.3,
+                experienceMultiplier = 16
+            },
+            bossConfig = {
+                spawnTimes = {
+                    { time = 600, class = SpiderBoss, unitType = "spider" }
+                }
+            },
+            cycles = {
+                -- 🔹 Min 0–2: Só Walkers
+                {
+                    duration = 120,
+                    allowedEnemies = {
+                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" }
+                    },
+                    majorSpawn = {
+                        interval = 15,
+                        baseCount = 10,
+                        countScalePerMin = 0.2
+                    },
+                    minorSpawn = {
+                        baseInterval = 3,
+                        intervalReductionPerMin = 0.2,
+                        minInterval = 1.2,
+                        count = 3
+                    }
+                },
+                -- 🔹 Min 2–5: Walkers + primeiros Runners
+                {
+                    duration = 180,
+                    allowedEnemies = {
+                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
+                        { class = ZombieRunnerMale1, weight = 0.5, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 0.5, unitType = "zombie_runner_female_1" }
+                    },
+                    majorSpawn = {
+                        interval = 12,
+                        baseCount = 15,
+                        countScalePerMin = 0.3
+                    },
+                    minorSpawn = {
+                        baseInterval = 2.5,
+                        intervalReductionPerMin = 0.25,
+                        minInterval = 0.8,
+                        count = 4
+                    }
+                },
+                -- 🔹 Min 5–8: Mais runners, densidade aumenta
+                {
+                    duration = 180,
+                    allowedEnemies = {
+                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
+                        { class = ZombieRunnerMale1, weight = 1, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
+                    },
+                    majorSpawn = {
+                        interval = 10,
+                        baseCount = 20,
+                        countScalePerMin = 0.4
+                    },
+                    minorSpawn = {
+                        baseInterval = 2.2,
+                        intervalReductionPerMin = 0.35,
+                        minInterval = 0.6,
+                        count = 5
+                    }
+                },
+                -- 🔹 Min 8–10: Rush final com máxima densidade
+                {
+                    duration = 120,
+                    allowedEnemies = {
+                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
+                        { class = ZombieRunnerMale1, weight = 1.5, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 1.5, unitType = "zombie_runner_female_1" }
+                    },
+                    majorSpawn = {
+                        interval = 8,
+                        baseCount = 25,
+                        countScalePerMin = 0.5
+                    },
+                    minorSpawn = {
+                        baseInterval = 1.8,
+                        intervalReductionPerMin = 0.4,
+                        minInterval = 0.5,
+                        count = 6
+                    }
+                }
+            }
+        },
+        mapDefinition = {
+            theme = "cemetery",
+            objectSpawnRules = {},
+            eventSpawnRules = {}
+        },
+        randomEvents = {},
+        assetPack = nil
+    },
+    
     survivor_zombie_portal = {
         name = "Survivor Zombie Portal",
         theme = "CementeryTheme",

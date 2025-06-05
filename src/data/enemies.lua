@@ -30,7 +30,7 @@ local enemies = {
 
         speed = 20,
         health = 200,
-        damage = 1,
+        damage = 18,
         experienceValue = 20,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
@@ -61,7 +61,7 @@ local enemies = {
 
         speed = 50,
         health = 100,
-        damage = 1,
+        damage = 30,
         experienceValue = 25,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
@@ -91,7 +91,7 @@ local enemies = {
 
         speed = 20,
         health = 200,
-        damage = 1,
+        damage = 18,
         experienceValue = 20,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
@@ -121,7 +121,7 @@ local enemies = {
 
         speed = 50,
         health = 100,
-        damage = 1,
+        damage = 30,
         experienceValue = 25,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 

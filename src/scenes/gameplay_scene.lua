@@ -21,6 +21,7 @@ local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local MapManager = require("src.managers.map_manager")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
+local gameOverMessagesData = require("src.data.game_over_messages_data")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
@@ -33,6 +34,14 @@ GameplayScene.castingItem = nil ---@type table|nil Instância do item sendo conj
 GameplayScene.onCastCompleteCallback = nil ---@type function|nil
 GameplayScene.currentCastType = nil ---@type string|nil -- Adicionado para armazenar o tipo de extração durante o cast
 
+GameplayScene.isGameOver = false ---@type boolean
+GameplayScene.gameOverTimer = 0 ---@type number
+GameplayScene.gameOverDuration = 5 ---@type number -- Duração do escurecimento + tempo de mensagem antes de poder sair
+GameplayScene.gameOverMessage = "" ---@type string
+GameplayScene.canExitGameOver = false ---@type boolean
+GameplayScene.gameOverFadeAlpha = 0 ---@type number -- Opacidade do fade escuro
+GameplayScene.gameOverMessageAlpha = 0 ---@type number -- Opacidade da mensagem
+
 function GameplayScene:load(args)
     Logger.debug("GameplayScene", "GameplayScene:load - Inicializando sistemas de gameplay...")
     self.renderPipeline = RenderPipeline:new()
@@ -42,6 +51,8 @@ function GameplayScene:load(args)
 
     -- Reseta estado de casting ao carregar a cena
     self:resetCastState()
+    -- Reseta estado de Game Over ao carregar a cena
+    self:resetGameOverState()
 
     -- Carrega a definição completa do portal atual para mapDefinition
     self.currentPortalData = portalDefinitions[self.portalId]
@@ -75,6 +86,18 @@ function GameplayScene:load(args)
     self.mapManager = nil -- INICIALIZA O MAPMANAGER AQUI
 
     if not fonts.main then fonts.load() end
+    -- Garante que a fonte de game over seja carregada
+    if not fonts.gameOver then
+        -- Tenta carregar uma fonte maior, se não existir, usa a principal
+        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Bold.ttf", 48)
+        if success then
+            fonts.gameOver = font
+            Logger.debug("GameplayScene", "Fonte de Game Over carregada (Roboto-Bold 48).")
+        else
+            Logger.warn("GameplayScene", "Falha ao carregar fonte Roboto-Bold 48 para Game Over. Usando fonte principal.")
+            fonts.gameOver = fonts.main_large or fonts.main -- Fallback
+        end
+    end
 
     self.inventoryDragState = { isDragging = false, draggedItem = nil, draggedItemOffsetX = 0, draggedItemOffsetY = 0, sourceGridId = nil, sourceSlotId = nil, draggedItemIsRotated = false, targetGridId = nil, targetSlotCoords = nil, isDropValid = false }
     self.inventoryEquipmentAreas = {}
@@ -170,6 +193,9 @@ function GameplayScene:load(args)
     }
     enemyMgr:setupGameplay(enemyManagerConfig)
 
+    -- Configura o callback de morte do jogador
+    playerMgr:setOnPlayerDiedCallback(function() self:triggerGameOver() end)
+
     local playerInitialPos = playerMgr.player.position
     if playerInitialPos then
         local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)
@@ -208,6 +234,12 @@ end
 function GameplayScene:update(dt)
     local mx, my = love.mouse.getPosition()
 
+    -- Se Game Over, atualiza apenas a lógica de Game Over
+    if self.isGameOver then
+        self:updateGameOver(dt)
+        return -- Não processa mais nada
+    end
+
     -- 1. Atualiza UIs que podem estar visíveis (tooltips, hover de botões, etc.)
     InventoryScreen.update(dt, mx, my, self.inventoryDragState)
     if LevelUpModal.visible then LevelUpModal:update(dt) end
@@ -235,7 +267,11 @@ function GameplayScene:update(dt)
     -- 5. Atualiza InputManager (precisa saber se qualquer UI está ativa e o estado de pausa da cena)
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
-        inputMgr:update(dt, uiBlockingAllGameplay or InventoryScreen.isVisible, self.isPaused)
+        -- Em Game Over, o inputManager não deve ser atualizado para evitar ações indesejadas
+        -- No entanto, a lógica de Game Over tratará seus próprios inputs (ex: "Enter")
+        if not self.isGameOver then
+            inputMgr:update(dt, uiBlockingAllGameplay or InventoryScreen.isVisible, self.isPaused)
+        end
     else
         Logger.error("GameplayScene", "AVISO - InputManager não encontrado no Registry para update")
     end
@@ -394,7 +430,9 @@ function GameplayScene:draw()
     love.graphics.clear(0.1, 0.1, 0.1, 1)
 
     -- 0. Limpa SpriteBatches de animação
-    self.renderPipeline:reset()
+    if not self.isGameOver then
+        self.renderPipeline:reset()
+    end
 
     -- 2. Coleta renderizáveis NÃO-MAPA (EX: inimigos, jogador, drops)
     local playerMgr = ManagerRegistry:get("playerManager") ---@type PlayerManager
@@ -537,9 +575,36 @@ function GameplayScene:draw()
     love.graphics.print("DEBUG TEXT VISIBLE?", 10, love.graphics.getHeight() - 20)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.pop()
+
+    -- DESENHA A TELA DE GAME OVER POR CIMA DE TUDO
+    if self.isGameOver then
+        self:drawGameOver()
+    end
 end
 
 function GameplayScene:keypressed(key, scancode, isrepeat)
+    -- Input de Game Over tem prioridade
+    if self.isGameOver then
+        if self.canExitGameOver and key == "return" then -- "return" é a tecla Enter
+            Logger.info("GameplayScene", "Saindo da tela de Game Over.")
+            -- TODO: Decidir para qual cena ir (Lobby? Title?)
+            -- Por agora, vamos assumir que tem uma ExtractionSummaryScene ou similar
+            -- ou voltamos para a Lobby. Se não houver extração, talvez direto para Lobby/Title.
+            local playerManager = ManagerRegistry:get("playerManager")
+            local hunterId = playerManager and playerManager:getCurrentHunterId() or nil
+
+            SceneManager.switchScene("lobby_scene", {
+                extractionSuccessful = false, -- Morte não é sucesso
+                hunterId = hunterId,
+                irregularExit = true,         -- Indica que não foi uma extração normal
+                gameLost = true               -- Nova flag para indicar que o jogo foi perdido
+            })
+            return
+        end
+        -- Ignora outros inputs durante o Game Over se não for para sair
+        return
+    end
+
     if InventoryScreen.isVisible then
         local consumed, wantsToRotate = InventoryScreen.keypressed(key)
         if consumed and wantsToRotate then
@@ -1042,6 +1107,158 @@ function GameplayScene:handlePlayerMovementCancellation()
     if playerMgr.storeLastFramePosition then
         playerMgr:storeLastFramePosition()
     end
+end
+
+--- Reseta o estado de Game Over.
+function GameplayScene:resetGameOverState()
+    self.isGameOver = false
+    self.gameOverTimer = 0
+    -- self.gameOverDuration já tem um default
+    self.gameOverMessage = ""
+    self.canExitGameOver = false
+    self.gameOverFadeAlpha = 0
+    self.gameOverMessageAlpha = 0
+    Logger.debug("GameplayScene", "Estado de Game Over resetado.")
+end
+
+--- Seleciona uma mensagem de Game Over com base nos arquétipos do jogador.
+--- @return string A mensagem selecionada.
+function GameplayScene:selectGameOverMessage()
+    local playerManager = ManagerRegistry:get("playerManager")
+    local hunterManager = ManagerRegistry:get("hunterManager")
+    local hunterId = playerManager and playerManager:getCurrentHunterId()
+    local archetypes = {}
+
+    if hunterId and hunterManager then
+        archetypes = hunterManager:getArchetypeIds(hunterId) or {}
+    end
+
+    local possibleMessages = {}
+
+    -- Adiciona mensagens específicas dos arquétipos
+    if gameOverMessagesData then
+        for _, archetypeId in ipairs(archetypes) do
+            local archetypeKey = string.lower(archetypeId) -- Supondo que as chaves em gameOverMessagesData são minúsculas
+            if gameOverMessagesData[archetypeKey] then
+                for _, msg in ipairs(gameOverMessagesData[archetypeKey]) do
+                    table.insert(possibleMessages, msg)
+                end
+            end
+        end
+
+        -- Adiciona mensagens genéricas se nenhuma específica foi encontrada, ou para aumentar a variedade
+        if #possibleMessages == 0 or math.random() < 0.5 then -- 50% de chance de adicionar genéricas mesmo com específicas
+            if gameOverMessagesData.generic then
+                for _, msg in ipairs(gameOverMessagesData.generic) do
+                    table.insert(possibleMessages, msg)
+                end
+            end
+        end
+    end
+
+    if #possibleMessages == 0 then
+        -- Fallback muito básico se tudo falhar
+        return "Você morreu."
+    end
+
+    return possibleMessages[math.random(#possibleMessages)]
+end
+
+--- Ativa o estado de Game Over.
+function GameplayScene:triggerGameOver()
+    if self.isGameOver then return end -- Já em game over
+
+    Logger.info("GameplayScene", "GAME OVER acionado!")
+    self.isGameOver = true
+    self.isPaused = true -- Pausa geral do jogo
+    self.gameOverTimer = 0
+    self.gameOverMessage = self:selectGameOverMessage()
+    self.canExitGameOver = false
+    self.gameOverFadeAlpha = 0
+    self.gameOverMessageAlpha = 0
+
+    -- Para garantir que o input não seja capturado por outras UIs
+    if InventoryScreen.isVisible then InventoryScreen.isVisible = false end
+    if LevelUpModal.visible then LevelUpModal.visible = false end
+    if RuneChoiceModal.visible then RuneChoiceModal.visible = false end
+    if ItemDetailsModal.isVisible then ItemDetailsModal.isVisible = false end
+
+    -- Se estiver conjurando, interrompe
+    if self.isCasting then
+        self:interruptCast("Morte do jogador")
+    end
+
+    -- TODO: Adicionar som de "Game Over" ou música triste
+end
+
+--- Atualiza a lógica da tela de Game Over.
+--- @param dt number Delta time.
+function GameplayScene:updateGameOver(dt)
+    self.gameOverTimer = self.gameOverTimer + dt
+
+    -- Lógica de escurecimento gradual
+    local fadeDuration = self.gameOverDuration * 0.6 -- 60% do tempo total para escurecer
+    if self.gameOverTimer < fadeDuration then
+        self.gameOverFadeAlpha = math.min(1, self.gameOverTimer / fadeDuration)
+    else
+        self.gameOverFadeAlpha = 1
+    end
+
+    -- Lógica de aparecimento da mensagem (após um pequeno delay e depois do fade começar)
+    local messageDelay = fadeDuration * 0.3
+    local messageFadeInDuration = fadeDuration * 0.5
+    if self.gameOverTimer > messageDelay then
+        local messageTimer = self.gameOverTimer - messageDelay
+        self.gameOverMessageAlpha = math.min(1, messageTimer / messageFadeInDuration)
+    else
+        self.gameOverMessageAlpha = 0
+    end
+
+
+    -- Permite sair após a duração total
+    if not self.canExitGameOver and self.gameOverTimer >= self.gameOverDuration then
+        self.canExitGameOver = true
+        self.gameOverMessage = self.gameOverMessage .. "\\n\\n< Pressione Enter para continuar >"
+        Logger.debug("GameplayScene", "Game Over: Agora pode sair.")
+    end
+end
+
+--- Desenha a tela de Game Over.
+function GameplayScene:drawGameOver()
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+
+    -- 1. Desenha o fundo escurecido
+    love.graphics.setColor(0, 0, 0, self.gameOverFadeAlpha * 0.85) -- 85% de opacidade máxima para o fade
+    love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+
+    -- 2. Desenha a mensagem de Game Over
+    if fonts.gameOver and self.gameOverMessageAlpha > 0 then
+        love.graphics.setFont(fonts.gameOver)
+        local text = self.gameOverMessage
+        local textWidth = fonts.gameOver:getWidth(text)
+        local textHeight = fonts.gameOver:getHeight(text) -- Para múltiplas linhas, pode precisar de getWrap
+
+        -- Prepara para centralizar texto com múltiplas linhas (se houver \\n)
+        local lines = {}
+        for s in text:gmatch("([^\r\n]+)") do
+            table.insert(lines, s)
+        end
+        local totalTextHeight = #lines * fonts.gameOver:getHeight()
+
+        local yPos = (screenHeight - totalTextHeight) / 2
+
+        love.graphics.setColor(1, 0.1, 0.1, self.gameOverMessageAlpha) -- Vermelho escuro, tom de "YOU DIED"
+
+        for i, line in ipairs(lines) do
+            local lineWidth = fonts.gameOver:getWidth(line)
+            love.graphics.printf(line, (screenWidth - lineWidth) / 2, yPos + (i - 1) * fonts.gameOver:getHeight(),
+                screenWidth, "left")
+        end
+    end
+
+    love.graphics.setFont(fonts.main)  -- Reseta a fonte
+    love.graphics.setColor(1, 1, 1, 1) -- Reseta a cor
 end
 
 return GameplayScene

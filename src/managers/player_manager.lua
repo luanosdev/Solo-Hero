@@ -106,6 +106,7 @@ local PlayerManager = {
     statsNeedRecalculation = true, -- Flag para indicar se o cache precisa ser atualizado
 
     activeFloatingTexts = {},
+    onPlayerDiedCallback = nil,       -- <<< NOVO: Callback de morte >>>
 }
 PlayerManager.__index = PlayerManager -- <<< ADICIONADO __index >>>
 
@@ -154,7 +155,8 @@ function PlayerManager:new()
 
     instance.finalStatsCache = nil
     instance.statsNeedRecalculation = true
-    instance.pendingLevelUps = 0 -- Inicializa contador
+    instance.pendingLevelUps = 0        -- Inicializa contador
+    instance.onPlayerDiedCallback = nil -- <<< NOVO: Callback de morte >>>
 
     print("[PlayerManager] Instance created (awaiting setupGameplay).")
     return instance
@@ -169,7 +171,8 @@ function PlayerManager:setupGameplay(registry, hunterId)
 
     -- Armazena o ID do caçador atual
     self.currentHunterId = hunterId
-    self.activeFloatingTexts = {} -- ADICIONADO (Reset)
+    self.activeFloatingTexts = {}   -- ADICIONADO (Reset)
+    self.onPlayerDiedCallback = nil -- <<< NOVO: Reseta callback de morte >>>
 
     -- 1. Obtém os managers necessários do Registry
     self.inputManager = registry:get("inputManager") ---@class InputManager
@@ -453,9 +456,8 @@ end
 --- Coleta o jogador e seus componentes visuais principais para renderização.
 ---@param renderPipeline RenderPipeline RenderPipeline para adicionar os dados de renderização do jogador.
 function PlayerManager:collectRenderables(renderPipeline)
-    if not self.player or not self.state or not self.state.isAlive or not self.player.position then
-        Logger.error("PlayerManager:collectRenderables", "Jogador ou estado inválido para coleta de renderizáveis.")
-        return
+    if not self.player or not self.state or not self.player.position then
+        error("PlayerManager:collectRenderables Jogador ou estado inválido para coleta de renderizáveis.")
     end
 
     local camX, camY, camWidth, camHeight = Camera:getViewPort() -- Obtém a visão da câmera para culling
@@ -998,14 +1000,14 @@ function PlayerManager:setActiveWeapon(weaponInstance)
     self:invalidateStatsCache()
 end
 
---- Aplica dano ao jogador.
----@param damageAmount number Quantidade de dano bruto.
-function PlayerManager:receiveDamage(damageAmount)
-    if not self.state or not self.state.isAlive then return end
-
-    local currentTime = self.gameTime
-    if currentTime - self.lastDamageTime < Constants.PLAYER_DAMAGE_COOLDOWN then
-        return -- Em cooldown de dano
+--- Aplica dano ao jogador, atualiza seu estado e chama o callback de morte se necessário.
+--- Esta função deve ser chamada por outras partes do jogo que causam dano ao jogador (ex: colisões com inimigos).
+--- @param amount number A quantidade bruta de dano a ser aplicada.
+--- @return number actualDamage O dano real infligido após defesas, ou 0 se nenhum dano foi aplicado.
+function PlayerManager:receiveDamage(amount)
+    if not self.state or not self.state.isAlive then
+        -- Logger.trace("PlayerManager:applyDamageToPlayer", "Jogador já morto ou estado inválido. Dano ignorado.")
+        return 0 -- Não pode tomar dano se não tem estado ou já está morto
     end
 
     local finalStats = self:getCurrentFinalStats()
@@ -1016,10 +1018,11 @@ function PlayerManager:receiveDamage(damageAmount)
     local finalDamageReduction = defense / (defense + K)
     finalDamageReduction = math.min(Constants and Constants.MAX_DAMAGE_REDUCTION, finalDamageReduction)
 
-    local damageTaken = self.state:takeDamage(damageAmount, finalDamageReduction)
-    self.lastDamageTime = currentTime
+    local damageTaken = self.state:takeDamage(amount, finalDamageReduction)
 
-    -- NOVA LÓGICA PARA FLOATING TEXT
+    -- Supõe que PlayerState.takeDamage existe, aplica o dano e retorna o dano real.
+    -- PlayerState internamente lidaria com defesa, etc.
+
     if damageTaken > 0 then
         local props = TablePool.get() -- <<< MUDANÇA (se esta seção for descomentada)
         props.textColor = Colors.damage_player
@@ -1030,17 +1033,41 @@ function PlayerManager:receiveDamage(damageAmount)
         props.baseOffsetY = -40
         props.baseOffsetX = 0
         self:addFloatingText("-" .. tostring(damageTaken), props)
-        TablePool.release(props) -- <<< MUDANÇA (se esta seção for descomentada)
+        TablePool.release(props)
+
+        -- TODO: Adicionar efeito sonoro de dano ao jogador
+        -- TODO: Adicionar efeito visual de dano (screen shake, flash vermelho na tela)
+        Logger.debug("PlayerManager:applyDamageToPlayer",
+            string.format("Jogador tomou %.2f de dano. Vida restante: %.2f/%.2f", damageTaken, self.state.currentHealth,
+                self.state.health))
     end
 
+    -- Verifica se o jogador morreu APÓS aplicar o dano
     if not self.state.isAlive then
-        self:onDeath()
-    else
-        -- Tocar som de dano, etc.
-        -- if self.player and self.player.playHitAnimation then
-        --     self.player:playHitAnimation()
-        -- end
+        Logger.info("PlayerManager", string.format("Jogador '%s' MORREU.", self.currentHunterId or "Desconhecido"))
+
+        -- Para o movimento do jogador
+        if self.player and self.player.stopMovement then
+            self.player:stopMovement()
+            Logger.debug("PlayerManager", "Movimento do jogador parado devido à morte.")
+        end
+
+        -- TODO: Adicionar animação de morte
+        -- TODO: Adicionar efeito sonoro de morte
+
+        -- CHAMA O CALLBACK REGISTRADO PELA GAMEPLAYSCENE
+        if self.onPlayerDiedCallback then
+            Logger.debug("PlayerManager", "Chamando onPlayerDiedCallback.")
+            self.onPlayerDiedCallback()
+        else
+            Logger.warn("PlayerManager", "Jogador morreu, mas onPlayerDiedCallback não está definido.")
+        end
+
+        -- Outras lógicas de "game over" específicas do PlayerManager podem vir aqui,
+        -- como desabilitar inputs do jogador, etc., embora a GameplayScene vá pausar o jogo.
     end
+
+    return damageTaken
 end
 
 --- Adiciona um texto flutuante ao jogador.
@@ -1162,6 +1189,12 @@ function PlayerManager:getCurrentEquipmentGameplay()
         error(
             "AVISO [PlayerManager:getCurrentEquipmentGameplay]: PlayerState ou PlayerState.equippedItems não encontrado.")
     end
+end
+
+--- Define o callback a ser chamado quando o jogador morrer.
+--- @param callback function A função de callback.
+function PlayerManager:setOnPlayerDiedCallback(callback)
+    self.onPlayerDiedCallback = callback
 end
 
 return PlayerManager

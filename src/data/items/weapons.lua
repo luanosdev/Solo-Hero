@@ -1,6 +1,142 @@
 local Constants = require("src.config.constants")
 
 local weapons = {
+    --- Ranking E
+    circular_smash_e_001 = {
+        id = "circular_smash_e_001",
+        name = "Marreta Grande de Forja",
+        type = "weapon",
+        rarity = "E",
+        ranking = "E",
+        description = "Uma marreta grande de forja que causa dano em área ao redor do impacto.",
+        icon = "assets/items/weapons/circular_smash_e_001.png",
+        gridWidth = 2,
+        gridHeight = 4,
+        stackable = false,
+        maxStack = 1,
+        damage = 125,
+        cooldown = 1.6,
+        baseAreaEffectRadius = 50,
+        attackClass = "src.abilities.player.attacks.circular_smash",
+        knockbackPower = Constants.KNOCKBACK_POWER.HIGH,
+        knockbackForce = Constants.KNOCKBACK_FORCE.CIRCULAR_SMASH,
+    },
+
+    cone_slash_e_001 = {
+        id = "cone_slash_e_001",
+        name = "Espada de Ferro",
+        type = "weapon",
+        rarity = "E",
+        ranking = "E",
+        description = "Uma espada de ferro que causa dano em área ao redor do impacto.",
+        icon = "assets/items/weapons/cone_slash_e_001.png",
+        gridWidth = 1,
+        gridHeight = 3,
+        stackable = false,
+        maxStack = 1,
+        damage = 100,
+        cooldown = 1.1,
+        range = 150,
+        angle = math.pi / 10,
+        baseAreaEffectRadius = 50,
+        attackClass = "src.abilities.player.attacks.cone_slash",
+        knockbackPower = Constants.KNOCKBACK_POWER.MEDIUM,
+        knockbackForce = Constants.KNOCKBACK_FORCE.SWORDS,
+    },
+
+    alternating_cone_strike_e_001 = {
+        id = "alternating_cone_strike_e_001",
+        name = "Lâminas de Açougue",
+        type = "weapon",
+        rarity = "E",
+        ranking = "E",
+        description = "Lâminas de açougue que causam dano alternado.",
+        icon = "assets/items/weapons/alternating_cone_strike_e_001.png",
+        gridWidth = 3,
+        gridHeight = 2,
+        stackable = false,
+        maxStack = 1,
+        damage = 50,
+        cooldown = 0.9,
+        range = 100,
+        angle = math.pi / 3,
+        attackClass = "src.abilities.player.attacks.alternating_cone_strike",
+        knockbackPower = Constants.KNOCKBACK_POWER.LOW,
+        knockbackForce = Constants.KNOCKBACK_FORCE.ALTERNATING_DAGGERS,
+    },
+
+    flame_stream_e_001 = {
+        id = "flame_stream_e_001",
+        name = "Maçarico Adaptado",
+        type = "weapon",
+        rarity = "E",
+        ranking = "E",
+        description = "Um maçarico adaptado que atira chamas que causam dano em área.",
+        icon = "assets/items/weapons/flame_stream_e_001.png",
+        gridWidth = 4,
+        gridHeight = 2,
+        stackable = false,
+        maxStack = 1,
+        damage = 25,
+        cooldown = 0.7,
+        range = 120,
+        angle = math.pi / 12,
+        attackClass = "src.abilities.player.attacks.flame_stream",
+        -- Atributos específicos do Lança-Chamas
+        baseLifetime = 1.0,                              -- Tempo de vida base da partícula em segundos
+        particleScale = 0.8,                             -- Escala base da partícula
+        piercing = 5,                                    -- Pontos de perfuração inerentes da arma
+        knockbackPower = Constants.KNOCKBACK_POWER.NONE, -- Sem knockback por partícula, pois é contínuo (mas projéteis individuais podem ter)
+        knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
+    },
+
+    arrow_projectile_e_001 = {
+        id = "arrow_projectile_e_001",
+        name = "Arco de Caça",
+        type = "weapon",
+        rarity = "E",
+        ranking = "E",
+        description = "Um arco de caça usado por caçadores de longa distância.",
+        icon = "assets/items/weapons/arrow_projectile_e_001.png",
+        gridWidth = 1,
+        gridHeight = 3,
+        stackable = false,
+        maxStack = 1,
+        damage = 75,
+        cooldown = 0.9,
+        range = 170,
+        angle = math.pi / 4,
+        -- Atributos específicos do Arco
+        projectiles = 1,
+        piercing = 2,
+        attackClass = "src.abilities.player.attacks.arrow_projectile",
+        knockbackPower = Constants.KNOCKBACK_POWER.LOW,
+        knockbackForce = Constants.KNOCKBACK_FORCE.BOW,
+    },
+
+    chain_lightning_e_001 = {
+        id = "chain_lightning_e_001",
+        name = "Bobina Improvisada",
+        type = "weapon",
+        rarity = "E",
+        ranking = "E",
+        description = "Uma bobina improvisada que causa dano em área ao redor do impacto.",
+        icon = "assets/items/weapons/chain_lightning_e_001.png",
+        gridWidth = 4,
+        gridHeight = 1,
+        stackable = false,
+        maxStack = 1,
+        damage = 50,
+        cooldown = 1.1,
+        range = 100,
+        -- Atributos específicos da Bobina
+        chainCount = 3,
+        jumpRange = 100,
+        attackClass = "src.abilities.player.attacks.chain_lightning",
+        knockbackPower = Constants.KNOCKBACK_POWER.NONE,
+        knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
+    },
+
     hammer = {
         id = "hammer",
         name = "Martelo de Guerra",
@@ -160,8 +296,8 @@ local weapons = {
         chainCount = 3,                                               -- Número de saltos para inimigos adicionais (total 4 alvos)
         jumpRange = 100,                                              -- Distância máxima para saltar entre inimigos
         attackClass = "src.abilities.player.attacks.chain_lightning", -- Classe de ataque
-        knockbackPower = 1,                                           -- Leve knockback no primeiro hit
-        knockbackForce = 5,                                           -- Força leve
+        knockbackPower = Constants.KNOCKBACK_POWER.NONE,              -- Leve knockback no primeiro hit
+        knockbackForce = Constants.KNOCKBACK_FORCE.CHAIN_LASER,       -- Força leve
     },
 }
 

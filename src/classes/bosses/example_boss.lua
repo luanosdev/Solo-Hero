@@ -154,7 +154,7 @@ function ExampleBoss:update(dt, player, enemies)
                     -- Calcula o dano baseado na velocidade
                     local speed = self.spinAttackConfig.spinSpeed * dt
                     local damage = math.floor(self.damage * (1 + speed * self.spinAttackConfig.damageMultiplier))
-                    player:takeDamage(damage)
+                    player:receiveDamage(damage, self)
                     self.spinAttack.damageDealt = true
                     print("Boss acertou o jogador com ataque giratório!")
                 end
