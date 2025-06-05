@@ -264,6 +264,12 @@ function HunterManager:getActiveHunterId()
     return self.activeHunterId
 end
 
+--- Return a hunter data by id
+--- @param hunterId string
+function HunterManager:getHunterData(hunterId)
+    return self.hunters[hunterId]
+end
+
 --- Sets the active hunter.
 -- Saves previous hunter's data (loadout) and loads the new one.
 --- @param hunterId string ID of the new active hunter.
