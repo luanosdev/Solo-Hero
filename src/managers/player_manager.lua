@@ -1197,4 +1197,24 @@ function PlayerManager:setOnPlayerDiedCallback(callback)
     self.onPlayerDiedCallback = callback
 end
 
+--- Retorna a quantidade de XP necessária para completar um determinado nível.
+---@param level_number number O nível para o qual se deseja saber o XP necessário.
+---@return number A quantidade de XP para completar o nível especificado.
+function PlayerManager:getExperienceRequiredForLevel(level_number)
+    if not self.state then
+        -- Fallback se o estado não estiver inicializado, retorna um valor alto para evitar divisão por zero ou progresso inesperado.
+        return (level_number or 1) * 100 + 50 -- Um fallback similar ao do ProgressLevelBar
+    end
+
+    if level_number == self.state.level then
+        -- Para o nível atual, o PlayerState já tem o valor correto de XP para o próximo nível.
+        return self.state.experienceToNextLevel
+    else
+        -- Para qualquer outro nível (passado, ou futuro teórico), calcula usando a fórmula.
+        -- Garante que level_number seja positivo para evitar erros com math.floor(0 ^ 1.5)
+        if level_number <= 0 then level_number = 1 end
+        return math.floor(30 * level_number ^ 1.5)
+    end
+end
+
 return PlayerManager

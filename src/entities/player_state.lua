@@ -14,7 +14,7 @@ local PlayerState = {
     -- Atributos de Jogo
     level = 1,
     experience = 0,
-    experienceToNextLevel = 100,
+    experienceToNextLevel = Constants.INITIAL_XP_TO_LEVEL,
     experienceMultiplier = 1.10,
     kills = 0,
     gold = 0,
@@ -136,7 +136,7 @@ function PlayerState:init(baseStats)
     -- Stats de Gameplay
     self.level = baseStats.level or 1
     self.experience = 0
-    self.experienceToNextLevel = Constants.INITIAL_XP_TO_LEVEL or 100 -- Usa constante ou padrão
+    self.experienceToNextLevel = Constants.INITIAL_XP_TO_LEVEL
     self.kills = 0
     self.gold = 0
 
@@ -192,7 +192,7 @@ function PlayerState:new(initialStats)
     -- 3. Define estado inicial de gameplay
     state.level = 1 -- Começa sempre no nível 1 no gameplay
     state.experience = 0
-    state.experienceToNextLevel = Constants and Constants.INITIAL_XP_TO_LEVEL or 100
+    state.experienceToNextLevel = Constants.INITIAL_XP_TO_LEVEL
     state.kills = 0
     state.gold = 0
     state.isAlive = true

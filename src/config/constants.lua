@@ -83,6 +83,7 @@ Constants.TILE_WIDTH = 128
 Constants.TILE_HEIGHT = 64
 
 Constants.PLAYER_DAMAGE_COOLDOWN = 0.5
+Constants.INITIAL_XP_TO_LEVEL = 30
 
 Constants.KNOCKBACK_RESISTANCE = {
     NONE        = 0,   -- Inimigos muito leves (ratos, zumbis fracos)

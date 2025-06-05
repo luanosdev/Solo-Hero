@@ -22,6 +22,7 @@ local MapManager = require("src.managers.map_manager")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local GameOverManager = require("src.managers.game_over_manager")
+local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
@@ -50,6 +51,8 @@ function GameplayScene:load(args)
     self.gameOverManager = GameOverManager:new()
     self.gameOverManager:init(ManagerRegistry, SceneManager) -- Passa dependências
     self.gameOverManager:reset()                             -- Garante estado inicial limpo
+
+    -- Instancia o UiGameplayManager
 
     self.currentPortalData = portalDefinitions[self.portalId]
     if not self.currentPortalData then
@@ -204,6 +207,8 @@ function GameplayScene:load(args)
         Camera:setPosition(0, 0)
     end
 
+    self.hudGameplayManager = HUDGameplayManager:new(ManagerRegistry)
+
     Logger.debug("GameplayScene", "GameplayScene:load concluído.")
 end
 
@@ -227,6 +232,11 @@ function GameplayScene:update(dt)
     end
 
     local mx, my = love.mouse.getPosition()
+
+    -- Atualiza UiGameplayManager (antes de outras UIs se houver dependências ou para manter ordem lógica)
+    if self.hudGameplayManager then
+        self.hudGameplayManager:update(dt)
+    end
 
     InventoryScreen.update(dt, mx, my, self.inventoryDragState)
     if LevelUpModal.visible then LevelUpModal:update(dt) end
@@ -468,6 +478,11 @@ function GameplayScene:draw()
     HUD:draw()
     TooltipManager.draw()
 
+    -- Desenha UiGameplayManager
+    if self.hudGameplayManager then
+        self.hudGameplayManager:draw()
+    end
+
     -- Desenha UI de Casting (exemplo simples)
     if self.isCasting and self.castDuration > 0 then
         local barWidth = 200
@@ -627,6 +642,11 @@ function GameplayScene:unload()
         self.mapManager:destroy()
         self.mapManager = nil
         Logger.debug("GameplayScene", "MapManager destruído.")
+    end
+
+    -- Reseta HUDGameplayManager se existir
+    if self.hudGameplayManager and self.hudGameplayManager.reset then
+        self.hudGameplayManager:reset()
     end
 
     if self.enemyManager and self.enemyManager.destroy then
