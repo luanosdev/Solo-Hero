@@ -475,7 +475,7 @@ function GameplayScene:draw()
         self.inventoryGridArea = invArea or {}
     end
     ItemDetailsModal:draw()
-    HUD:draw()
+    --HUD:draw()
     TooltipManager.draw()
 
     -- Desenha UiGameplayManager

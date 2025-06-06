@@ -215,9 +215,10 @@ function ProgressLevelBar:_updateLayout()
     self.xpGainAnimation.initialY = layout.firstLineY + (firstLineMaxHeight - layout.xpGainTextHeight) / 2
 
     -- Linha 2: Barra de Progresso
-    layout.fillBarHeight = 6                                                   -- Altura da parte preenchida da barra
-    layout.emptyBarHeight = layout.fillBarHeight *
-        0.6                                                                    -- Altura da parte vazia (ex: 60% da preenchida)
+    -- Altura da parte preenchida da barra
+    layout.fillBarHeight = 10
+    -- Altura da parte vazia
+    layout.emptyBarHeight = layout.fillBarHeight * 0.1
 
     layout.progressBarY = layout.firstLineY + firstLineMaxHeight + lineSpacing -- << ATUALIZADO: Y da barra de progresso
     layout.progressBarX = contentX
@@ -415,7 +416,7 @@ function ProgressLevelBar:draw()
     -- Desenha a parte de FUNDO/VAZIA primeiro, com altura menor e centralizada
     local emptyPartX = layout.progressBarX
     local emptyPartW = layout.progressBarW
-    local emptyPartY = layout.progressBarY + (layout.fillBarHeight - layout.emptyBarHeight) / 2
+    local emptyPartY = layout.progressBarY + (layout.fillBarHeight - layout.emptyBarHeight)
 
     if emptyPartW > 0 then
         r, g, b, a = unpack(self.colors.progressBarBase)

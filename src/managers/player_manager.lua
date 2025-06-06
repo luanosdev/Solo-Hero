@@ -1020,11 +1020,12 @@ function PlayerManager:receiveDamage(amount)
 
     local damageTaken = self.state:takeDamage(amount, finalDamageReduction)
 
-    -- Supõe que PlayerState.takeDamage existe, aplica o dano e retorna o dano real.
-    -- PlayerState internamente lidaria com defesa, etc.
-
     if damageTaken > 0 then
-        local props = TablePool.get() -- <<< MUDANÇA (se esta seção for descomentada)
+        self.lastDamageTime = self.gameTime
+        self.lastRegenTime = 0
+        self.accumulatedRegen = 0
+
+        local props = TablePool.get()
         props.textColor = Colors.damage_player
         props.scale = 1.1
         props.velocityY = -45
