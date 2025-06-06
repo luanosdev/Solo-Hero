@@ -469,6 +469,7 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
     if self.currentHP >= self.maxHP or isPaused then
         return
     end
+    local layout = self.internalLayout
 
     local barWidth = 60
     local barHeight = 5
@@ -485,9 +486,25 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
 
     -- Draw current HP fill
     if currentHPFillWidth > 0 then
-        r, g, b, a = unpack(self.colors.hpBarFill)
+        local r, g, b, a = unpack(self.colors.hpBarFill)
         love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
         love.graphics.rectangle("fill", barX, barY, currentHPFillWidth, barHeight)
+    end
+
+    love.graphics.setFont(self.fontHPValues)
+    local r, g, b, a = unpack(self.colors.hpValues)
+    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+    love.graphics.print(layout.hpInfoText, layout.hpInfoX, layout.hpInfoY)
+
+    for i, anim in ipairs(self.activeTextAnimations) do
+        if anim.alpha > 0 then -- Desenha apenas se estiver visível
+            love.graphics.setFont(self.fontHPChange)
+            local r, g, b, a = unpack(anim.color);
+            love.graphics.setColor(r / 255, g / 255, b / 255, (a / 255) * (anim.alpha / 255))
+            local textWidth = self.fontHPChange:getWidth(anim.text)
+            local textX = self.x + self.padding.left + (self.internalLayout.hpBarW / 2) - (textWidth / 2)
+            love.graphics.print(anim.text, math.floor(textX), math.floor(anim.currentY))
+        end
     end
 
     -- Reset color

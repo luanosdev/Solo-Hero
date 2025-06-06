@@ -256,13 +256,22 @@ end
 function GameOverManager:handleExit()
     if not self.canExit then return end
 
-    Logger.info("GameOverManager", "Saindo da tela de Game Over.")
-    local playerManager = self.registry:get("playerManager")
+    Logger.info("GameOverManager", "Saindo da tela de Game Over e processando permadeath.")
+    local playerManager = self.registry:get("playerManager") ---@type PlayerManager
+    local hunterManager = self.registry:get("hunterManager") ---@type HunterManager
     local hunterId = playerManager and playerManager:getCurrentHunterId() or nil
+
+    if hunterId and hunterManager then
+        Logger.info("GameOverManager", string.format("Iniciando exclusão permanente para o caçador ID: %s", hunterId))
+        hunterManager:deleteHunter(hunterId)
+    else
+        Logger.warn("GameOverManager",
+            "Não foi possível excluir o caçador - HunterID ou HunterManager não encontrado.")
+    end
 
     self.sceneManager.switchScene("lobby_scene", {
         extractionSuccessful = false,
-        hunterId = hunterId,
+        -- Não precisa mais passar o hunterId, pois o HunterManager já selecionou o próximo
         irregularExit = true,
         gameLost = true
     })

@@ -399,47 +399,58 @@ function HunterManager:equipItem(itemInstance, slotId)
     return true, oldItemInstance
 end
 
---- Unequips the item from a specific slot for the active hunter.
---- @param slotId string Slot ID to unequip from.
---- @return table|nil Returns the instance of the unequipped item, or nil.
-function HunterManager:unequipItem(slotId)
-    if not self.activeHunterId or not slotId then return nil end
-
-    local hunterData = self.hunters[self.activeHunterId]
-    if not hunterData or not hunterData.equippedItems then return nil end
-
-    local hunterEquipment = hunterData.equippedItems
-    local itemToUnequip = hunterEquipment[slotId]
-
-    if itemToUnequip then
-        print(string.format("[HunterManager] Unequipping item (%s, ID: %s) from slot %s for %s",
-            itemToUnequip.itemBaseId, itemToUnequip.instanceId or -1, slotId, self.activeHunterId))
-        hunterEquipment[slotId] = nil
-
-        local playerManager = ManagerRegistry:tryGet("playerManager")
-
-        if slotId == Constants.SLOT_IDS.WEAPON then
-            if playerManager then
-                playerManager:setActiveWeapon(nil)
-                print("  -> Notified PlayerManager to clear active weapon (set to nil).")
-            else
-                print("  -> WARNING: Could not get PlayerManager to clear weapon!")
-            end
-        else
-            local baseDataItem = self.itemDataManager:getBaseItemData(itemToUnequip.itemBaseId)
-            if baseDataItem and baseDataItem.type == "rune" then
-                if playerManager then
-                    playerManager:deactivateRuneAbility(slotId)
-                    print(string.format("  -> Notified PlayerManager to deactivate rune ability for slot %s.", slotId))
-                else
-                    print(string.format("  -> WARNING: Could not get PlayerManager to deactivate rune for slot %s!",
-                        slotId))
-                end
-            end
-        end
-        return itemToUnequip
+--- Exclui permanentemente um caçador do jogo.
+--- @param hunterId string O ID do caçador a ser excluído.
+function HunterManager:deleteHunter(hunterId)
+    if not hunterId or not self.hunters[hunterId] then
+        print(string.format("AVISO [HunterManager]: Tentativa de excluir caçador inexistente com ID: %s",
+            tostring(hunterId)))
+        return
     end
-    return nil
+
+    print(string.format("[HunterManager] Excluindo permanentemente o caçador: %s (%s)", self.hunters[hunterId].name,
+        hunterId))
+
+    -- Remove o caçador da tabela
+    self.hunters[hunterId] = nil
+
+    -- Se o caçador excluído era o ativo, precisamos selecionar um novo.
+    if self.activeHunterId == hunterId then
+        local newActiveId = next(self.hunters) -- Pega o primeiro caçador que encontrar na lista
+
+        if newActiveId then
+            print(string.format("[HunterManager] Caçador ativo excluído. Novo caçador ativo selecionado: %s", newActiveId))
+            self.activeHunterId = newActiveId
+        else
+            -- Se não houver mais caçadores, recruta um novo.
+            print("[HunterManager] Todos os caçadores foram perdidos. Recrutando um novo recruta.")
+            self:_recruitInitialHunter() -- Isso já define o novo caçador como ativo.
+        end
+    end
+
+    -- Salva o estado para persistir a exclusão.
+    self:saveState()
+    print(string.format("[HunterManager] Exclusão do caçador %s concluída.", hunterId))
+end
+
+--- Desequipa um item de um slot para um caçador específico.
+--- @param hunterId string O ID do caçador.
+--- @param slotId string O ID do slot de onde o item será removido.
+--- @return table|nil A instância do item que foi desequipado, ou nil se não havia item.
+function HunterManager:unequipItem(hunterId, slotId)
+    local hunterData = self.hunters[hunterId]
+    if not hunterData or not hunterData.equippedItems then
+        print(string.format("AVISO (unequipItem): Caçador %s ou seu equipamento não encontrado.", hunterId))
+        return nil
+    end
+
+    local unequippedItem = hunterData.equippedItems[slotId]
+    if unequippedItem then
+        print(string.format("[HunterManager] Desequipando item %s do slot %s para o caçador %s.",
+            unequippedItem.itemBaseId, slotId, hunterId))
+        hunterData.equippedItems[slotId] = nil
+    end
+    return unequippedItem
 end
 
 --- NOVO: Equipa um item a um slot específico do loadout de um caçador específico.

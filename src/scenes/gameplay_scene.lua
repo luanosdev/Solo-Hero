@@ -591,6 +591,15 @@ function GameplayScene:keyreleased(key, scancode)
 end
 
 function GameplayScene:mousepressed(x, y, button, istouch, presses)
+    if self.gameOverManager and self.gameOverManager.isGameOverActive then
+        if self.gameOverManager.canExit then
+            self.gameOverManager:handleExit()
+            return
+        end
+        -- Ignora outros inputs durante o Game Over se não for para sair
+        return
+    end
+
     if InventoryScreen.isVisible then
         local consumed, dragStartData, useItemData = InventoryScreen.handleMousePress(x, y, button)
 
