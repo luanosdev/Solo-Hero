@@ -126,6 +126,7 @@ function GameplayScene:load(args)
     local playerMgr = ManagerRegistry:get("playerManager")
     local itemDataMgr = ManagerRegistry:get("itemDataManager")
     local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
+    local hudGameplayManager = ManagerRegistry:get("hudGameplayManager")
 
     if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr or not experienceOrbMgr then
         local missing = {}
@@ -176,7 +177,7 @@ function GameplayScene:load(args)
             "ERRO CRÍTICO [GameplayScene:load]: 'map' não definido nos dados do portal para inicializar MapManager!")
     end
 
-    playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
+    playerMgr:setupGameplay(ManagerRegistry, self.hunterId, self.hudGameplayManager)
     local enemyManagerConfig = {
         hordeConfig = self.hordeConfig,
         playerManager = playerMgr,
@@ -184,6 +185,7 @@ function GameplayScene:load(args)
         mapManager = self.mapManager
     }
     enemyMgr:setupGameplay(enemyManagerConfig)
+    hudGameplayManager:setupGameplay(self.hunterId)
 
     -- Configura o callback de morte do jogador para usar o GameOverManager
     playerMgr:setOnPlayerDiedCallback(function()
@@ -207,7 +209,6 @@ function GameplayScene:load(args)
         Camera:setPosition(0, 0)
     end
 
-    self.hudGameplayManager = HUDGameplayManager:new(ManagerRegistry)
 
     Logger.debug("GameplayScene", "GameplayScene:load concluído.")
 end
@@ -232,11 +233,6 @@ function GameplayScene:update(dt)
     end
 
     local mx, my = love.mouse.getPosition()
-
-    -- Atualiza UiGameplayManager (antes de outras UIs se houver dependências ou para manter ordem lógica)
-    if self.hudGameplayManager then
-        self.hudGameplayManager:update(dt)
-    end
 
     InventoryScreen.update(dt, mx, my, self.inventoryDragState)
     if LevelUpModal.visible then LevelUpModal:update(dt) end
@@ -414,6 +410,7 @@ function GameplayScene:draw()
     local enemyMgr = ManagerRegistry:get("enemyManager") ---@type EnemyManager
     local dropMgr = ManagerRegistry:get("dropManager") ---@type DropManager
     local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager") ---@type ExperienceOrbManager
+    local hudGameplayManager = ManagerRegistry:get("hudGameplayManager") ---@type HUDGameplayManager
 
     if playerMgr then
         playerMgr:collectRenderables(self.renderPipeline)
@@ -478,9 +475,8 @@ function GameplayScene:draw()
     --HUD:draw()
     TooltipManager.draw()
 
-    -- Desenha UiGameplayManager
-    if self.hudGameplayManager then
-        self.hudGameplayManager:draw()
+    if hudGameplayManager then
+        hudGameplayManager:draw(self.isPaused)
     end
 
     -- Desenha UI de Casting (exemplo simples)

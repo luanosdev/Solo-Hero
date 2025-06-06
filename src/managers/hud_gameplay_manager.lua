@@ -1,13 +1,12 @@
 local ProgressLevelBar = require("src.ui.components.ProgressLevelBar")
 local PlayerHPBar = require("src.ui.components.PlayerHPBar")
 local fonts = require("src.ui.fonts")
+local ManagerRegistry = require("src.managers.manager_registry")
+local Camera = require("src.config.camera")
 
 ---@class HUDGameplayManager
----@field managerRegistry ManagerRegistry Instância do registro de managers.
----@field playerManager PlayerManager Instância do PlayerManager.
----@field hunterManager HunterManager Instância do HunterManager.
----@field progressLevelBar ProgressLevelBar Instância da barra de progresso de nível.
----@field playerHPBar PlayerHPBar Instância da barra de HP do jogador.
+---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
+---@field playerHPBar PlayerHPBar|nil Instância da barra de HP do jogador.
 ---@field lastPlayerLevel number Armazena o nível do jogador no frame anterior.
 ---@field lastPlayerXPInLevel number Armazena o XP do jogador DENTRO do nível no frame anterior.
 ---@field lastTotalPlayerXP number Armazena o XP TOTAL ACUMULADO do jogador no frame anterior.
@@ -17,8 +16,19 @@ local fonts = require("src.ui.fonts")
 ---@field lastPlayerRank string Armazena o rank do jogador no frame anterior.
 ---@field basePlayerHPBarWidth number Largura base da barra de HP para cálculo de escalonamento.
 ---@field basePlayerMaxHPForWidth number MaxHP base para cálculo de escalonamento da largura da barra de HP.
-local HUDGameplayManager = {}
-HUDGameplayManager.__index = HUDGameplayManager
+local HUDGameplayManager = {
+    progressLevelBar = nil,
+    playerHPBar = nil,
+    lastPlayerLevel = 0,
+    lastPlayerXPInLevel = 0,
+    lastTotalPlayerXP = 0,
+    lastPlayerHP = 0,
+    lastPlayerMaxHP = 0,
+    lastPlayerName = "",
+    lastPlayerRank = "",
+    basePlayerHPBarWidth = 0,
+    basePlayerMaxHPForWidth = 100
+}
 
 -- Função auxiliar para calcular o XP total acumulado
 -- Requer uma função que possa fornecer o XP necessário para CADA nível anterior.
@@ -31,35 +41,26 @@ local function calculateTotalXPForState(level, currentLevelXP, getXPRequiredForL
     return totalXP
 end
 
----@param managerRegistry ManagerRegistry O registro de todos os managers.
----@return HUDGameplayManager instance
-function HUDGameplayManager:new(managerRegistry)
-    local instance = setmetatable({}, HUDGameplayManager)
-    instance.managerRegistry = managerRegistry
-    instance.playerManager = instance.managerRegistry:get("playerManager")
-    instance.hunterManager = instance.managerRegistry:get("hunterManager")
-
-    if not instance.playerManager or not instance.hunterManager then
-        error("HUDGameplayManager: PlayerManager ou HunterManager não encontrado no ManagerRegistry!")
-    end
-
-    -- Garante que as fontes estejam carregadas
-    if not fonts.main then fonts.load() end
+--- Configura o HUDGameplayManager para o gameplay com base nos dados de um caçador específico.
+--- Chamado pela GameplayScene após a inicialização dos managers.
+function HUDGameplayManager:setupGameplay()
+    local playerManager = ManagerRegistry:get("playerManager")
+    local hunterManager = ManagerRegistry:get("hunterManager")
 
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
-    local mainFont = fonts.main_normal or fonts.main or love.graphics.getFont()
-    local levelNumFont = fonts.main_large or fonts.main or love.graphics.getFont()
-    local xpGainFont = fonts.main_small or fonts.main or love.graphics.getFont()
-    local hunterData = instance.hunterManager:getHunterData(instance.playerManager.currentHunterId)
+    local mainFont = fonts.main
+    local levelNumFont = fonts.main_large
+    local xpGainFont = fonts.main_small
+    local hunterData = hunterManager:getHunterData(playerManager.currentHunterId)
 
-    local initialPlayerState = instance.playerManager.state or {}
+    local initialPlayerState = playerManager.state
     local initialLevel = initialPlayerState.level
     local initialXP = initialPlayerState.experience
     local initialHP = initialPlayerState.currentHealth
     local initialMaxHP = initialPlayerState.maxHealth
-    local initialName = hunterData.name or "Jogador"
-    local initialRank = hunterData.finalRankId or "N/A"
+    local initialName = hunterData.name
+    local initialRank = hunterData.finalRankId
 
     -- Configuração da Barra de HP (PlayerHPBar)
     local hpBarConfig = {
@@ -85,14 +86,14 @@ function HUDGameplayManager:new(managerRegistry)
             segmentLine = { 10, 10, 10, 128 }
         },
         segmentHPInterval = 50,
-        hpBarAnimationSpeed = initialMaxHP * 0.8 -- 80% do MaxHP por segundo
+        hpBarAnimationSpeed = 25
     }
-    instance.playerHPBar = PlayerHPBar:new(hpBarConfig)
+    self.playerHPBar = PlayerHPBar:new(hpBarConfig)
 
     -- Armazena a largura e MaxHP base para escalonamento futuro
-    instance.basePlayerHPBarWidth = hpBarConfig.w
-    instance.basePlayerMaxHPForWidth = initialMaxHP > 0 and initialMaxHP or
-        100 -- Evita divisão por zero se MaxHP inicial for 0
+    self.basePlayerHPBarWidth = hpBarConfig.w
+    -- Evita divisão por zero se MaxHP inicial for 0
+    self.basePlayerMaxHPForWidth = initialMaxHP > 0 and initialMaxHP or 100
 
     -- Configuração da Barra de Nível/XP (ProgressLevelBar)
     local xpBarConfig = {
@@ -105,12 +106,7 @@ function HUDGameplayManager:new(managerRegistry)
         initialLevel = initialLevel,
         initialXP = initialXP,
         xpForNextLevel = function(level_from_bar)
-            if instance.playerManager and instance.playerManager.getExperienceRequiredForLevel then
-                return instance.playerManager:getExperienceRequiredForLevel(level_from_bar)
-            else
-                local lvl = level_from_bar or 1; if lvl <= 0 then lvl = 1 end
-                return lvl * 100 + 50
-            end
+            return playerManager:getExperienceRequiredForLevel(level_from_bar)
         end,
         padding = { vertical = 6, horizontal = 10 },
         colors = {
@@ -123,48 +119,49 @@ function HUDGameplayManager:new(managerRegistry)
             trailBar = { 110, 80, 220, 150 },
         }
     }
-    instance.progressLevelBar = ProgressLevelBar:new(xpBarConfig)
+    self.progressLevelBar = ProgressLevelBar:new(xpBarConfig)
 
     -- Posicionamento dinâmico das barras
     local paddingFromScreenEdgeX = 20
     local paddingFromScreenEdgeBottom = 20
     local spacingBetweenBars = 8
 
-    instance.playerHPBar:setWidth(hpBarConfig.w) -- Garante que a largura seja aplicada antes de calcular altura
-    instance.playerHPBar:setPosition(
+    self.playerHPBar:setWidth(hpBarConfig.w)
+    self.playerHPBar:setPosition(
         paddingFromScreenEdgeX,
-        screenHeight - paddingFromScreenEdgeBottom - instance.playerHPBar.height
+        screenHeight - paddingFromScreenEdgeBottom - self.playerHPBar.height
     )
 
-    instance.progressLevelBar:setWidth(xpBarConfig.w)
-    instance.progressLevelBar:setPosition(
+    self.progressLevelBar:setWidth(xpBarConfig.w)
+    self.progressLevelBar:setPosition(
         paddingFromScreenEdgeX,
-        instance.playerHPBar.y - spacingBetweenBars - instance.progressLevelBar.height
+        self.playerHPBar.y - spacingBetweenBars - self.progressLevelBar.height
     )
 
     -- Sincronização inicial dos valores rastreados para XP
-    instance.lastPlayerLevel = initialLevel
-    instance.lastPlayerXPInLevel = initialXP
-    instance.lastTotalPlayerXP = calculateTotalXPForState(initialLevel, initialXP, function(lvl)
-        return instance.playerManager:getExperienceRequiredForLevel(lvl)
-    end)
-    instance.progressLevelBar:setLevel(initialLevel, initialXP) -- Garante que a barra reflita o estado
+    self.lastPlayerLevel = initialLevel
+    self.lastPlayerXPInLevel = initialXP
+    local xpFunc = function(lvl) return playerManager:getExperienceRequiredForLevel(lvl) end
+    self.lastTotalPlayerXP = calculateTotalXPForState(initialLevel, initialXP, xpFunc)
+    -- Garante que a barra reflita o estado
+    self.progressLevelBar:setLevel(initialLevel, initialXP)
 
     -- Sincronização inicial dos valores rastreados para HP
-    instance.lastPlayerHP = initialHP
-    instance.lastPlayerMaxHP = initialMaxHP
-    instance.lastPlayerName = initialName
-    instance.lastPlayerRank = initialRank
-    instance.playerHPBar:updateBaseInfo(initialName, initialRank, initialMaxHP)
-    instance.playerHPBar:setCurrentHP(initialHP)
-
-    return instance
+    self.lastPlayerHP = initialHP
+    self.lastPlayerMaxHP = initialMaxHP
+    self.lastPlayerName = initialName
+    self.lastPlayerRank = initialRank
+    self.playerHPBar:updateBaseInfo(initialName, initialRank, initialMaxHP)
+    self.playerHPBar:setCurrentHP(initialHP)
 end
 
 --- Atualiza todos os elementos da UI gerenciados.
 ---@param dt number Delta time.
 function HUDGameplayManager:update(dt)
-    if not self.playerManager or not self.playerManager.state or not self.hunterManager then
+    local playerManager = ManagerRegistry:get("playerManager")
+    local hunterManager = ManagerRegistry:get("hunterManager")
+
+    if not playerManager or not playerManager.state or not hunterManager then
         if self.progressLevelBar then self.progressLevelBar:update(dt) end
         if self.playerHPBar then self.playerHPBar:update(dt) end
         return
@@ -176,11 +173,11 @@ function HUDGameplayManager:update(dt)
     local spacingBetweenBars = 8                 -- Usado no construtor, manter consistência
 
     -- Atualização da Barra de XP
-    if self.playerManager.getExperienceRequiredForLevel then
-        local currentLevel = self.playerManager.state.level or 1
-        local currentXPInLevel = self.playerManager.state.experience or 0
+    if playerManager.getExperienceRequiredForLevel then
+        local currentLevel = playerManager.state.level or 1
+        local currentXPInLevel = playerManager.state.experience or 0
         local currentTotalXP = calculateTotalXPForState(currentLevel, currentXPInLevel, function(lvl)
-            return self.playerManager:getExperienceRequiredForLevel(lvl)
+            return playerManager:getExperienceRequiredForLevel(lvl)
         end)
         local xpGainedSinceLastFrame = currentTotalXP - self.lastTotalPlayerXP
 
@@ -197,9 +194,9 @@ function HUDGameplayManager:update(dt)
     self.progressLevelBar:update(dt)
 
     -- Atualização da Barra de HP
-    local pState = self.playerManager.state
-    local currentHunterInfo = self.hunterManager:getHunterData(self.playerManager.currentHunterId)
-    local finalStats = self.playerManager:getCurrentFinalStats()
+    local pState = playerManager.state
+    local currentHunterInfo = hunterManager:getHunterData(playerManager.currentHunterId)
+    local finalStats = playerManager:getCurrentFinalStats()
 
     local newName = currentHunterInfo.name or self.lastPlayerName
     local newRank = currentHunterInfo.finalRankId or self.lastPlayerRank
@@ -256,26 +253,34 @@ function HUDGameplayManager:update(dt)
 end
 
 --- Desenha todos os elementos da UI gerenciados.
-function HUDGameplayManager:draw()
+---@param isPaused boolean Se o jogo está pausado.
+function HUDGameplayManager:draw(isPaused)
+    local playerManager = ManagerRegistry:get("playerManager")
+    local playerScreenX, playerScreenY = Camera:worldToScreen(playerManager.player.position.x,
+        playerManager.player.position.y)
     self.progressLevelBar:draw()
     self.playerHPBar:draw()
+    self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
 end
 
 --- Reseta o estado do manager (se necessário).
 function HUDGameplayManager:reset()
-    if self.playerManager and self.playerManager.state and self.hunterManager then
-        local pState = self.playerManager.state
-        local hunterCurrentInfo = self.hunterManager:getHunterData(self.playerManager.currentHunterId)
+    local playerManager = ManagerRegistry:get("playerManager")
+    local hunterManager = ManagerRegistry:get("hunterManager")
+
+    if playerManager and playerManager.state and hunterManager then
+        local pState = playerManager.state
+        local hunterCurrentInfo = hunterManager:getHunterData(playerManager.currentHunterId)
 
         local playerLevel = pState.level or 1
         local playerXPInLevel = pState.experience or 0
 
-        if self.progressLevelBar and self.playerManager.getExperienceRequiredForLevel then
+        if self.progressLevelBar and playerManager.getExperienceRequiredForLevel then
             self.progressLevelBar:setLevel(playerLevel, playerXPInLevel)
             self.lastPlayerLevel = playerLevel
             self.lastPlayerXPInLevel = playerXPInLevel
             self.lastTotalPlayerXP = calculateTotalXPForState(playerLevel, playerXPInLevel, function(lvl)
-                return self.playerManager:getExperienceRequiredForLevel(lvl)
+                return playerManager:getExperienceRequiredForLevel(lvl)
             end)
         else
             if self.progressLevelBar then self.progressLevelBar:setLevel(1, 0) end

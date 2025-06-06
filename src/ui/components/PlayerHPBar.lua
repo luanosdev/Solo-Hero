@@ -26,6 +26,8 @@
 ---@field hpChangeAnimationQueue table Fila de DADOS para animações de texto +/- HP.
 ---@field activeTextAnimations table Lista de animações de texto +/- HP ATIVAS e visíveis.
 ---@field isHPBarAnimatingDown boolean Flag que indica se a visualHP está animando para baixo.
+---@field hpBarAnimationDownDelay number Delay para iniciar a animação de descida da barra de HP.
+---@field hpBarAnimationDownTimer number Timer para o delay de descida da barra de HP.
 ---@field hpBarAnimationSpeed number Velocidade com que a visualHP diminui (HP por segundo).
 ---@field segmentHPInterval number Intervalo de HP para desenhar um segmento vertical.
 ---@field internalLayout table Armazena posições e dimensões calculadas.
@@ -71,6 +73,7 @@ end
 ---@param config.colors table (opcional) Tabela de cores.
 ---@param config.padding table|number (opcional) Configuração do padding.
 ---@param config.hpBarAnimationSpeed number (opcional) Velocidade da animação de perda de HP.
+---@param config.hpBarAnimationDownDelay number (opcional) Delay para iniciar a animação de perda de HP.
 ---@param config.segmentHPInterval number (opcional) Intervalo para os segmentos da barra.
 ---@return PlayerHPBar
 function PlayerHPBar:new(config)
@@ -118,6 +121,8 @@ function PlayerHPBar:new(config)
     instance.stayDurationSpeedUpPercentage = 0.5
 
     instance.isHPBarAnimatingDown = false
+    instance.hpBarAnimationDownDelay = config.hpBarAnimationDownDelay or 1 -- 1 segundo
+    instance.hpBarAnimationDownTimer = 0
     instance.hpBarAnimationSpeed = config.hpBarAnimationSpeed or
         (instance.maxHP * 0.25) -- Velocidade para visualHP seguir currentHP (reduzida)
     instance.segmentHPInterval = config.segmentHPInterval or 0
@@ -205,14 +210,17 @@ function PlayerHPBar:updateBaseInfo(hunterName, hunterRank, newMaxHP)
             -- Isso pode acontecer se maxHP diminuiu e cortou currentHP mais do que visualHP,
             -- ou se currentHP já era baixo e visualHP foi apenas limitado pelo novo maxHP.
             self.isHPBarAnimatingDown = true
+            self.hpBarAnimationDownTimer = 0
         elseif newMaxHP > oldMaxHP then
             -- Se MaxHP aumentou, e currentHP (que será setado por setCurrentHP em breve) aumentar,
             -- o visualHP deve acompanhar. Por enquanto, se não há rastro, alinha visual com current.
             -- Isso evita que visualHP fique para trás momentaneamente.
             self.visualHP = math.max(self.visualHP, self.currentHP) -- Garante que visual não fique para trás do real.
             self.isHPBarAnimatingDown = false
+            self.hpBarAnimationDownTimer = 0
         else
             self.isHPBarAnimatingDown = false
+            self.hpBarAnimationDownTimer = 0
         end
     end
     self:_updateLayout()
@@ -233,12 +241,14 @@ function PlayerHPBar:setCurrentHP(newHPValue)
         -- Dano: currentHP desceu abaixo do visualHP (que estava no valor antigo de currentHP)
         -- Ou MaxHP diminuiu, currentHP foi ajustado, e visualHP ainda está alto.
         self.isHPBarAnimatingDown = true
+        self.hpBarAnimationDownTimer = 0
         -- Não alteramos visualHP aqui, ele vai animar em update()
     else -- self.currentHP >= self.visualHP
-        -- Cura: currentHP subiu, ou ficou igual mas visualHP estava mais baixo (improvável com a lógica atual).
+        -- Cura: currentHP subiu, ou ficou igual mas visualHP estava mais baixo (improável com a lógica atual).
         -- Ou MaxHP aumentou e currentHP subiu (via PlayerManager), visualHP deve acompanhar.
         self.visualHP = self.currentHP -- VisualHP acompanha o novo currentHP instantaneamente
         self.isHPBarAnimatingDown = false
+        self.hpBarAnimationDownTimer = 0
     end
 
     if amountChanged ~= 0 then
@@ -316,19 +326,27 @@ function PlayerHPBar:update(dt)
     end
 
     if self.isHPBarAnimatingDown then
-        if self.visualHP > self.currentHP then
-            local diff = self.visualHP - self.currentHP
-            local decrease = self.hpBarAnimationSpeed * dt
-            self.visualHP = self.visualHP - math.min(decrease, diff)
-            if self.visualHP <= self.currentHP then
-                self.visualHP = self.currentHP
-                self.isHPBarAnimatingDown = false
-            end
-            self:_updateLayout()
-        else
+        if self.visualHP <= self.currentHP then
+            -- Condição para parar a animação é atendida (por exemplo, o jogador se curou enquanto o rastro de dano estava visível)
             self.visualHP = self.currentHP
             self.isHPBarAnimatingDown = false
+            self.hpBarAnimationDownTimer = 0
             self:_updateLayout()
+        else
+            -- Estamos em um estado em que o rastro de dano deve ser mostrado/animado
+            self.hpBarAnimationDownTimer = self.hpBarAnimationDownTimer + dt
+            if self.hpBarAnimationDownTimer >= self.hpBarAnimationDownDelay then
+                -- O atraso terminou, comece a animar
+                local diff = self.visualHP - self.currentHP
+                local decrease = self.hpBarAnimationSpeed * dt
+                self.visualHP = self.visualHP - math.min(decrease, diff)
+                if self.visualHP <= self.currentHP then
+                    self.visualHP = self.currentHP
+                    self.isHPBarAnimatingDown = false
+                    self.hpBarAnimationDownTimer = 0
+                end
+                self:_updateLayout()
+            end
         end
     end
 end
@@ -356,8 +374,8 @@ function PlayerHPBar:draw()
     for i, anim in ipairs(self.activeTextAnimations) do
         if anim.alpha > 0 then -- Desenha apenas se estiver visível
             love.graphics.setFont(self.fontHPChange)
-            r, g, b, baseAlpha = unpack(anim.color);
-            love.graphics.setColor(r / 255, g / 255, b / 255, (baseAlpha / 255) * (anim.alpha / 255))
+            r, g, b, a = unpack(anim.color);
+            love.graphics.setColor(r / 255, g / 255, b / 255, (a / 255) * (anim.alpha / 255))
             local textWidth = self.fontHPChange:getWidth(anim.text)
             local textX = self.x + self.padding.left + (self.internalLayout.hpBarW / 2) - (textWidth / 2)
             love.graphics.print(anim.text, math.floor(textX), math.floor(anim.currentY))
@@ -389,15 +407,20 @@ function PlayerHPBar:draw()
     end
 
     if self.segmentHPInterval and self.segmentHPInterval > 0 and self.maxHP > 0 then
-        r, g, b, a = unpack(self.colors.segmentLine); love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        r, g, b, a = unpack(self.colors.segmentLine)
+        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
         local numSegments = math.floor(self.maxHP / self.segmentHPInterval)
         for i = 1, numSegments do
             local hpVal = i * self.segmentHPInterval
             if hpVal < self.maxHP then
                 local segmentX = layout.hpBarX + (hpVal / self.maxHP) * layout.hpBarW
                 love.graphics.setLineWidth(1)
-                love.graphics.line(math.floor(segmentX), emptyBarY, math.floor(segmentX),
-                    emptyBarY + (layout.hpBarActualFillHeight / 2))
+                love.graphics.line(
+                    math.floor(segmentX),
+                    emptyBarY - (layout.hpBarActualFillHeight / 2),
+                    math.floor(segmentX),
+                    emptyBarY + (layout.hpBarActualFillHeight / 2)
+                )
             end
         end
     end
@@ -435,6 +458,40 @@ end
 function PlayerHPBar:setPosition(x, y)
     self.x = x; self.y = y
     self:_updateLayout()
+end
+
+--- Desenha uma versão simplificada da barra de HP sobre uma entidade (ex: jogador).
+--- Só desenha se o HP não estiver no máximo.
+---@param entityX number Posição X central da entidade.
+---@param entityY number Posição Y (topo) da entidade.
+---@param isPaused boolean Se o jogo está pausado.
+function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
+    if self.currentHP >= self.maxHP or isPaused then
+        return
+    end
+
+    local barWidth = 60
+    local barHeight = 5
+    local barX = entityX - (barWidth / 2)
+    local barY = entityY - barHeight - 40 -- 10 pixels above the entity's top
+
+    -- Percentages
+    local currentHPPercentage = self.currentHP / self.maxHP
+    local currentHPFillWidth = barWidth * currentHPPercentage
+
+    -- Draw base/background
+    love.graphics.setColor(0, 0, 0, 0.4)
+    love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
+
+    -- Draw current HP fill
+    if currentHPFillWidth > 0 then
+        r, g, b, a = unpack(self.colors.hpBarFill)
+        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        love.graphics.rectangle("fill", barX, barY, currentHPFillWidth, barHeight)
+    end
+
+    -- Reset color
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 return PlayerHPBar

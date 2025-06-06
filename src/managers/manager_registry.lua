@@ -54,9 +54,10 @@ function ManagerRegistry:init(initConfigs)
         "playerManager",    -- Player depende do inventário (agora)
         "experienceOrbManager",
         "floatingTextManager",
-        "runeManager",  -- Runas podem depender do Player
-        "enemyManager", -- Inimigos (e seus drops) podem depender do Player/Rank do Mapa
-        "dropManager"   -- Drops dependem do EnemyManager e PlayerManager
+        "runeManager",       -- Runas podem depender do Player
+        "enemyManager",      -- Inimigos (e seus drops) podem depender do Player/Rank do Mapa
+        "dropManager",       -- Drops dependem do EnemyManager e PlayerManager
+        "hudGameplayManager" -- HUD depende do PlayerManager
         -- Adicione outros managers aqui na ordem correta
     }
 
@@ -86,7 +87,8 @@ ManagerRegistry.updateOrder = {
     "dropManager",
     "floatingTextManager", -- << Deve vir DEPOIS de playerManager e enemyManager
     "runeManager",
-    "inventoryManager"
+    "inventoryManager",
+    "hudGameplayManager" -- HUD deve ser atualizado também
     -- Adicione outros managers que precisam de update em ordem específica aqui
 }
 

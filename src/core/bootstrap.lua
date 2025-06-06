@@ -16,6 +16,7 @@ local ExperienceOrbManager = require("src.managers.experience_orb_manager")
 local FloatingTextManager = require("src.managers.floating_text_manager")
 local RuneManager = require("src.managers.rune_manager")
 local InventoryManager = require("src.managers.inventory_manager")
+local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
 
 local Bootstrap = {}
 
@@ -89,6 +90,10 @@ function Bootstrap.initialize()
     ManagerRegistry:register("dropManager", DropManager, true)
     print("    > DropManager registrado e inicializado.")
 
+    -- HUDGameplayManager (Depois do PlayerManager)
+    print("  - Inicializando/Registrando HUDGameplayManager...")
+    ManagerRegistry:register("hudGameplayManager", HUDGameplayManager, true)
+    print("    > HUDGameplayManager registrado e inicializado.")
 
     -- 3. Inicialização específica (setupGameplay) é feita na cena
 
