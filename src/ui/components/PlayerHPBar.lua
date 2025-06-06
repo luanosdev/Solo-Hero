@@ -263,7 +263,6 @@ function PlayerHPBar:showHPChangeAnimation(amount)
     local newAnimData = {
         text = (amount > 0 and "+" or "-") .. math.floor(math.abs(amount)),
         color = amount > 0 and self.colors.hpChangeGain or self.colors.hpChangeLoss,
-        initialY = self.hpChangeAnimationInitialY,
         deltaY = -25 -- Deslocamento para cima
     }
     table.insert(self.hpChangeAnimationQueue, newAnimData)
@@ -280,7 +279,7 @@ function PlayerHPBar:update(dt)
             local actualStayDuration = self.baseStayDuration *
                 (1 - (queueSizeFactor * self.stayDurationSpeedUpPercentage))
 
-            anim.currentY = anim.initialY
+            anim.offsetY = 0
             anim.alpha = 255
             if anim.timer >= actualStayDuration then
                 anim.phase = "move"
@@ -290,19 +289,18 @@ function PlayerHPBar:update(dt)
                     local newActiveAnim = {
                         text = nextAnimData.text,
                         color = nextAnimData.color,
-                        initialY = nextAnimData.initialY,
-                        currentY = nextAnimData.initialY,
                         deltaY = nextAnimData.deltaY,
                         timer = 0,
                         alpha = 255,
-                        phase = "stay"
+                        phase = "stay",
+                        offsetY = 0
                     }
                     table.insert(self.activeTextAnimations, newActiveAnim)
                 end
             end
         elseif anim.phase == "move" then
             local moveProgress = math.min(1, anim.timer / self.baseMoveDuration)
-            anim.currentY = anim.initialY + (anim.deltaY * moveProgress)
+            anim.offsetY = anim.deltaY * moveProgress
             anim.alpha = 255 * (1 - moveProgress)
             if moveProgress >= 1 then
                 table.remove(self.activeTextAnimations, i) -- Remove a animação concluída
@@ -315,12 +313,11 @@ function PlayerHPBar:update(dt)
         local newActiveAnim = {
             text = nextAnimData.text,
             color = nextAnimData.color,
-            initialY = nextAnimData.initialY,
-            currentY = nextAnimData.initialY,
             deltaY = nextAnimData.deltaY,
             timer = 0,
             alpha = 255,
-            phase = "stay"
+            phase = "stay",
+            offsetY = 0
         }
         table.insert(self.activeTextAnimations, newActiveAnim)
     end
@@ -378,7 +375,8 @@ function PlayerHPBar:draw()
             love.graphics.setColor(r / 255, g / 255, b / 255, (a / 255) * (anim.alpha / 255))
             local textWidth = self.fontHPChange:getWidth(anim.text)
             local textX = self.x + self.padding.left + (self.internalLayout.hpBarW / 2) - (textWidth / 2)
-            love.graphics.print(anim.text, math.floor(textX), math.floor(anim.currentY))
+            local textY = self.hpChangeAnimationInitialY + anim.offsetY
+            love.graphics.print(anim.text, math.floor(textX), math.floor(textY))
         end
     end
 
@@ -474,7 +472,7 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
     local barWidth = 60
     local barHeight = 5
     local barX = entityX - (barWidth / 2)
-    local barY = entityY - barHeight - 40 -- 10 pixels above the entity's top
+    local barY = entityY - barHeight - 40 -- 40 pixels above the entity's top
 
     -- Percentages
     local currentHPPercentage = self.currentHP / self.maxHP
@@ -491,19 +489,16 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
         love.graphics.rectangle("fill", barX, barY, currentHPFillWidth, barHeight)
     end
 
-    love.graphics.setFont(self.fontHPValues)
-    local r, g, b, a = unpack(self.colors.hpValues)
-    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
-    love.graphics.print(layout.hpInfoText, layout.hpInfoX, layout.hpInfoY)
-
+    local onPlayerAnimBaseY = barY - 5 -- Inicia o texto da animação 5px acima da barra
     for i, anim in ipairs(self.activeTextAnimations) do
-        if anim.alpha > 0 then -- Desenha apenas se estiver visível
+        if anim.alpha > 0 then         -- Desenha apenas se estiver visível
             love.graphics.setFont(self.fontHPChange)
             local r, g, b, a = unpack(anim.color);
             love.graphics.setColor(r / 255, g / 255, b / 255, (a / 255) * (anim.alpha / 255))
             local textWidth = self.fontHPChange:getWidth(anim.text)
-            local textX = self.x + self.padding.left + (self.internalLayout.hpBarW / 2) - (textWidth / 2)
-            love.graphics.print(anim.text, math.floor(textX), math.floor(anim.currentY))
+            local textX = barX + (barWidth / 2) - (textWidth / 2)
+            local textY = onPlayerAnimBaseY + anim.offsetY
+            love.graphics.print(anim.text, math.floor(textX), math.floor(textY))
         end
     end
 
