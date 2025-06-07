@@ -467,7 +467,6 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
     if self.currentHP >= self.maxHP or isPaused then
         return
     end
-    local layout = self.internalLayout
 
     local barWidth = 60
     local barHeight = 5
@@ -489,9 +488,9 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
         love.graphics.rectangle("fill", barX, barY, currentHPFillWidth, barHeight)
     end
 
-    local onPlayerAnimBaseY = barY - 5 -- Inicia o texto da animação 5px acima da barra
+    local onPlayerAnimBaseY = barY - 25 -- Inicia o texto da animação 5px acima da barra
     for i, anim in ipairs(self.activeTextAnimations) do
-        if anim.alpha > 0 then         -- Desenha apenas se estiver visível
+        if anim.alpha > 0 then          -- Desenha apenas se estiver visível
             love.graphics.setFont(self.fontHPChange)
             local r, g, b, a = unpack(anim.color);
             love.graphics.setColor(r / 255, g / 255, b / 255, (a / 255) * (anim.alpha / 255))

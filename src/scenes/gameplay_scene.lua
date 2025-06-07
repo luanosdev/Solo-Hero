@@ -449,9 +449,9 @@ function GameplayScene:draw()
     Camera:detach()
 
     -- Desenha elementos de UI e outros que ficam sobre a câmera (ex: barras de vida de BaseEnemy)
-    if playerMgr and playerMgr.drawFloatingTexts then
-        playerMgr:drawFloatingTexts()
-    end
+    -- if playerMgr and playerMgr.drawFloatingTexts then
+    --    playerMgr:drawFloatingTexts()
+    --end
     -- Se BaseEnemy:draw desenha barras de vida diretamente, ele precisa ser chamado aqui para cada inimigo visível
     -- ou suas barras de vida precisam ser adicionadas à renderList com um depth maior.
     -- Exemplo simples (ineficiente, apenas para ilustração):

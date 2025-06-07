@@ -396,7 +396,7 @@ function PlayerManager:update(dt)
     end
 
     -- ATUALIZA TEXTOS FLUTUANTES
-    self:updateFloatingTexts(dt)
+    -- self:updateFloatingTexts(dt)
 end
 
 -- Desenha o player e elementos relacionados
@@ -954,10 +954,10 @@ function PlayerManager:getCurrentHunterId()
     return self.currentHunterId
 end
 
---- ADICIONADO: Define/Limpa a arma ativa e inicializa seu estado
+--- Define/Limpa a arma ativa e inicializa seu estado
 --- Define a arma ativa no PlayerManager e chama seu método :equip.
 --- Passar nil para limpar a arma ativa.
---- @param weaponInstance table|nil A instância completa do item da arma (dados), ou nil.
+---@param weaponInstance table|nil A instância completa do item da arma (dados), ou nil.
 function PlayerManager:setActiveWeapon(weaponInstance)
     -- Limpa a arma anterior (se houver)
     self.equippedWeapon = nil
@@ -965,9 +965,14 @@ function PlayerManager:setActiveWeapon(weaponInstance)
     -- Se estamos equipando uma nova arma (não nil)
     if weaponInstance and weaponInstance.itemBaseId then
         local itemBaseId = weaponInstance.itemBaseId
-        local weaponClassPath = string.format("src.items.weapons.%s", itemBaseId)
 
-        -- Tenta carregar a classe da arma
+        if not weaponInstance.weaponClass then
+            error(string.format(
+                "[PlayerManager:setActiveWeapon] - Não foi possível carregar a classe da arma: %s. Detalhe: %s",
+                weaponInstance.itemBaseId, tostring(weaponInstance.weaponClass)))
+        end
+
+        local weaponClassPath = string.format("src.items.weapons.%s", weaponInstance.weaponClass)
         local success, WeaponClass = pcall(require, weaponClassPath)
 
         if success and WeaponClass then
@@ -980,23 +985,27 @@ function PlayerManager:setActiveWeapon(weaponInstance)
 
                 -- Chama o método :equip da INSTÂNCIA DA CLASSE, passando os DADOS do item
                 if self.equippedWeapon.equip then
-                    print(string.format(
+                    Logger.debug("[PlayerManager:setActiveWeapon]", string.format(
                         "    -> Calling :equip on weapon CLASS instance (AttackInstance Type BEFORE: %s)",
                         type(self.equippedWeapon.attackInstance)))
                     self.equippedWeapon:equip(self, weaponInstance)
                 else
-                    error(string.format("    - ERRO CRÍTICO: O método :equip não foi encontrado na classe da arma '%s'!",
+                    error(string.format(
+                        "[PlayerManager:setActiveWeapon] - O método :equip não foi encontrado na classe da arma '%s'!",
                         weaponClassPath))
                 end
             else
-                error(string.format("    - ERRO: Falha ao criar a instância da CLASSE da arma '%s' usando :new().",
+                error(string.format(
+                    "[PlayerManager:setActiveWeapon] - Falha ao criar a instância da CLASSE da arma '%s' usando :new().",
                     weaponClassPath))
             end
         else
-            error(string.format("    - ERRO CRÍTICO: Não foi possível carregar a classe da arma: %s. Detalhe: %s",
+            error(string.format(
+                "[PlayerManager:setActiveWeapon] - Não foi possível carregar a classe da arma: %s. Detalhe: %s",
                 weaponClassPath, tostring(WeaponClass)))
         end
     end
+
     self:invalidateStatsCache()
 end
 

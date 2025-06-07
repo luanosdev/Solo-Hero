@@ -43,7 +43,8 @@ function WoodenSword:equip(playerManager, itemData)
     end
     print(string.format("  - attackClass found: %s. Attempting to load...", baseData.attackClass))
 
-    local success, AttackClass = pcall(require, baseData.attackClass)
+    local attackClassPath = string.format("src.abilities.player.attacks.%s", baseData.attackClass)
+    local success, AttackClass = pcall(require, attackClassPath)
     if not success or not AttackClass then
         error(string.format("WoodenSword:equip - Falha ao carregar AttackClass '%s'. Erro: %s", baseData.attackClass,
             tostring(AttackClass)))

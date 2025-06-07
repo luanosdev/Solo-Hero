@@ -5,7 +5,7 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field itemBaseId string ID base do item (ex: "dual_daggers")
 ---@field equipped boolean Indica se a arma está equipada
 ---@field owner PlayerManager|nil Referência ao PlayerManager que equipou a arma
----@field attackInstance BaseAttack|nil Instância da lógica de ataque associada
+---@field attackInstance table|nil Instância da lógica de ataque associada
 ---@field itemData table|nil Dados específicos da instância do item (pode incluir encantamentos, etc.)
 local BaseWeapon = {}
 BaseWeapon.__index = BaseWeapon -- Herança básica
@@ -16,7 +16,7 @@ BaseWeapon.__index = BaseWeapon -- Herança básica
 ---@return BaseWeapon|nil A nova instância da arma, ou nil em caso de erro.
 function BaseWeapon:new(config)
     local o = setmetatable({}, self)
-    print(string.format("[BaseWeapon:new] Creating new weapon instance. Config itemBaseId: %s",
+    Logger.debug("[BaseWeapon:new]", string.format(" Creating new weapon instance. Config itemBaseId: %s",
         config and config.itemBaseId or "N/A"))
 
     -- Garante que o tipo seja weapon
@@ -32,7 +32,7 @@ function BaseWeapon:new(config)
         return nil
     end
     o.itemBaseId = config.itemBaseId
-    print(string.format("  - itemBaseId set to: %s", o.itemBaseId))
+    Logger.debug("[BaseWeapon:new]", string.format("  - itemBaseId set to: %s", o.itemBaseId))
 
     -- Busca dados base do ItemDataManager
     local itemDataManager = ManagerRegistry:get("itemDataManager")
@@ -45,7 +45,7 @@ function BaseWeapon:new(config)
         error("BaseWeapon:new - Dados base não encontrados para itemBaseId: " .. o.itemBaseId)
         return nil
     end
-    print("  - Base item data fetched successfully.")
+    Logger.debug("[BaseWeapon:new]", "  - Base item data fetched successfully.")
 
     -- Atribui dados base ao objeto 'o' (propriedades como name, description, rarity, etc.)
     -- NÃO copiamos stats como damage, cooldown, range aqui, pois eles podem ser modificados
@@ -66,11 +66,11 @@ function BaseWeapon:new(config)
     for key, value in pairs(config) do
         if key ~= "itemBaseId" and o[key] == nil then -- Só atribui se não existir
             o[key] = value
-            print(string.format("  - Applied override: %s = %s", key, tostring(value)))
+            Logger.debug("[BaseWeapon:new]", string.format("  - Applied override: %s = %s", key, tostring(value)))
         end
     end
 
-    print(string.format("[BaseWeapon:new] Weapon instance '%s' created.", o.name or o.itemBaseId))
+    Logger.debug("[BaseWeapon:new]", string.format(" Weapon instance '%s' created.", o.name or o.itemBaseId))
     return o
 end
 
@@ -80,7 +80,7 @@ end
 ---@param playerManager PlayerManager Instância do PlayerManager.
 ---@param itemData table Dados da instância específica do item sendo equipado.
 function BaseWeapon:equip(playerManager, itemData)
-    print(string.format("[BaseWeapon:equip] Equipping '%s' (ID: %s) on PlayerManager.", self.name or "Unknown",
+    Logger.debug("[BaseWeapon:equip]", string.format(" Equipping '%s' (ID: %s) on PlayerManager.", self.name or "Unknown",
         self.itemBaseId))
     if not playerManager then
         error("BaseWeapon:equip - 'playerManager' é obrigatório.")
@@ -89,7 +89,7 @@ function BaseWeapon:equip(playerManager, itemData)
     self.equipped = true
     self.owner = playerManager
     self.itemData = itemData -- Armazena os dados da instância específica (pode ter bônus, etc.)
-    print("  - Owner (PlayerManager) and itemData stored.")
+    Logger.debug("[BaseWeapon:equip]", "  - Owner (PlayerManager) and itemData stored.")
     -- A criação da attackInstance e a aplicação de stats serão feitas no :equip da classe filha.
 end
 
@@ -98,16 +98,16 @@ end
 --- A lógica de remover os stats do PlayerManager deve ser tratada pela classe filha
 --- ou pelo próprio PlayerManager ao trocar de arma.
 function BaseWeapon:unequip()
-    print(string.format("[BaseWeapon:unequip] Unequipping '%s' (ID: %s).", self.name or "Unknown", self.itemBaseId))
+    Logger.debug("[BaseWeapon:unequip]", string.format(" Unequipping '%s' (ID: %s).", self.name or "Unknown", self.itemBaseId))
     self.equipped = false
     self.owner = nil
     self.attackInstance = nil -- Limpa a instância de ataque
     self.itemData = nil
-    print("  - Owner, attackInstance, and itemData cleared.")
+    Logger.debug("[BaseWeapon:unequip]", "  - Owner, attackInstance, and itemData cleared.")
 end
 
 --- Retorna a instância da lógica de ataque associada a esta arma.
----@return BaseAttack|nil A instância de ataque, ou nil se não houver.
+---@return table|nil A instância de ataque, ou nil se não houver.
 function BaseWeapon:getAttackInstance()
     return self.attackInstance
 end
@@ -118,7 +118,7 @@ end
 function BaseWeapon:getBaseData()
     local itemDataManager = ManagerRegistry:get("itemDataManager")
     if not itemDataManager then
-        print("BaseWeapon:getBaseData - WARN: ItemDataManager não encontrado.")
+        Logger.debug("[BaseWeapon:getBaseData]", "  - WARN: ItemDataManager não encontrado.")
         return nil
     end
     return itemDataManager:getBaseItemData(self.itemBaseId)

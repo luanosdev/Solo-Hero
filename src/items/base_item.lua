@@ -1,18 +1,16 @@
+---@class BaseItem
+---@field name string Nome do item
+---@field type string Tipo do item
+---@field rarity string Raridade do item
+---@field rank string Rank do item
+---@field description string Descrição do item
+---@field icon string/userdata Identificador ou objeto para o ícone do item
 local BaseItem = {}
 BaseItem.__index = BaseItem
 
---[[-
-    Construtor da Classe Base de Itens.
-    Aceita uma tabela 'config' com as propriedades iniciais do item.
-
-    Propriedades Essenciais Esperadas (com padrões):
-    - name (string): Nome do item. Padrão: "Unnamed Item"
-    - type (string): Tipo do item (ex: "weapon", "jewel", "rune", "consumable"). Padrão: "item"
-    - description (string): Descrição do item. Padrão: ""
-    - icon (string/userdata): Identificador ou objeto para o ícone do item. Padrão: nil
-
-    Outras propriedades comuns podem ser definidas aqui ou nas classes filhas.
-]]
+--- Cria uma nova instância de um item.
+---@param config table Tabela de configuração.
+---@return BaseItem
 function BaseItem:new(config)
     -- Garante que config seja uma tabela
     config = type(config) == 'table' and config or {}
@@ -55,4 +53,4 @@ function BaseItem:getIcon()
     return self.icon
 end
 
-return BaseItem 
+return BaseItem
