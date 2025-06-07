@@ -1,1 +1,1 @@
-clean & "C:\Program Files\LOVE\lovec.exe" .
+clean & "C:\Program Files\LOVE\love.exe" .
