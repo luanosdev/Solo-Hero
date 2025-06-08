@@ -34,6 +34,7 @@ ChainLightning.visual = {
 ---@param playerManager PlayerManager
 ---@param weaponInstance BaseWeapon Instância da arma (ChainLaser) que está usando esta habilidade.
 function ChainLightning:new(playerManager, weaponInstance)
+    ---@class ChainLightning
     local o = setmetatable({}, ChainLightning)
 
     o.playerManager = playerManager
@@ -104,7 +105,7 @@ end
 ---@param centerY number Posição Y do centro da busca.
 ---@param radius number Raio máximo da busca.
 ---@param excludedIDs table Tabela com IDs de inimigos a serem ignorados { [id] = true }.
----@return table? Instância do inimigo encontrado ou nil.
+---@return BaseEnemy? Instância do inimigo encontrado ou nil.
 function ChainLightning:findClosestEnemy(centerX, centerY, radius, excludedIDs)
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager.spatialGrid
@@ -141,7 +142,7 @@ end
 ---@param endY number Posição Y final do segmento.
 ---@param thickness number Espessura do segmento (para calcular raio de colisão).
 ---@param enemiesList table LISTA de inimigos a verificar (obtida do spatialGrid).
----@return table? Instância do inimigo colidido ou nil.
+---@return BaseEnemy? Instância do inimigo colidido ou nil.
 function ChainLightning:findCollisionOnSegment(startX, startY, endX, endY, thickness, enemiesList)
     local closestHitEnemy = nil
     local minHitDistSq = math.huge
@@ -239,7 +240,7 @@ function ChainLightning:cast(args)
 
     -- Obtém os valores dos atributos, com padrão 1 se nulos (para não quebrar o cálculo de bônus)
     local currentRange = finalStats.range or 1
-    local currentMultiAttack = finalStats.multiAttack or 1
+    local currentMultiAttack = finalStats.multiAttackChance or 1
     local currentStrength = finalStats.strength or 1 -- Mantendo a sua alteração de force para strength
 
     local rawPotentialJumps
@@ -284,7 +285,7 @@ function ChainLightning:cast(args)
         error(string.format(
             "[ChainLightning:cast] ERRO CRÍTICO: totalAllowedJumps resultou em nil. rawPotentialJumps: %s, baseChainCount: %s, FS.range: %s, FS.multiAttack: %s, FS.strength: %s",
             tostring(rawPotentialJumps), tostring(self.baseChainCount), tostring(finalStats.range),
-            tostring(finalStats.multiAttack), tostring(finalStats.strength)))
+            tostring(finalStats.multiAttackChance), tostring(finalStats.strength)))
         totalAllowedJumps = 0
     end
 
@@ -295,7 +296,7 @@ function ChainLightning:cast(args)
         rawPotentialJumps, guaranteedJumps, additionalJumpChance, totalAllowedJumps))
 
     -- Busca entidades próximas ao jogador para o primeiro segmento
-    local enemyManager = ManagerRegistry:get("enemyManager")
+    local enemyManager = ManagerRegistry:get("enemyManager") ---@type EnemyManager
     local spatialGrid = enemyManager.spatialGrid
     if not spatialGrid then
         error("ChainLightning:cast - spatialGrid não encontrado no enemyManager via ManagerRegistry.")
@@ -305,7 +306,9 @@ function ChainLightning:cast(args)
         self.currentRange, nil)
 
     -- Tabelas que serão gerenciadas pelo TablePool
+    ---@type table<string, BaseEnemy>n
     local targetsHit = TablePool.get()
+    ---@type table<string, boolean>
     local excludedIDs = TablePool.get()
 
     -- hitPositions não virá do pool pois pode ser armazenada em self.activeChains
@@ -314,25 +317,12 @@ function ChainLightning:cast(args)
     local startPos = self.currentPosition
     if not startPos then
         error("[ChainLightning:cast] ERRO: startPos (currentPosition) é nil.")
-        TablePool.release(targetsHit)
-        TablePool.release(excludedIDs)
-        if potentialFirstTargets then
-            TablePool.release(potentialFirstTargets)
-        end
-
-        return false
     end
 
     -- Verifica se self.currentRange (calculado no update) é válido
     if not self.currentRange or self.currentRange <= 0 then
         error(string.format("[ChainLightning:cast] ERRO: self.currentRange inválido (%s) para o primeiro segmento.",
             tostring(self.currentRange)))
-        TablePool.release(targetsHit)
-        TablePool.release(excludedIDs)
-        if potentialFirstTargets then
-            TablePool.release(potentialFirstTargets)
-        end
-        return false
     end
 
     -- Calcula o ponto final do primeiro segmento
@@ -344,7 +334,6 @@ function ChainLightning:cast(args)
     if not segmentThickness or segmentThickness <= 0 then
         error(string.format("[ChainLightning:cast] ERRO: segmentThickness inválido (%s) para o primeiro segmento.",
             tostring(segmentThickness)))
-        segmentThickness = self.baseThickness
     end
 
     local firstHitEnemy = self:findCollisionOnSegment(startPos.x, startPos.y, endX, endY, segmentThickness,
@@ -359,9 +348,9 @@ function ChainLightning:cast(args)
     local startChainingFrom = nil
 
     if firstHitEnemy then
-        Logger.debug(
-            "[ChainLightning:cast] First segment HIT enemy ID: " .. tostring(firstHitEnemy.id) .. " at (%.1f, %.1f)",
-            firstHitEnemy.position.x, firstHitEnemy.position.y)
+        Logger.debug("[ChainLightning:cast]",
+            string.format(" First segment HIT enemy ID: %s at (%.1f, %.1f)", tostring(firstHitEnemy.id),
+                firstHitEnemy.position.x, firstHitEnemy.position.y))
         table.insert(hitPositions, { x = firstHitEnemy.position.x, y = firstHitEnemy.position.y })
         targetsHit[firstHitEnemy.id] = firstHitEnemy
         excludedIDs[firstHitEnemy.id] = true
@@ -381,7 +370,8 @@ function ChainLightning:cast(args)
             -- pois cada inimigo só é atingido uma vez pela corrente.
         end
     else
-        Logger.debug("[ChainLightning:cast] First segment MISSED. Endpoint: (%.1f, %.1f)", endX, endY)
+        Logger.debug("[ChainLightning:cast]",
+            string.format(" First segment MISSED. Endpoint: (%.1f, %.1f)", endX, endY))
         table.insert(hitPositions, { x = endX, y = endY })
     end
 
@@ -452,7 +442,7 @@ function ChainLightning:cast(args)
                 Logger.debug("[ChainLightning:cast]", "AVISO: Acerto crítico, mas finalStats.critMultiplier é nil.")
             end
         end
-        self:applyDamage(enemy, isCritical, finalStats)
+        enemy:takeDamage(finalDamage, isCritical)
     end
 
     if #hitPositions > 1 then

@@ -41,6 +41,7 @@ local TablePool = require("src.utils.table_pool")
 ---@field _learnedLevelUpBonuses table<string, any>|nil Detalhes dos bônus de level up aprendidos.
 ---@field equippedItems table<string, any>|nil Itens equipados (formato: {slotId = itemInstance}).
 ---@field archetypeIds table[]|nil IDs dos arquétipos ativos.
+---@field strength number Força final.
 
 -- Função auxiliar para contar elementos em qualquer tabela (inclusive dicionários)
 local function getTableSize(tbl)
