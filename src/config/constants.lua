@@ -42,7 +42,7 @@ Constants.HUNTER_DEFAULT_STATS = {
     moveSpeed = 40,
     critChance = 0.10,         -- 10%
     critDamage = 1.5,          -- 150% Multiplier
-    multiAttackChance = 0.2,   -- 20%
+    multiAttackChance = 0.1,   -- 20%
     expBonus = 1.0,            -- 100%
     defense = 10,
     healthRegenCooldown = 1.0, -- Seconds
@@ -86,34 +86,34 @@ Constants.PLAYER_DAMAGE_COOLDOWN = 0.5
 Constants.INITIAL_XP_TO_LEVEL = 30
 
 Constants.KNOCKBACK_RESISTANCE = {
-    NONE        = 0,   -- Inimigos muito leves (ratos, zumbis fracos)
-    LOW         = 2,   -- Humanoides, zumbis normais
-    MEDIUM      = 5,   -- Guerreiros, elites
-    HIGH        = 9,   -- Golems, tanques
-    IMMUNE      = math.huge -- Bosses, inimigos com resistência total
+    NONE   = 0,        -- Inimigos muito leves (ratos, zumbis fracos)
+    LOW    = 1,        -- Humanoides, zumbis normais
+    MEDIUM = 5,        -- Guerreiros, elites
+    HIGH   = 9,        -- Golems, tanques
+    IMMUNE = math.huge -- Bosses, inimigos com resistência total
 }
 
 --- Valor que representa a "capacidade" do ataque de iniciar um knockback
 Constants.KNOCKBACK_POWER = {
-    NONE      = 0,    -- Não empurra (ex: magias contínuas, dano ao longo do tempo)
-    VERY_LOW  = 1,    -- Flechas, ataques leves
-    LOW       = 3,    -- Adagas, ataques rápidos
-    MEDIUM    = 6,    -- Espadas médias, lança-chamas
-    HIGH      = 10,   -- Armas pesadas, martelo, explosões
-    VERY_HIGH = 15,   -- Ultimates, armas divinas, ataques especiais
+    NONE      = 0,  -- Não empurra (ex: magias contínuas, dano ao longo do tempo)
+    VERY_LOW  = 1,  -- Flechas, ataques leves
+    LOW       = 3,  -- Adagas, ataques rápidos
+    MEDIUM    = 6,  -- Espadas médias, lança-chamas
+    HIGH      = 10, -- Armas pesadas, martelo, explosões
+    VERY_HIGH = 15, -- Ultimates, armas divinas, ataques especiais
 }
 
 Constants.KNOCKBACK_FORCE = {
-    NONE              = 0,   -- Magias de dano contínuo, projéteis fracos
-    CHAIN_LASER       = 0,   -- Lança-chamas com alto knockback
-    FLAMETHROWER      = 0,   -- Força moderada em função da pressão contínua
-    DUAL_DAGGERS      = 5,   -- Golpes rápidos, mas pouco impacto
-    BOW               = 3,   -- Flechas empurram levemente (útil com força alta)
-    SWORDS            = 10,  -- Golpes médios (espadas comuns)
-    HAMMER            = 25,  -- Armas pesadas com alto knockback
+    NONE         = 0,   -- Magias de dano contínuo, projéteis fracos
+    CHAIN_LASER  = 0,   -- Lança-chamas com alto knockback
+    FLAMETHROWER = 0,   -- Força moderada em função da pressão contínua
+    DUAL_DAGGERS = 10,  -- Golpes rápidos, mas pouco impacto
+    BOW          = 25,  -- Flechas empurram levemente (útil com força alta)
+    SWORDS       = 50,  -- Golpes médios (espadas comuns)
+    HAMMER       = 100, -- Armas pesadas com alto knockback
 }
 
 -- Duração padrão do knockback em segundos
-Constants.KNOCKBACK_DURATION = 0.3
+Constants.KNOCKBACK_DURATION = 0.5
 
 return Constants

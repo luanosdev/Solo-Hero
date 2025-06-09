@@ -1,8 +1,8 @@
 -- [[ Modo de Depuração Global ]] --
-DEV = false                                   -- Define o modo de desenvolvimento para este arquivo de configuração
+DEV = true                                   -- Define o modo de desenvolvimento para este arquivo de configuração
 PROFILER = false                             -- Define o modo de desenvolvimento para este arquivo de configuração
-LOGGERS = false                               -- Define o modo de desenvolvimento para este arquivo de configuração
-LOGS_ON_CONSOLE = false                       -- Define se os logs serão impressos no console
+LOGGERS = true                               -- Define o modo de desenvolvimento para este arquivo de configuração
+LOGS_ON_CONSOLE = true                       -- Define se os logs serão impressos no console
 DEBUG_SHOW_PARTICLE_COLLISION_RADIUS = false -- Define se o raio de colisão das partículas deve ser exibido
 HOT_RELOAD = false                           -- Define se o hot reload deve ser ativado
 

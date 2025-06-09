@@ -220,9 +220,16 @@ function PlayerManager:setupGameplay(registry, hunterId)
     -- 5. Equipa a Arma
     local weaponItem = equippedItems[Constants.SLOT_IDS.WEAPON]
 
+
     if weaponItem then
         -- Constrói o caminho para a CLASSE da arma (ex: src.items.weapons.dual_daggers)
-        local weaponClassPath = string.format("src.items.weapons.%s", weaponItem.itemBaseId)
+        local weaponBaseData = self.itemDataManager:getBaseItemData(weaponItem.itemBaseId)
+        if not weaponBaseData then
+            error(string.format("ERRO CRÍTICO: Não foi possível obter os dados base da arma '%s'.", weaponItem
+                .itemBaseId))
+        end
+
+        local weaponClassPath = string.format("src.items.weapons.%s", weaponBaseData.weaponClass)
 
         -- Tenta carregar a classe da arma
         local success, WeaponClass = pcall(require, weaponClassPath)
@@ -965,20 +972,27 @@ function PlayerManager:setActiveWeapon(weaponInstance)
 
     -- Se estamos equipando uma nova arma (não nil)
     if weaponInstance and weaponInstance.itemBaseId then
-        local itemBaseId = weaponInstance.itemBaseId
+        Logger.log("PlayerManager:setActiveWeapon", "Equipping weapon: " .. Logger.dumpTable(weaponInstance, 2))
 
-        if not weaponInstance.weaponClass then
+        local itemData = self.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
+        if not itemData then
             error(string.format(
-                "[PlayerManager:setActiveWeapon] - Não foi possível carregar a classe da arma: %s. Detalhe: %s",
+                "[PlayerManager:setActiveWeapon] - Não foi possível carregar os dados da arma: %s. Detalhe: %s",
                 weaponInstance.itemBaseId, tostring(weaponInstance.weaponClass)))
         end
 
-        local weaponClassPath = string.format("src.items.weapons.%s", weaponInstance.weaponClass)
+        if not itemData.weaponClass then
+            error(string.format(
+                "[PlayerManager:setActiveWeapon] - Não foi possível carregar a classe da arma: %s. Detalhe: %s",
+                weaponInstance.itemBaseId, tostring(itemData.weaponClass)))
+        end
+
+        local weaponClassPath = string.format("src.items.weapons.%s", itemData.weaponClass)
         local success, WeaponClass = pcall(require, weaponClassPath)
 
         if success and WeaponClass then
             -- Cria uma nova instância da CLASSE da arma
-            local classInstance = WeaponClass:new({ itemBaseId = itemBaseId })
+            local classInstance = WeaponClass:new({ itemBaseId = weaponInstance.itemBaseId })
 
             if classInstance then
                 -- Armazena a INSTÂNCIA DA CLASSE

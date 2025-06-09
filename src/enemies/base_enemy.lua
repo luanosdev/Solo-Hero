@@ -8,6 +8,7 @@ local FloatingText = require("src.entities.floating_text")
 local Colors = require("src.ui.colors")
 local TablePool = require("src.utils.table_pool")
 local Constants = require("src.config.constants")
+local DamageNumberManager = require("src.managers.damage_number_manager")
 
 ---@class BaseEnemy
 local BaseEnemy = {
@@ -392,9 +393,9 @@ function BaseEnemy:checkPlayerCollision(dt, playerManager)
     self.lastDamageTime = self.lastDamageTime + dt
 
     local enemyX = self.position.x
-    local enemyY = self.position.y + 10
+    local enemyY = self.position.y
     local playerX = playerManager.player.position.x
-    local playerY = playerManager.player.position.y + 25
+    local playerY = playerManager.player.position.y
 
     local dx = playerX - enemyX
     local dy = playerY - enemyY
@@ -417,6 +418,8 @@ function BaseEnemy:takeDamage(amount, isCritical)
     if not self.isAlive then return false end
 
     self.currentHealth = self.currentHealth - amount
+
+    DamageNumberManager:show(self, amount, isCritical)
 
     if self.currentHealth <= 0 then
         self.currentHealth = 0
