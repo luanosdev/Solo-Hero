@@ -24,55 +24,55 @@ end
 --- Cria a instância da lógica de ataque CircularSmash.
 ---@param playerManager PlayerManager Instância do PlayerManager.
 ---@param itemData table Dados da instância específica do item sendo equipado.
-function CircularSmashE001:equip(playerManager, itemData)
+function GenericCircularSmash:equip(playerManager, itemData)
     -- Chama o método :equip da classe base primeiro
     BaseWeapon.equip(self, playerManager, itemData)
-    Logger.debug("[CircularSmashE001:equip]", string.format(" Equipping '%s'. Calling base equip done.", self.name or self.itemBaseId))
+    Logger.debug("[GenericCircularSmash:equip]", string.format(" Equipping '%s'. Calling base equip done.", self.name or self.itemBaseId))
 
     -- 1. Obter dados base da arma
     local baseData = self:getBaseData()
     if not baseData then
-        error(string.format("CircularSmashE001:equip - Falha ao obter dados base para %s", self.itemBaseId))
+        error(string.format("GenericCircularSmash:equip - Falha ao obter dados base para %s", self.itemBaseId))
         return
     end
-    Logger.debug("[CircularSmashE001:equip]", "  - Base data retrieved successfully.")
+    Logger.debug("[GenericCircularSmash:equip]", "  - Base data retrieved successfully.")
 
     -- 2. Verificar e carregar a classe de ataque definida nos dados base
     if not baseData.attackClass then
-        error(string.format("CircularSmashE001:equip - 'attackClass' não definido nos dados base para %s", self.itemBaseId))
+        error(string.format("GenericCircularSmash:equip - 'attackClass' não definido nos dados base para %s", self.itemBaseId))
         return
     end
-    Logger.debug("[CircularSmashE001:equip]", string.format("  - attackClass found: %s. Attempting to load...", baseData.attackClass))
+    Logger.debug("[GenericCircularSmash:equip]", string.format("  - attackClass found: %s. Attempting to load...", baseData.attackClass))
 
     local attackClassPath = string.format("src.abilities.player.attacks.%s", baseData.attackClass)
     local success, AttackClass = pcall(require, attackClassPath)
     if not success or not AttackClass then
-        error(string.format("CircularSmashE001:equip - Falha ao carregar AttackClass '%s'. Erro: %s", baseData.attackClass,
+        error(string.format("GenericCircularSmash:equip - Falha ao carregar AttackClass '%s'. Erro: %s", baseData.attackClass,
             tostring(AttackClass)))
         return
     end
-    Logger.debug("[CircularSmashE001:equip]", "  - AttackClass loaded successfully.")
+    Logger.debug("[GenericCircularSmash:equip]", "  - AttackClass loaded successfully.")
 
     -- 3. Criar a instância da classe de ataque (CircularSmash)
     -- Passa o PlayerManager e a própria instância da arma (self)
     self.attackInstance = AttackClass:new(playerManager, self)
     if not self.attackInstance then
-        error(string.format("CircularSmashE001:equip - Falha ao criar instância de AttackClass '%s'.", baseData.attackClass))
+        error(string.format("GenericCircularSmash:equip - Falha ao criar instância de AttackClass '%s'.", baseData.attackClass))
         return
     end
-    Logger.debug("[CircularSmashE001:equip]", string.format("  - Attack instance created (Type: %s).", type(self.attackInstance)))
+    Logger.debug("[GenericCircularSmash:equip]", string.format("  - Attack instance created (Type: %s).", type(self.attackInstance)))
 
     Logger.debug("[CircularSmashE001:equip]", string.format(" '%s' fully equipped. Attack instance created.", self.name or self.itemBaseId))
 end
 
 --- Desequipa o Martelo de Guerra.
-function CircularSmashE001:unequip()
-    Logger.debug("[CircularSmashE001:unequip]", string.format(" Unequipping '%s'.", self.name or self.itemBaseId))
+function GenericCircularSmash:unequip()
+    Logger.debug("[GenericCircularSmash:unequip]", string.format(" Unequipping '%s'.", self.name or self.itemBaseId))
 
     -- Chama o método :unequip da classe base
     BaseWeapon.unequip(self)
 
-    print(string.format("[CircularSmashE001:unequip] '%s' fully unequipped.", self.name or self.itemBaseId))
+    print(string.format("[GenericCircularSmash:unequip] '%s' fully unequipped.", self.name or self.itemBaseId))
 end
 
-return CircularSmashE001
+return GenericCircularSmash

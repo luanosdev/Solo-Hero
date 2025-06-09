@@ -6,6 +6,7 @@ local TablePool = require("src.utils.table_pool")
 local Camera = require("src.config.camera")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
+local DamageNumberManager = require("src.managers.damage_number_manager")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -130,6 +131,9 @@ end
 function EnemyManager:update(dt)
     self.gameTimer = self.gameTimer + dt
     self.timeInCurrentCycle = self.timeInCurrentCycle + dt
+
+    -- Atualiza o DamageNumberManager
+    DamageNumberManager:update(dt)
 
     -- Atualiza o timer de morte do boss
     if self.lastBossDeathTime > 0 then
@@ -405,6 +409,13 @@ end
 ---@param renderPipelineInstance RenderPipeline Instância do RenderPipeline.
 function EnemyManager:collectRenderables(renderPipelineInstance)
     if not self.enemies or #self.enemies == 0 then return end
+
+    -- Lazy initialization do DamageNumberManager com a instância do pipeline
+    if not DamageNumberManager.isInitialized then
+        DamageNumberManager:init(renderPipelineInstance)
+    end
+
+    DamageNumberManager:collectRenderables()
 
     local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- Necessário para pegar quads/texturas
 
@@ -729,6 +740,7 @@ function EnemyManager:destroy()
     self.enemies = {}
     self.enemyPool = {}
     self.gameTimer = 0
+    DamageNumberManager:destroy()
     print("EnemyManager destruído.")
 end
 

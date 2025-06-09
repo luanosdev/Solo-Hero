@@ -1,5 +1,3 @@
--- src/projectiles/fire_particle.lua
-
 local TablePool = require("src.utils.table_pool")
 local CombatHelpers = require("src.utils.combat_helpers")
 
@@ -24,7 +22,7 @@ local baseScale = 0.8           -- Fator de escala base padrão para a animaçã
 
 -- Novo fator de ajuste para o tamanho visual e de colisão da partícula.
 -- Reduz o tamanho geral da partícula para melhor adequação à gameplay.
-local PARTICLE_VISUAL_ADJUSTMENT_FACTOR = 0.2 -- Ex: 0.4 significa 40% do tamanho que teria antes.
+local PARTICLE_VISUAL_ADJUSTMENT_FACTOR = 0.6 -- Ex: 0.4 significa 40% do tamanho que teria antes.
 
 -- Constantes para a nova lógica de colisão e crescimento
 local BASE_HIT_LOSS = 0.8                 -- 80% de perda de vida base ao atingir
