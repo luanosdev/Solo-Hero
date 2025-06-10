@@ -282,6 +282,7 @@ function EnemyManager:update(dt)
                 enemy:startDeathAnimation()
             end
 
+            Logger.debug("EnemyManager:update", "Processing drops for enemy: " .. enemy.name)
             -- Processa os drops usando a função unificada
             self.dropManager:processEntityDrop(enemy)
 

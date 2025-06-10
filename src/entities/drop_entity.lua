@@ -58,6 +58,33 @@ function DropEntity:new(position, config, beamColor, beamHeight, glowScale, beam
     return drop
 end
 
+--- Reseta um drop para reutilização a partir de um pool de objetos.
+---@param position table Posição inicial do drop
+---@param config table Configuração do drop
+---@param beamColor table Cor do feixe
+---@param beamHeight number Altura do feixe
+---@param glowScale number Escala do efeito de brilho
+---@param beamCount number Número de feixes
+function DropEntity:reset(position, config, beamColor, beamHeight, glowScale, beamCount)
+    self.initialPosition = { x = position.x, y = position.y }
+    self.position = { x = position.x, y = position.y }
+    self.config = config
+    self.collected = false
+    self.collectionProgress = 0
+    self.glowTimer = love.math.random() * 10
+
+    self.beamColor = beamColor or { 1, 1, 1 }
+    self.beamHeight = beamHeight or 50
+    self.glowScale = glowScale or 1.0
+    self.beamCount = beamCount or 1
+
+    if config.type == "rune" then
+        self.animation = runeAnimation
+    else
+        self.animation = nil
+    end
+end
+
 ---@param dt number Delta time
 ---@param playerManager PlayerManager Instância do PlayerManager
 ---@return boolean True se a coleta foi concluída, false caso contrário

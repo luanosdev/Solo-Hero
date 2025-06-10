@@ -424,7 +424,6 @@ function BaseEnemy:takeDamage(amount, isCritical)
     if self.currentHealth <= 0 then
         self.currentHealth = 0
         self.isAlive = false
-        self.isDying = true
         self.deathTimer = 0
 
         local xpManager = ManagerRegistry:get("experienceOrbManager")

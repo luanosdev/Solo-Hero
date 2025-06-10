@@ -7,7 +7,7 @@ local ManagerRegistry = require("src.managers.manager_registry")
     Gerencia a geração e aplicação de runas no jogo
 ]]
 
-
+---@class RuneManager
 local RuneManager = {
     activeRunes = {}, -- Runas atualmente ativas no jogo
 }

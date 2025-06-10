@@ -8,6 +8,9 @@ local Colors = require("src.ui.colors")
 local Constants = require("src.config.constants")
 local TablePool = require("src.utils.table_pool")
 local RenderPipeline = require("src.core.render_pipeline")
+local globalDropTable = require("src.data.global_drops")
+local Culling = require("src.core.culling")
+local Camera = require("src.config.camera")
 
 ---@class DropManager
 ---@field activeDrops table[] Lista de drops ativos no mundo
@@ -16,8 +19,10 @@ local RenderPipeline = require("src.core.render_pipeline")
 ---@field runeManager RuneManager Gerenciador de runas
 ---@field floatingTextManager FloatingTextManager Gerenciador de textos flutuantes
 ---@field itemDataManager ItemDataManager Gerenciador de dados de itens
+---@field dropPool table<number, DropEntity> Pool de entidades de drop inativas
 local DropManager = {
     activeDrops = {}, -- Lista de drops ativos no mundo
+    dropPool = {},    -- Pool de drops inativos para reutilização
 }
 
 -- Adicione esta tabela dentro do DropManager, logo após a definição da tabela DropManager = {}
@@ -37,6 +42,7 @@ local raritySettings = {
 function DropManager:init(config)
     config = config or {}
     self.activeDrops = {}
+    self.dropPool = {}
     -- Obtém managers da config
     self.playerManager = config.playerManager
     self.enemyManager = config.enemyManager
@@ -45,121 +51,154 @@ function DropManager:init(config)
     self.itemDataManager = config.itemDataManager
 
     -- DEBUG: Print the type right after assignment
-    print(string.format("[DropManager:init] self.itemDataManager type: %s", type(self.itemDataManager)))
+    Logger.debug("DropManager:init",
+        string.format("[DropManager:init] self.itemDataManager type: %s", type(self.itemDataManager)))
 
     -- Validação
     if not self.playerManager or not self.enemyManager or not self.runeManager or not self.floatingTextManager or not self.itemDataManager then
         error("ERRO CRÍTICO [DropManager]: Uma ou mais dependências não foram injetadas!")
     end
 
-    print("DropManager inicializado") -- Removido rank do mapa que não estava definido
+    Logger.debug("DropManager:init", "DropManager inicializado")
 end
 
 --- Processa os drops de uma entidade derrotada (Inimigo, MVP, Boss)
 --- Lê a dropTable da classe da entidade.
----@param entity ta Entity A entidade que foi derrotada
+---@param entity BaseEnemy Entity A entidade que foi derrotada
 function DropManager:processEntityDrop(entity)
     -- Usa a posição da entidade como base para os drops
     local entityPosition = { x = entity.position.x, y = entity.position.y }
+    local dropsCreated = {}
 
-    -- Tenta processar a tabela de drops específica da entidade
+    self:_processGlobalDrops(entity, dropsCreated)
+
     local entityClass = getmetatable(entity).__index
     local dropTable = entityClass and entityClass.dropTable
 
-    if not dropTable then
-        print(string.format("Aviso: Nenhuma dropTable encontrada para a classe %s",
-            entityClass and entityClass.name or 'desconhecida'))
-        return -- Sai se não houver tabela de drops
-    end
-
-    -- Determina qual sub-tabela usar (boss, mvp, ou normal)
-    local dropsToProcess = nil
-    if entity.isBoss then
-        dropsToProcess = dropTable.boss
-    elseif entity.isMVP then
-        dropsToProcess = dropTable.mvp or dropTable.normal -- Fallback para normal se mvp não estiver definida
-    else
-        dropsToProcess = dropTable.normal
-    end
-
-    if not dropsToProcess then
-        print(string.format("Aviso: Nenhuma sub-tabela de drop ('boss', 'mvp', ou 'normal') encontrada para %s (%s)",
-            entity.name, entity.isBoss and 'Boss' or (entity.isMVP and 'MVP' or 'Normal')))
-        return -- Sai se a sub-tabela apropriada não for encontrada
-    end
-
-    local dropsCreated = {}
-
-    -- Processa drops garantidos
-    if dropsToProcess.guaranteed then
-        for _, dropConfig in ipairs(dropsToProcess.guaranteed) do
-            if dropConfig.type == "item_pool" then
-                if dropConfig.itemIds and #dropConfig.itemIds > 0 then
-                    local randomIndex = love.math.random(#dropConfig.itemIds)
-                    local selectedItemId = dropConfig.itemIds[randomIndex]
-                    -- Cria um drop config temporário do tipo item com o ID selecionado
-                    local finalDrop = { type = "item", itemId = selectedItemId, quantity = 1 }
-                    print(string.format("Drop garantido (Pool -> %s): %s", selectedItemId, entity.name))
-                    table.insert(dropsCreated, finalDrop)
-                else
-                    print("Aviso: Drop garantido do tipo 'item_pool' sem itemIds válidos.")
-                end
-            elseif dropConfig.type == "item" then -- Lida com itens/joias normais
-                local amount = dropConfig.amount
-                local count = 1
-                if type(amount) == "table" then
-                    count = math.random(amount.min, amount.max)
-                elseif type(amount) == "number" then
-                    count = amount
-                end
-                for _ = 1, count do
-                    print(string.format("Drop garantido (%s): %s", entity.name, dropConfig.type))
-                    table.insert(dropsCreated, dropConfig)
-                end
-            else
-                print("Aviso: Tipo de drop garantido desconhecido:", dropConfig.type)
-            end
+    -- Só continua para processar drops específicos se houver uma dropTable
+    if dropTable then
+        -- Determina qual sub-tabela usar (boss, mvp, ou normal)
+        local dropsToProcess = nil
+        if entity.isBoss then
+            dropsToProcess = dropTable.boss
+        elseif entity.isMVP then
+            dropsToProcess = dropTable.mvp or dropTable.normal -- Fallback para normal se mvp não estiver definida
+        else
+            dropsToProcess = dropTable.normal
         end
-    end
 
-    -- Processa drops com chance
-    if dropsToProcess.chance then
-        for _, dropConfig in ipairs(dropsToProcess.chance) do
-            local chance = dropConfig.chance or 0
-            if math.random() <= (chance / 100) then
-                if dropConfig.type == "item_pool" then
-                    if dropConfig.itemIds and #dropConfig.itemIds > 0 then
-                        local randomIndex = love.math.random(#dropConfig.itemIds)
-                        local selectedItemId = dropConfig.itemIds[randomIndex]
-                        local finalDrop = { type = "item", itemId = selectedItemId, quantity = 1 }
-                        print(string.format("Drop com chance (Pool -> %s): %s (%.1f%%)", selectedItemId, entity.name,
-                            chance))
-                        table.insert(dropsCreated, finalDrop)
+        if dropsToProcess then
+            -- Processa drops garantidos
+            if dropsToProcess.guaranteed then
+                for _, dropConfig in ipairs(dropsToProcess.guaranteed) do
+                    if dropConfig.type == "item_pool" then
+                        if dropConfig.itemIds and #dropConfig.itemIds > 0 then
+                            local randomIndex = love.math.random(#dropConfig.itemIds)
+                            local selectedItemId = dropConfig.itemIds[randomIndex]
+                            -- Cria um drop config temporário do tipo item com o ID selecionado
+                            local finalDrop = { type = "item", itemId = selectedItemId, quantity = 1 }
+                            Logger.debug("DropManager:processEntityDrop",
+                                string.format("Drop garantido (Pool -> %s): %s", selectedItemId, entity.name))
+                            table.insert(dropsCreated, finalDrop)
+                        else
+                            Logger.debug("DropManager:processEntityDrop",
+                                "Aviso: Drop garantido do tipo 'item_pool' sem itemIds válidos.")
+                        end
+                    elseif dropConfig.type == "item" then -- Lida com itens/joias normais
+                        local amount = dropConfig.amount
+                        local count = 1
+                        if type(amount) == "table" then
+                            count = math.random(amount.min, amount.max)
+                        elseif type(amount) == "number" then
+                            count = amount
+                        end
+                        for _ = 1, count do
+                            Logger.debug("DropManager:processEntityDrop",
+                                string.format("Drop garantido (%s): %s", entity.name, dropConfig.type))
+                            table.insert(dropsCreated, dropConfig)
+                        end
                     else
-                        print("Aviso: Drop com chance do tipo 'item_pool' sem itemIds válidos.")
+                        Logger.debug("DropManager:processEntityDrop", "Aviso: Tipo de drop garantido desconhecido:",
+                            dropConfig.type)
                     end
-                elseif dropConfig.type == "item" or dropConfig.type == "jewel" then
-                    local amount = dropConfig.amount
-                    local count = 1
-                    if type(amount) == "table" then
-                        count = math.random(amount.min, amount.max)
-                    elseif type(amount) == "number" then
-                        count = amount
-                    end
-                    for _ = 1, count do
-                        print(string.format("Drop com chance (%s): %s (%.1f%%)", entity.name, dropConfig.type, chance))
-                        table.insert(dropsCreated, dropConfig)
-                    end
-                else
-                    print("Aviso: Tipo de drop com chance desconhecido:", dropConfig.type)
                 end
             end
+
+            -- Processa drops com chance
+            if dropsToProcess.chance then
+                for _, dropConfig in ipairs(dropsToProcess.chance) do
+                    local chance = dropConfig.chance or 0
+                    if math.random() <= (chance / 100) then
+                        if dropConfig.type == "item_pool" then
+                            if dropConfig.itemIds and #dropConfig.itemIds > 0 then
+                                local randomIndex = love.math.random(#dropConfig.itemIds)
+                                local selectedItemId = dropConfig.itemIds[randomIndex]
+                                local finalDrop = { type = "item", itemId = selectedItemId, quantity = 1 }
+                                Logger.debug("DropManager:processEntityDrop",
+                                    string.format("Drop com chance (Pool -> %s): %s (%.1f%%)", selectedItemId,
+                                        entity.name, chance))
+                                table.insert(dropsCreated, finalDrop)
+                            else
+                                Logger.debug("DropManager:processEntityDrop",
+                                    "Aviso: Drop com chance do tipo 'item_pool' sem itemIds válidos.")
+                            end
+                        elseif dropConfig.type == "item" or dropConfig.type == "jewel" then
+                            local amount = dropConfig.amount
+                            local count = 1
+                            if type(amount) == "table" then
+                                count = math.random(amount.min, amount.max)
+                            elseif type(amount) == "number" then
+                                count = amount
+                            end
+                            for _ = 1, count do
+                                Logger.debug("DropManager:processEntityDrop",
+                                    string.format("Drop com chance (%s): %s (%.1f%%)", entity.name,
+                                        dropConfig.type, chance))
+                                table.insert(dropsCreated, dropConfig)
+                            end
+                        else
+                            Logger.debug("DropManager:processEntityDrop", "Aviso: Tipo de drop com chance desconhecido:",
+                                dropConfig.type)
+                        end
+                    end
+                end
+            end
+        else
+            Logger.debug("DropManager:processEntityDrop", string.format(
+                "Aviso: Nenhuma sub-tabela de drop ('boss', 'mvp', ou 'normal') encontrada para %s (%s)", entity.name,
+                entity.isBoss and 'Boss' or (entity.isMVP and 'MVP' or 'Normal')))
         end
     end
 
-    -- Espalha os drops criados (se houver)
+    -- 3. Espalha TODOS os drops criados (globais + específicos da entidade)
     if #dropsCreated > 0 then
         self:spreadDrops(dropsCreated, entityPosition)
+    end
+end
+
+--- Processa os drops globais para uma entidade.
+---@param entity table A entidade que foi derrotada.
+---@param dropsCreated table A lista de drops a serem criados, para adicionar novos drops.
+function DropManager:_processGlobalDrops(entity, dropsCreated)
+    local playerStats = self.playerManager:getCurrentFinalStats()
+    local playerLuck = playerStats and playerStats.luck or 0
+
+    for _, dropInfo in ipairs(globalDropTable) do
+        -- Calcula a chance final com base na sorte do jogador.
+        -- A sorte aumenta a chance de drop percentualmente. Ex: 100 de sorte dobra a chance.
+        local finalChance = dropInfo.chance * playerLuck
+
+        if love.math.random() <= finalChance then
+            local dropConfig = {
+                type = "item",
+                itemId = dropInfo.itemId,
+                quantity = 1 -- Drops globais são sempre de 1 unidade.
+            }
+            table.insert(dropsCreated, dropConfig)
+            Logger.debug("DropManager:_processGlobalDrops",
+                string.format("Drop Global (Sorte: %d): Item %s dropado para %s (Chance: %.4f%%)",
+                    playerLuck, dropInfo.itemId, entity.name, finalChance * 100))
+        end
     end
 end
 
@@ -168,6 +207,7 @@ end
 ---@return table Cor {r, g, b}.
 ---@return number Altura do feixe.
 ---@return number Escala do brilho base.
+---@return number Contagem de feixes.
 function DropManager:_getDropVisualSettings(dropConfig)
     local settingsKey = "E"
     local isItemWithRarity = false
@@ -187,7 +227,8 @@ function DropManager:_getDropVisualSettings(dropConfig)
 
     local finalSettings = raritySettings[settingsKey]
     if not finalSettings then
-        print(string.format("Aviso crítico: Chave '%s' não encontrada em raritySettings. Usando 'E'.", settingsKey))
+        Logger.debug("DropManager:_getDropVisualSettings",
+            string.format("Aviso crítico: Chave '%s' não encontrada em raritySettings. Usando 'E'.", settingsKey))
         finalSettings = raritySettings["E"]
     end
 
@@ -202,10 +243,23 @@ function DropManager:createDrop(dropConfig, position)
     -- Determina as propriedades visuais
     local color, height, glowScale, beamCount = self:_getDropVisualSettings(dropConfig)
 
-    -- Cria a entidade passando beamCount também
-    local dropEntity = DropEntity:new(position, dropConfig, color, height, glowScale, beamCount)
+    -- Tenta reutilizar um drop do pool
+    local dropEntity = table.remove(self.dropPool)
+    if dropEntity then
+        -- Se reutilizou, reseta o estado
+        dropEntity:reset(position, dropConfig, color, height, glowScale, beamCount)
+    else
+        -- Se o pool está vazio, cria uma nova entidade
+        dropEntity = DropEntity:new(position, dropConfig, color, height, glowScale, beamCount)
+    end
+
     table.insert(self.activeDrops, dropEntity)
-    -- print(string.format("DropEntity criado em (%.1f, %.1f) para tipo: %s", position.x, position.y, dropConfig.type))
+end
+
+--- Devolve uma entidade de drop para o pool para reutilização.
+---@param dropEntity DropEntity A entidade a ser devolvida.
+function DropManager:returnDropToPool(dropEntity)
+    table.insert(self.dropPool, dropEntity)
 end
 
 --- Atualiza os drops ativos
@@ -216,7 +270,10 @@ function DropManager:update(dt)
         if drop:update(dt, self.playerManager) then
             -- Se o drop foi coletado, aplica seus efeitos
             self:applyDrop(drop.config) -- Passa a configuração original do drop
+
+            -- Remove o drop da lista ativa e o devolve para o pool
             table.remove(self.activeDrops, i)
+            self:returnDropToPool(drop)
         end
     end
 end
@@ -225,7 +282,8 @@ end
 ---@param dropConfig table A configuração do drop coletado (contém 'type' e outros dados)
 function DropManager:applyDrop(dropConfig)
     if dropConfig.type == "item" then
-        print(string.format("Tentando coletar item: %s", dropConfig.itemId or 'ID Inválido'))
+        Logger.debug("DropManager:applyDrop",
+            string.format("Tentando coletar item: %s", dropConfig.itemId or 'ID Inválido'))
         if dropConfig.itemId then
             local itemBaseId = dropConfig.itemId
             local quantityToProcess = dropConfig.quantity
@@ -233,8 +291,10 @@ function DropManager:applyDrop(dropConfig)
 
             if type(quantityToProcess) == "table" and quantityToProcess.min and quantityToProcess.max then
                 finalQuantity = love.math.random(quantityToProcess.min, quantityToProcess.max)
-                print(string.format("Drop com quantidade aleatória: %s de %s, min=%d, max=%d, escolhido=%d",
-                    itemBaseId, dropConfig.type or "item", quantityToProcess.min, quantityToProcess.max, finalQuantity))
+                Logger.debug("DropManager:applyDrop",
+                    string.format("Drop com quantidade aleatória: %s de %s, min=%d, max=%d, escolhido=%d",
+                        itemBaseId, dropConfig.type or "item", quantityToProcess.min, quantityToProcess.max,
+                        finalQuantity))
             elseif type(quantityToProcess) == "number" then
                 finalQuantity = quantityToProcess
             else
@@ -259,13 +319,15 @@ function DropManager:applyDrop(dropConfig)
                     baseOffsetX = 0
                 })
             else
-                print(string.format("Falha ao coletar %s (Inventário cheio?).", itemBaseId))
+                Logger.debug("DropManager:applyDrop",
+                    string.format("Falha ao coletar %s (Inventário cheio?).", itemBaseId))
             end
         else
-            print("Aviso: Drop do tipo 'item' sem 'itemId' definido.")
+            Logger.debug("DropManager:applyDrop", "Aviso: Drop do tipo 'item' sem 'itemId' definido.")
         end
     else
-        print("Aviso: Tipo de drop desconhecido ou não implementado em applyDrop:", dropConfig.type)
+        Logger.debug("DropManager:applyDrop", "Aviso: Tipo de drop desconhecido ou não implementado em applyDrop:",
+            dropConfig.type)
     end
 end
 
@@ -276,8 +338,10 @@ function DropManager:collectRenderables(renderPipeline)
         return
     end
 
+    local camX, camY, camWidth, camHeight = Camera:getViewPort()
+
     for _, dropEntity in ipairs(self.activeDrops) do
-        if not dropEntity.collected then
+        if not dropEntity.collected and Culling.isInView(dropEntity, camX, camY, camWidth, camHeight, 50) then
             -- A posição do DropEntity é o seu centro no chão.
             local dropWorldX = dropEntity.position.x
             local dropWorldY = dropEntity.position.y
