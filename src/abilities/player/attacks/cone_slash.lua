@@ -24,6 +24,9 @@ local CombatHelpers = require("src.utils.combat_helpers") -- Adicionado
 ---@field area table Área atual do cone {position, angle, range, angleWidth, halfWidth}.
 ---@field playerManager PlayerManager Referência ao gerenciador de jogador.
 ---@field weaponInstance BaseWeapon Referência à arma que executa este ataque.
+---@field knockbackPower number
+---@field knockbackForce number
+---@field enemiesKnockedBackInThisCast table
 local ConeSlash = {}
 ConeSlash.__index = ConeSlash -- Para permitir :new
 
@@ -249,117 +252,25 @@ function ConeSlash:_executeSingleAttackLogic(finalStats)
         return false -- Retorna false, pois a tentativa falhou em atingir algo devido à área inválida
     end
 
-    local enemiesHitCount = 0
-    -- Não precisa chamar updateAreaIfNeeded() pois a área é atualizada em :update
+    -- Usa o helper para encontrar inimigos na área de cone
+    local enemiesHit = CombatHelpers.findEnemiesInConeArea(self.area, self.playerManager.player)
+    local enemiesHitCount = #enemiesHit
 
-    -- Obtém inimigos próximos usando o SpatialGridIncremental
-    -- O playerManager tem acesso ao enemyManager, que por sua vez tem o spatialGrid
-    local enemyManager = ManagerRegistry:get("enemyManager")
-    if not enemyManager or not enemyManager.spatialGrid then
-        error("[ConeSlash:_executeSingleAttackLogic] ERRO: EnemyManager ou SpatialGrid não acessível.")
-        return false -- Falha em obter o grid
-    end
-
-    -- A entidade requisitante (jogador) para evitar auto-colisão, se aplicável no futuro
-    local requestingEntity = self.playerManager.player
-
-    -- searchRadius é o alcance do cone. A função getNearbyEntities já lida com o raio da entidade alvo.
-    local nearbyEnemies = enemyManager.spatialGrid:getNearbyEntities(
-        self.area.position.x,
-        self.area.position.y,
-        self.area.range, -- Raio da busca é o alcance máximo do cone
-        requestingEntity
-    )
-
-    if not nearbyEnemies then
-        -- Isso não deveria acontecer se getNearbyEntities sempre retorna uma tabela do pool
-        Logger.warn("[ConeSlash:_executeSingleAttackLogic]", "AVISO: nearbyEnemies é nil após chamada ao spatialGrid.")
-        return false
-    end
-
-    for i, enemy in ipairs(nearbyEnemies) do
-        if enemy.isAlive then
-            -- Verifica se o inimigo está dentro da área de ataque do cone
-            if self:isPointInArea(enemy.position, self.area) then
-                local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
-                enemiesHitCount = enemiesHitCount + 1
-                self:applyDamage(enemy, finalStats, isCritical)
-            end
-        end
+    if enemiesHitCount > 0 then
+        -- Logger.debug("[ConeSlash:_executeSingleAttackLogic]", string.format("Hit %d enemies.", enemiesHitCount))
+        local knockbackData = {
+            power = self.knockbackPower,
+            force = self.knockbackForce,
+            attackerPosition = self.area.position
+        }
+        -- Usa o helper para aplicar dano e knockback
+        CombatHelpers.applyHitEffects(enemiesHit, finalStats, knockbackData, self.enemiesKnockedBackInThisCast)
     end
 
     -- Libera a tabela de inimigos obtida do pool
-    TablePool.release(nearbyEnemies)
-
-    if enemiesHitCount > 0 then
-        Logger.debug("[ConeSlash:_executeSingleAttackLogic]",
-            string.format("Hit %d enemies (from nearby query).", enemiesHitCount))
-    end
+    TablePool.release(enemiesHit)
 
     return enemiesHitCount > 0
-end
-
---- Verifica se um ponto está DENTRO do cone TOTAL.
----@param position table Posição {x, y} a verificar.
----@param areaToCheck table A instância da área a ser verificada (geralmente self.area ou areaSnapshot).
----@return boolean True se o ponto está na área total.
-function ConeSlash:isPointInArea(position, areaToCheck)
-    areaToCheck = areaToCheck or self.area -- Fallback para self.area se não especificado
-    if not areaToCheck or not areaToCheck.range or not areaToCheck.halfWidth then return false end
-
-    local dx = position.x - areaToCheck.position.x
-    local dy = position.y - areaToCheck.position.y
-    local distanceSq = dx * dx + dy * dy
-
-    if distanceSq == 0 or distanceSq > (areaToCheck.range * areaToCheck.range) then return false end
-
-    local pointAngle = math.atan2(dy, dx)
-    local relativeAngle = Helpers.normalizeAngle(pointAngle - areaToCheck.angle)
-
-    -- Usa halfWidth que foi calculado em update()
-    return math.abs(relativeAngle) <= areaToCheck.halfWidth
-end
-
---- Aplica dano a um alvo.
----@param target BaseEnemy Instância do inimigo a ser atingido.
----@param finalStats table Os stats finais do jogador.
----@param isCritical boolean True se o ataque é crítico, False caso contrário.
----@return boolean Resultado de target:takeDamage ou false se fora da área.
-function ConeSlash:applyDamage(target, finalStats, isCritical)
-    -- A verificação de área já foi feita em executeAttack
-
-    -- Usa o dano da arma já calculado nos stats finais
-    local totalDamage = finalStats.weaponDamage
-
-    if isCritical then
-        totalDamage = totalDamage and finalStats.critDamage and
-            math.floor(totalDamage * finalStats.critDamage)
-    end
-
-    if totalDamage == nil then
-        error(string.format("    [ConeSlash:applyDamage] ERRO: totalDamage é nil. Arma: %s, Crit: %s",
-            tostring(self.weaponInstance and self.weaponInstance.itemBaseId), tostring(isCritical)))
-    end
-
-    -- Aplica o dano
-    local killed = target:takeDamage(totalDamage, isCritical)
-
-    -- Lógica de Knockback refatorada
-    if self.knockbackPower > 0 and not self.enemiesKnockedBackInThisCast[target.id] then
-        local knockbackApplied = CombatHelpers.applyKnockback(
-            target,              -- targetEnemy
-            self.area.position,  -- attackerPosition (posição do jogador, origem do cone)
-            self.knockbackPower, -- attackKnockbackPower
-            self.knockbackForce, -- attackKnockbackForce
-            finalStats.strength, -- playerStrength
-            nil                  -- knockbackDirectionOverride
-        )
-        if knockbackApplied then
-            self.enemiesKnockedBackInThisCast[target.id] = true
-        end
-    end
-
-    return killed
 end
 
 --- Desenha os elementos visuais da habilidade.

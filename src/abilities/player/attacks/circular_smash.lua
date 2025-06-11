@@ -239,109 +239,31 @@ end
 ---@param finalStats table A tabela de stats finais do jogador.
 ---@return boolean Sempre retorna true.
 function CircularSmash:executeAttack(finalStats)
-    local enemyManager = ManagerRegistry:get("enemyManager")
-    local spatialGrid = enemyManager.spatialGrid
-    local enemiesHitCount = 0
-    local playerStats = self.playerManager:getCurrentFinalStats()
-
     if not self.currentAttackRadius or self.currentAttackRadius <= 0 then
-        error(string.format("    [executeAttack] AVISO: Raio de ataque inválido (%s). Nenhum inimigo será atingido.",
+        error(string.format("    [executeAttack] Raio de ataque inválido (%s). Nenhum inimigo será atingido.",
             tostring(self.currentAttackRadius)))
+        return false
     end
 
-    if not spatialGrid then
-        error("[executeAttack] AVISO: spatialGrid não disponível. Não é possível buscar inimigos.")
-    end
+    -- Usa o helper para encontrar inimigos na área circular
+    local enemiesHit = CombatHelpers.findEnemiesInCircularArea(self.targetPos, self.currentAttackRadius,
+        self.playerManager.player)
 
-    -- Busca inimigos próximos usando o spatialGrid
-    -- O centro da busca é self.targetPos, e o raio é self.currentAttackRadius
-    local nearbyEnemies = spatialGrid:getNearbyEntities(self.targetPos.x, self.targetPos.y, self.currentAttackRadius, nil)
-
-    local attackRadiusSq = self.currentAttackRadius * self.currentAttackRadius
-
-    local finalCritChance = finalStats.critChance -- Sem fallback
-    -- Se finalCritChance for nil, isCritical será false. Isso é aceitável aqui.
-    local isCritical = finalCritChance and (math.random() <= finalCritChance)
-
-    -- print(string.format("    [executeAttack] Checking %d nearby enemies in radius %.1f at (%.1f, %.1f)", #nearbyEnemies, self.currentAttackRadius, self.targetPos.x, self.targetPos.y))
-
-    for i = #nearbyEnemies, 1, -1 do
-        local enemy = nearbyEnemies[i]
-        if enemy and enemy.isAlive and not enemy.isDying then
-            -- Verifica se o inimigo está dentro do raio do ataque (targetPos é o centro do círculo)
-            local dx = enemy.position.x - self.targetPos.x
-            local dy = enemy.position.y - self.targetPos.y
-            local distSq = dx * dx + dy * dy
-
-            if distSq <= self.currentAttackRadius * self.currentAttackRadius then
-                -- Colisão detectada
-                enemiesHitCount = enemiesHitCount + 1
-                local enemyHasKilled
-                self:applyDamage(enemy, isCritical, finalStats)
-
-                -- Lógica de Knockback refatorada
-                if self.knockbackPower > 0 and not self.enemiesKnockedBackInThisCast[enemy.id] then
-                    local knockbackApplied = CombatHelpers.applyKnockback(
-                        enemy,                -- targetEnemy
-                        self.targetPos,       -- attackerPosition (centro do smash)
-                        self.knockbackPower,  -- attackKnockbackPower
-                        self.knockbackForce,  -- attackKnockbackForce
-                        playerStats.strength, -- playerStrength
-                        nil                   -- knockbackDirectionOverride (nil para este tipo de ataque)
-                    )
-                    if knockbackApplied then
-                        self.enemiesKnockedBackInThisCast[enemy.id] = true
-                    end
-                end
-
-                if enemyHasKilled then
-                    -- Se o inimigo morreu, pode ser removido da lista para evitar re-processamento se houver
-                    table.remove(nearbyEnemies, i)
-                end
-            end
-        end
+    if #enemiesHit > 0 then
+        -- print(string.format("  - Hit %d enemies.", #enemiesHit))
+        local knockbackData = {
+            power = self.knockbackPower,
+            force = self.knockbackForce,
+            attackerPosition = self.targetPos
+        }
+        -- Usa o helper para aplicar dano e knockback
+        CombatHelpers.applyHitEffects(enemiesHit, finalStats, knockbackData, self.enemiesKnockedBackInThisCast)
     end
 
     -- Libera a tabela do pool após o uso
-    TablePool.release(nearbyEnemies)
+    TablePool.release(enemiesHit)
 
-    if enemiesHitCount > 0 then
-        -- Tocar som de impacto, etc.
-        -- print(string.format("  - Hit %d enemies.", enemiesHitCount))
-    end
     return true
-end
-
---- Verifica se um ponto está dentro de uma área circular definida.
----@param pointPos table Posição {x, y} do ponto a verificar.
----@param centerPos table Posição {x, y} do centro do círculo.
----@param radiusSq number O QUADRADO do raio do círculo.
----@return boolean True se o ponto está na área.
-function CircularSmash:isPointInArea(pointPos, centerPos, radiusSq)
-    -- Calcula distância quadrada do PONTO CENTRAL fornecido
-    local dx = pointPos.x - centerPos.x
-    local dy = pointPos.y - centerPos.y
-    local distanceSq = dx * dx + dy * dy
-    return distanceSq <= radiusSq
-end
-
---- Aplica dano a um alvo.
----@param target BaseEnemy Instância do inimigo a ser atingido.
----@param isCritical boolean Se o ataque foi critico
----@param finalStats table A tabela de stats finais do jogador.
----@return boolean Resultado de target:takeDamage.
-function CircularSmash:applyDamage(target, isCritical, finalStats)
-    -- Usa o dano final da arma já calculado em finalStats
-    -- Se finalStats.weaponDamage for nil, totalDamage será nil.
-    local totalDamage = finalStats.weaponDamage
-
-    -- Calcula crítico usando finalStats
-    if isCritical then
-        -- Se finalStats.critDamage for nil, a multiplicação resultará em nil.
-        totalDamage = totalDamage and finalStats.critDamage and math.floor(totalDamage * finalStats.critDamage)
-    end
-
-    return target:takeDamage(totalDamage, isCritical)
 end
 
 --- Desenha os elementos visuais da habilidade.

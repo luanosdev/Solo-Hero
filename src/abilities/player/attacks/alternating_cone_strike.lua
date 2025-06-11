@@ -4,7 +4,6 @@
 -- Refatorado para receber weaponInstance e buscar stats dinamicamente.
 ----------------------------------------------------------------------------
 
-local ManagerRegistry = require("src.managers.manager_registry")
 local TablePool = require("src.utils.table_pool")
 local CombatHelpers = require("src.utils.combat_helpers")
 
@@ -18,6 +17,7 @@ local CombatHelpers = require("src.utils.combat_helpers")
 --- @field knockbackPower number
 --- @field knockbackForce number
 --- @field enemiesKnockedBackInThisCast table
+--- @field area table
 local AlternatingConeStrike = {}
 AlternatingConeStrike.__index = AlternatingConeStrike -- Para permitir :new
 
@@ -36,11 +36,6 @@ AlternatingConeStrike.visual = {
         color = { 0.8, 0.1, 0.8, 0.6 } -- Cor padrão ataque
     }
 }
-
--- Função auxiliar para normalizar ângulos para [-pi, pi]
-local function normalizeAngle(angle)
-    return (angle + math.pi) % (2 * math.pi) - math.pi
-end
 
 --- Cria uma nova instância da habilidade AlternatingConeStrike.
 ---@param playerManager PlayerManager Instância do PlayerManager.
@@ -258,129 +253,28 @@ function AlternatingConeStrike:executeAttack(hitLeft, finalStats)
         error("AlternatingConeStrike:executeAttack: Área de ataque inválida ou alcance zero, não buscando inimigos.")
     end
 
-    local playerStats = self.playerManager:getCurrentFinalStats() -- Usar para strength em knockback
+    -- Usa o helper para encontrar inimigos na meia área de cone correta
+    local enemiesHit = CombatHelpers.findEnemiesInConeHalfArea(self.area, hitLeft, self.playerManager.player)
+    local enemiesHitCount = #enemiesHit
 
-    -- A posição do jogador é o centro da busca
-    local searchX = self.area.position.x
-    local searchY = self.area.position.y
-    -- O raio de busca é o alcance da habilidade
-    local searchRadius = self.area.range
-
-    local enemyManager = ManagerRegistry:get("enemyManager")
-    local spatialGrid = enemyManager.spatialGrid
-    local nearbyEnemies = spatialGrid:getNearbyEntities(searchX, searchY, searchRadius, self.playerManager.player)
-
-    local enemiesHitCount = 0
     local side = hitLeft and "LEFT" or "RIGHT"
     -- Logger.debug("executeAttack", string.format("Checking %d nearby enemies on %s side.", #nearbyEnemies, side))
 
-    for i, enemy in ipairs(nearbyEnemies) do
-        if enemy.isAlive then
-            -- Verifica se o inimigo está na metade correta do cone
-            if self:isPointInCorrectHalf(enemy.position, hitLeft) then
-                enemiesHitCount = enemiesHitCount + 1
-
-                local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
-                local killed = self:applyDamage(enemy, finalStats, isCritical) -- Passa finalStats para applyDamage
-
-                -- Lógica de Knockback refatorada
-                if self.knockbackPower > 0 and not self.enemiesKnockedBackInThisCast[enemy.id] then
-                    local knockbackApplied = CombatHelpers.applyKnockback(
-                        enemy,                -- targetEnemy
-                        self.area.position,   -- attackerPosition (posição do jogador)
-                        self.knockbackPower,  -- attackKnockbackPower
-                        self.knockbackForce,  -- attackKnockbackForce
-                        playerStats.strength, -- playerStrength
-                        nil                   -- knockbackDirectionOverride
-                    )
-                    if knockbackApplied then
-                        self.enemiesKnockedBackInThisCast[enemy.id] = true
-                    end
-                end
-
-                if killed then
-                    table.remove(nearbyEnemies, i) -- Remove para não re-processar
-                end
-            end
-        end
+    if enemiesHitCount > 0 then
+        -- print(string.format("    [executeAttack - %s] Hit %d enemies.", side, enemiesHitCount))
+        local knockbackData = {
+            power = self.knockbackPower,
+            force = self.knockbackForce,
+            attackerPosition = self.area.position
+        }
+        -- Usa o helper para aplicar dano e knockback
+        CombatHelpers.applyHitEffects(enemiesHit, finalStats, knockbackData, self.enemiesKnockedBackInThisCast)
     end
 
     -- Libera a tabela de inimigos obtida do pool
-    TablePool.release(nearbyEnemies)
-
-    if enemiesHitCount > 0 then
-        print(string.format("    [executeAttack - %s] Hit %d enemies.", side, enemiesHitCount))
-    end
+    TablePool.release(enemiesHit)
 
     return true -- Retorna true mesmo se não atingiu ninguém
-end
-
---- Verifica se um ponto está DENTRO do cone TOTAL.
----@param position table Posição {x, y} a verificar.
----@return boolean True se o ponto está na área total.
-function AlternatingConeStrike:isPointInArea(position)
-    if not self.area then return false end
-
-    local dx = position.x - self.area.position.x
-    local dy = position.y - self.area.position.y
-    local distanceSq = dx * dx + dy * dy -- Usa quadrado para evitar sqrt
-
-    -- Verifica distância (mais rápido)
-    if distanceSq == 0 or distanceSq > (self.area.range * self.area.range) then return false end
-
-    -- Verifica ângulo
-    local pointAngle = math.atan2(dy, dx)
-    local relativeAngle = normalizeAngle(pointAngle - self.area.angle)
-
-    return math.abs(relativeAngle) <= self.area.halfWidth
-end
-
---- Verifica se um ponto está na METADE ESPECÍFICA do cone.
----@param position table Posição {x, y} a verificar.
----@param checkLeft boolean True para verificar a metade esquerda, False para a direita.
----@return boolean True se o ponto está na metade correta.
-function AlternatingConeStrike:isPointInCorrectHalf(position, checkLeft)
-    if not self.area then return false end
-    -- REMOVIDO: self:updateAreaIfNeeded() -- Usa valores já calculados em update
-
-    local dx = position.x - self.area.position.x
-    local dy = position.y - self.area.position.y
-    local distanceSq = dx * dx + dy * dy -- Usa quadrado
-
-    -- Verifica distância (mais rápido)
-    if distanceSq == 0 or distanceSq > (self.area.range * self.area.range) then return false end
-
-    -- Verifica ângulo
-    local pointAngle = math.atan2(dy, dx)
-    local relativeAngle = normalizeAngle(pointAngle - self.area.angle)
-
-    if checkLeft then -- Checa metade esquerda (ângulo relativo entre -halfWidth e 0)
-        return relativeAngle >= -self.area.halfWidth and relativeAngle <= 0
-    else              -- Checa metade direita (ângulo relativo entre 0 e +halfWidth)
-        return relativeAngle > 0 and relativeAngle <= self.area.halfWidth
-    end
-end
-
---- Aplica dano a um alvo.
----@param target BaseEnemy Instância do inimigo a ser atingido.
----@param finalStats table Stats finais do jogador.
----@param isCritical boolean True se o ataque é crítico, False caso contrário.
----@return boolean Resultado de target:takeDamage.
-function AlternatingConeStrike:applyDamage(target, finalStats, isCritical)
-    -- Usa o dano da arma já calculado nos stats finais
-    -- Se finalStats.weaponDamage for nil, totalDamage será nil, causando erro em takeDamage se não tratado lá.
-    local totalDamage = finalStats.weaponDamage
-
-    if isCritical then
-        -- Se finalStats.critDamage for nil, a multiplicação resultará em nil.
-        totalDamage = totalDamage and finalStats.critDamage and math.floor(totalDamage * finalStats.critDamage)
-    end
-
-    -- Aplica o dano
-    -- print(string.format("      Applying %s damage (%s) to target.", tostring(totalDamage), isCritical and "CRIT" or "normal"))
-    local killed = target:takeDamage(totalDamage, isCritical)
-
-    return killed
 end
 
 --- Desenha os elementos visuais da habilidade.
@@ -523,5 +417,4 @@ function AlternatingConeStrike:getPreview()
     return self.visual.preview.active
 end
 
--- return setmetatable(AlternatingConeStrike, {__index = require("src.abilities.player.attacks.cone_slash")}) -- Herda de ConeSlash? Não, melhor não herdar diretamente.
 return AlternatingConeStrike

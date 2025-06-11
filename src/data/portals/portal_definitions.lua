@@ -2,6 +2,20 @@
 -- Este arquivo define as configurações para os diferentes portais do jogo.
 -- Cada portal tem sua própria temática, ranking, nome e configuração de hordas.
 
+---@alias MVPConfig { spawnInterval: number, statusMultiplier: number, speedMultiplier: number, sizeMultiplier: number, experienceMultiplier: number }
+---@alias BossSpawn { time: number, class: any, unitType: string }
+---@alias BossConfig { spawnTimes: BossSpawn[] }
+---@alias AllowedEnemy { class: any, weight: number, unitType: string }
+---@alias MajorSpawnConfig { interval: number, baseCount: number, countScalePerMin: number }
+---@alias MinorSpawnConfig { baseInterval: number, intervalReductionPerMin: number, minInterval: number, count: number }
+---@alias HordeCycle { duration: number, allowedEnemies: AllowedEnemy[], majorSpawn: MajorSpawnConfig, minorSpawn: MinorSpawnConfig }
+---@alias HordeConfig { mapRank: string, mvpConfig: MVPConfig, bossConfig: BossConfig, cycles: HordeCycle[] }
+---@alias MapDefinition { theme: string, objectSpawnRules: table[], eventSpawnRules: table[] }
+---@alias PortalDefinition { name: string, theme: string, rank: string, map: string, requiredUnitTypes: string[], hordeConfig: HordeConfig, mapDefinition: MapDefinition, randomEvents: table[], assetPack: any | nil }
+
+---@class PortalDefinitions
+---@field [string] PortalDefinition
+
 -- Requer as classes de inimigos e bosses que podem aparecer nos portais.
 local ZombieWalkerMale1 = require("src.enemies.common.zombie_walker_male_1")
 local ZombieWalkerFemale1 = require("src.enemies.common.zombie_walker_female_1")
@@ -9,6 +23,7 @@ local ZombieRunnerMale1 = require("src.enemies.common.zombie_runner_male_1")
 local ZombieRunnerFemale1 = require("src.enemies.common.zombie_runner_female_1")
 
 
+---@type PortalDefinitions
 local portalDefinitions = {
     -- TESTS --
     portal_teste_spawn_massivo = {
@@ -173,7 +188,7 @@ local portalDefinitions = {
         hordeConfig = {
             mapRank = "E",
             mvpConfig = {
-                spawnInterval = 5, -- A cada 3 min
+                spawnInterval = 60 * 3, -- A cada 3 min
                 statusMultiplier = 14,
                 speedMultiplier = 1.15,
                 sizeMultiplier = 1.3,
@@ -189,7 +204,7 @@ local portalDefinitions = {
                 {
                     duration = 120,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerMale1,   weight = 1, unitType = "zombie_walker_male_1" },
                         { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" }
                     },
                     majorSpawn = {
@@ -208,9 +223,9 @@ local portalDefinitions = {
                 {
                     duration = 180,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
-                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1, weight = 0.5, unitType = "zombie_runner_male_1" },
+                        { class = ZombieWalkerMale1,   weight = 1,   unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerFemale1, weight = 1,   unitType = "zombie_walker_female_1" },
+                        { class = ZombieRunnerMale1,   weight = 0.5, unitType = "zombie_runner_male_1" },
                         { class = ZombieRunnerFemale1, weight = 0.5, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
@@ -229,9 +244,9 @@ local portalDefinitions = {
                 {
                     duration = 180,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerMale1,   weight = 1, unitType = "zombie_walker_male_1" },
                         { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1, weight = 1, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerMale1,   weight = 1, unitType = "zombie_runner_male_1" },
                         { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
@@ -250,9 +265,9 @@ local portalDefinitions = {
                 {
                     duration = 120,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1, weight = 1, unitType = "zombie_walker_male_1" },
-                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1, weight = 1.5, unitType = "zombie_runner_male_1" },
+                        { class = ZombieWalkerMale1,   weight = 1,   unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerFemale1, weight = 1,   unitType = "zombie_walker_female_1" },
+                        { class = ZombieRunnerMale1,   weight = 1.5, unitType = "zombie_runner_male_1" },
                         { class = ZombieRunnerFemale1, weight = 1.5, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
@@ -277,7 +292,7 @@ local portalDefinitions = {
         randomEvents = {},
         assetPack = nil
     },
-    
+
     survivor_zombie_portal = {
         name = "Survivor Zombie Portal",
         theme = "CementeryTheme",
