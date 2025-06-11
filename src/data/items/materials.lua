@@ -1,4 +1,3 @@
--- src/data/items/materials.lua
 local materials = {
     scrap = { -- ID usado no placeholder da UI
         id = "scrap",

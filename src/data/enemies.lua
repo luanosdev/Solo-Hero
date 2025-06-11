@@ -7,6 +7,61 @@ local default_enemy_grids = {
     death_die2 = { frameWidth = 128, frameHeight = 128, numAnimationFrames = 15 }
 }
 
+local zombie_drops = {
+    normal = {
+        guaranteed = {},
+        chance = {
+            {
+                type = "item",
+                itemId = "rotting_flesh",
+                chance = 10,                  -- 10% de chance
+                amount = { min = 1, max = 3 } -- de dropar entre 1 e 3
+            },
+            {
+                type = "item",
+                itemId = "torn_fabric",
+                chance = 3 -- 3% de chance
+            },
+        }
+    },
+    mvp = {
+        guaranteed = {
+            {
+                type = "item",
+                itemId = "intact_brain",
+            }
+        },
+        chance = {}
+    }
+}
+
+local zombie_runner_drops = {
+    normal = {
+        guaranteed = {},
+        chance = {
+            {
+                type = "item",
+                itemId = "unstable_muscle",
+                chance = 5 -- 5% de chance
+            },
+            {
+                type = "item",
+                itemId = "ruined_heart",
+                chance = 5 -- 5% de chance
+            }
+        }
+    },
+    mvp = {
+        guaranteed = {
+            {
+                type = "item",
+                itemId = "strange_medallion",
+            }
+        },
+        chance = {}
+    }
+}
+
 local default_enemy_angles = { 0, 45, 90, 135, 180, 225, 270, 315 }
 
 ---@class EnemyData
@@ -54,12 +109,13 @@ local enemies = {
                 activeMovementType = 'walk' -- Começa andando
             }
         },
+        dropTable = zombie_drops,
     },
     zombie_runner_male_1 = {
         unitType = "zombie_runner_male_1",
         name = "Zombie Runner",
 
-        speed = 50,
+        speed = 60,
         health = 100,
         damage = 30,
         experienceValue = 25,
@@ -73,7 +129,7 @@ local enemies = {
         grids = default_enemy_grids,
         angles = default_enemy_angles,
         frameTimes = {
-            run = 0.08,
+            run = 0.06,
             death_die1 = 0.12,
             death_die2 = 0.12
         },
@@ -83,7 +139,8 @@ local enemies = {
             animation = {
                 activeMovementType = 'run' -- Começa andando
             }
-        }
+        },
+        dropTable = zombie_runner_drops,
     },
     zombie_walker_female_1 = {
         unitType = "zombie_walker_female_1",
@@ -113,13 +170,14 @@ local enemies = {
             animation = {
                 activeMovementType = 'walk' -- Começa andando
             }
-        }
+        },
+        dropTable = zombie_drops,
     },
     zombie_runner_female_1 = {
         unitType = "zombie_runner_female_1",
         name = "Zombie Runner",
 
-        speed = 50,
+        speed = 60,
         health = 100,
         damage = 30,
         experienceValue = 25,
@@ -133,7 +191,7 @@ local enemies = {
         grids = default_enemy_grids,
         angles = default_enemy_angles,
         frameTimes = {
-            run = 0.08,
+            run = 0.06,
             death_die1 = 0.12,
             death_die2 = 0.12
         },
@@ -143,7 +201,8 @@ local enemies = {
             animation = {
                 activeMovementType = 'run' -- Começa andando
             }
-        }
+        },
+        dropTable = zombie_runner_drops,
     }
 }
 

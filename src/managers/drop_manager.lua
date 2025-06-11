@@ -62,15 +62,52 @@ function DropManager:init(config)
     Logger.debug("DropManager:init", "DropManager inicializado")
 end
 
+---@alias DropItemConfig { type: "item", itemId: string, quantity: number }
+---@alias DropPoolConfig { type: "item_pool", itemIds: string[] }
+---@alias GuaranteedDropConfig DropItemConfig | DropPoolConfig
+---
+---@alias ChanceDropItemConfig { type: "item", itemId: string, chance: number, amount?: number | {min: number, max: number} }
+---@alias ChanceDropPoolConfig { type: "item_pool", itemIds: string[], chance: number }
+---@alias ChanceDropConfig ChanceDropItemConfig | ChanceDropPoolConfig
+---
+---@alias DropTable { boss?: { guaranteed?: GuaranteedDropConfig[], chance?: ChanceDropConfig[] }, mvp?: { guaranteed?: GuaranteedDropConfig[], chance?: ChanceDropConfig[] }, normal?: { guaranteed?: GuaranteedDropConfig[], chance?: ChanceDropConfig[] } }
+
 --- Processa os drops de uma entidade derrotada (Inimigo, MVP, Boss)
 --- Lê a dropTable da classe da entidade.
+--- A estrutura da dropTable é a seguinte:
+--- dropTable = {
+---   normal = { -- Drops para inimigos normais
+---     guaranteed = { -- Itens que sempre dropam
+---       { type = "item", itemId = "id_do_item", amount = 5 }, -- Dropar uma quantidade fixa de um item
+---       { type = "item", itemId = "outro_item", amount = { min = 1, max = 3 } }, -- Dropar uma quantidade aleatória
+---       { type = "item_pool", itemIds = { "item_a", "item_b" } }, -- Dropar UM item aleatório de uma lista
+---     },
+---     chance = { -- Itens que podem dropar
+---       { type = "item", itemId = "item_raro", chance = 0.5, amount = 1 }, -- 0.5% de chance de dropar 1 item
+---       { type = "item_pool", itemIds = { "item_c", "item_d" }, chance = 10 }, -- 10% de chance de dropar UM item da lista
+---     }
+---   },
+---   mvp = { ... }, -- Mesma estrutura, para MVPs
+---   boss = { ... } -- Mesma estrutura, para Bosses
+--- }
 ---@param entity BaseEnemy Entity A entidade que foi derrotada
 function DropManager:processEntityDrop(entity)
     -- Usa a posição da entidade como base para os drops
     local entityPosition = { x = entity.position.x, y = entity.position.y }
     local dropsCreated = {}
 
-    self:_processGlobalDrops(entity, dropsCreated)
+    -- Obtém a sorte do jogador para usar em todos os cálculos de chance
+    local playerStats = self.playerManager:getCurrentFinalStats()
+    -- A 'sorte' do jogador atua como um multiplicador direto. O valor base é 1 (sem alteração).
+    -- Um valor de 2 dobra a chance, 1.5 aumenta em 50%, 0.5 reduz pela metade.
+    local luckMultiplier = playerStats and playerStats.luck or 1
+
+    -- Garante que o multiplicador não seja negativo.
+    if luckMultiplier < 0 then
+        luckMultiplier = 0
+    end
+
+    self:_processGlobalDrops(entity, dropsCreated, luckMultiplier)
 
     local entityClass = getmetatable(entity).__index
     local dropTable = entityClass and entityClass.dropTable
@@ -105,17 +142,21 @@ function DropManager:processEntityDrop(entity)
                                 "Aviso: Drop garantido do tipo 'item_pool' sem itemIds válidos.")
                         end
                     elseif dropConfig.type == "item" then -- Lida com itens/joias normais
-                        local amount = dropConfig.amount
-                        local count = 1
-                        if type(amount) == "table" then
-                            count = math.random(amount.min, amount.max)
-                        elseif type(amount) == "number" then
-                            count = amount
+                        local quantity = 1
+                        if dropConfig.amount then
+                            if type(dropConfig.amount) == "table" then
+                                quantity = math.random(dropConfig.amount.min, dropConfig.amount.max)
+                            elseif type(dropConfig.amount) == "number" then
+                                quantity = dropConfig.amount
+                            end
                         end
-                        for _ = 1, count do
+
+                        if quantity > 0 then
+                            local finalDrop = { type = "item", itemId = dropConfig.itemId, quantity = quantity }
                             Logger.debug("DropManager:processEntityDrop",
-                                string.format("Drop garantido (%s): %s", entity.name, dropConfig.type))
-                            table.insert(dropsCreated, dropConfig)
+                                string.format("Drop garantido: %s x%d para %s", finalDrop.itemId, finalDrop.quantity,
+                                    entity.name))
+                            table.insert(dropsCreated, finalDrop)
                         end
                     else
                         Logger.debug("DropManager:processEntityDrop", "Aviso: Tipo de drop garantido desconhecido:",
@@ -128,33 +169,40 @@ function DropManager:processEntityDrop(entity)
             if dropsToProcess.chance then
                 for _, dropConfig in ipairs(dropsToProcess.chance) do
                     local chance = dropConfig.chance or 0
-                    if math.random() <= (chance / 100) then
+                    -- Aplica o bônus de sorte à chance base do item
+                    local finalChance = (chance / 100) * luckMultiplier
+                    if math.random() <= finalChance then
                         if dropConfig.type == "item_pool" then
                             if dropConfig.itemIds and #dropConfig.itemIds > 0 then
                                 local randomIndex = love.math.random(#dropConfig.itemIds)
                                 local selectedItemId = dropConfig.itemIds[randomIndex]
                                 local finalDrop = { type = "item", itemId = selectedItemId, quantity = 1 }
                                 Logger.debug("DropManager:processEntityDrop",
-                                    string.format("Drop com chance (Pool -> %s): %s (%.1f%%)", selectedItemId,
-                                        entity.name, chance))
+                                    string.format("Drop com chance (Pool -> %s): %s (Base: %.1f%%, Final: %.2f%%)",
+                                        selectedItemId,
+                                        entity.name, chance, finalChance * 100))
                                 table.insert(dropsCreated, finalDrop)
                             else
                                 Logger.debug("DropManager:processEntityDrop",
                                     "Aviso: Drop com chance do tipo 'item_pool' sem itemIds válidos.")
                             end
                         elseif dropConfig.type == "item" or dropConfig.type == "jewel" then
-                            local amount = dropConfig.amount
-                            local count = 1
-                            if type(amount) == "table" then
-                                count = math.random(amount.min, amount.max)
-                            elseif type(amount) == "number" then
-                                count = amount
+                            local quantity = 1
+                            if dropConfig.amount then
+                                if type(dropConfig.amount) == "table" then
+                                    quantity = math.random(dropConfig.amount.min, dropConfig.amount.max)
+                                elseif type(dropConfig.amount) == "number" then
+                                    quantity = dropConfig.amount
+                                end
                             end
-                            for _ = 1, count do
+
+                            if quantity > 0 then
+                                local finalDrop = { type = "item", itemId = dropConfig.itemId, quantity = quantity }
                                 Logger.debug("DropManager:processEntityDrop",
-                                    string.format("Drop com chance (%s): %s (%.1f%%)", entity.name,
-                                        dropConfig.type, chance))
-                                table.insert(dropsCreated, dropConfig)
+                                    string.format("Drop com chance (%s x%d): %s (Base: %.1f%%, Final: %.2f%%)",
+                                        finalDrop.itemId, finalDrop.quantity, entity.name,
+                                        chance, finalChance * 100))
+                                table.insert(dropsCreated, finalDrop)
                             end
                         else
                             Logger.debug("DropManager:processEntityDrop", "Aviso: Tipo de drop com chance desconhecido:",
@@ -179,14 +227,13 @@ end
 --- Processa os drops globais para uma entidade.
 ---@param entity table A entidade que foi derrotada.
 ---@param dropsCreated table A lista de drops a serem criados, para adicionar novos drops.
-function DropManager:_processGlobalDrops(entity, dropsCreated)
-    local playerStats = self.playerManager:getCurrentFinalStats()
-    local playerLuck = playerStats and playerStats.luck or 0
-
+---@param luckMultiplier number O multiplicador de sorte do jogador.
+function DropManager:_processGlobalDrops(entity, dropsCreated, luckMultiplier)
     for _, dropInfo in ipairs(globalDropTable) do
         -- Calcula a chance final com base na sorte do jogador.
-        -- A sorte aumenta a chance de drop percentualmente. Ex: 100 de sorte dobra a chance.
-        local finalChance = dropInfo.chance * playerLuck
+        -- O multiplicador já foi calculado, então apenas o aplicamos à chance base do drop.
+        -- A chance no globalDropTable também é uma porcentagem (ex: 0.1 para 0.1%)
+        local finalChance = (dropInfo.chance / 100) * luckMultiplier
 
         if love.math.random() <= finalChance then
             local dropConfig = {
@@ -196,8 +243,8 @@ function DropManager:_processGlobalDrops(entity, dropsCreated)
             }
             table.insert(dropsCreated, dropConfig)
             Logger.debug("DropManager:_processGlobalDrops",
-                string.format("Drop Global (Sorte: %d): Item %s dropado para %s (Chance: %.4f%%)",
-                    playerLuck, dropInfo.itemId, entity.name, finalChance * 100))
+                string.format("Drop Global (Sorte: %d): Item %s dropado para %s (Base: %.4f%%, Final: %.4f%%)",
+                    (luckMultiplier - 1) * 100, dropInfo.itemId, entity.name, dropInfo.chance, finalChance * 100))
         end
     end
 end

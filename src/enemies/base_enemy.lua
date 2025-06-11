@@ -4,8 +4,6 @@
 
 local ManagerRegistry = require("src.managers.manager_registry")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
-local FloatingText = require("src.entities.floating_text")
-local Colors = require("src.ui.colors")
 local TablePool = require("src.utils.table_pool")
 local Constants = require("src.config.constants")
 local DamageNumberManager = require("src.managers.damage_number_manager")
@@ -35,8 +33,6 @@ local BaseEnemy = {
     deathDuration = 2.5,
     updateInterval = 0.1,
     updateTimer = 0,
-    floatingTextUpdateInterval = 1 / 15,
-    floatingTextUpdateTimer = 0,
     slowUpdateTimer = 0,
 
     -- Knockback
@@ -45,9 +41,6 @@ local BaseEnemy = {
     isUnderKnockback = false,
     knockbackVelocity = { x = 0, y = 0 },
     knockbackTimer = 0,
-
-    -- Floating Texts
-    activeFloatingTexts = {},
 
     -- Animation
     unitType = nil,
@@ -97,9 +90,6 @@ function BaseEnemy:new(position, id)
     enemy.directionUpdateTimer = 0
 
     enemy.updateTimer = math.random() * enemy.updateInterval
-    enemy.floatingTextUpdateTimer = math.random() * enemy.floatingTextUpdateInterval
-
-    enemy.activeFloatingTexts = {}
 
     enemy.directionX = 0 -- Nova direção X
     enemy.directionY = 0 -- Nova direção Y
@@ -445,26 +435,6 @@ function BaseEnemy:startDeathAnimation()
     end
 end
 
---- Draws the floating texts
---- @param textBatch table TextBatch.
-function BaseEnemy:drawFloatingTexts(textBatch)
-    if not self.activeFloatingTexts then return end
-    for _, text in ipairs(self.activeFloatingTexts) do
-        text:draw(textBatch)
-    end
-end
-
---- Updates the floating texts
---- @param dt number Delta time.
-function BaseEnemy:updateFloatingTexts(dt)
-    for i = #self.activeFloatingTexts, 1, -1 do
-        local text = self.activeFloatingTexts[i]
-        if not text:update(dt) then
-            table.remove(self.activeFloatingTexts, i)
-        end
-    end
-end
-
 --- Resets the enemy
 --- @param position table Position.
 --- @param id number Unique ID.
@@ -486,11 +456,9 @@ function BaseEnemy:reset(position, id)
     self.directionUpdateTimer = 0
 
     self.updateTimer = math.random() * self.updateInterval
-    self.floatingTextUpdateTimer = math.random() * self.floatingTextUpdateInterval
     self.slowUpdateTimer = 0
 
     self.currentGridCells = nil
-    self.activeFloatingTexts = {}
 
     -- Reset Knockback State
     self.isUnderKnockback = false
@@ -516,7 +484,6 @@ function BaseEnemy:resetStateForPooling()
     self.lastDamageTime = 0
     self.target = nil
     self.currentGridCells = nil
-    self.activeFloatingTexts = {}
 
     -- Reset Knockback State
     self.isUnderKnockback = false

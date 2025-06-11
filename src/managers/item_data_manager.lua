@@ -56,6 +56,10 @@ function ItemDataManager:_loadDataFile(filePath, categoryName)
     end
 end
 
+--- Obtém os dados base de um item.
+---@param self ItemDataManager
+---@param itemBaseId string O ID base do item a ser obtido.
+---@return table|nil data Os dados base do item, ou nil se o itemBaseId não for encontrado.
 function ItemDataManager:getBaseItemData(itemBaseId)
     if not itemBaseId then return nil end
     local data = self.itemDatabase[itemBaseId]
@@ -122,6 +126,7 @@ function ItemDataManager:init()
     self:_loadDataFile("src.data.items.materials", "materiais")
     self:_loadDataFile("src.data.items.runes", "runas")
     self:_loadDataFile("src.data.items.teleport_stones", "pedras de teletransporte")
+    self:_loadDataFile("src.data.items.sellables", "venda")
 
     local count = 0
     for _ in pairs(self.itemDatabase) do count = count + 1 end
