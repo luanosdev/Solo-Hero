@@ -878,7 +878,7 @@ function EnemyManager:drawMvpBar(enemy, x, y)
 
     -- Informações de Rank e Cor
     local titleData = enemy.mvpTitleData
-    local rank = titleData and titleData.rank or "E"
+    local rank = titleData and titleData.rank or "S"
     local rankColors = Colors.rankDetails[rank] or Colors.rankDetails["E"]
 
     -- 1. Preparar texto e calcular sua altura
