@@ -53,7 +53,6 @@ function DamageNumberAnimation:init(target, amount, isCritical)
     -- Adiciona um pequeno desvio para que os números não se sobreponham perfeitamente
     self.offset = { x = (math.random() - 0.5) * 30, y = (math.random() - 0.5) * 15 }
     self.position.x = self.position.x + self.offset.x
-    self.position.y = self.position.y + self.offset.y
     self.initialY = self.position.y
 end
 
@@ -127,6 +126,8 @@ function DamageNumberManager:init(renderPipelineInstance)
             sheet_height)
         current_x = current_x + self.DIGIT_CELL_WIDTH
     end
+    -- Adiciona o quad para o "+"
+    self.quads["+"] = love.graphics.newQuad(current_x, 0, self.CHAR_WIDTH, sheet_height, sheet_width, sheet_height)
 
     print("DamageNumberManager inicializado.")
     self.isInitialized = true
@@ -168,6 +169,56 @@ function DamageNumberManager:update(dt)
     end
 end
 
+--- Desenha um texto usando a fonte de spritesheet de dano.
+--- Uma função utilitária que pode ser chamada de outros lugares (como a PlayerHPBar).
+---@param text string O texto a ser desenhado.
+---@param x number Posição X central para o texto.
+---@param y number Posição Y central para o texto.
+---@param scale number A escala do texto.
+---@param color table A cor {r, g, b} do texto (0-255).
+---@param alpha number A transparência (0-255).
+function DamageNumberManager:drawText(text, x, y, scale, color, alpha)
+    if not self.isInitialized or not text then return end
+
+    -- Guarda a cor atual para restaurá-la depois
+    local prev_r, prev_g, prev_b, prev_a = love.graphics.getColor()
+
+    local num_chars = #text
+    local total_width = 0
+    -- Calcula a largura total primeiro, tratando o "+" de forma especial
+    for i = 1, num_chars do
+        local char = string.sub(text, i, i)
+        if self.quads[char] then
+            total_width = total_width + self.DIGIT_CELL_WIDTH * scale
+        end
+    end
+
+    local current_x = x - (total_width / 2)
+    local r, g, b = unpack(color)
+    love.graphics.setColor(r / 255, g / 255, b / 255, alpha / 255)
+
+    for i = 1, num_chars do
+        local char = string.sub(text, i, i)
+        local quad = self.quads[char]
+        if quad then
+            local _, _, w, h = quad:getViewport()
+            local ox = w / 2
+            local oy = h / 2
+
+            local cell_center_x = current_x + (self.DIGIT_CELL_WIDTH * scale / 2)
+
+            love.graphics.draw(self.spriteSheet, quad,
+                cell_center_x, y,
+                0, scale, scale, ox, oy)
+
+            current_x = current_x + self.DIGIT_CELL_WIDTH * scale
+        end
+    end
+
+    -- Restaura a cor original
+    love.graphics.setColor(prev_r, prev_g, prev_b, prev_a)
+end
+
 --- Adiciona os números de dano ao pipeline de renderização.
 function DamageNumberManager:collectRenderables()
     if not self.renderPipeline or #self.activeAnimations == 0 then return end
@@ -188,39 +239,9 @@ function DamageNumberManager:collectRenderables()
             local digit_height = self.DIGIT_HEIGHT
 
             renderable.drawFunction = function()
-                -- Guarda a cor atual para restaurá-la depois
-                local prev_r, prev_g, prev_b, prev_a = love.graphics.getColor()
-
-                local num_digits = #anim_instance.amount_str
-                local total_width = num_digits * digit_width * anim_instance.scale
-
-                local current_x = anim_instance.position.x - (total_width / 2)
-                local r, g, b = unpack(anim_instance.color)
-                love.graphics.setColor(r / 255, g / 255, b / 255, anim_instance.alpha / 255)
-
-                for i = 1, num_digits do
-                    local digit = string.sub(anim_instance.amount_str, i, i)
-                    local quad = quads[digit]
-                    if quad then
-                        local _, _, w, h = quad:getViewport()
-                        local ox = w / 2
-                        local oy = h / 2
-
-                        -- Desenha o dígito centralizado em sua célula de largura fixa
-                        local cell_center_x = current_x + (digit_width * anim_instance.scale / 2)
-
-                        love.graphics.draw(sheet, quad,
-                            cell_center_x,
-                            anim_instance.position.y,
-                            0, anim_instance.scale, anim_instance.scale, ox, oy)
-
-                        -- Avança para a próxima posição de célula
-                        current_x = current_x + digit_width * anim_instance.scale
-                    end
-                end
-
-                -- Restaura a cor original para não afetar outros desenhos
-                love.graphics.setColor(prev_r, prev_g, prev_b, prev_a)
+                -- A lógica de desenho foi movida para uma função de utilidade para ser reutilizada.
+                self:drawText(anim_instance.amount_str, anim_instance.position.x, anim_instance.position.y,
+                    anim_instance.scale, anim_instance.color, anim_instance.alpha)
             end
 
             self.renderPipeline:add(renderable)

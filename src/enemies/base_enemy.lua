@@ -14,6 +14,7 @@ local BaseEnemy = {
     id = 0,
     name = "BaseEnemy",
     className = "BaseEnemy",
+    nameType = "generic_monster", -- << NOVO: Categoria para buscar nomes
 
     -- Individual Stats
     maxHealth = 0,
@@ -25,6 +26,10 @@ local BaseEnemy = {
     isAlive = true,
     isMVP = false,
     isBoss = false,
+
+    -- MVP-specific data
+    mvpProperName = nil, -- << NOVO
+    mvpTitleData = nil,  -- << NOVO
 
     -- Timers
     lastDamageTime = 0,
@@ -451,6 +456,11 @@ function BaseEnemy:reset(position, id)
     self.shouldRemove = false
     self.deathTimer = 0
     self.lastDamageTime = 0
+    self.isMVP = false -- << IMPORTANTE: Resetar o status de MVP
+
+    -- Resetar dados de MVP
+    self.mvpProperName = nil
+    self.mvpTitleData = nil
 
     self.directionUpdateInterval = 0.4 + math.random() * 0.4
     self.directionUpdateTimer = 0
@@ -484,6 +494,10 @@ function BaseEnemy:resetStateForPooling()
     self.lastDamageTime = 0
     self.target = nil
     self.currentGridCells = nil
+
+    -- Resetar dados de MVP
+    self.mvpProperName = nil
+    self.mvpTitleData = nil
 
     -- Reset Knockback State
     self.isUnderKnockback = false

@@ -6,6 +6,7 @@ local data = EnemyData.zombie_runner_male_1
 local ZombieRunnerMale1 = {}
 ZombieRunnerMale1.unitType = "zombie_runner_male_1"
 ZombieRunnerMale1.className = "ZombieRunnerMale1"
+ZombieRunnerMale1.nameType = "zombie_male"
 
 ZombieRunnerMale1.name = data.name
 ZombieRunnerMale1.speed = data.speed

@@ -1,10 +1,6 @@
-
-
-
-
-
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
+local MvpHealthBar = require("src.ui.mvp_health_bar")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local SpatialGridIncremental = require("src.utils.spatial_grid_incremental")
 local TablePool = require("src.utils.table_pool")
@@ -12,6 +8,8 @@ local Camera = require("src.config.camera")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local DamageNumberManager = require("src.managers.damage_number_manager")
+local MVPTitlesData = require("src.data.mvp_titles_data")
+local EnemyNamesData = require("src.data.enemy_names_data")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -144,6 +142,9 @@ function EnemyManager:update(dt)
     if self.lastBossDeathTime > 0 then
         self.bossDeathTimer = self.gameTimer - self.lastBossDeathTime
     end
+
+    -- Atualiza a visibilidade da barra de vida do MVP
+    self:updateMvpHealthBarVisibility(dt)
 
     -- Verifica se é hora de spawnar um MVP
     if self.gameTimer >= self.nextMVPSpawnTime then
@@ -302,6 +303,12 @@ function EnemyManager:update(dt)
             if self.spatialGrid then -- Adicionado: Remove do grid ao remover da lista
                 self.spatialGrid:removeEntityCompletely(enemy)
             end
+
+            -- Se for um MVP, esconde a barra de vida
+            if enemy.isMVP then
+                MvpHealthBar:hide()
+            end
+
             table.remove(self.enemies, i)
             self:returnEnemyToPool(enemy)
         end
@@ -340,6 +347,27 @@ function EnemyManager:updateBossHealthBarVisibility(dt)
         else
             -- Nenhum boss vivo e nenhum morreu recentemente
             BossHealthBar:hide()
+        end
+    end
+end
+
+--- Função auxiliar para gerenciar visibilidade da barra de vida do MVP.
+function EnemyManager:updateMvpHealthBarVisibility(dt)
+    local activeMVP = nil
+    for _, enemy in ipairs(self.enemies) do
+        if enemy.isMVP and enemy.isAlive then
+            activeMVP = enemy
+            break
+        end
+    end
+
+    if activeMVP then
+        MvpHealthBar:show(activeMVP)
+    else
+        -- A barra do MVP simplesmente desaparece quando ele morre (a lógica de remoção lida com isso)
+        -- Mas se o jogo for salvo/carregado sem MVP, garantimos que está escondida.
+        if not MvpHealthBar.target then
+            MvpHealthBar:hide()
         end
     end
 end
@@ -551,83 +579,56 @@ function EnemyManager:getEnemies()
     return self.enemies
 end
 
--- Cria e adiciona um inimigo de uma classe específica em uma posição aleatória fora da tela
-function EnemyManager:spawnSpecificEnemy(enemyClass)
+--- Spawna um inimigo (normal ou MVP) com base nas opções.
+--- @param enemyClass table A classe do inimigo a ser spawnada.
+--- @param options table|nil Tabela de opções. Pode incluir: isMVP (boolean).
+function EnemyManager:spawnSpecificEnemy(enemyClass, options)
+    options = options or {}
+
     if not enemyClass then
         print("Erro: Tentativa de spawnar inimigo com classe nula.")
-        return
+        return nil
     end
 
-    local enemyClassName = enemyClass.className -- Supondo que a classe do inimigo tenha um campo 'className'
+    local enemyClassName = enemyClass.className
     if not enemyClassName then
-        -- Tenta obter o nome da classe de uma forma mais genérica se não houver 'className'
-        -- Isso é um fallback e pode não ser ideal. Idealmente, cada classe de inimigo define seu 'className'.
-        for k, v in pairs(_G) do
-            if v == enemyClass then
-                enemyClassName = k
-                break
-            end
-        end
-        if not enemyClassName then
-            print(
-                "ERRO CRÍTICO [EnemyManager:spawnSpecificEnemy]: Não foi possível determinar o className para a enemyClass fornecida.")
-            -- Fallback para um nome de classe genérico se não conseguir determinar
-            -- Isso pode levar a um pooling incorreto se várias classes acabarem com o mesmo nome genérico.
-            -- Seria melhor que cada 'enemyClass' tivesse uma propriedade estática 'className'.
-            -- Por agora, vamos usar um nome padrão e logar um aviso.
-            enemyClassName = "UnknownEnemyType"
-            print(string.format(
-                "AVISO [EnemyManager:spawnSpecificEnemy]: Usando className '%s' para pooling. Isso pode não ser ideal.",
-                enemyClassName))
-            -- Como alternativa, poderia simplesmente não usar o pool para classes sem nome definido:
-            -- print("AVISO [EnemyManager:spawnSpecificEnemy]: enemyClass não tem um 'className' definido. Criando nova instância sem pooling.")
-            -- local newEnemy = enemyClass:new({x = 0, y = 0}, self.nextEnemyId) -- Posição e ID serão definidos depois
-            -- table.insert(self.enemies, newEnemy)
-            -- self.nextEnemyId = self.nextEnemyId + 1
-            -- -- ... (código para definir posição e outras propriedades) ...
-            -- return newEnemy -- Ou apenas retornar se a função for usada para obter um inimigo
-        end
+        print("ERRO CRÍTICO [EnemyManager:spawnSpecificEnemy]: Classe de inimigo sem 'className'.")
+        return nil
     end
 
+    -- Obter instância do pool ou criar nova
+    local enemyInstance = self:getOrCreateEnemyInstance(enemyClassName, enemyClass)
 
-    local enemyInstance = nil
-
-    -- Tenta pegar um inimigo do pool
-    if self.enemyPool[enemyClassName] and #self.enemyPool[enemyClassName] > 0 then
-        enemyInstance = table.remove(self.enemyPool[enemyClassName])
-        -- print(string.format("Reutilizando inimigo da classe %s do pool. Pool agora tem %d.", enemyClassName, #self.enemyPool[enemyClassName]))
-    end
-
-    -- Obtém o próximo ID disponível
-    local enemyId
-    if enemyInstance then
-        -- Se estamos reutilizando um inimigo, ele já tem um ID.
-        -- O reset vai lidar com o ID novo se necessário, mas geralmente o ID é persistente para pooling.
-        -- A lógica de self.nextEnemyId é para novas instâncias.
-        enemyId = self.nextEnemyId -- Atribuímos um novo ID para consistência, mesmo para instâncias do pool.
-        self.nextEnemyId = self.nextEnemyId + 1
-    else
-        enemyId = self.nextEnemyId
-        self.nextEnemyId = self.nextEnemyId + 1
-    end
-
-
-    -- Calcula uma posição de spawn usando a nova lógica inteligente
+    -- Calcular posição de spawn
     local spawnX, spawnY = self:calculateSpawnPosition()
+    enemyInstance:reset({ x = spawnX, y = spawnY }, self.nextEnemyId)
+    self.nextEnemyId = self.nextEnemyId + 1
 
-    if enemyInstance then
-        -- Reinicializa o inimigo existente usando a função reset de BaseEnemy
-        enemyInstance:reset({ x = spawnX, y = spawnY }, enemyId)
-    else
-        -- Cria uma nova instância do inimigo com o ID se não houver no pool
-        enemyInstance = enemyClass:new({ x = spawnX, y = spawnY }, enemyId)
+    -- Se for um MVP, aplica as transformações
+    if options.isMVP then
+        self:transformToMVP(enemyInstance)
+        MvpHealthBar:show(enemyInstance) -- Mostra a barra de vida imediatamente
     end
 
-    -- Adiciona o inimigo à lista de inimigos ativos
+    -- Adiciona à lista de ativos
     table.insert(self.enemies, enemyInstance)
 
-    print(string.format("Inimigo ID: %d (Classe: %s) spawnado em (%.1f, %.1f). Reutilizado: %s", enemyInstance.id,
-        enemyClassName, spawnX, spawnY, tostring(enemyInstance ~= nil and enemyId ~= enemyInstance.id))) -- Lógica de reutilizado ajustada
+    print(string.format("Inimigo ID: %d (Classe: %s, MVP: %s) spawnado em (%.1f, %.1f).",
+        enemyInstance.id, enemyClassName, tostring(options.isMVP or false), spawnX, spawnY))
+
+    return enemyInstance
+end
+
+--- Obtém um inimigo do pool ou cria uma nova instância.
+---@param enemyClassName string
+---@param enemyClass table
+---@return BaseEnemy
+function EnemyManager:getOrCreateEnemyInstance(enemyClassName, enemyClass)
+    if self.enemyPool[enemyClassName] and #self.enemyPool[enemyClassName] > 0 then
+        return table.remove(self.enemyPool[enemyClassName])
+    else
+        return enemyClass:new({ x = 0, y = 0 }, -1) -- Posição e ID temporários
+    end
 end
 
 -- Adiciona um inimigo ao pool para reutilização
@@ -654,18 +655,105 @@ end
 function EnemyManager:transformToMVP(enemy)
     if not enemy or not enemy.isAlive then return end
 
-    local mvpConfig = self.worldConfig.mvpConfig
-
-    -- Aumenta os status do inimigo usando as configurações do mundo
-    enemy.maxHealth = enemy.maxHealth * mvpConfig.statusMultiplier
-    enemy.currentHealth = enemy.maxHealth
-    enemy.damage = enemy.damage * mvpConfig.statusMultiplier
-    enemy.speed = enemy.speed * mvpConfig.speedMultiplier
-    enemy.radius = enemy.radius * mvpConfig.sizeMultiplier
-    enemy.experienceValue = enemy.experienceValue * mvpConfig.experienceMultiplier
-
-    -- Marca como MVP
+    -- 1. Marcação e Boosts Base
     enemy.isMVP = true
+    enemy.maxHealth = enemy.maxHealth * 10
+    enemy.radius = enemy.radius * 1.2
+    enemy.sprite.scale = enemy.sprite.scale * 1.2 -- Assumindo que a escala está no sprite
+
+    -- 2. Seleção de Título
+    local mapRank = self.worldConfig.mapRank or "E"
+    local title = self:selectMvpTitle(mapRank)
+    enemy.mvpTitleData = title
+
+    -- 3. Seleção de Nome
+    local nameType = enemy.nameType or "generic_monster"
+    local names = EnemyNamesData[nameType]
+    if names and #names > 0 then
+        enemy.mvpProperName = names[math.random(#names)]
+    else
+        enemy.mvpProperName = "Ser Sem Nome"
+    end
+
+    -- 4. Aplicação dos Modificadores do Título
+    if title and title.modifiers then
+        for _, mod in ipairs(title.modifiers) do
+            self:applyModifier(enemy, mod)
+        end
+    end
+
+    -- A vida atual deve ser igual à vida máxima após todas as modificações
+    enemy.currentHealth = enemy.maxHealth
+
+    print(string.format("Transformado em MVP: %s, %s", enemy.mvpProperName, title.name))
+end
+
+--- Seleciona um título de MVP com base no rank do mapa, com chance de upgrade.
+---@param mapRank string
+---@return table|nil
+function EnemyManager:selectMvpTitle(mapRank)
+    local ranks = { "E", "D", "C", "B", "A", "S" }
+    local rankIndex = 1
+    for i, r in ipairs(ranks) do
+        if r == mapRank then
+            rankIndex = i
+            break
+        end
+    end
+
+    -- Chance de 10% de pegar um rank acima (se não for S)
+    if rankIndex < #ranks and math.random() <= 0.1 then
+        rankIndex = rankIndex + 1
+    end
+    local targetRank = ranks[rankIndex]
+
+    -- Filtra títulos pelo rank alvo
+    local validTitles = {}
+    for _, title in pairs(MVPTitlesData.Titles) do
+        if title.rank == targetRank then
+            table.insert(validTitles, title)
+        end
+    end
+
+    if #validTitles > 0 then
+        return validTitles[math.random(#validTitles)]
+    else
+        -- Fallback para o rank original se não houver títulos no rank superior
+        validTitles = {}
+        for _, title in pairs(MVPTitlesData.Titles) do
+            if title.rank == mapRank then
+                table.insert(validTitles, title)
+            end
+        end
+        if #validTitles > 0 then
+            return validTitles[math.random(#validTitles)]
+        end
+    end
+
+    return nil -- Nenhum título encontrado
+end
+
+--- Aplica um modificador de stat a um inimigo.
+---@param enemy BaseEnemy
+---@param modifier table
+function EnemyManager:applyModifier(enemy, modifier)
+    local stat = modifier.stat
+    local type = modifier.type
+    local value = modifier.value
+
+    if not enemy[stat] then
+        print(string.format("Aviso: Tentando modificar stat '%s' inexistente no inimigo.", stat))
+        return
+    end
+
+    if type == "fixed" then
+        enemy[stat] = enemy[stat] + value
+    elseif type == "percentage" then
+        enemy[stat] = enemy[stat] * (1 + value / 100)
+    elseif type == "fixed_percentage_as_fraction" then
+        -- Assume que o stat base é um multiplicador (ex: critChance)
+        enemy[stat] = enemy[stat] + value
+    end
 end
 
 -- Função para spawnar um MVP
@@ -675,26 +763,13 @@ function EnemyManager:spawnMVP()
         return
     end
 
-    -- Seleciona um tipo de inimigo aleatório do ciclo atual
     local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
     if not currentCycle then return end
 
     local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
     if not enemyClass then return end
 
-    -- Obtém o próximo ID disponível
-    local enemyId = self.nextEnemyId
-    print(string.format("Próximo ID disponível para MVP: %d", enemyId))
-
-    -- Spawna o inimigo normalmente
-    self:spawnSpecificEnemy(enemyClass)
-
-    -- Transforma o último inimigo spawnado em MVP
-    if #self.enemies > 0 then
-        local mvp = self.enemies[#self.enemies]
-        self:transformToMVP(mvp)
-        print(string.format("MVP ID: %d criado", mvp.id))
-    end
+    self:spawnSpecificEnemy(enemyClass, { isMVP = true })
 end
 
 function EnemyManager:spawnBoss(bossClass, powerLevel)

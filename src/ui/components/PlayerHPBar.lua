@@ -1,3 +1,5 @@
+local DamageNumberManager = require("src.managers.damage_number_manager")
+
 ---@class PlayerHPBar
 ---@field x number Posição X do canto superior esquerdo.
 ---@field y number Posição Y do canto superior esquerdo.
@@ -261,7 +263,8 @@ end
 function PlayerHPBar:showHPChangeAnimation(amount)
     if amount == 0 then return end
     local newAnimData = {
-        text = (amount > 0 and "+" or "-") .. math.floor(math.abs(amount)),
+        -- text = (amount > 0 and "+" or "") .. math.floor(math.abs(amount)),
+        text = "" .. math.floor(math.abs(amount)),
         color = amount > 0 and self.colors.hpChangeGain or self.colors.hpChangeLoss,
         deltaY = -25 -- Deslocamento para cima
     }
@@ -368,15 +371,13 @@ function PlayerHPBar:draw()
     love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
     love.graphics.print(layout.hpInfoText, layout.hpInfoX, layout.hpInfoY)
 
+    local DamageNumberManager = require("src.managers.damage_number_manager")
     for i, anim in ipairs(self.activeTextAnimations) do
         if anim.alpha > 0 then -- Desenha apenas se estiver visível
-            love.graphics.setFont(self.fontHPChange)
-            r, g, b, a = unpack(anim.color);
-            love.graphics.setColor(r / 255, g / 255, b / 255, (a / 255) * (anim.alpha / 255))
-            local textWidth = self.fontHPChange:getWidth(anim.text)
-            local textX = self.x + self.padding.left + (self.internalLayout.hpBarW / 2) - (textWidth / 2)
+            local r, g, b = unpack(anim.color);
+            local textX = self.x + self.padding.left + (self.internalLayout.hpBarW / 2)
             local textY = self.hpChangeAnimationInitialY + anim.offsetY
-            love.graphics.print(anim.text, math.floor(textX), math.floor(textY))
+            DamageNumberManager:drawText(anim.text, textX, textY, 0.6, { r, g, b }, anim.alpha)
         end
     end
 
@@ -491,13 +492,10 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
     local onPlayerAnimBaseY = barY - 25 -- Inicia o texto da animação 5px acima da barra
     for i, anim in ipairs(self.activeTextAnimations) do
         if anim.alpha > 0 then          -- Desenha apenas se estiver visível
-            love.graphics.setFont(self.fontHPChange)
-            local r, g, b, a = unpack(anim.color);
-            love.graphics.setColor(r / 255, g / 255, b / 255, (a / 255) * (anim.alpha / 255))
-            local textWidth = self.fontHPChange:getWidth(anim.text)
-            local textX = barX + (barWidth / 2) - (textWidth / 2)
+            local r, g, b = unpack(anim.color);
+            local textX = barX + (barWidth / 2)
             local textY = onPlayerAnimBaseY + anim.offsetY
-            love.graphics.print(anim.text, math.floor(textX), math.floor(textY))
+            DamageNumberManager:drawText(anim.text, textX, textY, 0.5, { r, g, b }, anim.alpha)
         end
     end
 

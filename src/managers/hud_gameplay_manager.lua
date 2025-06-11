@@ -1,5 +1,6 @@
 local ProgressLevelBar = require("src.ui.components.ProgressLevelBar")
 local PlayerHPBar = require("src.ui.components.PlayerHPBar")
+local MvpHealthBar = require("src.ui.mvp_health_bar")
 local fonts = require("src.ui.fonts")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Camera = require("src.config.camera")
@@ -7,6 +8,7 @@ local Camera = require("src.config.camera")
 ---@class HUDGameplayManager
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
 ---@field playerHPBar PlayerHPBar|nil Instância da barra de HP do jogador.
+---@field mvpHealthBar MvpHealthBar|nil Instância da barra de vida do MVP.
 ---@field lastPlayerLevel number Armazena o nível do jogador no frame anterior.
 ---@field lastPlayerXPInLevel number Armazena o XP do jogador DENTRO do nível no frame anterior.
 ---@field lastTotalPlayerXP number Armazena o XP TOTAL ACUMULADO do jogador no frame anterior.
@@ -19,6 +21,7 @@ local Camera = require("src.config.camera")
 local HUDGameplayManager = {
     progressLevelBar = nil,
     playerHPBar = nil,
+    mvpHealthBar = nil,
     lastPlayerLevel = 0,
     lastPlayerXPInLevel = 0,
     lastTotalPlayerXP = 0,
@@ -61,6 +64,10 @@ function HUDGameplayManager:setupGameplay()
     local initialMaxHP = initialPlayerState.maxHealth
     local initialName = hunterData.name
     local initialRank = hunterData.finalRankId
+
+    -- Inicializa a barra de vida do MVP
+    self.mvpHealthBar = MvpHealthBar
+    self.mvpHealthBar:init()
 
     -- Configuração da Barra de HP (PlayerHPBar)
     local hpBarConfig = {
@@ -160,6 +167,11 @@ end
 function HUDGameplayManager:update(dt)
     local playerManager = ManagerRegistry:get("playerManager")
     local hunterManager = ManagerRegistry:get("hunterManager")
+
+    -- Atualiza a barra do MVP independentemente do estado do jogador
+    if self.mvpHealthBar then
+        self.mvpHealthBar:update(dt)
+    end
 
     if not playerManager or not playerManager.state or not hunterManager then
         if self.progressLevelBar then self.progressLevelBar:update(dt) end
@@ -261,6 +273,16 @@ function HUDGameplayManager:draw(isPaused)
     self.progressLevelBar:draw()
     self.playerHPBar:draw()
     self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
+
+    -- Desenha a barra de vida do MVP
+    if self.mvpHealthBar then
+        -- Desenha a barra flutuante sobre o MVP, se ele existir e estiver vivo
+        local mvp = self.mvpHealthBar.target
+        if mvp and mvp.isAlive then
+            local mvpScreenX, mvpScreenY = Camera:worldToScreen(mvp.position.x, mvp.position.y)
+            self.mvpHealthBar:drawOnMvp(mvpScreenX, mvpScreenY)
+        end
+    end
 end
 
 --- Reseta o estado do manager (se necessário).
@@ -310,6 +332,12 @@ function HUDGameplayManager:reset()
         end
         self.lastPlayerHP = 100; self.lastPlayerMaxHP = 100; self.lastPlayerName = "Jogador"; self.lastPlayerRank = "N/A"
     end
+
+    -- Reseta a barra de vida do MVP também
+    if self.mvpHealthBar then
+        self.mvpHealthBar:hide()
+    end
+
     print("HUDGameplayManager: reset chamado")
 end
 
