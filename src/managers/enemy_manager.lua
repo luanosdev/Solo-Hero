@@ -1,6 +1,5 @@
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
-local MvpHealthBar = require("src.ui.mvp_health_bar")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local SpatialGridIncremental = require("src.utils.spatial_grid_incremental")
 local TablePool = require("src.utils.table_pool")
@@ -10,6 +9,8 @@ local Culling = require("src.core.culling")
 local DamageNumberManager = require("src.managers.damage_number_manager")
 local MVPTitlesData = require("src.data.mvp_titles_data")
 local EnemyNamesData = require("src.data.enemy_names_data")
+local Colors = require("src.ui.colors")
+local Fonts = require("src.ui.fonts")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -142,9 +143,6 @@ function EnemyManager:update(dt)
     if self.lastBossDeathTime > 0 then
         self.bossDeathTimer = self.gameTimer - self.lastBossDeathTime
     end
-
-    -- Atualiza a visibilidade da barra de vida do MVP
-    self:updateMvpHealthBarVisibility(dt)
 
     -- Verifica se é hora de spawnar um MVP
     if self.gameTimer >= self.nextMVPSpawnTime then
@@ -304,11 +302,6 @@ function EnemyManager:update(dt)
                 self.spatialGrid:removeEntityCompletely(enemy)
             end
 
-            -- Se for um MVP, esconde a barra de vida
-            if enemy.isMVP then
-                MvpHealthBar:hide()
-            end
-
             table.remove(self.enemies, i)
             self:returnEnemyToPool(enemy)
         end
@@ -347,27 +340,6 @@ function EnemyManager:updateBossHealthBarVisibility(dt)
         else
             -- Nenhum boss vivo e nenhum morreu recentemente
             BossHealthBar:hide()
-        end
-    end
-end
-
---- Função auxiliar para gerenciar visibilidade da barra de vida do MVP.
-function EnemyManager:updateMvpHealthBarVisibility(dt)
-    local activeMVP = nil
-    for _, enemy in ipairs(self.enemies) do
-        if enemy.isMVP and enemy.isAlive then
-            activeMVP = enemy
-            break
-        end
-    end
-
-    if activeMVP then
-        MvpHealthBar:show(activeMVP)
-    else
-        -- A barra do MVP simplesmente desaparece quando ele morre (a lógica de remoção lida com isso)
-        -- Mas se o jogo for salvo/carregado sem MVP, garantimos que está escondida.
-        if not MvpHealthBar.target then
-            MvpHealthBar:hide()
         end
     end
 end
@@ -557,6 +529,21 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
 
                     renderPipelineInstance:add(rendable)
 
+                    -- <<< NOVA LÓGICA PARA BARRAS DE VIDA DE MVP >>>
+                    if enemy.isMVP and enemy.isAlive then
+                        local mvpBarRenderable = TablePool.get()
+                        mvpBarRenderable.type = "drawFunction"
+                        mvpBarRenderable.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI -- Renderiza sobre os sprites
+                        mvpBarRenderable.sortY = sortY +
+                        1000                                                           -- Garante que fique sobre o sprite
+
+                        local capturedEnemy = enemy
+                        mvpBarRenderable.drawFunction = function()
+                            self:drawMvpBar(capturedEnemy, capturedEnemy.position.x, capturedEnemy.position.y)
+                        end
+                        renderPipelineInstance:add(mvpBarRenderable)
+                    end
+
                     -- Barras de vida e outros elementos de BaseEnemy podem ser desenhados separadamente
                     -- ou também adicionados à renderList se BaseEnemy.draw for adaptado.
                     -- Por simplicidade, se BaseEnemy:draw desenha diretamente, ele será chamado *depois* que os batches forem desenhados
@@ -581,7 +568,7 @@ end
 
 --- Spawna um inimigo (normal ou MVP) com base nas opções.
 --- @param enemyClass table A classe do inimigo a ser spawnada.
---- @param options table|nil Tabela de opções. Pode incluir: isMVP (boolean).
+---@param options table|nil Tabela de opções. Pode incluir: isMVP (boolean).
 function EnemyManager:spawnSpecificEnemy(enemyClass, options)
     options = options or {}
 
@@ -607,7 +594,6 @@ function EnemyManager:spawnSpecificEnemy(enemyClass, options)
     -- Se for um MVP, aplica as transformações
     if options.isMVP then
         self:transformToMVP(enemyInstance)
-        MvpHealthBar:show(enemyInstance) -- Mostra a barra de vida imediatamente
     end
 
     -- Adiciona à lista de ativos
@@ -877,6 +863,74 @@ function EnemyManager:calculateSpawnPosition()
     local spawnY = math.random(selectedZone.y, selectedZone.y + selectedZone.height)
 
     return spawnX, spawnY
+end
+
+--- Desenha a barra de vida e o nome de um inimigo MVP específico.
+---@param enemy BaseEnemy O inimigo MVP a ser desenhado.
+---@param x number Posição X na tela.
+---@param y number Posição Y na tela.
+function EnemyManager:drawMvpBar(enemy, x, y)
+    -- Configurações
+    local barWidth = 100
+    local barHeight = 6
+    local nameToBarSpacing = 4
+    local spaceAboveSprite = 5
+
+    -- Informações de Rank e Cor
+    local titleData = enemy.mvpTitleData
+    local rank = "A"
+    local rankColors = Colors.rankDetails[rank] or Colors.rankDetails["E"]
+
+    -- 1. Preparar texto e calcular sua altura
+    local fullName = string.format("%s, %s", enemy.mvpProperName, titleData.name)
+    love.graphics.setFont(Fonts.main)
+    local font = love.graphics.getFont()
+    local _, wrappedLines = font:getWrap(fullName, barWidth)
+    local textHeight = #wrappedLines * font:getHeight()
+
+    -- 2. Calcular a altura total e a posição do bloco
+    local totalBlockHeight = textHeight + nameToBarSpacing + barHeight
+    local spriteTopY = y - (enemy.radius or 32)
+    local blockTopY = spriteTopY - spaceAboveSprite - totalBlockHeight
+
+    local barX = x - (barWidth / 2)
+    local barY = blockTopY + textHeight + nameToBarSpacing
+
+    -- 3. Desenhar o Nome (manualmente, linha por linha)
+    local currentTextY = blockTopY
+    love.graphics.setColor(rankColors.gradientStart)
+    for _, line in ipairs(wrappedLines) do
+        local lineWidth = font:getWidth(line)
+        love.graphics.print(line, x - (lineWidth / 2) + 1, currentTextY + 1)
+        currentTextY = currentTextY + font:getHeight()
+    end
+
+    currentTextY = blockTopY
+    love.graphics.setColor(rankColors.text)
+    for _, line in ipairs(wrappedLines) do
+        local lineWidth = font:getWidth(line)
+        love.graphics.print(line, x - (lineWidth / 2), currentTextY)
+        currentTextY = currentTextY + font:getHeight()
+    end
+
+    -- 4. Desenhar a Barra de Vida
+    local healthRatio = enemy.currentHealth / enemy.maxHealth
+    healthRatio = math.max(0, math.min(1, healthRatio))
+    local currentHPFillWidth = barWidth * healthRatio
+
+    love.graphics.setColor(Colors.bar_bg[1], Colors.bar_bg[2], Colors.bar_bg[3], 0.8)
+    love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
+
+    if currentHPFillWidth > 0 then
+        love.graphics.setColor(unpack(Colors.hp_fill))
+        love.graphics.rectangle("fill", barX, barY, currentHPFillWidth, barHeight)
+    end
+
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(unpack(Colors.bar_border))
+    love.graphics.rectangle("line", barX, barY, barWidth, barHeight)
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 return EnemyManager
