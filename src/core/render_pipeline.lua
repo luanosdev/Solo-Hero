@@ -124,15 +124,9 @@ function RenderPipeline:draw(mapManager, cameraX, cameraY)
     for _, depthValue in ipairs(depthDrawOrder) do
         local bucket = self.buckets[depthValue]
         if bucket and #bucket > 0 then
-            -- Ordena o bucket se configurado para tal (ex: entidades por sortY)
-            if self.sortableBuckets[depthValue] then
-                table.sort(bucket, function(a, b)
-                    if a.sortY == b.sortY then
-                        return false                       -- Mantém ordem de inserção para sortY iguais ou usa critério secundário
-                    end
-                    return (a.sortY or 0) < (b.sortY or 0) -- Fallback para 0 se sortY for nil
-                end)
-            end
+            -- A ordenação manual de 'bucket' foi removida.
+            -- A profundidade agora é gerenciada pelo SpriteBatch usando o parâmetro 'depth',
+            -- o que resolve o problema de ordenação entre diferentes texturas (batches).
 
             -- Desenha/Processa os itens do bucket
             for _, item in ipairs(bucket) do
@@ -149,7 +143,7 @@ function RenderPipeline:draw(mapManager, cameraX, cameraY)
                             sy = item.scale or 1,
                             ox = item.ox or 0,
                             oy = item.oy or 0,
-                            -- depth_in_batch = item.depth_in_batch or 0 -- Para SpriteBatch:add(quad, x,y,r,sx,sy,ox,oy,kx,ky, depth)
+                            depth_in_batch = item.sortY,
                         })
                     else
                         print(string.format(
@@ -176,10 +170,12 @@ function RenderPipeline:draw(mapManager, cameraX, cameraY)
         if batch and #dataList > 0 then
             batch:clear() -- Limpa o batch antes de adicionar os sprites do frame atual
             for _, drawArgs in ipairs(dataList) do
+                -- Usa a variante de :add() com o parâmetro de profundidade.
+                -- A profundidade é baseada no sortY (posição Y), garantindo que
+                -- entidades mais "ao sul" na tela sejam desenhadas por cima.
+                -- math.floor é usado pois 'depth' precisa ser um número inteiro.
                 batch:add(drawArgs.quad, drawArgs.x, drawArgs.y, drawArgs.r, drawArgs.sx, drawArgs.sy, drawArgs.ox,
-                    drawArgs.oy)
-                -- Se for usar a profundidade do spritebatch:
-                -- batch:add(drawArgs.quad, drawArgs.x, drawArgs.y, drawArgs.r, drawArgs.sx, drawArgs.sy, drawArgs.ox, drawArgs.oy, 0, 0, drawArgs.depth_in_batch)
+                    drawArgs.oy, 0, 0, math.floor(drawArgs.depth_in_batch or 0))
             end
             if batch:getCount() > 0 then -- Verifica se há algo para desenhar
                 -- print(string.format("RenderPipeline: Desenhando batch para textura %s com %d sprites", tostring(texture), batch:getCount()))
