@@ -60,33 +60,45 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
     self.keys.moveLeft = love.keyboard.isDown("a") or love.keyboard.isDown("left")
     self.keys.moveRight = love.keyboard.isDown("d") or love.keyboard.isDown("right")
 
-    -- Não processa movimento se a UI estiver bloqueando
-    if isUIBlockingInput then return end
-
     local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
+    if not playerManager or not playerManager.player then
+        return
+    end
 
-    -- Executa movimento se houver input
+    -- Se a UI está bloqueando, o jogador não pode se mover. Zera a velocidade e retorna.
+    if isUIBlockingInput then
+        playerManager.player.velocity.x = 0
+        playerManager.player.velocity.y = 0
+        return
+    end
+
+    local moveX, moveY = 0, 0
+    -- Executa movimento se houver input de teclas
     if self.keys.moveUp or self.keys.moveDown or self.keys.moveLeft or self.keys.moveRight then
-        local moveX, moveY = 0, 0
         if self.keys.moveUp then moveY = moveY - 1 end
         if self.keys.moveDown then moveY = moveY + 1 end
         if self.keys.moveLeft then moveX = moveX - 1 end
         if self.keys.moveRight then moveX = moveX + 1 end
 
+        -- Normaliza o vetor de movimento para evitar velocidade maior na diagonal
         if moveX ~= 0 or moveY ~= 0 then
             local length = math.sqrt(moveX * moveX + moveY * moveY)
             moveX = moveX / length
             moveY = moveY / length
         end
 
-        if playerManager and playerManager.player then
-            local finalStats = playerManager:getCurrentFinalStats()
-            local newX = playerManager.player.position.x + moveX * finalStats.moveSpeed * dt
-            local newY = playerManager.player.position.y + moveY * finalStats.moveSpeed * dt
+        -- Aplica o movimento
+        local finalStats = playerManager:getCurrentFinalStats()
+        playerManager.player.position.x = playerManager.player.position.x + moveX * finalStats.moveSpeed * dt
+        playerManager.player.position.y = playerManager.player.position.y + moveY * finalStats.moveSpeed * dt
 
-            playerManager.player.position.x = newX
-            playerManager.player.position.y = newY
-        end
+        -- Atualiza o vetor de velocidade no playerManager para outros sistemas usarem
+        playerManager.player.velocity.x = moveX
+        playerManager.player.velocity.y = moveY
+    else
+        -- Se não houver input de movimento, zera a velocidade
+        playerManager.player.velocity.x = 0
+        playerManager.player.velocity.y = 0
     end
 end
 

@@ -1,3 +1,8 @@
+
+
+
+
+
 local HordeConfigManager = require("src.managers.horde_config_manager")
 local BossHealthBar = require("src.ui.boss_health_bar")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
@@ -607,11 +612,8 @@ function EnemyManager:spawnSpecificEnemy(enemyClass)
     end
 
 
-    -- Calcula um raio de spawn fora da área visível da tela
-    local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
-    local angle = math.random() * 2 * math.pi
-    local spawnX = self.playerManager.player.position.x + math.cos(angle) * minSpawnRadius
-    local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
+    -- Calcula uma posição de spawn usando a nova lógica inteligente
+    local spawnX, spawnY = self:calculateSpawnPosition()
 
     if enemyInstance then
         -- Reinicializa o inimigo existente usando a função reset de BaseEnemy
@@ -696,11 +698,8 @@ function EnemyManager:spawnMVP()
 end
 
 function EnemyManager:spawnBoss(bossClass, powerLevel)
-    -- Calcula posição de spawn (fora da tela)
-    local minSpawnRadius = math.max(love.graphics.getWidth(), love.graphics.getHeight()) * 0.6
-    local angle = math.random() * 2 * math.pi
-    local spawnX = self.playerManager.player.position.x + math.cos(angle) * minSpawnRadius
-    local spawnY = self.playerManager.player.position.y + math.sin(angle) * minSpawnRadius
+    -- Calcula posição de spawn usando a nova lógica inteligente
+    local spawnX, spawnY = self:calculateSpawnPosition()
 
     -- Obtém o próximo ID disponível
     local enemyId = self.nextEnemyId
@@ -743,6 +742,66 @@ function EnemyManager:destroy()
     self.gameTimer = 0
     DamageNumberManager:destroy()
     print("EnemyManager destruído.")
+end
+
+--- Calcula uma posição de spawn inteligente fora da tela, com viés na direção do movimento do jogador.
+---@return number spawnX, number spawnY
+function EnemyManager:calculateSpawnPosition()
+    local camX, camY, camWidth, camHeight = Camera:getViewPort()
+    local playerVel = self.playerManager.player and self.playerManager.player.velocity
+
+    -- Define um buffer para spawnar fora da tela, garantindo que inimigos não apareçam visivelmente
+    local buffer = 150
+
+    -- Define as 4 possíveis zonas de spawn (retângulos fora da câmera)
+    local spawnZones = {
+        top = { x = camX - buffer, y = camY - buffer, width = camWidth + buffer * 2, height = buffer },
+        bottom = { x = camX - buffer, y = camY + camHeight, width = camWidth + buffer * 2, height = buffer },
+        left = { x = camX - buffer, y = camY, width = buffer, height = camHeight },
+        right = { x = camX + camWidth, y = camY, width = buffer, height = camHeight }
+    }
+
+    -- Pesos para cada direção. Aumentar o peso aumenta a chance de spawn naquela direção.
+    local weights = { top = 1, bottom = 1, left = 1, right = 1 }
+    local isMoving = playerVel and (playerVel.x ~= 0 or playerVel.y ~= 0)
+
+    -- Se o jogador estiver se movendo, aumenta o peso das zonas à sua frente
+    if isMoving then
+        local movementBias = 4 -- Quão mais provável é o spawn na frente do jogador
+
+        -- Aumenta o peso na direção do movimento.
+        -- Se o jogador vai para cima (Y negativo), aumenta o peso da zona 'top'.
+        if playerVel.y < -0.1 then weights.top = weights.top + movementBias end
+        -- Se vai para baixo (Y positivo), aumenta o peso da zona 'bottom'.
+        if playerVel.y > 0.1 then weights.bottom = weights.bottom + movementBias end
+        -- Se vai para a esquerda (X negativo), aumenta o peso da zona 'left'.
+        if playerVel.x < -0.1 then weights.left = weights.left + movementBias end
+        -- Se vai para a direita (X positivo), aumenta o peso da zona 'right'.
+        if playerVel.x > 0.1 then weights.right = weights.right + movementBias end
+    end
+
+    -- Seleciona uma zona com base nos pesos
+    local totalWeight = weights.top + weights.bottom + weights.left + weights.right
+    local randomVal = math.random() * totalWeight
+    local selectedZoneKey
+
+    if randomVal <= weights.top then
+        selectedZoneKey = "top"
+    elseif randomVal <= weights.top + weights.bottom then
+        selectedZoneKey = "bottom"
+    elseif randomVal <= weights.top + weights.bottom + weights.left then
+        selectedZoneKey = "left"
+    else
+        selectedZoneKey = "right"
+    end
+
+    local selectedZone = spawnZones[selectedZoneKey]
+
+    -- Gera uma posição aleatória dentro da zona selecionada
+    local spawnX = math.random(selectedZone.x, selectedZone.x + selectedZone.width)
+    local spawnY = math.random(selectedZone.y, selectedZone.y + selectedZone.height)
+
+    return spawnX, spawnY
 end
 
 return EnemyManager

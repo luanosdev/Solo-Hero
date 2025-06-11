@@ -213,8 +213,9 @@ function PlayerManager:setupGameplay(registry, hunterId)
     self.player = SpritePlayer.newConfig({
         position = { x = love.graphics.getWidth() / 2, y = love.graphics.getHeight() / 2 },
         scale = 1,
-        speed = finalSpeed -- Usa a velocidade calculada
+        speed = finalSpeed                  -- Usa a velocidade calculada
     })
+    self.player.velocity = { x = 0, y = 0 } -- Vetor para armazenar a direção do movimento
     print(string.format("  - Player Sprite instance created. Type of self.player: %s", type(self.player)))
 
     -- 5. Equipa a Arma
