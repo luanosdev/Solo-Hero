@@ -872,13 +872,13 @@ end
 function EnemyManager:drawMvpBar(enemy, x, y)
     -- Configurações
     local barWidth = 100
-    local barHeight = 6
+    local barHeight = 8
     local nameToBarSpacing = 4
     local spaceAboveSprite = 5
 
     -- Informações de Rank e Cor
     local titleData = enemy.mvpTitleData
-    local rank = "A"
+    local rank = titleData and titleData.rank or "E"
     local rankColors = Colors.rankDetails[rank] or Colors.rankDetails["E"]
 
     -- 1. Preparar texto e calcular sua altura
