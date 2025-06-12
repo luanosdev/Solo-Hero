@@ -27,7 +27,19 @@ local function deepCopy(original)
     return copy
 end
 
+--- Retorna o tamanho de uma tabela.
+---@param t table
+---@return number
+local function table_size(t)
+    local count = 0
+    for _ in pairs(t) do
+        count = count + 1
+    end
+    return count
+end
+
 return {
     normalizeAngle = normalizeAngle,
-    deepCopy = deepCopy
+    deepCopy = deepCopy,
+    table_size = table_size
 }

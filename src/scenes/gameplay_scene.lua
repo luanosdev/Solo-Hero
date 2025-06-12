@@ -23,6 +23,7 @@ local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local GameOverManager = require("src.managers.game_over_manager")
 local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
+local helpers = require("src.utils.helpers")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
@@ -34,8 +35,9 @@ GameplayScene.castDuration = 0 ---@type number
 GameplayScene.castingItem = nil ---@type table|nil Instância do item sendo conjurado
 GameplayScene.onCastCompleteCallback = nil ---@type function|nil
 GameplayScene.currentCastType = nil ---@type string|nil -- Adicionado para armazenar o tipo de extração durante o cast
+GameplayScene.initialItemInstanceIds = {} -- Usado para rastrear itens saqueados
 
-GameplayScene.gameOverManager = nil -- Instância do GameOverManager
+GameplayScene.gameOverManager = nil       -- Instância do GameOverManager
 
 function GameplayScene:load(args)
     Logger.debug("GameplayScene", "GameplayScene:load - Inicializando sistemas de gameplay...")
@@ -187,6 +189,8 @@ function GameplayScene:load(args)
     enemyMgr:setupGameplay(enemyManagerConfig)
     hudGameplayManager:setupGameplay(self.hunterId)
 
+    self:_snapshotInitialItems()
+
     -- Configura o callback de morte do jogador para usar o GameOverManager
     playerMgr:setOnPlayerDiedCallback(function()
         -- Ações da GameplayScene ANTES de iniciar o Game Over
@@ -197,7 +201,7 @@ function GameplayScene:load(args)
         if ItemDetailsModal.isVisible then ItemDetailsModal.isVisible = false end
         if self.isCasting then self:interruptCast("Morte do jogador") end
 
-        self.gameOverManager:start()
+        self.gameOverManager:start(self.currentPortalData)
     end)
 
     local playerInitialPos = playerMgr.player.position
@@ -687,7 +691,7 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
     local finalStatsForSummary = playerManager:getCurrentFinalStats()
     local archetypeIdsForSummary = hunterManager:getArchetypeIds(hunterId)
 
-    local itemsToExtract = {}
+    local backpackItemsToExtract = {}
     local equipmentToExtract = {}
 
     local currentEquipment = playerManager:getCurrentEquipmentGameplay()
@@ -734,8 +738,8 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
 
     if extractionType == "all_items" or extractionType == "all_items_instant" then
         if inventoryManager.getAllItemsGameplay then
-            itemsToExtract = inventoryManager:getAllItemsGameplay()
-            print(string.format("GameplayScene: %d itens coletados da mochila (tipo: %s).", #itemsToExtract,
+            backpackItemsToExtract = inventoryManager:getAllItemsGameplay()
+            print(string.format("GameplayScene: %d itens coletados da mochila (tipo: %s).", #backpackItemsToExtract,
                 extractionType))
         else
             error(
@@ -746,7 +750,7 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
         if inventoryManager.getAllItemsGameplay then
             local allBackpackItems = inventoryManager:getAllItemsGameplay() or {}
             if #allBackpackItems > 0 then
-                itemsToExtract = {}
+                backpackItemsToExtract = {}
                 local percentageToKeep = (extractionParams.percentageToKeep or 50) / 100
                 local numToExtract = math.ceil(#allBackpackItems * percentageToKeep)
                 numToExtract = math.max(1, numToExtract)
@@ -765,10 +769,10 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
                     numToExtract, #allBackpackItems))
                 for i = 1, numToExtract do
                     local randomIndex = backpackIndices[i]
-                    table.insert(itemsToExtract, allBackpackItems[randomIndex])
+                    table.insert(backpackItemsToExtract, allBackpackItems[randomIndex])
                 end
                 print(string.format("GameplayScene: %d itens da mochila selecionados aleatoriamente (tipo: %s).",
-                    #itemsToExtract, extractionType))
+                    #backpackItemsToExtract, extractionType))
             else
                 print(string.format("GameplayScene: Nenhum item na mochila para selecionar aleatoriamente (tipo: %s).",
                     extractionType))
@@ -782,22 +786,37 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
         print(string.format("GameplayScene: Nenhum item da mochila será extraído (tipo: %s).", extractionType))
     end
 
-    local extractionArgs = {
+    -- COMBINA todos os itens extraídos (equipamento + mochila) para identificar o loot
+    local allFinalItems = {}
+    for _, itemInstance in pairs(equipmentToExtract) do
+        table.insert(allFinalItems, itemInstance)
+    end
+    for _, itemInstance in ipairs(backpackItemsToExtract) do
+        table.insert(allFinalItems, itemInstance)
+    end
+
+    -- IDENTIFICA os itens que foram looteados de fato
+    local lootedItems = self:_getLootedItems(allFinalItems)
+
+    -- Prepara os parâmetros para a cena de resumo
+    local hunterData = hunterManager:getHunterData(hunterId)
+    local params = {
         extractionSuccessful = true,
         hunterId = hunterId,
-        extractedItems = itemsToExtract,
+        hunterData = hunterData,
+        portalData = self.currentPortalData,
+        -- Passa os itens que vão para o storage/loadout
+        extractedItems = backpackItemsToExtract,
         extractedEquipment = equipmentToExtract,
-        portalName = self.currentPortalData and self.currentPortalData.name or "Portal Desconhecido",
-        portalRank = self.currentPortalData and self.currentPortalData.rank or "E",
-        gameplayStats = {}, -- Placeholder para estatísticas futuras
-        -- Adiciona dados para HunterStatsColumn na ExtractionSummaryScene
+        -- Passa APENAS os itens que contam para a reputação
+        lootedItems = lootedItems,
+        -- Passa dados para a tela de resumo pós-partida
         finalStats = finalStatsForSummary,
-        archetypeIds = archetypeIdsForSummary,
-        archetypeManagerInstance = archetypeManager
+        archetypeIds = archetypeIdsForSummary
     }
 
-    print("GameplayScene: Transicionando para ExtractionSummaryScene com dados de extração.")
-    SceneManager.switchScene("extraction_summary_scene", extractionArgs)
+    print("[GameplayScene] Transicionando para ExtractionSummaryScene com dados de extração...")
+    SceneManager.switchScene("extraction_summary_scene", params)
 end
 
 --- DEBUG: Adiciona um item especificado diretamente ao inventário do jogador na partida.
@@ -1072,6 +1091,63 @@ function GameplayScene:handlePlayerMovementCancellation()
     if playerMgr.storeLastFramePosition then
         playerMgr:storeLastFramePosition()
     end
+end
+
+--- Tira um "snapshot" dos IDs de todos os itens que o jogador possui no início da fase.
+function GameplayScene:_snapshotInitialItems()
+    Logger.debug("GameplayScene", "Capturando snapshot dos itens iniciais...")
+    self.initialItemInstanceIds = {}
+    local inventoryManager = ManagerRegistry:get("inventoryManager") ---@type InventoryManager
+    local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
+
+    -- 1. Itens no inventário (mochila)
+    if inventoryManager and inventoryManager.getAllItemsGameplay then
+        local backpackItems = inventoryManager:getAllItemsGameplay()
+        for _, itemInstance in ipairs(backpackItems) do
+            if itemInstance and itemInstance.instanceId then
+                self.initialItemInstanceIds[itemInstance.instanceId] = true
+            end
+        end
+        Logger.debug("GameplayScene", string.format("  - %d itens capturados da mochila.", #backpackItems))
+    end
+
+    -- 2. Itens equipados
+    if playerManager and playerManager.getCurrentEquipmentGameplay then
+        local equippedItems = playerManager:getCurrentEquipmentGameplay()
+        local count = 0
+        for _, itemData in pairs(equippedItems) do
+            -- CORREÇÃO: Verifica se o item é uma instância (tabela com instanceId)
+            -- antes de tentar acessá-lo. Ignora se for apenas um itemBaseId (número).
+            if type(itemData) == "table" and itemData.instanceId then
+                self.initialItemInstanceIds[itemData.instanceId] = true
+                count = count + 1
+            end
+        end
+        Logger.debug("GameplayScene", string.format("  - %d itens instanciados capturados do equipamento.", count))
+    end
+    Logger.debug("GameplayScene",
+        string.format("Snapshot concluído. Total de %d IDs de itens únicos.",
+            helpers.table_size(self.initialItemInstanceIds)))
+end
+
+--- Identifica os itens que foram adquiridos durante a incursão.
+---@param allFinalItems table<ItemInstance> Lista completa de todos os itens no final (mochila + equipamento).
+---@return table<ItemInstance> Uma lista contendo apenas as instâncias de itens que são novas.
+function GameplayScene:_getLootedItems(allFinalItems)
+    local lootedItems = {}
+    if not self.initialItemInstanceIds then
+        Logger.warn("GameplayScene",
+            "_getLootedItems chamada, mas initialItemInstanceIds não existe. Retornando todos os itens como loot.")
+        return allFinalItems or {}
+    end
+
+    for _, itemInstance in ipairs(allFinalItems) do
+        if itemInstance and itemInstance.instanceId and not self.initialItemInstanceIds[itemInstance.instanceId] then
+            table.insert(lootedItems, itemInstance)
+        end
+    end
+    Logger.debug("GameplayScene", string.format("Identificados %d itens saqueados.", #lootedItems))
+    return lootedItems
 end
 
 return GameplayScene

@@ -23,6 +23,7 @@ function GameOverManager:new()
     instance.hunterName = ""
     instance.hunterRank = ""
     instance.timestamp = ""
+    instance.portalData = nil -- Armazena os dados do portal para o cálculo de reputação
 
     instance.footerMessage = "Aperte qualquer tecla para continuar"
     instance.lossMessage = "Você perdeu seu caçador e todos os seus itens."
@@ -58,6 +59,7 @@ function GameOverManager:reset()
     self.hunterName = ""
     self.hunterRank = ""
     self.timestamp = ""
+    self.portalData = nil
     self.canExit = false
     self.fadeAlpha = 0
     self.messageAlpha = 0
@@ -102,11 +104,13 @@ function GameOverManager:_selectMessage()
 end
 
 --- Ativa e configura a tela de Game Over.
-function GameOverManager:start()
+--- @param portalData table Os dados do portal onde o jogador morreu.
+function GameOverManager:start(portalData)
     if self.isGameOverActive then return end
     Logger.info("GameOverManager", "GAME OVER acionado!")
-    self:reset() -- Garante um estado limpo antes de começar
+    self:reset()                       -- Garante um estado limpo antes de começar
     self.isGameOverActive = true
+    self.portalData = portalData or {} -- Armazena os dados do portal
 
     self.message = self:_selectMessage()
 
@@ -252,30 +256,40 @@ function GameOverManager:draw()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
---- Chamado quando o jogador pressiona uma tecla para sair da tela de Game Over.
+--- Lida com a saída da tela de Game Over para a tela de Resumo.
 function GameOverManager:handleExit()
     if not self.canExit then return end
 
-    Logger.info("GameOverManager", "Saindo da tela de Game Over e processando permadeath.")
-    local playerManager = self.registry:get("playerManager") ---@type PlayerManager
+    Logger.info("GameOverManager", "Saindo da tela de Game Over para a tela de Resumo.")
+
     local hunterManager = self.registry:get("hunterManager") ---@type HunterManager
-    local hunterId = playerManager and playerManager:getCurrentHunterId() or nil
-
-    if hunterId and hunterManager then
-        Logger.info("GameOverManager", string.format("Iniciando exclusão permanente para o caçador ID: %s", hunterId))
-        hunterManager:deleteHunter(hunterId)
-    else
-        Logger.warn("GameOverManager",
-            "Não foi possível excluir o caçador - HunterID ou HunterManager não encontrado.")
+    local playerManager = self.registry:get("playerManager") ---@type PlayerManager
+    local hunterId = playerManager:getCurrentHunterId()
+    if not hunterId then
+        error("[GameOverManager:handleExit] Nenhum caçador selecionado.")
+        return
     end
+    local hunterData = hunterManager:getHunterData(hunterId)
 
-    self.sceneManager.switchScene("lobby_scene", {
+    -- Deleta o caçador permanentemente
+    hunterManager:deleteHunter(hunterId)
+    Logger.info("GameOverManager",
+        string.format("Caçador %s (ID: %s) foi permanentemente deletado.", hunterData.name, hunterId))
+
+
+    local params = {
         extractionSuccessful = false,
-        -- Não precisa mais passar o hunterId, pois o HunterManager já selecionou o próximo
-        irregularExit = true,
-        gameLost = true
-    })
-    self:reset() -- Reseta o estado do manager para a próxima vez
+        hunterId = hunterId,
+        hunterData = hunterData,
+        portalData = self.portalData,
+        lootedItems = {},        -- Nenhum item é extraído na morte
+        extractedItems = {},     -- Nenhum item vai para o loadout
+        extractedEquipment = {}, -- Nenhum equipamento é salvo
+        finalStats = nil,        -- Sem stats finais para mostrar
+        archetypeIds = hunterData and hunterData.archetypeIds or {}
+    }
+
+    self.sceneManager.switchScene("extraction_summary_scene", params)
 end
 
 return GameOverManager

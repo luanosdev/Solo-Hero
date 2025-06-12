@@ -10,6 +10,7 @@ local LoadoutManager = require("src.managers.loadout_manager")
 local LobbyStorageManager = require("src.managers.lobby_storage_manager")
 local HunterManager = require("src.managers.hunter_manager")
 local AgencyManager = require("src.managers.agency_manager")
+local ReputationManager = require("src.managers.reputation_manager")
 local fonts = require("src.ui.fonts")
 
 local lovebird = require("src.libs.lovebird")
@@ -70,6 +71,11 @@ function love.load()
     local agencyMgr = AgencyManager:new()
     ManagerRegistry:register("agencyManager", agencyMgr)
     Logger.debug("Main", "    > AgencyManager registrado.")
+
+    Logger.debug("Main", "  - Criando ReputationManager...")
+    local reputationMgr = ReputationManager:new(agencyMgr, itemDataMgr) -- Injeta dependências
+    ManagerRegistry:register("reputationManager", reputationMgr)
+    Logger.debug("Main", "    > ReputationManager registrado.")
 
     Logger.debug("Main", "Managers persistentes registrados no ManagerRegistry.")
 
@@ -181,10 +187,7 @@ function love.quit()
     local agencyMgr = ManagerRegistry:get("agencyManager")
     if agencyMgr and agencyMgr:hasAgency() then
         Logger.debug("Main", "  - Salvando AgencyManager...")
-        local agencyData = agencyMgr:getAgencyData()
-        if agencyData then
-            agencyMgr:save(agencyData)
-        end
+        agencyMgr:saveState()
     end
 
     Logger.debug("Main", "love.quit() concluído.")

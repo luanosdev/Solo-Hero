@@ -18,6 +18,14 @@ local TabIds = Constants.TabIds
 ---@class LobbyScene
 ---@field portalScreen PortalScreen
 ---@field equipmentScreen EquipmentScreen
+---@field reputationManager ReputationManager
+---@field agencyManager AgencyManager
+---@field portalManager LobbyPortalManager
+---@field itemDataManager ItemDataManager
+---@field lobbyStorageManager LobbyStorageManager
+---@field loadoutManager LoadoutManager
+---@field archetypeManager ArchetypeManager
+---@field hunterManager HunterManager
 local LobbyScene = {}
 
 -- Estado da cena
@@ -31,6 +39,7 @@ LobbyScene.hunterManager = nil ---@type HunterManager|nil Instância do gerencia
 LobbyScene.equipmentScreen = nil ---@type EquipmentScreen|nil Instância da tela de equipamento
 LobbyScene.portalScreen = nil ---@type PortalScreen|nil Instância da tela de portal
 LobbyScene.agencyScreen = nil ---@type AgencyScreen|nil Instância da tela da Agência
+LobbyScene.reputationManager = nil ---@type ReputationManager|nil Instância do gerenciador de reputação
 
 -- Configs da névoa
 LobbyScene.fogNoiseScale = 4.0 ---@type number Escala do ruído (valores menores = "zoom maior")
@@ -106,16 +115,24 @@ function LobbyScene:load(args)
     LobbyScene.loadoutManager = ManagerRegistry:get("loadoutManager")
     LobbyScene.archetypeManager = ManagerRegistry:get("archetypeManager")
     LobbyScene.hunterManager = ManagerRegistry:get("hunterManager")
-    LobbyScene.portalManager = LobbyPortalManager:new()
     LobbyScene.agencyManager = ManagerRegistry:get("agencyManager")
+    LobbyScene.reputationManager = ManagerRegistry:get("reputationManager")
+    LobbyScene.portalManager = LobbyPortalManager:new()
 
     -- Validação básica se os managers foram carregados corretamente em main.lua
-    if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager then
+    if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager or not self.reputationManager then
         error(
             "ERRO CRÍTICO [LobbyScene:load]: Falha ao obter um ou mais managers persistentes do Registry! Eles foram inicializados em main.lua?")
     end
     print("[LobbyScene] Managers persistentes obtidos com sucesso.")
 
+    -- Processa os resultados da incursão ANTES de qualquer outra coisa
+    if args and (args.extractionSuccessful or args.extractionSuccessful == false) then
+        print("[LobbyScene] Resultados da incursão encontrados. Processando reputação...")
+        self.reputationManager:processIncursionResult(args)
+    end
+
+    -- Processa os itens da extração se ela foi bem sucedida
     if args and args.extractionSuccessful and args.hunterId then
         print(string.format("[LobbyScene] Processando dados de extração bem-sucedida para o caçador: %s", args.hunterId))
 
@@ -440,10 +457,10 @@ function LobbyScene:update(dt)
                     item_at_target and item_at_target.itemBaseId or "nil"))
             end
         end
-    elseif activeTab and activeTab.id == TabIds.GUILD then
-        if self.guildScreen and self.guildScreen.update then
-            local allowGuildScreenHover = not tabHoverHandled
-            self.guildScreen:update(dt, mx, my, allowGuildScreenHover)
+    elseif activeTab and activeTab.id == TabIds.AGENCY then
+        if self.agencyScreen and self.agencyScreen.update then
+            local allowAgencyScreenHover = not tabHoverHandled
+            self.agencyScreen:update(dt, mx, my, allowAgencyScreenHover)
         end
     end
 
@@ -546,7 +563,6 @@ end
 ---@param istouch boolean
 ---@param presses number
 function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
-    -- print("LobbyScene:mousepressed ENTERED") -- LOG 1
     if buttonIdx == 1 then
         local activeTab = tabs[self.activeTabIndex]
         local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
@@ -572,10 +588,9 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                         self.activeTabIndex = i
                         -- print("LobbyScene: Tab changed")
                         -- <<< SET GUILD SCREEN FLAG >>>
-                        if tab.id == TabIds.GUILD and self.guildScreen then
-                            -- if self.guildScreen.onActivate then self.guildScreen:onActivate() end -- REMOVED
-                            self.guildScreen.isActiveFrame = true
-                            -- print("LobbyScene: Set guildScreen.isActiveFrame = true")
+                        if tab.id == TabIds.AGENCY and self.agencyScreen then
+                            -- if self.agencyScreen.onActivate then self.agencyScreen:onActivate() end -- REMOVED
+                            self.agencyScreen.isActiveFrame = true
                         end
                     end
                     -- Se estava com zoom no portal, mudar de tab cancela
@@ -625,11 +640,11 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                     return
                 end
             end
-        elseif activeTab and activeTab.id == TabIds.GUILD then
-            if self.guildScreen then
+        elseif activeTab and activeTab.id == TabIds.AGENCY then
+            if self.agencyScreen then
                 -- print("LobbyScene:mousepressed - DELEGATING click to GuildScreen") -- LOG 4
-                local consumed = self.guildScreen:handleMousePress(x, y, buttonIdx)
-                if consumed then return end -- Se a guild screen consumiu, termina aqui
+                local consumed = self.agencyScreen:handleMousePress(x, y, buttonIdx)
+                if consumed then return end -- Se a agency screen consumiu, termina aqui
             end
         end
 
@@ -650,9 +665,9 @@ function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
     if buttonIdx == 1 then
         -- Primeiro, verifica se a tela da aba ativa quer tratar o release
         local screenConsumedRelease = false
-        if activeTab and activeTab.id == TabIds.GUILD then -- <<< VERIFICA ABA GUILDA
-            if self.guildScreen and self.guildScreen.handleMouseRelease then
-                screenConsumedRelease = self.guildScreen:handleMouseRelease(x, y, buttonIdx)
+        if activeTab and activeTab.id == TabIds.AGENCY then -- <<< VERIFICA ABA AGENCY
+            if self.agencyScreen and self.agencyScreen.handleMouseRelease then
+                screenConsumedRelease = self.agencyScreen:handleMouseRelease(x, y, buttonIdx)
             end
             -- Adicionar outros `elseif` para outras telas que tratam release (ex: EquipmentScreen se não for drag/drop)
         end
@@ -744,9 +759,10 @@ end
 ---@param y number Posição Y do mouse (relativa à janela).
 function LobbyScene:wheelmoved(x, y)
     local activeTab = tabs[self.activeTabIndex]
-    if activeTab and activeTab.id == TabIds.HEROES then -- <<< DELEGA SCROLL PARA GUILD SCREEN
-        if self.guildScreen and self.guildScreen.handleMouseScroll then
-            self.guildScreen:handleMouseScroll(x, y)    -- LÖVE passa dx, dy como x, y aqui
+    if activeTab and activeTab.id == TabIds.AGENCY then
+        if self.agencyScreen and self.agencyScreen.handleMouseScroll then
+            local mx, my = love.mouse.getPosition()
+            self.agencyScreen:handleMouseScroll(x, y, mx, my)
         end
         -- Adicionar delegação para outras telas que precisem de scroll
         -- elseif activeTab.id == TabIds.EQUIPMENT then
@@ -766,7 +782,7 @@ function LobbyScene:unload()
         self.portalScreen = nil
     end
     self.equipmentScreen = nil
-    self.guildScreen = nil
+    self.agencyScreen = nil
 
     -- Salva estado dos managers
     if self.portalManager then self.portalManager:saveState() end
