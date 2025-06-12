@@ -413,12 +413,12 @@ function PlayerHPBar:draw()
             local hpVal = i * self.segmentHPInterval
             if hpVal < self.maxHP then
                 local segmentX = layout.hpBarX + (hpVal / self.maxHP) * layout.hpBarW
-                love.graphics.setLineWidth(1)
+                love.graphics.setLineWidth(2)
                 love.graphics.line(
                     math.floor(segmentX),
                     emptyBarY - (layout.hpBarActualFillHeight / 2),
                     math.floor(segmentX),
-                    emptyBarY + (layout.hpBarActualFillHeight / 2)
+                    emptyBarY + 1
                 )
             end
         end
