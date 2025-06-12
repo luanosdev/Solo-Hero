@@ -8,7 +8,7 @@ local ManagerRegistry = require("src.managers.manager_registry")
 local LobbyPortalManager = require("src.managers.lobby_portal_manager")
 local EquipmentScreen = require("src.ui.screens.equipment_screen")
 local PortalScreen = require("src.ui.screens.portal_screen")
-local GuildScreen = require("src.ui.screens.guild_screen")
+local AgencyScreen = require("src.ui.screens.agency_screen")
 local TooltipManager = require("src.ui.tooltip_manager")
 
 local TabIds = Constants.TabIds
@@ -30,7 +30,7 @@ LobbyScene.archetypeManager = nil ---@type ArchetypeManager|nil Instância do ge
 LobbyScene.hunterManager = nil ---@type HunterManager|nil Instância do gerenciador de caçadores
 LobbyScene.equipmentScreen = nil ---@type EquipmentScreen|nil Instância da tela de equipamento
 LobbyScene.portalScreen = nil ---@type PortalScreen|nil Instância da tela de portal
-LobbyScene.guildScreen = nil ---@type GuildScreen|nil Instância da tela da Guilda
+LobbyScene.agencyScreen = nil ---@type AgencyScreen|nil Instância da tela da Agência
 
 -- Configs da névoa
 LobbyScene.fogNoiseScale = 4.0 ---@type number Escala do ruído (valores menores = "zoom maior")
@@ -44,7 +44,7 @@ local tabs = {
     { id = TabIds.CRAFTING,  text = "Criação" },
     { id = TabIds.EQUIPMENT, text = "Equipamento" },
     { id = TabIds.PORTALS,   text = "Portais" },
-    { id = TabIds.GUILD,     text = "Guilda" },
+    { id = TabIds.AGENCY,    text = "Agência" },
     { id = TabIds.SETTINGS,  text = "Configurações" },
     { id = TabIds.QUIT,      text = "Sair" },
 }
@@ -107,6 +107,7 @@ function LobbyScene:load(args)
     LobbyScene.archetypeManager = ManagerRegistry:get("archetypeManager")
     LobbyScene.hunterManager = ManagerRegistry:get("hunterManager")
     LobbyScene.portalManager = LobbyPortalManager:new()
+    LobbyScene.agencyManager = ManagerRegistry:get("agencyManager")
 
     -- Validação básica se os managers foram carregados corretamente em main.lua
     if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager then
@@ -225,8 +226,8 @@ function LobbyScene:load(args)
     self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
         self.loadoutManager)
     self.portalScreen = PortalScreen:new(self.portalManager, self.hunterManager)
-    self.guildScreen = GuildScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
-        self.loadoutManager)
+    self.agencyScreen = AgencyScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
+        self.loadoutManager, self.agencyManager)
 
 
     -- Reseta estado de zoom/seleção
@@ -492,11 +493,11 @@ function LobbyScene:draw()
                 }
                 self.storageGridArea, self.loadoutGridArea, self.equipmentSlotAreas = self.equipmentScreen:draw(screenW,
                     screenH, tabSettings, dragState, mx, my)
-            elseif activeTab.id == TabIds.GUILD then
-                if self.guildScreen then
+            elseif activeTab.id == TabIds.AGENCY then
+                if self.agencyScreen then
                     -- Define área de desenho (toda a área acima das tabs)
                     local areaX, areaY, areaW, areaH = 0, 0, screenW, screenH - tabSettings.height
-                    self.guildScreen:draw(areaX, areaY, areaW, areaH, mx, my)
+                    self.agencyScreen:draw(areaX, areaY, areaW, areaH, mx, my)
                 else
                     love.graphics.setColor(colors.red)
                     love.graphics.printf("Erro: GuildScreen não inicializado!", screenW / 2, screenH / 2, 0, "center")
