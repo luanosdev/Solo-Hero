@@ -9,6 +9,7 @@ local ArchetypeManager = require("src.managers.archetype_manager")
 local LoadoutManager = require("src.managers.loadout_manager")
 local LobbyStorageManager = require("src.managers.lobby_storage_manager")
 local HunterManager = require("src.managers.hunter_manager")
+local AgencyManager = require("src.managers.agency_manager")
 local fonts = require("src.ui.fonts")
 
 local lovebird = require("src.libs.lovebird")
@@ -64,6 +65,11 @@ function love.load()
     local hunterMgr = HunterManager:new(loadoutMgr, itemDataMgr, archetypeMgr) -- Injeta dependências
     ManagerRegistry:register("hunterManager", hunterMgr)
     Logger.debug("Main", "    > HunterManager registrado.")
+
+    Logger.debug("Main", "  - Criando AgencyManager...")
+    local agencyMgr = AgencyManager:new()
+    ManagerRegistry:register("agencyManager", agencyMgr)
+    Logger.debug("Main", "    > AgencyManager registrado.")
 
     Logger.debug("Main", "Managers persistentes registrados no ManagerRegistry.")
 
@@ -132,6 +138,10 @@ function love.mousereleased(x, y, button, istouch, presses)
     SceneManager.mousereleased(x, y, button, istouch, presses)
 end
 
+function love.textinput(t)
+    SceneManager.textinput(t)
+end
+
 function love.mousemoved(x, y, dx, dy, istouch)
     SceneManager.mousemoved(x, y, dx, dy, istouch)
 end
@@ -166,6 +176,16 @@ function love.quit()
         lobbyStorageMgr:saveStorage()
     end
     -- Adicione saves para outros managers persistentes aqui se necessário
+
+    ---@type AgencyManager
+    local agencyMgr = ManagerRegistry:get("agencyManager")
+    if agencyMgr and agencyMgr:hasAgency() then
+        Logger.debug("Main", "  - Salvando AgencyManager...")
+        local agencyData = agencyMgr:getAgencyData()
+        if agencyData then
+            agencyMgr:save(agencyData)
+        end
+    end
 
     Logger.debug("Main", "love.quit() concluído.")
     return false -- Retorna false para permitir o fechamento padrão

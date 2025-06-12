@@ -1,5 +1,6 @@
 local SceneManager = require("src.core.scene_manager")
-local fonts = require("src.ui.fonts") -- Requer o módulo de fontes
+local fonts = require("src.ui.fonts")                            -- Requer o módulo de fontes
+local ManagerRegistry = require("src.managers.manager_registry") -- <<< ADICIONADO
 
 --- Cena inicial do jogo.
 -- Responsável por carregar recursos essenciais (como fontes e logo) e exibir
@@ -57,10 +58,15 @@ function BootloaderScene:update(dt)
 
     -- Verifica se o carregamento está completo e o tempo mínimo de exibição passou
     if isLoadingComplete and displayTimer >= minDisplayTime then
-        print(string.format(
-            "BootloaderScene:update - Carregamento completo e tempo mínimo (%.1fs) atingido. Trocando para LobbyScene",
-            minDisplayTime))
-        SceneManager.switchScene("lobby_scene")
+        -- <<< LÓGICA DE DIRECIONAMENTO ALTERADA >>>
+        local agencyManager = ManagerRegistry:get("agencyManager")
+        if agencyManager and agencyManager:hasAgency() then
+            Logger.info("BootloaderScene", "Agência existente encontrada. Trocando para lobby_scene.")
+            SceneManager.switchScene("lobby_scene")
+        else
+            Logger.info("BootloaderScene", "Nenhuma agência encontrada. Trocando para agency_creation_scene.")
+            SceneManager.switchScene("agency_creation_scene")
+        end
     end
 end
 

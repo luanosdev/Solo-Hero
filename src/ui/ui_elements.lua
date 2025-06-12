@@ -290,32 +290,46 @@ function elements.drawTabButton(config)
     -- love.graphics.setFont(fonts.main) -- Exemplo
 end
 
---- Desenha um botão genérico com texto, suporte a hover e cores customizáveis.
+--- Desenha um botão genérico com texto, suporte a hover, clique e estado desabilitado.
 ---@param config table Tabela de configuração com os seguintes campos:
 ---   rect (table): Tabela com {x, y, w, h} para a posição e tamanho.
 ---   text (string): Texto a ser exibido no botão.
 ---   isHovering (boolean): Se o mouse está sobre o botão.
+---   isDisabled (boolean, opcional): Se o botão está desabilitado. Padrão: false.
 ---   font (Font): Fonte a ser usada para o texto.
 ---   colors (table): Tabela opcional com cores:
----   bgColor (table): Cor de fundo normal.
----   hoverColor (table): Cor de fundo com hover.
----   textColor (table): Cor do texto.
----   borderColor (table): Cor da borda.
+---     bgColor, hoverColor, textColor, borderColor
+---     disabledBgColor, disabledTextColor, disabledBorderColor (opcional)
 function elements.drawButton(config)
     local rect = config.rect
     local text = config.text or ""
     local isHovering = config.isHovering or false
+    local isDisabled = config.isDisabled or false
     local font = config.font or love.graphics.getFont()
     local cols = config.colors or {}
 
-    -- Define cores padrão se não fornecidas
-    local bgColor = isHovering and (cols.hoverColor or colors.tab_hover) or (cols.bgColor or colors.tab_bg)
-    local textColor = cols.textColor or colors.tab_text
-    local borderColor = cols.borderColor or colors.tab_border
+    -- Define as cores com base no estado do botão
+    local bgColor, textColor, borderColor
+    if isDisabled then
+        -- Cores para o estado desabilitado
+        bgColor = cols.disabledBgColor or colors.button_default.disabledBgColor
+        textColor = cols.disabledTextColor or colors.button_default.disabledTextColor
+        borderColor = cols.disabledBorderColor or colors.button_default.disabledBorderColor
+    elseif isHovering then
+        -- Cores para o estado hover (apenas se não estiver desabilitado)
+        bgColor = cols.hoverColor or colors.tab_hover
+        textColor = cols.textColor or colors.tab_text
+        borderColor = cols.borderColor or colors.tab_border
+    else
+        -- Cores para o estado normal
+        bgColor = cols.bgColor or colors.tab_bg
+        textColor = cols.textColor or colors.tab_text
+        borderColor = cols.borderColor or colors.tab_border
+    end
 
     -- Desenha o fundo
     love.graphics.setColor(bgColor)
-    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h, 3, 3) -- Cantos levemente arredondados
+    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h, 3, 3)
 
     -- Desenha a borda
     love.graphics.setColor(borderColor)
@@ -329,7 +343,7 @@ function elements.drawButton(config)
     local textHeight = font:getHeight()
     local textX = rect.x + (rect.w - textWidth) / 2
     local textY = rect.y + (rect.h - textHeight) / 2
-    love.graphics.print(text, math.floor(textX), math.floor(textY)) -- Usa math.floor para evitar serrilhado
+    love.graphics.print(text, math.floor(textX), math.floor(textY))
 end
 
 --- NOVO: Desenha um "fantasma" do item seguindo o mouse.

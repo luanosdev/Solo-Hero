@@ -135,6 +135,15 @@ function SceneManager.mousereleased(x, y, button, istouch, presses)
     end
 end
 
+--- Delega o evento `love.textinput` para a cena atual.
+-- Chama o método `textinput(t)` da cena ativa, se existir.
+---@param t string O texto inserido.
+function SceneManager.textinput(t)
+    if SceneManager.currentScene and SceneManager.currentScene.textinput then
+        SceneManager.currentScene:textinput(t)
+    end
+end
+
 --- Marca que o jogo deve ser encerrado no próximo ciclo de update.
 function SceneManager.requestQuit()
     print("SceneManager: Recebida solicitação para encerrar.")
