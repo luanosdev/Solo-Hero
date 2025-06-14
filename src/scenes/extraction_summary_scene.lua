@@ -7,14 +7,16 @@ local TooltipManager = require("src.ui.tooltip_manager")
 local ManagerRegistry = require("src.managers.manager_registry")
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
 local ReputationSummaryColumn = require("src.ui.components.ReputationSummaryColumn")
+local GameStatsColumn = require("src.ui.components.GameStatsColumn")
 
 ---@class ExtractionSummaryScene
 local ExtractionSummaryScene = {}
 
 ExtractionSummaryScene.args = nil              -- Argumentos recebidos da GameplayScene
-ExtractionSummaryScene.reputationDetails = nil -- << NOVO
+ExtractionSummaryScene.reputationDetails = nil -- Detalhes da reputação
 ExtractionSummaryScene.itemDataManager = nil ---@type ItemDataManager
 ExtractionSummaryScene.tooltipItem = nil       -- Item atualmente sob o mouse para tooltip
+ExtractionSummaryScene.gameStats = nil         -- Estatísticas do jogo
 
 -- Modificado: Uma única lista para todas as áreas de itens clicáveis na coluna 3
 ExtractionSummaryScene.allItemsDisplayAreas = {} -- {{x,y,w,h,itemInstance}, ...}
@@ -28,8 +30,8 @@ ExtractionSummaryScene.allItemsDisplayAreas = {} -- {{x,y,w,h,itemInstance}, ...
 function ExtractionSummaryScene:load(args)
     print("[ExtractionSummaryScene] Loading...")
     if args then
-        print("  Portal Name: " .. tostring(args.portalName))
-        print("  Portal Rank: " .. tostring(args.portalRank))
+        print("  Portal Name: " .. tostring(args.portalData and args.portalData.name or "N/A"))
+        print("  Portal Rank: " .. tostring(args.portalData and args.portalData.rank or "N/A"))
         print("  Hunter ID: " .. tostring(args.hunterId))
         print("  Num Extracted Items (Backpack): " .. tostring(args.extractedItems and #args.extractedItems or 0))
         local equipCount = 0
@@ -44,15 +46,26 @@ function ExtractionSummaryScene:load(args)
 
     self.args = args
 
-    -- << NOVO: PROCESSAMENTO DE REPUTAÇÃO >>
+    ---@class ReputationManager
     local reputationManager = ManagerRegistry:get("reputationManager")
     if reputationManager then
         print("[ExtractionSummaryScene] Processando reputação...")
-        self.reputationDetails = reputationManager:processIncursionResult(args)
+        self.reputationDetails = reputationManager:processIncursionResult({
+            portalData = args.portalData,
+            wasSuccess = args.wasSuccess,
+            hunterData = args.hunterData,
+            lootedItems = args.lootedItems,
+            gameplayStats = args.gameplayStats
+        })
     else
         error("[ExtractionSummaryScene] CRITICAL: ReputationManager não encontrado no Registry!")
     end
-    -- << FIM DO PROCESSAMENTO >>
+
+    -- Coleta estatísticas do jogo
+    local gameStatsManager = ManagerRegistry:get("gameStatisticsManager")
+    if gameStatsManager then
+        self.gameStats = gameStatsManager:getRawStats()
+    end
 
     self.itemDataManager = ManagerRegistry:get("itemDataManager")
 
@@ -62,7 +75,6 @@ function ExtractionSummaryScene:load(args)
     if self.args and not self.args.archetypeManagerInstance then
         print(
             "WARN [ExtractionSummaryScene] ArchetypeManager instance (args.archetypeManagerInstance) não recebida! Stats do caçador podem não incluir arquétipos.")
-        -- Não é um erro fatal, mas HunterStatsColumn pode não ter todas as infos.
     end
     if self.args and not self.args.extractedEquipment then
         self.args.extractedEquipment = {}
@@ -114,7 +126,7 @@ function ExtractionSummaryScene:draw()
     love.graphics.setFont(fonts.title_large or fonts.title)
     love.graphics.setColor(colors.text_title)
     local titleText = "Extração Concluída"
-    if self.reputationDetails and not self.reputationDetails.wasSuccess then
+    if not self.args.wasSuccess then
         titleText = "Falha na Extração"
     end
     love.graphics.printf(titleText, 0, currentY, screenW, "center")
@@ -122,14 +134,14 @@ function ExtractionSummaryScene:draw()
     currentY = currentY + titleHeight + 20
 
     -- Card do Portal (Usando elements.drawTextCard)
-    if self.args and self.args.portalName and self.args.portalRank then
+    if self.args and self.args.portalData then
         local portalCardW = screenW * 0.6
         local portalCardH = 60
         local portalCardX = centerX - portalCardW / 2
-        local portalText = string.format("%s", self.args.portalName) -- Rank será desenhado separadamente
+        local portalText = string.format("%s", self.args.portalData.name) -- Rank será desenhado separadamente
 
         elements.drawTextCard(portalCardX, currentY, portalCardW, portalCardH, portalText, {
-            rankLetterForStyle = self.args.portalRank,
+            rankLetterForStyle = self.args.portalData.rank,
             font = fonts.title or fonts.main_large,
             h_align = 'center',
             v_align = 'middle',
@@ -140,8 +152,8 @@ function ExtractionSummaryScene:draw()
         currentY = currentY + portalCardH + 30
     end
 
-    -- Linha 2: Layout de 4 Colunas (Reputação, Stats Partida, Atributos Finais, Itens)
-    local columnPaddingHorizontal = 20 -- Reduzido para caber 4 colunas
+    -- Linha 2: Layout de 4 Colunas (Stats Partida, Atributos Finais, Reputação, Itens)
+    local columnPaddingHorizontal = 20
     local sidePadding = 30
     local totalHorizontalPadding = sidePadding * 2 + columnPaddingHorizontal * 3
     local columnWidth = (screenW - totalHorizontalPadding) / 4
@@ -156,39 +168,17 @@ function ExtractionSummaryScene:draw()
     -- Limpa a lista de áreas de itens para preenchimento neste frame
     self.allItemsDisplayAreas = {}
 
-    -- Coluna 1: Resumo da Reputação (NOVA)
-    local reputationColX = sidePadding
+    -- Coluna 1: Estatísticas da Partida
+    local gameplayStatsX = sidePadding
     love.graphics.setFont(columnTitleFont)
     love.graphics.setColor(colors.text_value)
-    love.graphics.printf("Resumo da Reputação", reputationColX, columnTopY, columnWidth, "center")
+    love.graphics.printf("Estatísticas da Partida", gameplayStatsX, columnTopY, columnWidth, "center")
 
-    -- Usa o novo componente para desenhar a coluna de reputação
-    if self.reputationDetails then
-        ReputationSummaryColumn.draw(reputationColX, columnContentStartY, columnWidth, columnContentHeight,
-            self.reputationDetails)
+    if self.gameStats then
+        GameStatsColumn.draw(gameplayStatsX, columnContentStartY, columnWidth, columnContentHeight, self.gameStats)
     end
 
-    -- Coluna 2: Estatísticas da Partida (deslocada)
-    local gameplayStatsX = reputationColX + columnWidth + columnPaddingHorizontal
-    love.graphics.setFont(columnTitleFont)
-    love.graphics.setColor(colors.text_value)
-    love.graphics.printf("Resumo da Partida", gameplayStatsX, columnTopY, columnWidth, "center")
-
-    love.graphics.setFont(fonts.main_small)
-    love.graphics.setColor(colors.text_main)
-    local placeholderStats = self.args and self.args.gameplayStats or {
-        { "Tempo de Jogo:",       "00:00" }, { "XP Coletado:", "0" },
-        { "Inimigos Derrotados:", "0" }, { "Dano Causado:", "0" },
-        { "Dano Sofrido:", "0" },
-    }
-    for _, stat in ipairs(placeholderStats) do
-        love.graphics.printf(stat[1], gameplayStatsX + 10, columnContentStartY, columnWidth - 20, "left")
-        love.graphics.printf(stat[2], gameplayStatsX + 10, columnContentStartY, columnWidth - 20, "right")
-        columnContentStartY = columnContentStartY + (fonts.main_small):getHeight() + 5
-        if columnContentStartY + (fonts.main_small):getHeight() > columnTopY + columnContentHeight then break end
-    end
-
-    -- Coluna 3: Atributos Finais (deslocada)
+    -- Coluna 2: Atributos Finais
     local finalAttrsX = gameplayStatsX + columnWidth + columnPaddingHorizontal
     love.graphics.setFont(columnTitleFont)
     love.graphics.setColor(colors.text_value)
@@ -209,8 +199,19 @@ function ExtractionSummaryScene:draw()
             columnWidth, "center")
     end
 
-    -- Coluna 4: Itens Extraídos (deslocada)
-    local extractedItemsX = finalAttrsX + columnWidth + columnPaddingHorizontal
+    -- Coluna 3: Resumo da Reputação
+    local reputationColX = finalAttrsX + columnWidth + columnPaddingHorizontal
+    love.graphics.setFont(columnTitleFont)
+    love.graphics.setColor(colors.text_value)
+    love.graphics.printf("Resumo da Reputação", reputationColX, columnTopY, columnWidth, "center")
+
+    if self.reputationDetails then
+        ReputationSummaryColumn.draw(reputationColX, columnContentStartY, columnWidth, columnContentHeight,
+            self.reputationDetails)
+    end
+
+    -- Coluna 4: Itens Extraídos
+    local extractedItemsX = reputationColX + columnWidth + columnPaddingHorizontal
     love.graphics.setFont(columnTitleFont)
     love.graphics.setColor(colors.text_value)
     love.graphics.printf("Itens Extraídos", extractedItemsX, columnTopY, columnWidth, "center")
@@ -373,11 +374,12 @@ function ExtractionSummaryScene:keypressed(key, scancode, isrepeat)
         -- extractedItems, extractedEquipment, hunterId.
         -- A lobby_scene já está preparada para lidar com eles.
         local lobbyArgs = shallowcopy(self.args)        -- Cria cópia rasa para não modificar original
-        lobbyArgs.extractionSuccessful = true
+        lobbyArgs.extractionSuccessful = self.reputationDetails and self.reputationDetails.wasSuccess or false
         lobbyArgs.startTab = Constants.TabIds.EQUIPMENT -- Ou outro tab se preferir
         -- Remove dados que são apenas para esta cena de sumário
         lobbyArgs.portalName = nil
         lobbyArgs.portalRank = nil
+        lobbyArgs.portalData = nil
         lobbyArgs.gameplayStats = nil
         lobbyArgs.finalStats = nil
         lobbyArgs.archetypeIds = nil

@@ -63,7 +63,7 @@ function GenericConeSlash:equip(playerManager, itemData)
     -- Passa o PlayerManager e a própria instância da arma (self)
     self.attackInstance = AttackClass:new(playerManager, self)
     if not self.attackInstance then
-        error(string.format("IronSword:equip - Falha ao criar instância de AttackClass '%s'.", baseData.attackClass))
+        error(string.format("GenericConeSlash:equip - Falha ao criar instância de AttackClass '%s'.", baseData.attackClass))
         return
     end
     Logger.debug("[GenericConeSlash:equip]",

@@ -11,6 +11,7 @@ local LobbyStorageManager = require("src.managers.lobby_storage_manager")
 local HunterManager = require("src.managers.hunter_manager")
 local AgencyManager = require("src.managers.agency_manager")
 local ReputationManager = require("src.managers.reputation_manager")
+local GameStatisticsManager = require("src.managers.game_statistics_manager")
 local fonts = require("src.ui.fonts")
 
 local lovebird = require("src.libs.lovebird")
@@ -76,6 +77,11 @@ function love.load()
     local reputationMgr = ReputationManager:new(agencyMgr, itemDataMgr) -- Injeta dependências
     ManagerRegistry:register("reputationManager", reputationMgr)
     Logger.debug("Main", "    > ReputationManager registrado.")
+
+    Logger.debug("Main", "  - Criando GameStatisticsManager...")
+    local gameStatsMgr = GameStatisticsManager:new()
+    ManagerRegistry:register("gameStatisticsManager", gameStatsMgr)
+    Logger.debug("Main", "    > GameStatisticsManager registrado.")
 
     Logger.debug("Main", "Managers persistentes registrados no ManagerRegistry.")
 

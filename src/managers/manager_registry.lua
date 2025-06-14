@@ -1,19 +1,26 @@
 ---@class ManagerRegistry
 local ManagerRegistry = {
     managers = {},
-    initialized = false
+    initialized = false,
+    updateOrder = {
+        "persistenceManager",
+        "itemDataManager",
+        "archetypeManager",
+        "reputationManager",
+        "gameStatisticsManager",
+    }
 }
 
---[[
-    Registra um novo manager
-    @param name Nome do manager
-    @param manager Instância do manager
-    @param drawInCamera Booleano indicando se deve ser desenhado dentro da transformação da câmera
-]]
+-- Register a new manager
+---@param name string
+---@param manager table
+---@param drawInCamera? boolean
 function ManagerRegistry:register(name, manager, drawInCamera)
     if self.managers[name] then
-        print(string.format("Manager '%s' já está registrado", name))
+        Logger.warn("ManagerRegistry:register", string.format("Manager '%s' já está registrado", name))
+        return
     end
+
     self.managers[name] = {
         instance = manager,
         drawInCamera = drawInCamera or false -- Padrão false se não especificado
@@ -21,10 +28,13 @@ function ManagerRegistry:register(name, manager, drawInCamera)
 end
 
 -- Obtém um manager registrado
+---@param name string
+---@return table
 function ManagerRegistry:get(name)
     if not self.managers[name] then
         error(string.format("Manager '%s' não encontrado", name))
     end
+
     return self.managers[name].instance
 end
 
@@ -33,66 +43,52 @@ end
 ---@return table|nil
 function ManagerRegistry:tryGet(name)
     if not self.managers[name] then
+        Logger.error("ManagerRegistry:tryGet", string.format("Manager '%s' não encontrado", name))
         return nil
     end
+
     return self.managers[name].instance
 end
 
--- Inicializa todos os managers registrados
--- Modificado para aceitar uma tabela opcional de configurações para os inits
+-- Initialize all registered managers
+---@param initConfigs table
 function ManagerRegistry:init(initConfigs)
     if self.initialized then
         error("ManagerRegistry já foi inicializado")
     end
-    initConfigs = initConfigs or {} -- Garante que seja uma tabela
 
-    -- Ordem de inicialização é importante
+    initConfigs = initConfigs or {}
+
+    -- Order of initialization is important
+    ---@type table<string, number>
     local initOrder = {
-        "inputManager",     -- Input primeiro
-        "itemDataManager",  -- ItemDataManager antes do InventoryManager
-        "inventoryManager", -- Inventário antes do Player
-        "playerManager",    -- Player depende do inventário (agora)
-        "experienceOrbManager",
-        "floatingTextManager",
-        "runeManager",       -- Runas podem depender do Player
-        "enemyManager",      -- Inimigos (e seus drops) podem depender do Player/Rank do Mapa
-        "dropManager",       -- Drops dependem do EnemyManager e PlayerManager
-        "hudGameplayManager" -- HUD depende do PlayerManager
-        -- Adicione outros managers aqui na ordem correta
+        persistenceManager = 1,
+        itemDataManager = 2,
+        archetypeManager = 3,
+        reputationManager = 4,
+        gameStatisticsManager = 5,
+        hudGameplayManager = 6,
+        gameOverManager = 7
     }
 
-    print("--- Iniciando Managers --- ")
+    Logger.debug("ManagerRegistry:init", "--- Iniciando Managers --- ")
     for _, name in ipairs(initOrder) do
         local managerData = self.managers[name]
         if managerData and managerData.instance.init then
-            print(string.format(" - Inicializando %s...", name))
+            Logger.debug("ManagerRegistry:init", string.format(" - Inicializando %s...", name))
             managerData.instance:init(initConfigs[name])
         elseif managerData then
-            print(string.format(" - Manager %s registrado, mas sem função init().", name))
+            Logger.debug("ManagerRegistry:init", string.format(" - Manager %s registrado, mas sem função init().", name))
         else
-            print(string.format(" - AVISO: Manager %s na initOrder não está registrado!", name))
+            Logger.warn("ManagerRegistry:init", string.format(" - AVISO: Manager %s na initOrder não está registrado!", name))
         end
     end
-    print("-------------------------")
 
     self.initialized = true
 end
 
--- Define a ordem de atualização dos managers
-ManagerRegistry.updateOrder = {
-    "inputManager",
-    "playerManager",
-    "enemyManager",
-    "experienceOrbManager",
-    "dropManager",
-    "floatingTextManager", -- << Deve vir DEPOIS de playerManager e enemyManager
-    "runeManager",
-    "inventoryManager",
-    "hudGameplayManager" -- HUD deve ser atualizado também
-    -- Adicione outros managers que precisam de update em ordem específica aqui
-}
-
--- Atualiza todos os managers registrados
+-- Define the order of update for the managers
+---@param dt number
 function ManagerRegistry:update(dt)
     -- print("[ManagerRegistry:update] Iniciando ciclo de update...") -- Log opcional
     for _, name in ipairs(self.updateOrder) do
@@ -119,16 +115,14 @@ function ManagerRegistry:update(dt)
             end
         end
         if not foundInOrder and managerData.instance and managerData.instance.update then
-            print(string.format("  -> AVISO: Atualizando manager '%s' que não está na updateOrder definida.", name))
+            -- Logger.debug("ManagerRegistry:update", string.format("  -> AVISO: Atualizando manager '%s' que não está na updateOrder definida.", name))
             managerData.instance:update(dt)
         end
     end
     -- print("[ManagerRegistry:update] Ciclo de update concluído.") -- Log opcional
 end
 
---[[
-    Desenha somente os managers dentro da transformação da câmera
-]]
+-- Draw only the managers inside the camera transformation
 function ManagerRegistry:CameraDraw()
     for _, manager in pairs(self.managers) do
         if manager.drawInCamera and manager.instance.draw then
@@ -137,15 +131,12 @@ function ManagerRegistry:CameraDraw()
     end
 end
 
---[[
-    Desenha todos os managers registrados fora da transformação da câmera
-]]
+-- Draw all registered managers
 function ManagerRegistry:draw()
     local drawnCount = 0
     local checkedCount = 0
     if not self.managers or next(self.managers) == nil then
-        print("  [ManagerRegistry:draw()] AVISO: Tabela self.managers está VAZIA ou NIL.")
-        print("[ManagerRegistry:draw()] ----- FIM CICLO DRAW UI (VAZIO) -----")
+        Logger.warn("ManagerRegistry:draw", "Tabela self.managers está VAZIA ou NIL.")
         return
     end
 
@@ -163,6 +154,8 @@ function ManagerRegistry:draw()
     end
 end
 
+-- Unregister a manager
+---@param name string
 function ManagerRegistry:unregister(name)
     self.managers[name] = nil
 end

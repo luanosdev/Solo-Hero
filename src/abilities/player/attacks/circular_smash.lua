@@ -257,7 +257,14 @@ function CircularSmash:executeAttack(finalStats)
             attackerPosition = self.targetPos
         }
         -- Usa o helper para aplicar dano e knockback
-        CombatHelpers.applyHitEffects(enemiesHit, finalStats, knockbackData, self.enemiesKnockedBackInThisCast)
+        CombatHelpers.applyHitEffects(
+            enemiesHit,
+            finalStats,
+            knockbackData,
+            self.enemiesKnockedBackInThisCast,
+            self.playerManager,
+            self.weaponInstance
+        )
     end
 
     -- Libera a tabela do pool após o uso

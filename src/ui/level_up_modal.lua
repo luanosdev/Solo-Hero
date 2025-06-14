@@ -4,6 +4,13 @@ local colors = require("src.ui.colors")
 local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
 
 ---@class LevelUpModal
+---@field visible boolean
+---@field options table
+---@field selectedOption number|nil
+---@field playerManager PlayerManager|nil
+---@field inputManager InputManager|nil
+---@field hoveredOption number|nil
+---@field choiceDelay number
 local LevelUpModal = {
     visible = false,
     options = {},                  -- Agora vai armazenar as definições completas dos bônus de LevelUpBonusesData
@@ -17,6 +24,9 @@ local LevelUpModal = {
     canChoose = false,             -- Flag que permite a escolha após o delay
 }
 
+--- Inicializa o LevelUpModal.
+--- @param playerManager PlayerManager Instância do PlayerManager.
+--- @param inputManager InputManager Instância do InputManager.
 function LevelUpModal:init(playerManager, inputManager)
     self.playerManager = playerManager
     self.inputManager = inputManager -- Armazena a referência ao inputManager
@@ -152,6 +162,14 @@ function LevelUpModal:applyUpgrade(optionData)
     local learnedBonuses = self.playerManager.state.learnedLevelUpBonuses
     learnedBonuses[bonusId] = (learnedBonuses[bonusId] or 0) + 1
     self.playerManager:invalidateStatsCache()
+
+    -- Registra a escolha para as estatísticas
+    local gameStatsManager = self.playerManager.gameStatisticsManager
+    if gameStatsManager then
+        local currentLevel = self.playerManager.state.level
+        local choiceText = optionData.name or "Melhoria Desconhecida"
+        gameStatsManager:registerLevelUpChoice(learnedBonuses[bonusId], choiceText)
+    end
 
     print(string.format("[LevelUpModal:applyUpgrade] Bônus '%s' (ID: %s) aplicado. Novo nível: %d",
         optionData.name, bonusId, learnedBonuses[bonusId]))

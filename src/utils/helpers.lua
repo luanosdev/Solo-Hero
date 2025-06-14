@@ -38,8 +38,18 @@ local function table_size(t)
     return count
 end
 
+--- Interpolação linear entre dois valores.
+---@param a number
+---@param b number
+---@param t number
+---@return number
+local function lerp(a, b, t)
+    return a * (1 - t) + b * t
+end
+
 return {
     normalizeAngle = normalizeAngle,
     deepCopy = deepCopy,
-    table_size = table_size
+    table_size = table_size,
+    lerp = lerp
 }

@@ -1,7 +1,25 @@
 local Constants = require("src.config.constants")
 
 ---@class CombatHelpers
-local CombatHelpers = {}
+local CombatHelpers = {
+    HIT_TOLERANCE_MULTIPLIER = 1.2,
+    ANGLE_TOLERANCE_MULTIPLIER = 0.15,
+}
+
+--- Calcula o raio permissivo para um ataque com base no poder de knockback.
+--- @param enemy BaseEnemy O inimigo que sofrerá o ataque.
+--- @return number O raio permissivo.
+function CombatHelpers.getPermissiveRadius(enemy)
+    return enemy.radius * CombatHelpers.HIT_TOLERANCE_MULTIPLIER
+end
+
+--- Normaliza um ângulo para o intervalo [-pi, pi].
+--- @param angle number Ângulo em radianos.
+--- @return number Ângulo normalizado.
+local function normalizeAngle(angle)
+    return (angle + math.pi) % (2 * math.pi) - math.pi
+end
+
 
 --- Aplica knockback a um inimigo alvo.
 --- @param targetEnemy BaseEnemy O inimigo que sofrerá o knockback.
@@ -68,13 +86,6 @@ function CombatHelpers.applyKnockback(
     return false
 end
 
---- Normaliza um ângulo para o intervalo [-pi, pi].
---- @param angle number Ângulo em radianos.
---- @return number Ângulo normalizado.
-local function normalizeAngle(angle)
-    return (angle + math.pi) % (2 * math.pi) - math.pi
-end
-
 --- Encontra inimigos em uma área circular, considerando o raio dos inimigos para uma detecção mais permissiva.
 --- @param searchCenter table Posição {x, y} do centro da busca.
 --- @param searchRadius number O raio do ataque.
@@ -101,7 +112,7 @@ function CombatHelpers.findEnemiesInCircularArea(searchCenter, searchRadius, req
             local dy = enemy.position.y - searchCenter.y
             local distanceSq = dx * dx + dy * dy
             -- Verificação permissiva: raio do ataque + raio do inimigo
-            local combinedRadius = searchRadius + (enemy.radius or 0)
+            local combinedRadius = searchRadius + CombatHelpers.getPermissiveRadius(enemy)
             if distanceSq <= (combinedRadius * combinedRadius) then
                 table.insert(enemiesHit, enemy)
             end
@@ -138,13 +149,13 @@ function CombatHelpers.findEnemiesInConeArea(coneArea, requestingEntity)
             local distanceSq = dx * dx + dy * dy
 
             -- Verificação de distância permissiva
-            local combinedRange = coneArea.range + (enemy.radius or 0)
+            local combinedRange = coneArea.range + CombatHelpers.getPermissiveRadius(enemy)
             if distanceSq <= (combinedRange * combinedRange) then
                 local pointAngle = math.atan2(dy, dx)
                 local relativeAngle = normalizeAngle(pointAngle - coneArea.angle)
 
                 -- Verificação de ângulo (poderia ser mais permissiva também, mas por agora está ok)
-                if math.abs(relativeAngle) <= coneArea.halfWidth then
+                if math.abs(relativeAngle) <= (coneArea.halfWidth + CombatHelpers.ANGLE_TOLERANCE_MULTIPLIER) then
                     table.insert(enemiesHit, enemy)
                 end
             end
@@ -153,47 +164,6 @@ function CombatHelpers.findEnemiesInConeArea(coneArea, requestingEntity)
 
     TablePool.release(nearbyEnemies)
     return enemiesHit
-end
-
---- Aplica dano e knockback a uma lista de inimigos.
---- @param enemies table Lista de inimigos a serem atingidos.
---- @param finalStats table Stats finais do jogador (para dano, crítico, força).
---- @param knockbackData table Dados do knockback {power, force, attackerPosition}.
---- @param enemiesKnockedBackInThisCast table Tabela para rastrear IDs de inimigos que já sofreram knockback.
-function CombatHelpers.applyHitEffects(enemies, finalStats, knockbackData, enemiesKnockedBackInThisCast)
-    if not enemies or #enemies == 0 then return end
-
-    local totalDamage = finalStats.weaponDamage
-    if not totalDamage then return end
-
-    for i = 1, #enemies do
-        local enemy = enemies[i]
-        if enemy and enemy.isAlive then
-            -- Aplica Dano
-            local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
-            local damageToApply = totalDamage
-            if isCritical then
-                damageToApply = totalDamage and finalStats.critDamage and math.floor(totalDamage * finalStats.critDamage) or
-                    totalDamage
-            end
-            enemy:takeDamage(damageToApply, isCritical)
-
-            -- Aplica Knockback
-            if knockbackData and knockbackData.power > 0 and not enemiesKnockedBackInThisCast[enemy.id] then
-                local knockbackApplied = CombatHelpers.applyKnockback(
-                    enemy,
-                    knockbackData.attackerPosition,
-                    knockbackData.power,
-                    knockbackData.force,
-                    finalStats.strength,
-                    nil
-                )
-                if knockbackApplied then
-                    enemiesKnockedBackInThisCast[enemy.id] = true
-                end
-            end
-        end
-    end
 end
 
 --- Encontra inimigos em uma METADE específica de uma área de cone.
@@ -222,17 +192,17 @@ function CombatHelpers.findEnemiesInConeHalfArea(coneArea, checkLeft, requesting
             local dy = enemy.position.y - coneArea.position.y
             local distanceSq = dx * dx + dy * dy
 
-            local combinedRange = coneArea.range + (enemy.radius or 0)
+            local combinedRange = coneArea.range + CombatHelpers.getPermissiveRadius(enemy)
             if distanceSq <= (combinedRange * combinedRange) then
                 local pointAngle = math.atan2(dy, dx)
                 local relativeAngle = normalizeAngle(pointAngle - coneArea.angle)
 
                 if checkLeft then -- Checa metade esquerda (ângulo relativo entre -halfWidth e 0)
-                    if relativeAngle >= -coneArea.halfWidth and relativeAngle <= 0 then
+                    if relativeAngle >= (-coneArea.halfWidth - CombatHelpers.ANGLE_TOLERANCE_MULTIPLIER) and relativeAngle <= 0 then
                         table.insert(enemiesHit, enemy)
                     end
                 else -- Checa metade direita (ângulo relativo entre 0 e +halfWidth)
-                    if relativeAngle > 0 and relativeAngle <= coneArea.halfWidth then
+                    if relativeAngle > 0 and relativeAngle <= (coneArea.halfWidth + CombatHelpers.ANGLE_TOLERANCE_MULTIPLIER) then
                         table.insert(enemiesHit, enemy)
                     end
                 end
@@ -242,6 +212,75 @@ function CombatHelpers.findEnemiesInConeHalfArea(coneArea, checkLeft, requesting
 
     TablePool.release(nearbyEnemies)
     return enemiesHit
+end
+
+--- Aplica dano e knockback a uma lista de inimigos.
+--- @param enemies table Lista de inimigos a serem atingidos.
+--- @param finalStats table Stats finais do jogador (para dano, crítico, força).
+--- @param knockbackData table Dados do knockback {power, force, attackerPosition}.
+--- @param enemiesKnockedBackInThisCast table Tabela para rastrear IDs de inimigos que já sofreram knockback.
+--- @param playerManager PlayerManager Instância do PlayerManager.
+--- @param weaponInstance BaseWeapon A instância da arma que desferiu o golpe.
+function CombatHelpers.applyHitEffects(
+    enemies,
+    finalStats,
+    knockbackData,
+    enemiesKnockedBackInThisCast,
+    playerManager,
+    weaponInstance
+)
+    if not enemies or #enemies == 0 then return end
+
+    -- Registra o número de inimigos atingidos para a estatística "Máx. Inimigos Atingidos"
+    if playerManager and playerManager.gameStatisticsManager then
+        playerManager.gameStatisticsManager:registerEnemiesHit(#enemies)
+    end
+
+    local totalDamage = finalStats.weaponDamage
+    if not totalDamage then return end
+
+    for i = 1, #enemies do
+        local enemy = enemies[i]
+        if enemy and enemy.isAlive then
+            -- Aplica Dano
+            local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
+            -- TODO: Adicionar lógica para Super Critical quando a mecânica existir
+            local isSuperCritical = false -- Placeholder
+            local damageToApply = totalDamage
+
+            if isSuperCritical then
+                -- TODO: Usar multiplicador de Super Crítico quando existir
+                damageToApply = totalDamage and finalStats.critDamage and
+                    math.floor(totalDamage * (finalStats.critDamage * 2)) or totalDamage
+            elseif isCritical then
+                damageToApply = totalDamage and finalStats.critDamage and math.floor(totalDamage * finalStats.critDamage) or
+                    totalDamage
+            end
+            enemy:takeDamage(damageToApply, isCritical, isSuperCritical)
+
+            -- Registra o dano causado para as estatísticas
+            if playerManager and playerManager.registerDamageDealt then
+                local source = { weaponId = weaponInstance and weaponInstance.itemBaseId }
+                -- Passa o novo parâmetro isSuperCritical
+                playerManager:registerDamageDealt(damageToApply, isCritical, source, isSuperCritical)
+            end
+
+            -- Aplica Knockback
+            if knockbackData and knockbackData.power > 0 and not enemiesKnockedBackInThisCast[enemy.id] then
+                local knockbackApplied = CombatHelpers.applyKnockback(
+                    enemy,
+                    knockbackData.attackerPosition,
+                    knockbackData.power,
+                    knockbackData.force,
+                    finalStats.strength,
+                    nil
+                )
+                if knockbackApplied then
+                    enemiesKnockedBackInThisCast[enemy.id] = true
+                end
+            end
+        end
+    end
 end
 
 return CombatHelpers

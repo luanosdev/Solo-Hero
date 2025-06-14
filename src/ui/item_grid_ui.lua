@@ -279,56 +279,55 @@ function ItemGridUI.handleMouseClick(mx, my, sectionInfo, areaX, areaY, areaW, a
     return nil -- Nenhum clique em aba
 end
 
---- NOVO: Retorna a instância do item sob as coordenadas do mouse.
--- @param mx number Coordenada X do mouse.
--- @param my number Coordenada Y do mouse.
--- @param items table Tabela de itens da grade { [instanceId] = itemInstanceData }.
--- @param gridRows number Número de linhas da grade.
--- @param gridCols number Número de colunas da grade.
--- @param areaX number Coordenada X da área da grade.
--- @param areaY number Coordenada Y da área da grade.
--- @param areaW number Largura da área da grade.
--- @param areaH number Altura da área da grade.
--- @return table|nil A tabela da instância do item ou nil.
-function ItemGridUI.getItemInstanceAtCoords(mx, my, items, gridRows, gridCols, areaX, areaY, areaW, areaH)
-    if not items then return nil end
+--- Verifica qual instância de item está nas coordenadas de tela fornecidas.
+--- É o inverso lógico do desenho: converte pixels de volta para um item.
+--- @param mx number Posição X do mouse.
+--- @param my number Posição Y do mouse.
+--- @param itemsList table Lista de instâncias de itens a verificar (deve ser um array/lista).
+--- @param gridRows number Número de linhas na grade.
+--- @param gridCols number Número de colunas na grade.
+--- @param areaX number Coordenada X da área da grade.
+--- @param areaY number Coordenada Y da área da grade.
+--- @param areaW number Largura da área da grade.
+--- @param areaH number Altura da área da grade.
+--- @return table|nil itemInstance A instância do item encontrada, ou nil.
+function ItemGridUI.getItemInstanceAtCoords(mx, my, itemsList, gridRows, gridCols, areaX, areaY, areaW, areaH)
+    if not itemsList or #itemsList == 0 then
+        return nil
+    end
 
-    -- Recalcula posição/dimensões da grade
-    local currentGridRows = gridRows or 1
-    local currentGridCols = gridCols or 1
+    -- Cálculos de layout da grade (idênticos a drawItemGrid para consistência)
     local slotTotalWidth = gridConfig.slotSize + gridConfig.padding
     local slotTotalHeight = gridConfig.slotSize + gridConfig.padding
-    local gridTotalWidth = currentGridCols * slotTotalWidth - gridConfig.padding
-    local gridTotalHeight = currentGridRows * slotTotalHeight - gridConfig.padding
+    local gridTotalWidth = gridCols * slotTotalWidth - gridConfig.padding
     local startX = areaX + (areaW - gridTotalWidth) / 2
-    local startY = areaY -- Alinhado ao topo
+    local startY = areaY
 
-    -- Itera pelos itens para encontrar qual está sob o mouse
-    for instanceId, itemInfo in pairs(items) do
+    -- Itera sobre a lista de itens
+    for _, itemInfo in ipairs(itemsList) do
         if itemInfo and itemInfo.row and itemInfo.col then
+            -- Calcula a posição e o tamanho visual do item na tela
             local itemSlotX = startX + (itemInfo.col - 1) * slotTotalWidth
             local itemSlotY = startY + (itemInfo.row - 1) * slotTotalHeight
 
-            -- <<< INÍCIO: Calcula dimensões para checagem de clique considerando rotação >>>
             local isRotated = itemInfo.isRotated or false
             local gridW = itemInfo.gridWidth or 1
             local gridH = itemInfo.gridHeight or 1
 
-            local checkGridW = isRotated and gridH or gridW
-            local checkGridH = isRotated and gridW or gridH
+            local visualW = isRotated and (gridH * slotTotalHeight - gridConfig.padding) or
+                (gridW * slotTotalWidth - gridConfig.padding)
+            local visualH = isRotated and (gridW * slotTotalWidth - gridConfig.padding) or
+                (gridH * slotTotalHeight - gridConfig.padding)
 
-            local itemCheckW = checkGridW * slotTotalWidth - gridConfig.padding
-            local itemCheckH = checkGridH * slotTotalHeight - gridConfig.padding
-            -- <<< FIM: Calcula dimensões para checagem de clique >>>
-
-            -- Verifica se o mouse está dentro do retângulo de checagem do item
-            if mx >= itemSlotX and mx < itemSlotX + itemCheckW and my >= itemSlotY and my < itemSlotY + itemCheckH then
-                return itemInfo -- Retorna a instância completa do item
+            -- Verifica se o mouse está dentro da área visual do item
+            if mx >= itemSlotX and mx < itemSlotX + visualW and
+                my >= itemSlotY and my < itemSlotY + visualH then
+                return itemInfo -- Encontrou
             end
         end
     end
 
-    return nil -- Nenhum item encontrado nas coordenadas
+    return nil -- Não encontrou nenhum item nas coordenadas
 end
 
 --- NOVO: Retorna as coordenadas (linha, coluna) do slot da grade sob o mouse.

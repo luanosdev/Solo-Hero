@@ -433,6 +433,13 @@ function HunterManager:deleteHunter(hunterId)
     print(string.format("[HunterManager] Exclusão do caçador %s concluída.", hunterId))
 end
 
+--- Desequipa um item de um slot para o caçador ativo.
+--- @param slotId string O ID do slot de onde o item será removido.
+--- @return table|nil A instância do item que foi desequipado, ou nil se não havia item.
+function HunterManager:unequipItemFromActiveHunter(slotId)
+    return self:unequipItem(self.activeHunterId, slotId)
+end
+
 --- Desequipa um item de um slot para um caçador específico.
 --- @param hunterId string O ID do caçador.
 --- @param slotId string O ID do slot de onde o item será removido.

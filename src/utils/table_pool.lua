@@ -3,7 +3,7 @@ local TablePool = {}
 
 --- O pool em si, armazenará listas de tabelas por "tipo" (embora aqui seja genérico)
 --- No nosso caso, todas as tabelas serão "genéricas"
-local pool = {} 
+local pool = {}
 local pooledCount = 0
 local maxPooledTables = 200 -- Limite para não consumir memória demais com tabelas não usadas
 
@@ -79,4 +79,4 @@ function TablePool.resetStats()
     -- Não reseta pooledCount nem o pool em si, apenas as métricas de requisição
 end
 
-return TablePool 
+return TablePool

@@ -194,14 +194,26 @@ function GameplayScene:load(args)
     -- Configura o callback de morte do jogador para usar o GameOverManager
     playerMgr:setOnPlayerDiedCallback(function()
         -- Ações da GameplayScene ANTES de iniciar o Game Over
-        self.isPaused = true -- Pausa geral do jogo
         if InventoryScreen.isVisible then InventoryScreen.isVisible = false end
         if LevelUpModal.visible then LevelUpModal.visible = false end
         if RuneChoiceModal.visible then RuneChoiceModal.visible = false end
         if ItemDetailsModal.isVisible then ItemDetailsModal.isVisible = false end
         if self.isCasting then self:interruptCast("Morte do jogador") end
 
-        self.gameOverManager:start(self.currentPortalData)
+        -- Obtém a causa da morte (último inimigo que causou dano)
+        local lastDamageSource = playerMgr.lastDamageSource
+        local deathCause = "Desconhecido"
+        if lastDamageSource then
+            if lastDamageSource.isBoss then
+                deathCause = string.format("Boss: %s", lastDamageSource.name or "Desconhecido")
+            elseif lastDamageSource.isMVP then
+                deathCause = string.format("MVP: %s", lastDamageSource.name or "Desconhecido")
+            else
+                deathCause = string.format("Inimigo: %s", lastDamageSource.name or "Desconhecido")
+            end
+        end
+
+        self.gameOverManager:start(self.currentPortalData, deathCause)
     end)
 
     local playerInitialPos = playerMgr.player.position
@@ -557,11 +569,7 @@ end
 
 function GameplayScene:keypressed(key, scancode, isrepeat)
     if self.gameOverManager and self.gameOverManager.isGameOverActive then
-        if self.gameOverManager.canExit and key ~= "escape" then
-            self.gameOverManager:handleExit()
-            return
-        end
-        -- Ignora outros inputs durante o Game Over se não for para sair
+        self.gameOverManager:keypressed(key, scancode, isrepeat)
         return
     end
 
@@ -679,9 +687,10 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
     local itemDataManager = ManagerRegistry:get("itemDataManager") ---@type ItemDataManager
     local hunterManager = ManagerRegistry:get("hunterManager") ---@type HunterManager
     local archetypeManager = ManagerRegistry:get("archetypeManager") ---@type ArchetypeManager
+    local gameStatisticsManager = ManagerRegistry:get("gameStatisticsManager") ---@type GameStatisticsManager
     local hunterId = playerManager:getCurrentHunterId()
 
-    if not playerManager or not inventoryManager or not itemDataManager or not hunterId or not hunterManager or not archetypeManager then
+    if not playerManager or not inventoryManager or not itemDataManager or not hunterId or not hunterManager or not archetypeManager or not gameStatisticsManager then
         print("ERRO [GameplayScene:initiateExtraction]: Managers essenciais ou HunterID não encontrados!")
         SceneManager.switchScene("lobby_scene", { extractionSuccessful = false, irregularExit = true })
         return
@@ -801,7 +810,7 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
     -- Prepara os parâmetros para a cena de resumo
     local hunterData = hunterManager:getHunterData(hunterId)
     local params = {
-        extractionSuccessful = true,
+        wasSuccess = true,
         hunterId = hunterId,
         hunterData = hunterData,
         portalData = self.currentPortalData,
@@ -812,7 +821,9 @@ function GameplayScene:initiateExtraction(extractionType, extractionParams)
         lootedItems = lootedItems,
         -- Passa dados para a tela de resumo pós-partida
         finalStats = finalStatsForSummary,
-        archetypeIds = archetypeIdsForSummary
+        archetypeIds = archetypeIdsForSummary,
+        archetypeManagerInstance = archetypeManager,
+        gameplayStats = gameStatisticsManager:getRawStats()
     }
 
     print("[GameplayScene] Transicionando para ExtractionSummaryScene com dados de extração...")

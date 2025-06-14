@@ -126,11 +126,6 @@ function LobbyScene:load(args)
     end
     print("[LobbyScene] Managers persistentes obtidos com sucesso.")
 
-    -- Processa os resultados da incursão ANTES de qualquer outra coisa
-    if args and (args.extractionSuccessful or args.extractionSuccessful == false) then
-        print("[LobbyScene] Resultados da incursão encontrados. Processando reputação...")
-        self.reputationManager:processIncursionResult(args)
-    end
 
     -- Processa os itens da extração se ela foi bem sucedida
     if args and args.extractionSuccessful and args.hunterId then

@@ -67,10 +67,13 @@ function EquipmentScreen:update(dt, mx, my, dragState)
 
         -- 2. Checa hover na grade de Armazenamento (Storage)
         if not self.itemToShowTooltip and self.lobbyStorageManager and self.storageGridArea.w and self.storageGridArea.w > 0 then
-            local storageItems = self.lobbyStorageManager:getItems(self.lobbyStorageManager:getActiveSectionIndex())
+            local storageItemsDict = self.lobbyStorageManager:getItems(self.lobbyStorageManager:getActiveSectionIndex())
+            local storageItemsList = {}
+            for _, item in pairs(storageItemsDict or {}) do table.insert(storageItemsList, item) end
+
             local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
-            if storageItems and storageRows and storageCols then -- Adicionada verificação para storageItems, storageRows, storageCols
-                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my, storageItems, storageRows, storageCols,
+            if #storageItemsList > 0 and storageRows and storageCols then
+                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my, storageItemsList, storageRows, storageCols,
                     self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h)
                 if hoveredItem then
                     self.itemToShowTooltip = hoveredItem
@@ -80,10 +83,13 @@ function EquipmentScreen:update(dt, mx, my, dragState)
 
         -- 3. Checa hover na grade de Mochila (Loadout)
         if not self.itemToShowTooltip and self.loadoutManager and self.loadoutGridArea.w and self.loadoutGridArea.w > 0 then
-            local loadoutItems = self.loadoutManager:getItems()
+            local loadoutItemsDict = self.loadoutManager:getItems()
+            local loadoutItemsList = {}
+            for _, item in pairs(loadoutItemsDict or {}) do table.insert(loadoutItemsList, item) end
+
             local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
-            if loadoutItems and loadoutRows and loadoutCols then -- Adicionada verificação para loadoutItems, loadoutRows, loadoutCols
-                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my, loadoutItems, loadoutRows, loadoutCols,
+            if #loadoutItemsList > 0 and loadoutRows and loadoutCols then
+                local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my, loadoutItemsList, loadoutRows, loadoutCols,
                     self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h)
                 if hoveredItem then
                     self.itemToShowTooltip = hoveredItem
@@ -344,9 +350,12 @@ function EquipmentScreen:handleMousePress(x, y, buttonIdx)
         -- 2. Verifica clique para iniciar DRAG nas grades (Storage e Loadout)
         -- Verifica clique na grade de Armazenamento
         if self.lobbyStorageManager and self.storageGridArea.w > 0 then
-            local storageItems = self.lobbyStorageManager:getItems(self.lobbyStorageManager:getActiveSectionIndex())
+            local storageItemsDict = self.lobbyStorageManager:getItems(self.lobbyStorageManager:getActiveSectionIndex())
+            local storageItemsList = {}
+            for _, item in pairs(storageItemsDict or {}) do table.insert(storageItemsList, item) end
+
             local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
-            itemClicked = ItemGridUI.getItemInstanceAtCoords(x, y, storageItems, storageRows, storageCols,
+            itemClicked = ItemGridUI.getItemInstanceAtCoords(x, y, storageItemsList, storageRows, storageCols,
                 self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h)
             if itemClicked then
                 clickedGridId = "storage"
@@ -355,9 +364,12 @@ function EquipmentScreen:handleMousePress(x, y, buttonIdx)
 
         -- Verifica clique na grade de Loadout (se não clicou no storage)
         if not itemClicked and self.loadoutManager and self.loadoutGridArea.w > 0 then
-            local loadoutItems = self.loadoutManager:getItems()
+            local loadoutItemsDict = self.loadoutManager:getItems()
+            local loadoutItemsList = {}
+            for _, item in pairs(loadoutItemsDict or {}) do table.insert(loadoutItemsList, item) end
+
             local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
-            itemClicked = ItemGridUI.getItemInstanceAtCoords(x, y, loadoutItems, loadoutRows, loadoutCols,
+            itemClicked = ItemGridUI.getItemInstanceAtCoords(x, y, loadoutItemsList, loadoutRows, loadoutCols,
                 self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w, self.loadoutGridArea.h)
             if itemClicked then
                 clickedGridId = "loadout"
@@ -540,6 +552,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                 targetEquipmentSlotId, targetType, itemType, tostring(isCompatible)))
 
             if isCompatible then
+                ---@type LobbyStorageManager|LoadoutManager
                 local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
                     self.loadoutManager
 
@@ -581,9 +594,10 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                                 dragState.sourceSlotId, targetEquipmentSlotId))
                         end
                     else -- Origem era storage ou loadout (Equipar Normal)
+                        ---@type LobbyStorageManager|LoadoutManager
                         local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
                             self.loadoutManager
-                        local removed = sourceManager:removeItemByInstanceId(itemToEquip.instanceId)
+                        local removed = sourceManager:removeItemInstance(itemToEquip.instanceId, itemToEquip.quantity)
                         if not removed then
                             print(string.format(
                                 "ERRO GRAVE (EquipmentScreen): Item %d equipado, mas falha ao remover da origem %s!",
@@ -724,7 +738,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                                     if draggedItem.quantity <= 0 then
                                         if dragState.sourceGridId == "equipment" then
                                             -- Desequipa o item completamente
-                                            self.hunterManager:unequipItem(dragState.sourceSlotId)
+                                            self.hunterManager:unequipItemFromActiveHunter(dragState.sourceSlotId)
                                             print(string.format(
                                                 "EquipmentScreen: Item '%s' (ID: %s) totalmente empilhado e desequipado da origem %s.",
                                                 draggedItem.itemBaseId, draggedItem.instanceId, dragState.sourceSlotId))
@@ -767,7 +781,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                 if dragState.sourceGridId == "equipment" then
                     print(string.format("  Attempting to unequip item from slot %s to %s", dragState.sourceSlotId,
                         dragState.targetGridId))
-                    local unequippedItem = self.hunterManager:unequipItem(dragState.sourceSlotId)
+                    local unequippedItem = self.hunterManager:unequipItemFromActiveHunter(dragState.sourceSlotId)
 
                     if unequippedItem then
                         print(string.format("  Item %s (ID: %s) unequipped successfully.", unequippedItem.itemBaseId,
@@ -776,7 +790,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                             dragState.targetGridId, dragState.targetSlotCoords.row, dragState.targetSlotCoords.col,
                             tostring(dragState.draggedItemIsRotated)))
 
-                        local added = targetManager:addItemAt(unequippedItem, dragState.targetSlotCoords.row,
+                        local added = targetManager:addItemInstanceAt(unequippedItem, dragState.targetSlotCoords.row,
                             dragState.targetSlotCoords.col, dragState.draggedItemIsRotated)
 
                         if not added then
@@ -803,6 +817,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                     end
                     return true
                 else -- Se a origem NÃO era "equipment" (ou seja, era "storage" ou "loadout")
+                    ---@type LobbyStorageManager|LoadoutManager
                     local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
                         self.loadoutManager
                     local itemToMove = dragState.draggedItem -- Já temos como 'draggedItem'
@@ -813,7 +828,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                     -- 1. Remove da origem
                     print(string.format("  Removing item %s (ID: %s) from sourceManager (%s)", itemToMove.itemBaseId,
                         itemToMove.instanceId, dragState.sourceGridId))
-                    local removed = sourceManager:removeItemByInstanceId(itemToMove.instanceId)
+                    local removed = sourceManager:removeItemInstance(itemToMove.instanceId)
                     print(string.format("  Removal from source %s status: %s", dragState.sourceGridId, tostring(removed)))
 
                     if removed then
@@ -822,7 +837,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                             itemToMove.itemBaseId, itemToMove.instanceId, dragState.targetGridId,
                             dragState.targetSlotCoords.row, dragState.targetSlotCoords.col,
                             tostring(dragState.draggedItemIsRotated)))
-                        local added = targetManager:addItemAt(itemToMove, dragState.targetSlotCoords.row,
+                        local added = targetManager:addItemInstanceAt(itemToMove, dragState.targetSlotCoords.row,
                             dragState.targetSlotCoords.col, dragState.draggedItemIsRotated)
                         print(string.format("  Addition to target %s status: %s", dragState.targetGridId, tostring(added)))
 

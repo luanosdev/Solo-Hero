@@ -35,6 +35,8 @@ local baseCollisionRadiusAtTip = (imgWidth * baseScale) / 2 -- Metade da espessu
 ---@field visualScale number Escala visual final da flecha, afetada pela área.
 ---@field collisionRadiusAtTip number Raio de colisão final na ponta da flecha.
 ---@field tipOffsetFromCenter number Distância do centro da imagem da flecha até sua ponta.
+---@field playerManager PlayerManager
+---@field weaponInstance BaseWeapon
 local Arrow = {}
 Arrow.__index = Arrow
 
@@ -53,8 +55,26 @@ Arrow.__index = Arrow
 ---@param knockbackPower number Poder de knockback da flecha.
 ---@param knockbackForce number Força de knockback da flecha.
 ---@param playerStrength number Força do jogador no momento do disparo.
-function Arrow:new(x, y, angle, speed, range, damage, isCritical, spatialGrid, color, piercing, areaScale, knockbackPower,
-                   knockbackForce, playerStrength)
+---@param playerManager PlayerManager
+---@param weaponInstance BaseWeapon
+function Arrow:new(
+    x,
+    y,
+    angle,
+    speed,
+    range,
+    damage,
+    isCritical,
+    spatialGrid,
+    color,
+    piercing,
+    areaScale,
+    knockbackPower,
+    knockbackForce,
+    playerStrength,
+    playerManager,
+    weaponInstance
+)
     local instance = setmetatable({}, Arrow)
 
     instance.position = { x = x, y = y }
@@ -72,6 +92,8 @@ function Arrow:new(x, y, angle, speed, range, damage, isCritical, spatialGrid, c
     instance.knockbackPower = knockbackPower or 0
     instance.knockbackForce = knockbackForce or 0
     instance.playerStrength = playerStrength or 0
+    instance.playerManager = playerManager
+    instance.weaponInstance = weaponInstance
 
     instance.velocity = {
         x = math.cos(angle) * speed,
@@ -112,8 +134,26 @@ end
 ---@param knockbackPower number Poder de knockback da flecha.
 ---@param knockbackForce number Força de knockback da flecha.
 ---@param playerStrength number Força do jogador no momento do disparo.
-function Arrow:reset(x, y, angle, speed, range, damage, isCritical, spatialGrid, color, piercing, areaScale,
-                     knockbackPower, knockbackForce, playerStrength)
+---@param playerManager PlayerManager
+---@param weaponInstance BaseWeapon
+function Arrow:reset(
+    x,
+    y,
+    angle,
+    speed,
+    range,
+    damage,
+    isCritical,
+    spatialGrid,
+    color,
+    piercing,
+    areaScale,
+    knockbackPower,
+    knockbackForce,
+    playerStrength,
+    playerManager,
+    weaponInstance
+)
     self.position.x = x
     self.position.y = y
     self.angle = angle
@@ -130,6 +170,8 @@ function Arrow:reset(x, y, angle, speed, range, damage, isCritical, spatialGrid,
     self.knockbackPower = knockbackPower or 0
     self.knockbackForce = knockbackForce or 0
     self.playerStrength = playerStrength or 0
+    self.playerManager = playerManager
+    self.weaponInstance = weaponInstance
 
     self.velocity.x = math.cos(angle) * speed
     self.velocity.y = math.sin(angle) * speed
@@ -235,6 +277,14 @@ function Arrow:checkCollision()
                 end
 
                 enemy:takeDamage(self.damage, self.isCritical)
+
+                -- Registra o dano para o GameStatisticsManager
+                if self.playerManager and self.weaponInstance then
+                    local isSuperCritical = false -- TODO: Implementar super-crítico
+                    local source = { weaponId = self.weaponInstance.itemBaseId }
+                    self.playerManager:registerDamageDealt(self.damage, self.isCritical, source, isSuperCritical)
+                end
+
                 self.hitEnemies[enemyId] = true
                 self.currentPiercing = self.currentPiercing - 1
 

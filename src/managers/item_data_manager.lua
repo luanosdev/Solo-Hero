@@ -59,19 +59,18 @@ end
 --- Obtém os dados base de um item.
 ---@param self ItemDataManager
 ---@param itemBaseId string O ID base do item a ser obtido.
----@return table|nil data Os dados base do item, ou nil se o itemBaseId não for encontrado.
+---@return table data Os dados base do item, ou nil se o itemBaseId não for encontrado.
 function ItemDataManager:getBaseItemData(itemBaseId)
-    if not itemBaseId then return nil end
     local data = self.itemDatabase[itemBaseId]
     if not data then
-        print("AVISO [ItemDataManager]: Dados base não encontrados para ID:", itemBaseId)
-        return nil
+        error("AVISO [ItemDataManager]: Dados base não encontrados para ID: " .. itemBaseId)
     end
     -- Retorna uma cópia rasa para evitar modificações acidentais no banco de dados
     local copy = {}
     for k, v in pairs(data) do
         copy[k] = v
     end
+
     return copy
 end
 
@@ -79,19 +78,17 @@ end
 ---@param self ItemDataManager
 ---@param itemBaseId string O ID base do item a ser instanciado.
 ---@param quantity integer (Opcional) A quantidade para a instância (padrão 1).
----@return table|nil newInstance A nova instância do item, ou nil se o itemBaseId não for encontrado.
+---@return table newInstance A nova instância do item.
 function ItemDataManager:createItemInstanceById(itemBaseId, quantity)
     if not itemBaseId then
-        print("AVISO [ItemDataManager:createItemInstanceById]: itemBaseId não fornecido.")
-        return nil
+        error("AVISO [ItemDataManager:createItemInstanceById]: itemBaseId não fornecido.")
     end
 
     local baseData = self:getBaseItemData(itemBaseId)
     if not baseData then
-        print(string.format(
+        error(string.format(
             "AVISO [ItemDataManager:createItemInstanceById]: Dados base não encontrados para ID: %s. Não é possível criar instância.",
             itemBaseId))
-        return nil
     end
 
     local newInstance = {}
@@ -109,7 +106,7 @@ function ItemDataManager:createItemInstanceById(itemBaseId, quantity)
     -- Exemplo: newInstance.isRotated = false
     -- Exemplo: newInstance.currentDurability = baseData.maxDurability or nil
 
-    print(string.format("[ItemDataManager:createItemInstanceById] Instância criada para '%s' (ID: %s), Qtd: %d",
+    Logger.info("[ItemDataManager:createItemInstanceById]", string.format("Instância criada para '%s' (ID: %s), Qtd: %d",
         itemBaseId, newInstance.instanceId, newInstance.quantity))
 
     return newInstance

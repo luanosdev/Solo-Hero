@@ -1,7 +1,6 @@
 local PersistenceManager = require("src.core.persistence_manager")
 local ItemGridLogic = require("src.core.item_grid_logic")
 local Constants = require("src.config.constants")
-local uuid = require("src.utils.uuid")
 
 ---@class LoadoutManager
 local LoadoutManager = {
@@ -11,12 +10,6 @@ local LoadoutManager = {
 LoadoutManager.__index = LoadoutManager
 
 local SHARED_LOADOUT_SAVE_FILE = "shared_loadout.dat" -- Arquivo para o loadout compartilhado
-
--- Contador para IDs únicos de instância de item DENTRO do loadout
--- Usaremos um prefixo ou um range diferente para evitar colisão com LobbyStorageManager
--- Ou podemos usar um único contador global, mas isso exige mais coordenação.
--- Vamos começar com um contador local para o Loadout.
-local nextInstanceId = 1 -- Reinicia em 1, IDs são locais para o loadout
 
 --- Cria uma nova instância do gerenciador de loadout.
 --- @param itemDataManager ItemDataManager Instância do ItemDataManager.
@@ -34,7 +27,6 @@ function LoadoutManager:new(itemDataManager)
     instance.cols = Constants.GRID_COLS
     instance.grid = {}  -- Grade 2D para referência rápida de ocupação
     instance.items = {} -- Tabela de instâncias de itens { [instanceId] = itemInstanceData }
-    nextInstanceId = 1  -- Reseta contador local
 
     -- Tenta carregar o estado salvo
     instance:loadState()
@@ -78,46 +70,50 @@ function LoadoutManager:getDimensions()
     return self.rows, self.cols
 end
 
---- NOVO: Obtém a instância do item em coordenadas específicas da grade.
+--- Obtém a instância do item em coordenadas específicas da grade.
 --- @param targetRow integer Linha alvo (1-indexed).
 --- @param targetCol integer Coluna alvo (1-indexed).
 --- @return table|nil A instância do item se encontrada, caso contrário nil.
 function LoadoutManager:getItemInstanceAtCoords(targetRow, targetCol)
     if not self.items or not targetRow or not targetCol then return nil end
-    print(string.format("  [LoadoutManager:getItemInstanceAtCoords] Checking for item at [%d,%d]", targetRow, targetCol))
-    local itemCount = 0
-    for _ in pairs(self.items) do itemCount = itemCount + 1 end
-    print(string.format("    Total items in loadout: %d", itemCount))
+    if DEV then
+        Logger.debug("[LoadoutManager:getItemInstanceAtCoords]",
+            string.format("Checking for item at [%d,%d]", targetRow, targetCol))
+        local itemCount = 0
+        for _ in pairs(self.items) do itemCount = itemCount + 1 end
+        Logger.debug("[LoadoutManager:getItemInstanceAtCoords]", string.format("Total items in loadout: %d", itemCount))
+    end
 
     for instanceId, item in pairs(self.items) do
         local itemOriginX, itemOriginY = item.col, item.row
         local itemDisplayW = item.isRotated and item.gridHeight or item.gridWidth
         local itemDisplayH = item.isRotated and item.gridWidth or item.gridHeight
 
-        print(string.format("    Checking item: %s (ID %s) at [%d,%d] size [%dx%d] (display: %dx%d, rotated: %s)",
-            item.itemBaseId, instanceId, itemOriginY, itemOriginX, item.gridWidth, item.gridHeight, itemDisplayW,
-            itemDisplayH, tostring(item.isRotated)))
+        Logger.debug("[LoadoutManager:getItemInstanceAtCoords]",
+            string.format("    Checking item: %s (ID %s) at [%d,%d] size [%dx%d] (display: %dx%d, rotated: %s)",
+                item.itemBaseId, instanceId, itemOriginY, itemOriginX, item.gridWidth, item.gridHeight, itemDisplayW,
+                itemDisplayH, tostring(item.isRotated)))
 
         -- Verifica se (targetRow, targetCol) está dentro da área ocupada pelo item
         if targetCol >= itemOriginX and targetCol < itemOriginX + itemDisplayW and
             targetRow >= itemOriginY and targetRow < itemOriginY + itemDisplayH then
-            print(string.format("    FOUND item: %s (ID %s) at coords [%d,%d]", item.itemBaseId, instanceId, targetRow,
-                targetCol))
+            Logger.debug("[LoadoutManager:getItemInstanceAtCoords]",
+                string.format("    FOUND item: %s (ID %s) at coords [%d,%d]", item.itemBaseId, instanceId, targetRow,
+                    targetCol))
             return item -- Encontrou o item que ocupa esta célula
         end
     end
-    print(string.format("  [LoadoutManager:getItemInstanceAtCoords] No item found at [%d,%d]", targetRow, targetCol))
+    -- print(string.format("  [LoadoutManager:getItemInstanceAtCoords] No item found at [%d,%d]", targetRow, targetCol))
     return nil -- Nenhum item encontrado nesta célula
 end
 
 -- == Funções de Manipulação de Itens ==
 
---- Limpa todos os itens do loadout, resetando a grade e o contador de instâncias.
+--- Limpa todos os itens do loadout, resetando a grade.
 function LoadoutManager:clearAllItems()
     print("[LoadoutManager] Limpando todos os itens do loadout...")
     self:_createEmptyGrid(self.rows, self.cols)
     self.items = {}
-    nextInstanceId = 1 -- Reseta o contador de ID de instância local
     print("[LoadoutManager] Loadout limpo.")
 end
 
@@ -162,10 +158,9 @@ end
 function LoadoutManager:addItem(itemBaseId, quantity)
     if not itemBaseId or not quantity or quantity <= 0 then return 0 end
 
-    -- A lógica é a mesma do _addItemToSection, mas opera diretamente em self.items e self.grid
     local baseData = self:_getItemBaseData(itemBaseId)
     if not baseData then
-        print("ERRO [LoadoutManager]: Não foi possível obter dados para o item ID:", itemBaseId)
+        Logger.error("[LoadoutManager]: Não foi possível obter dados para o item ID:", itemBaseId)
         return 0
     end
 
@@ -196,166 +191,144 @@ function LoadoutManager:addItem(itemBaseId, quantity)
         local freeSpace = ItemGridLogic.findFreeSpace(self.grid, self.rows, self.cols, width, height)
 
         if freeSpace then
-            local instanceId = uuid.generate()
-            local newItemInstance = {
-                instanceId = instanceId,
-                itemBaseId = itemBaseId,
-                quantity = amountForThisInstance,
-                row = freeSpace.row,
-                col = freeSpace.col,
-                isRotated = false,
-                gridWidth = width,
-                gridHeight = height,
-                stackable = stackable,
-                maxStack = maxStack,
-                name = baseData.name,
-                icon = baseData.icon,
-            }
-            self.items[instanceId] = newItemInstance
+            local newItemInstance = self.itemDataManager:createItemInstanceById(itemBaseId, amountForThisInstance)
 
-            self:addItemAt(newItemInstance, freeSpace.row, freeSpace.col, newItemInstance.isRotated)
+            if newItemInstance then
+                -- Define a posição e rotação na instância recém-criada
+                newItemInstance.row = freeSpace.row
+                newItemInstance.col = freeSpace.col
+                newItemInstance.isRotated = false -- Padrão ao adicionar
 
-            addedQuantity = addedQuantity + amountForThisInstance
-            remainingQuantity = remainingQuantity - amountForThisInstance
+                -- Adiciona ao registro de itens
+                self.items[newItemInstance.instanceId] = newItemInstance
+
+                -- Marca a grade como ocupada
+                local actualW = newItemInstance.gridWidth
+                local actualH = newItemInstance.gridHeight
+                ItemGridLogic.markGridOccupied(self.grid, self.rows, self.cols, newItemInstance.instanceId,
+                    newItemInstance.row, newItemInstance.col, actualW, actualH)
+
+                addedQuantity = addedQuantity + amountForThisInstance
+                remainingQuantity = remainingQuantity - amountForThisInstance
+            else
+                -- Falha ao criar a instância, para o loop
+                error(string.format("ERRO [LoadoutManager:addItem] Falha ao criar instância de item para %s. Abortando.",
+                    itemBaseId))
+                break -- Sai do loop se a criação da instância falhar
+            end
         else
-            print(string.format("Sem espaço no loadout para %s (%dx%d).", itemBaseId, width, height))
-            break
+            Logger.warn("[LoadoutManager:addItem]",
+                string.format("Sem espaço no loadout para %s (%dx%d).", itemBaseId, width, height))
+            break -- Sai do loop se não houver espaço
         end
     end
 
     if remainingQuantity > 0 then
-        print(string.format("Não foi possível adicionar %d de %s (loadout cheio ou sem espaço adequado).",
-            remainingQuantity, itemBaseId))
+        Logger.warn("[LoadoutManager:addItem]",
+            string.format("Não foi possível adicionar %d de %s (loadout cheio ou sem espaço adequado).",
+                remainingQuantity, itemBaseId))
     end
 
     return addedQuantity
 end
 
 --- Remove uma instância específica de item do loadout.
---- @param instanceId number ID da instância a remover.
---- @param quantity number (Opcional) Quantidade a remover. Se omitido ou >= quantidade atual, remove tudo.
+--- @param instanceId any ID da instância a remover.
+--- @param quantity? number (Opcional) Quantidade a remover. Se omitido ou >= quantidade atual, remove tudo.
 --- @return boolean True se removeu com sucesso.
 function LoadoutManager:removeItemInstance(instanceId, quantity)
     local instance = self.items[instanceId]
     if not instance then
-        print("AVISO [LoadoutManager]: Tentativa de remover instância de item inexistente:", instanceId)
+        Logger.warn("[LoadoutManager:removeItemInstance]",
+            string.format("Tentativa de remover instância de item inexistente: %s", instanceId))
         return false
     end
 
     local quantityToRemove = quantity or instance.quantity
 
     if instance.stackable and quantityToRemove < instance.quantity then
+        -- Apenas diminui a quantidade
         instance.quantity = instance.quantity - quantityToRemove
+        Logger.info("[LoadoutManager:removeItemInstance]",
+            string.format("Quantidade do item %s (ID %s) diminuída para %d.",
+                instance.itemBaseId, instanceId, instance.quantity))
         return true
     else
         -- Remove a instância inteira
-        -- <<< INÍCIO: CORREÇÃO PARA LIMPAR GRID >>>
-        -- Calcula dimensões REAIS de ocupação baseadas na rotação ARMAZENADA
-        local itemW = instance.gridWidth or 1
-        local itemH = instance.gridHeight or 1
-        local actualW = instance.isRotated and itemH or itemW
-        local actualH = instance.isRotated and itemW or itemH
-
+        local actualW = instance.isRotated and instance.gridHeight or instance.gridWidth
+        local actualH = instance.isRotated and instance.gridWidth or instance.gridHeight
         ItemGridLogic.clearGridArea(self.grid, self.rows, self.cols, instanceId, instance.row, instance.col, actualW,
-            actualH)
-
+        actualH)
         self.items[instanceId] = nil
+        Logger.info("[LoadoutManager:removeItemInstance]",
+            string.format("Item %s (ID %s) removido.", instance.itemBaseId, instanceId))
         return true
     end
 end
 
---- Remove uma instância de item específica pelo ID.
--- Wrapper simples para consistência com LobbyStorageManager.
---- @param instanceId number ID da instância a remover.
---- @return boolean Retorna true se removeu, false caso contrário.
-function LoadoutManager:removeItemByInstanceId(instanceId)
-    local success = self:removeItemInstance(instanceId, nil) -- Chama a função existente para remover tudo
-    if success then
-        print(string.format("[LoadoutManager] Item %s removido.", instanceId))
-    else
-        print(string.format("AVISO [LoadoutManager] Tentativa de remover item %s (não encontrado)", instanceId))
-    end
-    return success
-end
-
---- Adiciona um item em uma posição específica na grade.
---- Assume que canPlaceItemAt já foi chamado e retornou true.
----@param item table A instância do item a ser adicionado.
----@param targetRow integer Linha alvo (1-indexed).
----@param targetCol integer Coluna alvo (1-indexed).
----@param isRotated boolean|nil Se o item deve ser armazenado como rotacionado.
----@return boolean True se o item foi adicionado, false caso contrário.
-function LoadoutManager:addItemAt(item, targetRow, targetCol, isRotated)
-    if not item or not targetRow or not targetCol then
-        print("ERRO (addItemAt - Loadout): Parâmetros inválidos.")
+--- Adiciona uma instância de item existente ao loadout em uma posição específica.
+--- Esta função NÃO cria um novo item, ela apenas o "coloca" no loadout.
+--- Útil para mover itens entre inventários.
+--- @param itemInstance table A instância completa do item a ser adicionado.
+--- @param targetRow integer A linha alvo para o canto superior esquerdo do item.
+--- @param targetCol integer A coluna alvo para o canto superior esquerdo do item.
+--- @param isRotated boolean Se o item deve ser adicionado rotacionado.
+--- @return boolean True se o item foi adicionado com sucesso.
+function LoadoutManager:addItemInstanceAt(itemInstance, targetRow, targetCol, isRotated)
+    if not itemInstance or not itemInstance.instanceId or not targetRow or not targetCol then
+        error("ERRO [LoadoutManager:addItemInstanceAt]: Argumentos inválidos.")
         return false
     end
 
-    -- Usa as dimensões REAIS do item (rotação NÃO é aplicada aqui, apenas armazenada)
-    local itemW = item.gridWidth or 1
-    local itemH = item.gridHeight or 1
+    -- Atualiza as propriedades da instância com a nova posição/rotação
+    itemInstance.row = targetRow
+    itemInstance.col = targetCol
+    itemInstance.isRotated = isRotated or false
 
-    -- Atualiza a posição e o estado de rotação do item
-    item.row = targetRow
-    item.col = targetCol
-    item.isRotated = isRotated or false -- Armazena o estado de rotação
+    local actualW = itemInstance.isRotated and itemInstance.gridHeight or itemInstance.gridWidth
+    local actualH = itemInstance.isRotated and itemInstance.gridWidth or itemInstance.gridHeight
 
-    -- Adiciona o item à lista
-    self.items[item.instanceId] = item
+    -- Verifica se o local está livre (excluindo o próprio item, se já estivesse aqui)
+    if not ItemGridLogic.canPlaceItemAt(self.grid, self.rows, self.cols, itemInstance.instanceId, targetRow, targetCol, actualW, actualH) then
+        Logger.error("[LoadoutManager:addItemInstanceAt]", string.format("Não é possível colocar o item %s em [%d,%d].",
+            itemInstance.itemBaseId, targetRow, targetCol))
+        return false
+    end
 
-    -- <<< INÍCIO: CORREÇÃO PARA MARCAR GRID >>>
-    -- Calcula dimensões REAIS de ocupação baseadas na rotação ARMAZENADA
-    local actualW = item.isRotated and itemH or itemW
-    local actualH = item.isRotated and itemW or itemH
+    -- Remove o item de sua posição antiga (se houver uma) para evitar "fantasmas" na grade
+    -- Esta é uma suposição segura; se o item era novo, esta chamada não fará nada de errado.
+    for id, item in pairs(self.items) do
+        if id == itemInstance.instanceId then
+            local oldW = item.isRotated and item.gridHeight or item.gridWidth
+            local oldH = item.isRotated and item.gridWidth or item.gridHeight
+            ItemGridLogic.clearGridArea(self.grid, self.rows, self.cols, item.instanceId, item.row, item.col, oldW, oldH)
+            break
+        end
+    end
 
-    ItemGridLogic.markGridOccupied(self.grid, self.rows, self.cols, item.instanceId, targetRow, targetCol, actualW,
-        actualH)
+    -- Adiciona/atualiza a instância e marca a nova posição na grade
+    self.items[itemInstance.instanceId] = itemInstance
+    ItemGridLogic.markGridOccupied(self.grid, self.rows, self.cols, itemInstance.instanceId, targetRow, targetCol,
+        actualW, actualH)
 
-    print(string.format("(Loadout) Item %s (%s) adicionado/atualizado em [%d,%d], Rotacionado: %s", item.instanceId,
-        item.itemBaseId, targetRow,
-        targetCol, tostring(item.isRotated)))
+    Logger.info("[LoadoutManager:addItemInstanceAt]",
+        string.format("Item %s (ID %s) colocado em [%d,%d], Rotacionado: %s",
+            itemInstance.itemBaseId, itemInstance.instanceId, targetRow, targetCol, tostring(itemInstance.isRotated)))
+
     return true
-end
-
---- NOVO: Tenta adicionar uma instância de item específica em qualquer espaço livre.
---- Utiliza _findFreeSpace e addItemAt.
---- @param itemInstance table A instância completa do item a adicionar.
---- @return boolean True se conseguiu adicionar, false caso contrário.
-function LoadoutManager:addItemInstance(itemInstance)
-    if not itemInstance then return false end
-
-    local width = itemInstance.gridWidth or 1
-    local height = itemInstance.gridHeight or 1
-    local freeSpace = ItemGridLogic.findFreeSpace(self.grid, self.rows, self.cols, width, height)
-
-    if freeSpace then
-        -- Reusa a lógica de addItemAt para colocar no espaço encontrado
-        -- Passa isRotated como nil ou false por padrão aqui, pois estamos apenas adicionando, não movendo um item rotacionado
-        return self:addItemAt(itemInstance, freeSpace.row, freeSpace.col, itemInstance.isRotated or false)
-    else
-        print(string.format("[LoadoutManager:addItemInstance] Sem espaço para item %s (%s)", itemInstance.instanceId,
-            itemInstance.itemBaseId))
-        return false
-    end
 end
 
 -- == Funções Auxiliares ==
 
---- Helper interno para obter dados base do item (igual ao LobbyStorageManager).
+--- Helper interno para obter dados base do item.
+--- @param itemBaseId string ID base do item.
+--- @return table Dados base do item.
 function LoadoutManager:_getItemBaseData(itemBaseId)
     if self.itemDataManager and self.itemDataManager.getBaseItemData then
         return self.itemDataManager:getBaseItemData(itemBaseId)
     else
-        print("AVISO [LoadoutManager]: itemDataManager ausente ou método getBaseItemData não encontrado.")
-        return nil
+        error("AVISO [LoadoutManager]: itemDataManager ausente ou método getBaseItemData não encontrado.")
     end
-end
-
---- Helper interno para gerar ID único local para o loadout.
-function LoadoutManager:_getNextInstanceId()
-    local id = nextInstanceId
-    nextInstanceId = nextInstanceId + 1
-    return id
 end
 
 -- == Funções de Persistência ==
@@ -365,66 +338,47 @@ end
 function LoadoutManager:saveState()
     print(string.format("[LoadoutManager] Saving shared state to %s...", SHARED_LOADOUT_SAVE_FILE))
 
-    -- Cria uma cópia serializável dos itens
-    local serializableItems = {}
-    for instanceId, itemInstance in pairs(self.items or {}) do
-        serializableItems[instanceId] = {
+    -- Prepara uma tabela com os dados a serem salvos
+    local dataToSave = {
+        items = {},
+    }
+
+    -- Processa apenas os itens, salvando os dados essenciais
+    for instanceId, itemInstance in pairs(self.items) do
+        dataToSave.items[instanceId] = {
             instanceId = itemInstance.instanceId,
             itemBaseId = itemInstance.itemBaseId,
-            quantity = itemInstance.quantity or 1,
+            quantity = itemInstance.quantity,
             row = itemInstance.row,
             col = itemInstance.col,
             isRotated = itemInstance.isRotated or false,
-            -- Não salva: gridWidth, gridHeight, stackable, maxStack, name, icon (vem do baseData)
         }
     end
 
-    local dataToSave = {
-        version = 1, -- Versão inicial do save compartilhado
-        -- <<< REMOVIDO: Não salva mais rows/cols >>>
-        -- rows = self.rows,
-        -- cols = self.cols,
-        items = serializableItems,
-        nextInstanceId = nextInstanceId -- Salva o contador local (mantido)
-    }
-
     local success = PersistenceManager.saveData(SHARED_LOADOUT_SAVE_FILE, dataToSave)
     if success then
-        print("[LoadoutManager] Shared state saved successfully.")
+        print("[LoadoutManager] Loadout salvo com sucesso.")
     else
         print("ERROR [LoadoutManager]: Failed to save shared state.")
     end
     return success
 end
 
---- Carrega o estado do loadout compartilhado.
+--- Carrega o estado do loadout compartilhado a partir de um arquivo.
 --- @return boolean True se carregou com sucesso.
 function LoadoutManager:loadState()
-    print(string.format("[LoadoutManager] Loading shared state from %s...", SHARED_LOADOUT_SAVE_FILE))
     local loadedData = PersistenceManager.loadData(SHARED_LOADOUT_SAVE_FILE)
-
-    if not loadedData or type(loadedData) ~= "table" then
-        print("[LoadoutManager] No valid shared save data found. Using defaults.")
-        -- Garante que começa com uma estrutura vazia e válida se não houver save
-        self.rows = Constants.GRID_ROWS
-        self.cols = Constants.GRID_COLS
-        self:_createEmptyGrid(self.rows, self.cols)
-        self.items = {}
-        nextInstanceId = 1
+    if not loadedData then
+        print("[LoadoutManager] Nenhum arquivo de save encontrado para o loadout compartilhado. Usando estado padrão.")
         return false
     end
+    print("[LoadoutManager] Carregando estado do loadout de " .. SHARED_LOADOUT_SAVE_FILE)
 
-    -- TODO: Adicionar verificação de versão se necessário no futuro
-
-    -- <<< MODIFICADO: Ignora dimensões salvas, usa Constantes >>>
-    print("[LoadoutManager] Ignorando dimensões salvas (se houver), usando Constantes.")
+    -- Mantém as dimensões atuais das Constantes, ignorando as salvas
     self.rows = Constants.GRID_ROWS
     self.cols = Constants.GRID_COLS
-    -- self.rows = loadedData.rows or Constants.GRID_ROWS -- REMOVIDO
-    -- self.cols = loadedData.cols or Constants.GRID_COLS -- REMOVIDO
-    nextInstanceId = loadedData.nextInstanceId or 1 -- Carrega o contador (mantido)
-    self.items = {}                                 -- Limpa itens atuais antes de carregar
-    self:_createEmptyGrid(self.rows, self.cols)     -- Cria a grade com as dimensões das Constantes
+    self.items = {}                             -- Limpa itens atuais antes de carregar
+    self:_createEmptyGrid(self.rows, self.cols) -- Cria a grade com as dimensões das Constantes
 
     -- Reconstrói as instâncias de itens
     local loadedItemsData = loadedData.items or {}
@@ -432,22 +386,16 @@ function LoadoutManager:loadState()
     for instanceId, savedItemData in pairs(loadedItemsData) do
         local baseData = self:_getItemBaseData(savedItemData.itemBaseId)
         if baseData then
-            local newItemInstance = {
-                instanceId = savedItemData.instanceId,
-                itemBaseId = savedItemData.itemBaseId,
-                quantity = savedItemData.quantity,
-                row = savedItemData.row,
-                col = savedItemData.col,
-                isRotated = savedItemData.isRotated,
-                -- Recria dados derivados do baseData
-                gridWidth = baseData.gridWidth or 1,
-                gridHeight = baseData.gridHeight or 1,
-                stackable = baseData.stackable or false,
-                maxStack = baseData.maxStack or (baseData.stackable and 99) or 1,
-                name = baseData.name,
-                icon = baseData.icon,
-                rarity = baseData.rarity or 'E'
-            }
+            -- Recria a instância do item com todos os dados base + dados salvos
+            local newItemInstance = self.itemDataManager:createItemInstanceById(savedItemData.itemBaseId,
+                savedItemData.quantity)
+
+            -- Sobrescreve o ID da instância com o que foi salvo para manter a referência
+            newItemInstance.instanceId = savedItemData.instanceId
+            newItemInstance.row = savedItemData.row
+            newItemInstance.col = savedItemData.col
+            newItemInstance.isRotated = savedItemData.isRotated
+
             self.items[newItemInstance.instanceId] = newItemInstance
             itemCount = itemCount + 1
 
@@ -457,14 +405,14 @@ function LoadoutManager:loadState()
             ItemGridLogic.markGridOccupied(self.grid, self.rows, self.cols, newItemInstance.instanceId,
                 newItemInstance.row, newItemInstance.col, actualW, actualH)
         else
-            print(string.format(
-                "WARNING [LoadoutManager]: Could not find base data for loaded item '%s' (instance %d). Item skipped.",
-                savedItemData.itemBaseId, savedItemData.instanceId))
+            Logger.warn("[LoadoutManager:loadState]", string.format(
+                "WARNING [LoadoutManager]: Could not find base data for loaded item '%s' (instance %s). Item skipped.",
+                savedItemData.itemBaseId, tostring(savedItemData.instanceId)))
         end
     end
 
-    print(string.format("[LoadoutManager] Load complete. Grid: %dx%d. Loaded %d items. Next ID: %d",
-        self.rows, self.cols, itemCount, nextInstanceId))
+    print(string.format("[LoadoutManager] Load complete. Grid: %dx%d. Loaded %d items.",
+        self.rows, self.cols, itemCount))
     return true
 end
 

@@ -434,6 +434,7 @@ function ChainLightning:cast(args)
 
     for id, enemy in pairs(targetsHit) do
         local isCritical = criticalChance and (math.random() <= criticalChance)
+        local isSuperCritical = false -- TODO: Adicionar lógica de Super Crítico
         local finalDamage = damagePerHit
         if isCritical then
             if criticalMultiplier then
@@ -442,7 +443,13 @@ function ChainLightning:cast(args)
                 Logger.debug("[ChainLightning:cast]", "AVISO: Acerto crítico, mas finalStats.critMultiplier é nil.")
             end
         end
-        enemy:takeDamage(finalDamage, isCritical)
+        enemy:takeDamage(finalDamage, isCritical, isSuperCritical)
+
+        -- Registra o dano causado para as estatísticas
+        if self.playerManager then
+            local source = { weaponId = self.weaponInstance.itemBaseId }
+            self.playerManager:registerDamageDealt(finalDamage, isCritical, source, isSuperCritical)
+        end
     end
 
     if #hitPositions > 1 then

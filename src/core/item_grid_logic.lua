@@ -1,3 +1,4 @@
+--- @class ItemGridLogic
 local ItemGridLogic = {}
 
 --- Verifica se uma área retangular está completamente livre em uma grade.

@@ -264,7 +264,14 @@ function ConeSlash:_executeSingleAttackLogic(finalStats)
             attackerPosition = self.area.position
         }
         -- Usa o helper para aplicar dano e knockback
-        CombatHelpers.applyHitEffects(enemiesHit, finalStats, knockbackData, self.enemiesKnockedBackInThisCast)
+        CombatHelpers.applyHitEffects(
+            enemiesHit,
+            finalStats,
+            knockbackData,
+            self.enemiesKnockedBackInThisCast,
+            self.playerManager,
+            self.weaponInstance
+        )
     end
 
     -- Libera a tabela de inimigos obtida do pool

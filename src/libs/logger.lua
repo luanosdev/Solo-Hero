@@ -91,7 +91,6 @@ end
 --- @return nil
 function Logger.error(key, message, showOnScreen)
     Logger.log(key, message, "error", showOnScreen)
-    error(key .. ": " .. message)
 end
 
 --- Registra um log de aviso

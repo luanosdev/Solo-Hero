@@ -291,7 +291,13 @@ function SpritePlayer.update(config, dt, targetPosition)
             end
         end
     end
-    -- <<< FIM: Lógica de Direção com Histerese >>>
+
+    -- Normaliza o vetor de movimento se necessário (para movimento diagonal)
+    local magnitude = math.sqrt(dx * dx + dy * dy)
+    if magnitude > 0 then
+        dx = dx / magnitude
+        dy = dy / magnitude
+    end
 
     -- Calcula o deslocamento
     local moveX = dx * config.speed * dt
@@ -300,6 +306,12 @@ function SpritePlayer.update(config, dt, targetPosition)
     -- Atualiza a posição
     config.position.x = config.position.x + moveX
     config.position.y = config.position.y + moveY
+
+    -- Calcula a distância percorrida
+    local distanceMoved = 0
+    if isMoving then
+        distanceMoved = math.sqrt(moveX * moveX + moveY * moveY)
+    end
 
     -- Define o estado da animação
     local newState
@@ -318,7 +330,9 @@ function SpritePlayer.update(config, dt, targetPosition)
 
     -- Atualiza o timer da animação
     config.animation.timer = config.animation.timer + dt
-    local frameTime = config.animation.frameTime[config.animation.state]
+
+    -- Obtém o tempo do frame para o estado atual
+    local frameTime = config.animation.frameTime[config.animation.state] or 0.1
 
     -- Avança o frame se o tempo passou
     if config.animation.timer >= frameTime then
@@ -327,12 +341,7 @@ function SpritePlayer.update(config, dt, targetPosition)
         config.animation.currentFrame = (config.animation.currentFrame % animInfo.frames) + 1
     end
 
-    -- Debug (opcional)
-    -- if isMoving then
-    --     print(string.format("SpritePlayer Update: Input detected dx=%d, dy=%d", dx*magnitude, dy*magnitude)) -- Mostra input original
-    --     print(string.format("  -> Calculated move: mx=%.2f, my=%.2f (Speed=%.1f, dt=%.4f)", moveX, moveY, config.speed, dt))
-    --     print(string.format("  -> New Position: x=%.1f, y=%.1f", config.position.x, config.position.y))
-    -- end
+    return distanceMoved
 end
 
 --[[ Função Auxiliar para Histerese: Retorna os limites de ângulo (em graus) para uma direção, COM TOLERÂNCIA ]]

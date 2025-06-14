@@ -203,7 +203,15 @@ function FireParticle:checkCollision()
                         -- Não precisa mais marcar aqui, pois o helper não retorna se aplicou ou não para este caso
                     end
 
-                    local killed = enemy:takeDamage(self.damage, self.isCritical)
+                    local isSuperCritical = false -- TODO: Implementar super-crítico
+                    local killed = enemy:takeDamage(self.damage, self.isCritical, isSuperCritical)
+
+                    -- Registra o dano para o GameStatisticsManager
+                    if self.playerManager and self.weaponInstance then
+                        local source = { weaponId = self.weaponInstance.itemBaseId }
+                        self.playerManager:registerDamageDealt(self.damage, self.isCritical, source, isSuperCritical)
+                    end
+
                     self.hitEnemies[enemy.id] = true
 
                     -- Lógica de perda de vida da partícula devido à colisão

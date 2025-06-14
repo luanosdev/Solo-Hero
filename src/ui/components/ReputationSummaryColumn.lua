@@ -28,7 +28,7 @@ function ReputationSummaryColumn.draw(x, y, w, h, details)
     if not details then return end
 
     local currentY = y + 10
-    local lineSpacing = 8
+    local lineSpacing = 4
     local lineHeight = 0
 
     if details.wasSuccess then

@@ -234,7 +234,9 @@ function ArrowProjectile:cast(args)
                 areaScaleMultiplier,
                 self.knockbackPower,
                 self.knockbackForce,
-                finalStats.strength or 0
+                finalStats.strength,
+                self.playerManager,
+                self.weaponInstance
             )
             -- print("Flecha REUTILIZADA do pool. Pool size: " .. #self.pooledArrows)
         else
@@ -253,7 +255,9 @@ function ArrowProjectile:cast(args)
                 areaScaleMultiplier,
                 self.knockbackPower,
                 self.knockbackForce,
-                finalStats.strength or 0
+                finalStats.strength,
+                self.playerManager,
+                self.weaponInstance
             )
             -- print("Nova flecha CRIADA. Pool size: " .. #self.pooledArrows)
         end

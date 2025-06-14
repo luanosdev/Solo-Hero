@@ -100,6 +100,7 @@ local PlayerManager = {
     hunterManager = nil, ---@class HunterManager
     itemDataManager = nil, ---@class ItemDataManager
     archetypeManager = nil, ---@class ArchetypeManager
+    gameStatisticsManager = nil, ---@class GameStatisticsManager
 
     currentHunterId = nil,         -- <<< ADICIONADO: Para armazenar o ID do caçador ativo
 
@@ -107,9 +108,10 @@ local PlayerManager = {
     statsNeedRecalculation = true, -- Flag para indicar se o cache precisa ser atualizado
 
     activeFloatingTexts = {},
-    onPlayerDiedCallback = nil,       -- <<< NOVO: Callback de morte >>>
+    onPlayerDiedCallback = nil,
+    lastDamageSource = nil,
 }
-PlayerManager.__index = PlayerManager -- <<< ADICIONADO __index >>>
+PlayerManager.__index = PlayerManager
 
 --- Cria uma nova instância BÁSICA do PlayerManager.
 --- A configuração real do jogador acontece em setupGameplay.
@@ -153,11 +155,13 @@ function PlayerManager:new()
     instance.hunterManager = nil
     instance.itemDataManager = nil
     instance.archetypeManager = nil
+    instance.gameStatisticsManager = nil
 
     instance.finalStatsCache = nil
     instance.statsNeedRecalculation = true
-    instance.pendingLevelUps = 0        -- Inicializa contador
-    instance.onPlayerDiedCallback = nil -- <<< NOVO: Callback de morte >>>
+    instance.pendingLevelUps = 0 -- Inicializa contador
+    instance.onPlayerDiedCallback = nil
+    instance.lastDamageSource = nil
 
     print("[PlayerManager] Instance created (awaiting setupGameplay).")
     return instance
@@ -183,6 +187,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
     self.hunterManager = registry:get("hunterManager") ---@class HunterManager
     self.itemDataManager = registry:get("itemDataManager") ---@class ItemDataManager
     self.archetypeManager = registry:get("archetypeManager") ---@class ArchetypeManager
+    self.gameStatisticsManager = registry:get("gameStatisticsManager") ---@class GameStatisticsManager
 
     -- Validação crucial das dependências
     if not self.inputManager or not self.enemyManager or not self.floatingTextManager or
@@ -397,7 +402,16 @@ function PlayerManager:update(dt)
     self:updateAutoAttack(currentAngle)
 
     -- Atualiza o sprite do player passando a posição do alvo
-    SpritePlayer.update(self.player, dt, targetPosition)
+    -- TODO: SpritePlayer.update deve retornar a distância percorrida para o registro de estatísticas.
+    local distanceMoved = SpritePlayer.update(self.player, dt, targetPosition)
+    if distanceMoved and distanceMoved > 0 and self.gameStatisticsManager then
+        -- A unidade de distância aqui depende da implementação em SpritePlayer.
+        -- Supondo que a velocidade seja em "unidades por segundo", a distância estará correta.
+        -- A conversão para metros é feita no GameStatisticsManager.
+        -- Ex: se speed é pixels/sec, e 1 metro = 50 pixels, a conversão deve ser feita lá
+        -- ou aqui, dividindo por um fator (ex: 50).
+        self.gameStatisticsManager:registerMovement(distanceMoved)
+    end
 
     -- Atualiza a câmera
     if self.player and self.player.position then
@@ -546,16 +560,21 @@ function PlayerManager:updateHealthRecovery(dt)
                 local healedAmount = self.state:heal(healAmount, finalMaxHealth, finalHealingBonusMultiplier)
                 self.accumulatedRegen = self.accumulatedRegen - healedAmount
 
-                if healedAmount > 0 and self.player and self.player.position then
-                    local props = TablePool.get()
-                    props.textColor = Colors.heal
-                    props.scale = 1.1
-                    props.velocityY = -30
-                    props.lifetime = 1.0
-                    props.baseOffsetY = -40
-                    props.baseOffsetX = 0
-                    self:addFloatingText("+" .. healedAmount .. " HP", props)
-                    TablePool.release(props)
+                if healedAmount > 0 then
+                    if self.gameStatisticsManager then
+                        self.gameStatisticsManager:registerHealthRecovered(healedAmount)
+                    end
+                    if self.player and self.player.position then
+                        local props = TablePool.get()
+                        props.textColor = Colors.heal
+                        props.scale = 1.1
+                        props.velocityY = -30
+                        props.lifetime = 1.0
+                        props.baseOffsetY = -40
+                        props.baseOffsetX = 0
+                        self:addFloatingText("+" .. healedAmount .. " HP", props)
+                        TablePool.release(props)
+                    end
                 end
             end
         end
@@ -627,12 +646,24 @@ function PlayerManager:addExperience(amount)
     local totalStats = self:getCurrentFinalStats()
     local levelsGained = self.state:addExperience(amount, totalStats.expBonus)
 
+    -- Registra o XP coletado
+    if self.gameStatisticsManager then
+        self.gameStatisticsManager:registerXpCollected(amount)
+    end
+
     if levelsGained > 0 then
         print(string.format("[PlayerManager] Gained %d level(s)! Now level %d. Next level at %d XP.",
             levelsGained, self.state.level, self.state.experienceToNextLevel))
 
         self.pendingLevelUps = self.pendingLevelUps + levelsGained
         self:invalidateStatsCache()
+
+        -- Registra os níveis ganhos
+        if self.gameStatisticsManager then
+            for i = 1, levelsGained do
+                self.gameStatisticsManager:registerLevelGained()
+            end
+        end
 
         for i = 1, levelsGained do
             local props = TablePool.get()
@@ -1028,11 +1059,16 @@ end
 --- Aplica dano ao jogador, atualiza seu estado e chama o callback de morte se necessário.
 --- Esta função deve ser chamada por outras partes do jogo que causam dano ao jogador (ex: colisões com inimigos).
 --- @param amount number A quantidade bruta de dano a ser aplicada.
+--- @param source table|nil A fonte do dano (ex: inimigo que causou o dano).
 --- @return number actualDamage O dano real infligido após defesas, ou 0 se nenhum dano foi aplicado.
-function PlayerManager:receiveDamage(amount)
+function PlayerManager:receiveDamage(amount, source)
     if not self.state or not self.state.isAlive then
-        -- Logger.trace("PlayerManager:applyDamageToPlayer", "Jogador já morto ou estado inválido. Dano ignorado.")
         return 0 -- Não pode tomar dano se não tem estado ou já está morto
+    end
+
+    -- Atualiza a fonte do último dano
+    if source then
+        self.lastDamageSource = source
     end
 
     local finalStats = self:getCurrentFinalStats()
@@ -1044,8 +1080,13 @@ function PlayerManager:receiveDamage(amount)
     finalDamageReduction = math.min(Constants and Constants.MAX_DAMAGE_REDUCTION, finalDamageReduction)
 
     local damageTaken = self.state:takeDamage(amount, finalDamageReduction)
+    local reducedAmount = amount - damageTaken -- Calcula o dano que foi reduzido
 
     if damageTaken > 0 then
+        if self.gameStatisticsManager then
+            -- Passa tanto o dano sofrido quanto o dano reduzido para o manager
+            self.gameStatisticsManager:registerDamageTaken(damageTaken, reducedAmount)
+        end
         self.lastDamageTime = self.gameTime
         self.lastRegenTime = 0
         self.accumulatedRegen = 0
@@ -1241,6 +1282,31 @@ function PlayerManager:getExperienceRequiredForLevel(level_number)
         if level_number <= 0 then level_number = 1 end
         return math.floor(30 * level_number ^ 1.5)
     end
+end
+
+--- Esta função será chamada por instâncias de ataque (de armas/habilidades) para registrar o dano causado.
+---@param amount number A quantidade de dano.
+---@param isCritical boolean Se o dano foi crítico.
+---@param source table A fonte do dano, contendo `weaponId` ou `abilityId`.
+---@param isSuperCritical? boolean Se o dano foi super crítico.
+function PlayerManager:registerDamageDealt(amount, isCritical, source, isSuperCritical)
+    if not self.gameStatisticsManager then return end
+
+    -- Por enquanto, isSuperCritical será false até que a mecânica seja implementada
+    local superCritical = isSuperCritical or false
+
+    local weaponId = source and source.weaponId
+    local abilityId = source and source.abilityId
+
+    self.gameStatisticsManager:registerDamageDealt(
+        amount,
+        isCritical,
+        superCritical,
+        {
+            weaponId = weaponId,
+            abilityId = abilityId
+        }
+    )
 end
 
 return PlayerManager

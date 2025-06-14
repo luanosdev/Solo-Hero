@@ -78,9 +78,9 @@ function InventoryScreen.update(dt, mx, my, dragState)
 
     -- Só mostra tooltip se não estiver arrastando
     if not (dragState and dragState.isDragging) then
-        local playerManager = ManagerRegistry:get("playerManager")
-        local hunterManager = ManagerRegistry:get("hunterManager")
-        local inventoryManager = ManagerRegistry:get("inventoryManager")
+        local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
+        local hunterManager = ManagerRegistry:get("hunterManager") ---@type HunterManager
+        local inventoryManager = ManagerRegistry:get("inventoryManager") ---@type InventoryManager
 
         if not playerManager or not hunterManager or not inventoryManager then
             -- Não pode determinar tooltip sem managers
@@ -109,14 +109,15 @@ function InventoryScreen.update(dt, mx, my, dragState)
         if not InventoryScreen.itemToShowTooltip and inventoryManager and
             InventoryScreen.inventoryGridArea and InventoryScreen.inventoryGridArea.w and
             InventoryScreen.inventoryGridArea.w > 0 then
-            local invPlacedItems = inventoryManager:getPlacedItemInstances()
+            local invItemsList = inventoryManager:getInventoryGridItems()
             local gridDims = inventoryManager:getGridDimensions()
             local invRows = gridDims and gridDims.rows
             local invCols = gridDims and gridDims.cols
 
-            if invPlacedItems and invRows and invCols then
+            if invItemsList and invRows and invCols then
                 local hoveredItem = ItemGridUI.getItemInstanceAtCoords(mx, my,
-                    invPlacedItems, invRows, invCols,
+                    invItemsList,
+                    invRows, invCols,
                     InventoryScreen.inventoryGridArea.x, InventoryScreen.inventoryGridArea.y,
                     InventoryScreen.inventoryGridArea.w, InventoryScreen.inventoryGridArea.h)
 

@@ -399,7 +399,14 @@ function BaseEnemy:checkPlayerCollision(dt, playerManager)
 
     if distSq <= combined * combined then
         if self.lastDamageTime >= self.damageCooldown then
-            playerManager:receiveDamage(self.damage)
+            -- Cria um objeto com informações do inimigo para passar como fonte do dano
+            local damageSource = {
+                name = self.name,
+                isBoss = self.isBoss,
+                isMVP = self.isMVP,
+                unitType = self.unitType
+            }
+            playerManager:receiveDamage(self.damage, damageSource)
             self.lastDamageTime = 0
         end
     end
@@ -408,13 +415,14 @@ end
 --- Applies damage to the enemy
 --- @param amount number Amount of damage to apply.
 --- @param isCritical boolean Whether the damage is critical.
+--- @param isSuperCritical boolean Whether the damage is super critical.
 --- @return boolean True if the enemy is dead, false otherwise.
-function BaseEnemy:takeDamage(amount, isCritical)
+function BaseEnemy:takeDamage(amount, isCritical, isSuperCritical)
     if not self.isAlive then return false end
 
     self.currentHealth = self.currentHealth - amount
 
-    DamageNumberManager:show(self, amount, isCritical)
+    DamageNumberManager:show(self, amount, isCritical, isSuperCritical)
 
     if self.currentHealth <= 0 then
         self.currentHealth = 0
@@ -424,6 +432,11 @@ function BaseEnemy:takeDamage(amount, isCritical)
         local xpManager = ManagerRegistry:get("experienceOrbManager")
         if xpManager then
             xpManager:addOrb(self.position.x, self.position.y, self.experienceValue)
+        end
+
+        local gameStatsManager = ManagerRegistry:get("gameStatisticsManager")
+        if gameStatsManager then
+            gameStatsManager:registerEnemyDefeated(self:getEnemyType())
         end
 
         self:startDeathAnimation()
@@ -551,6 +564,18 @@ function BaseEnemy:applyKnockback(directionX, directionY, knockbackSpeed)
 
     -- Opcional: Interromper a ação atual do inimigo, se houver alguma.
     -- self.isMoving = false -- Exemplo, se você tiver tal flag
+end
+
+--- Retorna o tipo do inimigo ('boss', 'mvp', ou 'normal')
+---@return string
+function BaseEnemy:getEnemyType()
+    if self.isBoss then
+        return "boss"
+    elseif self.isMVP then
+        return "mvp"
+    else
+        return "normal"
+    end
 end
 
 return BaseEnemy

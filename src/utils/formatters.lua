@@ -167,6 +167,33 @@ function Formatters.getStatDisplayName(statKey)
     return statDisplayNames[statKey] or statKey -- Retorna a chave se não houver mapeamento
 end
 
+--- Formata um número em notação compacta (ex: 1.2K, 5.0M, 3B, etc.).
+--- @param num number|string O número a ser formatado.
+--- @return string O número formatado de forma legível.
+function Formatters.formatCompactNumber(num)
+    local absNum = math.abs(tonumber(num) or 0)
+    local suffixes = {
+        { value = 1e15, suffix = "Q" }, -- Quadrilhão
+        { value = 1e12, suffix = "T" }, -- Trilhão
+        { value = 1e9,  suffix = "B" }, -- Bilhão
+        { value = 1e6,  suffix = "M" }, -- Milhão
+        { value = 1e3,  suffix = "K" } -- Milhar
+    }
+
+    for _, entry in ipairs(suffixes) do
+        if absNum >= entry.value then
+            local formatted = num / entry.value
+            if formatted % 1 == 0 then
+                return string.format("%.0f%s", formatted, entry.suffix)
+            else
+                return string.format("%.1f%s", formatted, entry.suffix)
+            end
+        end
+    end
+
+    return tostring(num) -- Menor que 1000, mostra o número puro
+end
+
 -- Adicionar outras funções de formatação aqui no futuro, se necessário.
 
 return Formatters
