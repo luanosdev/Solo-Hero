@@ -369,6 +369,22 @@ end
 function ExtractionSummaryScene:keypressed(key, scancode, isrepeat)
     if isrepeat then return end
 
+    -- Salva os itens antes de mudar de cena
+    if self.args and self.args.wasSuccess then
+        Logger.info("ExtractionSummaryScene", "Salvando itens e equipamentos extraídos...")
+        ---@type LoadoutManager
+        local loadoutManager = ManagerRegistry:get("loadoutManager")
+
+        if loadoutManager and self.args.extractedItems then
+            loadoutManager:clearAllItems() -- Limpa o loadout antigo
+            for _, itemInstance in ipairs(self.args.extractedItems) do
+                loadoutManager:addItem(itemInstance.itemBaseId, itemInstance.quantity)
+            end
+            Logger.info("ExtractionSummaryScene", string.format("  -> %d itens da mochila salvos no Loadout.",
+                #self.args.extractedItems))
+        end
+    end
+
     if self.args then
         -- Passa os mesmos args para a lobby_scene, pois eles já contêm
         -- extractedItems, extractedEquipment, hunterId.
