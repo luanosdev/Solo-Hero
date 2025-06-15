@@ -29,8 +29,8 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus de Vida
     vitality_1_fixed = {
         id = "vitality_1_fixed",
-        name = "Vigor Menor (Fixo)",
-        description_template = "Aumenta a Vida Máxima em {value} pontos.",
+        name = "Vigor",
+        description_template = "Aumenta a Vida Máxima em 30.",
         icon = "H+",
         max_level = 10,
         modifiers_per_level = {
@@ -40,35 +40,35 @@ LevelUpBonusesData.Bonuses = {
     },
     vitality_2_percent = {
         id = "vitality_2_percent",
-        name = "Fortitude Menor (%)",
-        description_template = "Aumenta a Vida Máxima em {value}%.",
+        name = "Fortitude",
+        description_template = "Aumenta a Vida Máxima em 10%.",
         icon = "H%",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "health", type = "percentage", value = 3 } -- +3% HP por nível (para levelBonus)
+            { stat = "health", type = "percentage", value = 10 } -- +10% HP por nível (para levelBonus)
         },
         tags = { "defensivo", "vida", "percentual" }
     },
     vitality_3_combo = {
         id = "vitality_3_combo",
-        name = "Robustez Híbrida",
-        description_template = "Aumenta Vida Máx. em {value1}% e Defesa em {value2} pts.",
+        name = "Robustez",
+        description_template = "Aumenta Vida Máx. em 5% e Defesa em 10.",
         icon = "H*",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "health",  type = "percentage", value = 2 },
-            { stat = "defense", type = "fixed",      value = 3 }
+            { stat = "health",  type = "percentage", value = 5 },
+            { stat = "defense", type = "fixed",      value = 10 }
         },
         tags = { "defensivo", "vida", "defesa", "combo" }
     },
     risky_vitality_1 = {
         id = "risky_vitality_1",
-        name = "Pacto de Sangue Frágil",
-        description_template = "Aumenta MUITO a Vida Máx. em {value1} pts, mas reduz Defesa em -{value2}%.",
+        name = "Pacto de Sangue",
+        description_template = "Aumenta a Vida Máxima em 50 e reduz a Defesa em -5%.",
         icon = "H!",
         max_level = 3,
         modifiers_per_level = {
-            { stat = "health",  type = "fixed",      value = 100 },
+            { stat = "health",  type = "fixed",      value = 50 },
             { stat = "defense", type = "percentage", value = -5 } -- -5% Defesa por nível (para levelBonus)
         },
         tags = { "defensivo", "vida", "risco", "negativo" }
@@ -77,34 +77,35 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus de Força (NOVA SEÇÃO)
     strength_training_1_fixed = {
         id = "strength_training_1_fixed",
-        name = "Treino de Força (Fixo)",
-        description_template = "Aumenta a Força em {value} pontos.",
+        name = "Treino de Força",
+        description_template = "Aumenta a Força em 10.",
         icon = "STR+",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "strength", type = "fixed", value = 2 } -- +2 Força fixa por nível
+            { stat = "strength", type = "fixed", value = 10 } -- +2 Força fixa por nível
         },
         tags = { "ofensivo", "forca", "fixo" }
     },
     strength_might_1_percent = {
         id = "strength_might_1_percent",
-        name = "Poderio Crescente (%)",
-        description_template = "Aumenta a Força em 5%.",
+        name = "Poderio Crescente",
+        description_template = "Aumenta a Força em 10%.",
         icon = "STR%",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "strength", type = "percentage", value = 5 } -- +5% Força por nível (para levelBonus)
+            { stat = "strength", type = "percentage", value = 10 } -- +10% Força por nível (para levelBonus)
         },
         tags = { "ofensivo", "forca", "percentual" }
     },
     strength_burst_1_combo = {
         id = "strength_burst_1_combo",
         name = "Explosão de Força",
-        description_template = "Aumenta Força em 3.",
+        description_template = "Aumenta Força em 5 e a Defesa em 5.",
         icon = "STR*",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "strength", type = "fixed", value = 3 },
+            { stat = "strength", type = "fixed", value = 5 },
+            { stat = "defense", type = "fixed", value = 5}
         },
         tags = { "ofensivo", "forca", "dano", "combo" }
     },
@@ -112,36 +113,36 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus de Dano/Ataque
     strength_1_percent = {
         id = "strength_1_percent",
-        name = "Força Crescente (%)",
-        description_template = "Aumenta o Dano em {value}%.", -- Assumindo que dano é percentual em levelBonus
+        name = "Raiva",
+        description_template = "Aumenta o Dano em 10%.", -- Assumindo que dano é percentual em levelBonus
         icon = "D%",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "damageMultiplier", type = "percentage", value = 2 } -- +2% para levelBonus.damageMultiplier
+            { stat = "damageMultiplier", type = "percentage", value = 10 } -- +10% para levelBonus.damageMultiplier
         },
         tags = { "ofensivo", "dano", "percentual" }
     },
     speed_attack_1_percent = {
         id = "speed_attack_1_percent",
-        name = "Presteza Menor (%)",
-        description_template = "Aumenta a Velocidade de Ataque em {value}%.",
+        name = "Agilidade",
+        description_template = "Aumenta a Velocidade de Ataque em 5%.",
         icon = "A%",
         max_level = 8,
         modifiers_per_level = {
-            { stat = "attackSpeed", type = "percentage", value = 2 } -- +2% para levelBonus.attackSpeed
+            { stat = "attackSpeed", type = "percentage", value = 5 } -- +5% para levelBonus.attackSpeed
         },
         tags = { "ofensivo", "velocidade_ataque", "percentual" }
     },
     glass_cannon_1 = {
         id = "glass_cannon_1",
         name = "Canhão de Vidro",
-        description_template = "Aumenta Dano em {value1}% e Vel. Ataque em {value2}%, mas reduz Vida Máx. em -{value3}%.",
+        description_template = "Aumenta Dano em 10% e Vel. Ataque em 10%, mas reduz Vida Máx. em -10%.",
         icon = "D!",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "damageMultiplier", type = "percentage", value = 5 },
-            { stat = "attackSpeed",      type = "percentage", value = 3 },
-            { stat = "health",           type = "percentage", value = -4 }
+            { stat = "damageMultiplier", type = "percentage", value = 10 },
+            { stat = "attackSpeed",      type = "percentage", value = 10 },
+            { stat = "health",           type = "percentage", value = -10 }
         },
         tags = { "ofensivo", "dano", "velocidade_ataque", "vida", "risco", "negativo" }
     },
@@ -149,25 +150,25 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus Crítico
     precision_1_fixed_fraction = {
         id = "precision_1_fixed_fraction",
-        name = "Precisão Afiada (Fixa)",
-        description_template = "Aumenta a Chance de Crítico em {value}%.", -- {value} será value*100 na UI
+        name = "Precisão Afiada",
+        description_template = "Aumenta a Chance de Crítico em 10%.", -- {value} será value*100 na UI
         icon = "C+",
         max_level = 10,
         modifiers_per_level = {
             -- Intenção: +0.5% de chance crítica fixa por nível.
             -- PlayerState.fixedBonus.critChance armazena isso como a fração 0.005.
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.005 }
+            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.010 }
         },
         tags = { "ofensivo", "critico", "chance_critica", "fixo" }
     },
     lethality_1_fixed_multiplier = {
         id = "lethality_1_fixed_multiplier",
-        name = "Golpe Devastador (Fixo)",
-        description_template = "Aumenta o Dano Crítico em +{value}x.",
+        name = "Golpe Devastador",
+        description_template = "Aumenta o Dano Crítico em 0.10.",
         icon = "M+",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.05 } -- +0.05x Dano Crítico por nível (para fixedBonus)
+            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.1 } -- +0.05x Dano Crítico por nível (para fixedBonus)
         },
         tags = { "ofensivo", "critico", "dano_critico", "fixo" }
     },
@@ -175,13 +176,13 @@ LevelUpBonusesData.Bonuses = {
         id = "gamblers_strike_1",
         name = "Aposta Arriscada",
         description_template =
-        "Aumenta Chance ({value1}%) e Dano Crítico (+{value2}x), mas reduz Dano base em -{value3}%.",
+        "Aumenta Chance (0.10) e Dano Crítico (+0.20x), mas reduz Dano base em -10%.",
         icon = "C!",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "critChance",       type = "fixed_percentage_as_fraction", value = 0.02 },
-            { stat = "critDamage",       type = "fixed_percentage_as_fraction", value = 0.10 },
-            { stat = "damageMultiplier", type = "percentage",                   value = -3 }
+            { stat = "critChance",       type = "fixed_percentage_as_fraction", value = 0.10 },
+            { stat = "critDamage",       type = "fixed_percentage_as_fraction", value = 0.20 },
+            { stat = "damageMultiplier", type = "percentage",                   value = -10 }
         },
         tags = { "ofensivo", "critico", "risco", "negativo" }
     },
@@ -189,35 +190,35 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus de Mobilidade
     celerity_1_percent = {
         id = "celerity_1_percent",
-        name = "Passos Velozes (%)",
-        description_template = "Aumenta a Velocidade de Movimento em {value}%.",
+        name = "Passos Velozes",
+        description_template = "Aumenta a Velocidade de Movimento em 5%.",
         icon = "S%",
         max_level = 8,
         modifiers_per_level = {
-            { stat = "moveSpeed", type = "percentage", value = 2.5 } -- +2.5% Vel. Mov. por nível (para levelBonus)
+            { stat = "moveSpeed", type = "percentage", value = 5 } -- +5% Vel. Mov. por nível (para levelBonus)
         },
         tags = { "mobilidade", "velocidade", "percentual" }
     },
     haste_1_fixed = {
         id = "haste_1_fixed",
-        name = "Ímpeto (Fixo)",
-        description_template = "Aumenta a Velocidade de Movimento em {value} unidades.",
+        name = "Ímpeto",
+        description_template = "Aumenta a Velocidade de Movimento em 10.",
         icon = "S+",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "moveSpeed", type = "fixed", value = 3 }
+            { stat = "moveSpeed", type = "fixed", value = 10 }
         },
         tags = { "mobilidade", "velocidade", "fixo" }
     },
     unburdened_1 = {
         id = "unburdened_1",
         name = "Peso Pena",
-        description_template = "Aumenta Vel. Movimento em {value1}%, mas reduz Levemente Defesa em -{value2} pts.",
+        description_template = "Aumenta Vel. Movimento em 5%, mas reduz a Defesa em -5 pts.",
         icon = "S!",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "moveSpeed", type = "percentage", value = 4 },
-            { stat = "defense",   type = "fixed",      value = -2 }
+            { stat = "moveSpeed", type = "percentage", value = 5 },
+            { stat = "defense",   type = "fixed",      value = -5 }
         },
         tags = { "mobilidade", "velocidade", "defesa", "risco", "negativo" }
     },
@@ -225,23 +226,23 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus de Defesa
     protection_1_fixed = {
         id = "protection_1_fixed",
-        name = "Guarda Menor (Fixa)",
-        description_template = "Aumenta a Defesa em {value} pontos.",
+        name = "Guarda Menor",
+        description_template = "Aumenta a Defesa em 10 pontos.",
         icon = "DEF+",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "defense", type = "fixed", value = 2 }
+            { stat = "defense", type = "fixed", value = 10 }
         },
         tags = { "defensivo", "defesa", "fixo" }
     },
     resilience_1_percent = {
         id = "resilience_1_percent",
-        name = "Tenacidade Menor (%)",
-        description_template = "Aumenta a Defesa em {value}%.",
+        name = "Tenacidade",
+        description_template = "Aumenta a Defesa em 10%.",
         icon = "DEF%",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "defense", type = "percentage", value = 3 } -- +3% Defesa por nível (para levelBonus)
+            { stat = "defense", type = "percentage", value = 10 } -- +10% Defesa por nível (para levelBonus)
         },
         tags = { "defensivo", "defesa", "percentual" }
     },
@@ -249,31 +250,31 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus de Regeneração e Coleta
     regeneration_1_fixed = {
         id = "regeneration_1_fixed",
-        name = "Recuperação Rápida (HP/s)",
-        description_template = "Aumenta Regeneração de Vida em +{value} HP/s.",
+        name = "Recuperação Rápida",
+        description_template = "Aumenta Regeneração de Vida em +0.5 HP/s.",
         icon = "R+",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "healthPerTick", type = "fixed", value = 0.2 } -- Para fixedBonus.healthPerTick
+            { stat = "healthPerTick", type = "fixed", value = 0.5 } -- Para fixedBonus.healthPerTick
         },
         tags = { "defensivo", "regeneracao", "fixo" }
     },
     regen_delay_1_reduction = {
         id = "regen_delay_1_reduction",
-        name = "Prontidão (Delay)",
-        description_template = "Reduz o Delay de Regeneração de Vida em {value}s.",
+        name = "Prontidão",
+        description_template = "Reduz o Delay de Regeneração de Vida em 0.5s.",
         icon = "RD-",
         max_level = 5,
         modifiers_per_level = {
             -- PlayerState.fixedBonus.healthRegenDelay é um valor que é SUBTRAÍDO.
-            { stat = "healthRegenDelay", type = "fixed", value = 0.3 } -- Reduz em 0.3s (PlayerState aplica como subtração)
+            { stat = "healthRegenDelay", type = "fixed", value = 0.5 } -- Reduz em 0.5s (PlayerState aplica como subtração)
         },
         tags = { "defensivo", "regeneracao", "delay", "fixo" }
     },
     scavenger_1_fixed = {
         id = "scavenger_1_fixed",
-        name = "Magnetismo Menor (Raio)",
-        description_template = "Aumenta o Raio de Coleta em {value} unidades.",
+        name = "Magnetismo",
+        description_template = "Aumenta o Raio de Coleta em 10 unidades.",
         icon = "P+",
         max_level = 8,
         modifiers_per_level = {
@@ -285,36 +286,36 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus Utilitários / Avançados
     chronomancer_1_percent = {
         id = "chronomancer_1_percent",
-        name = "Dobra Temporal Menor (%)",
-        description_template = "Reduz a Recarga de Habilidades em {value}%.",
+        name = "Dobra Temporal Menor",
+        description_template = "Reduz a Recarga de Habilidades em 5%.",
         icon = "CD%",
         max_level = 10,
         modifiers_per_level = {
             -- PlayerState.levelBonus.cooldownReduction é um percentual de REDUÇÃO.
-            { stat = "cooldownReduction", type = "percentage", value = 1.5 } -- +1.5% de REDUÇÃO por nível (para levelBonus)
+            { stat = "cooldownReduction", type = "percentage", value = 5 } -- +5% de REDUÇÃO por nível (para levelBonus)
         },
         tags = { "utilidade", "cooldown", "percentual" }
     },
     lucky_star_1_percent = {
         id = "lucky_star_1_percent",
-        name = "Estrela da Sorte (%)",
-        description_template = "Aumenta a Sorte em {value}%.",
+        name = "Estrela da Sorte",
+        description_template = "Aumenta a Sorte em 5%.",
         icon = "L%",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "luck", type = "percentage", value = 3 } -- +3% Sorte por nível (para levelBonus)
+            { stat = "luck", type = "percentage", value = 5 } -- +3% Sorte por nível (para levelBonus)
         },
         tags = { "utilidade", "sorte", "percentual" }
     },
     scholarly_pursuit_1 = {
         id = "scholarly_pursuit_1",
         name = "Busca Acadêmica",
-        description_template = "Aumenta Bônus de Exp. em {value1}% mas reduz Vel. Ataque em -{value2}%.",
+        description_template = "Aumenta Bônus de Exp. em 20% mas e Vel. Ataque em -5%.",
         icon = "XP!",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "expBonus",    type = "percentage", value = 5 },
-            { stat = "attackSpeed", type = "percentage", value = -1.5 }
+            { stat = "expBonus",    type = "percentage", value = 20 },
+            { stat = "attackSpeed", type = "percentage", value = -5 }
         },
         tags = { "utilidade", "experiencia", "risco", "negativo" }
     },
@@ -322,8 +323,8 @@ LevelUpBonusesData.Bonuses = {
     --- Area e alcance
     area_1_percent = {
         id = "area_1_percent",
-        name = "Área Menor (%)",
-        description_template = "Aumenta a Área de Ataque em {value}%.",
+        name = "Área",
+        description_template = "Aumenta a Área de Ataque em 10%.",
         icon = "A%",
         max_level = 10,
         modifiers_per_level = {
@@ -331,33 +332,22 @@ LevelUpBonusesData.Bonuses = {
         },
         tags = { "utilidade", "alcance", "percentual" }
     },
-    area_2_fixed = {
-        id = "area_2_fixed",
-        name = "Área Menor (Fixa)",
-        description_template = "Aumenta a Área de Ataque em {value} unidades.",
-        icon = "A+",
-        max_level = 10,
-        modifiers_per_level = {
-            { stat = "attackArea", type = "fixed_percentage_as_fraction", value = 0.10 }
-        },
-        tags = { "utilidade", "alcance", "fixo" }
-    },
     area_3_combo = {
         id = "area_3_combo",
-        name = "Área Híbrida",
-        description_template = "Aumenta Alcance em {value1}% e Dano em {value2}%.",
+        name = "Área Mortal",
+        description_template = "Aumenta Área em 8% e Dano em 8%.",
         icon = "A*",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "attackArea",       type = "percentage", value = 10 },
-            { stat = "damageMultiplier", type = "percentage", value = 5 }
+            { stat = "attackArea",       type = "percentage", value = 8 },
+            { stat = "damageMultiplier", type = "percentage", value = 8 }
         },
         tags = { "utilidade", "alcance", "dano", "combo" }
     },
     range_1_percent = {
         id = "range_1_percent",
-        name = "Alcance Menor (%)",
-        description_template = "Aumenta o Alcance em {value}%.",
+        name = "Alcance",
+        description_template = "Aumenta o Alcance em 10%.",
         icon = "A%",
         max_level = 10,
         modifiers_per_level = {
@@ -365,26 +355,15 @@ LevelUpBonusesData.Bonuses = {
         },
         tags = { "utilidade", "alcance", "percentual" }
     },
-    range_2_fixed = {
-        id = "range_2_fixed",
-        name = "Alcance Menor (Fixa)",
-        description_template = "Aumenta o Alcance em {value} unidades.",
-        icon = "A+",
-        max_level = 10,
-        modifiers_per_level = {
-            { stat = "range", type = "fixed_percentage_as_fraction", value = 0.10 }
-        },
-        tags = { "utilidade", "alcance", "fixo" }
-    },
     range_3_combo = {
         id = "range_3_combo",
-        name = "Alcance Híbrido",
-        description_template = "Aumenta Alcance em {value1}% e Dano em {value2}%.",
+        name = "Alcance Mortal",
+        description_template = "Aumenta Alcance em 8% e Dano em 8%.",
         icon = "A*",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "range",            type = "percentage", value = 10 },
-            { stat = "damageMultiplier", type = "percentage", value = 5 }
+            { stat = "range",            type = "percentage", value = 8 },
+            { stat = "damageMultiplier", type = "percentage", value = 8 }
         },
         tags = { "utilidade", "alcance", "dano", "combo" }
     },
