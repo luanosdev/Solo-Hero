@@ -9,7 +9,9 @@ local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado
 ---@class FlameStream
 local FlameStream = {}
 FlameStream.__index = FlameStream -- Necessário para métodos de instância
-
+FlameStream.name = "Fluxo de Fogo"
+FlameStream.description = "Atira um fluxo de chamas que causa dano em área."
+FlameStream.damageType = "fire"
 -- Configurações Visuais (podem ser movidas ou mantidas)
 FlameStream.visual = {
     preview = {

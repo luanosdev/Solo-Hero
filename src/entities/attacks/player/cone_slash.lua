@@ -31,7 +31,7 @@ local ConeSlash = {}
 ConeSlash.__index = ConeSlash -- Para permitir :new
 
 -- Configurações visuais PADRÃO
-ConeSlash.name = "Cone Slash"
+ConeSlash.name = "Cortada em Cone"
 ConeSlash.description = "Um ataque em cone que causa dano a todos os inimigos na área"
 ConeSlash.damageType = "melee"
 ConeSlash.visual = {

@@ -136,6 +136,27 @@ function HunterManager:_calculateFinalStats(hunterId)
         end
     end
 
+    -- Agrega com base nos items equipados
+    local equippedItems = hunterData.equippedItems or {}
+    for slot, itemInst in pairs(equippedItems) do
+        if itemInst and itemInst.itemBaseId and self.itemDataManager then
+            local itemData = self.itemDataManager:getBaseItemData(itemInst.itemBaseId)
+            if itemData and itemData.modifiers then
+                for _, mod in ipairs(itemData.modifiers) do
+                    local statName = mod.stat
+                    local modValue = mod.value or 0
+                    if mod.type == "fixed" then
+                        fixedBonuses[statName] = (fixedBonuses[statName] or 0) + modValue
+                    elseif mod.type == "fixed_percentage_as_fraction" then
+                        fixedFractionBonuses[statName] = (fixedFractionBonuses[statName] or 0) + modValue
+                    elseif mod.type == "percentage" then
+                        percentageBonuses[statName] = (percentageBonuses[statName] or 0) + modValue
+                    end
+                end
+            end
+        end
+    end
+
     -- 2. Aplica bônus na NOVA ORDEM para cada stat (exceto weaponDamage por enquanto)
     for statKey, baseValue in pairs(finalStats) do
         if statKey ~= "weaponDamage" then -- Calcula weaponDamage separadamente
@@ -192,8 +213,8 @@ function HunterManager:_calculateFinalStats(hunterId)
     finalStats.equippedItems = {}
     if hunterData.equippedItems then
         for slot, itemInst in pairs(hunterData.equippedItems) do
-            if itemInst and itemInst.instanceId then
-                finalStats.equippedItems[slot] = itemInst.instanceId
+            if itemInst and itemInst.itemBaseId then
+                finalStats.equippedItems[slot] = itemInst.itemBaseId
             end
         end
     end

@@ -44,5 +44,5 @@
         "*.lua": "lua"
     },
     "editor.suggestSelection": "first", // Sugestões de autocompletar
-    "workbench.editor.enablePreview": false // Abre arquivos diretamente em vez de pré-visualizar
+    "workbench.editor.enablePreview": true // Abre arquivos diretamente em vez de pré-visualizar
 }

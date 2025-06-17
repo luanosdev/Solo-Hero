@@ -23,44 +23,12 @@ function Bow:new(config)
 end
 
 --- Equipa o Arco.
---- Cria a instância da lógica de ataque ArrowProjectile.
+--- O método :equip da BaseWeapon cuidará da criação da attackInstance.
 ---@param playerManager PlayerManager Instância do PlayerManager.
 ---@param itemData table Dados da instância específica do item sendo equipado.
 function Bow:equip(playerManager, itemData)
     BaseWeapon.equip(self, playerManager, itemData)
-    print(string.format("[Bow:equip] Equipping '%s'. Calling base equip done.", self.name or self.itemBaseId))
-
-    local baseData = self:getBaseData()
-    if not baseData then
-        error(string.format("Bow:equip - Falha ao obter dados base para %s", self.itemBaseId))
-        return
-    end
-    print("  - Base data retrieved successfully.")
-
-    if not baseData.attackClass then
-        error(string.format("Bow:equip - 'attackClass' não definido nos dados base para %s", self.itemBaseId))
-        return
-    end
-    print(string.format("  - attackClass found: %s. Attempting to load...", baseData.attackClass))
-
-    local attackClassPath = string.format("src.abilities.player.attacks.%s", baseData.attackClass)
-    local success, AttackClass = pcall(require, attackClassPath)
-    if not success or not AttackClass then
-        error(string.format("Bow:equip - Falha ao carregar AttackClass '%s'. Erro: %s", baseData.attackClass,
-            tostring(AttackClass)))
-        return
-    end
-    print("  - AttackClass loaded successfully.")
-
-    -- Cria a instância da classe de ataque (ArrowProjectile)
-    self.attackInstance = AttackClass:new(playerManager, self) -- Passa playerManager e a instância da arma (self)
-    if not self.attackInstance then
-        error(string.format("Bow:equip - Falha ao criar instância de AttackClass '%s'.", baseData.attackClass))
-        return
-    end
-    print(string.format("  - Attack instance created (Type: %s).", type(self.attackInstance)))
-
-    print(string.format("[Bow:equip] '%s' fully equipped. Attack instance created.", self.name or self.itemBaseId))
+    -- A lógica de carregar AttackClass e criar a instância foi movida para BaseWeapon:equip.
 end
 
 --- Desequipa o Arco.

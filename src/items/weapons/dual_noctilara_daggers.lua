@@ -1,5 +1,5 @@
 local BaseWeapon = require("src.items.weapons.base_weapon")
-local AlternatingConeStrike = require("src.abilities.player.attacks.alternating_cone_strike") -- Criaremos este arquivo
+local AlternatingConeStrike = require("src.entities.attacks.player.alternating_cone_strike") -- Criaremos este arquivo
 
 local DualNoctilaraDaggers = BaseWeapon:new({
     itemBaseId = "dual_noctilara_daggers", -- ID para buscar dados base

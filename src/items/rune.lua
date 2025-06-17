@@ -3,7 +3,7 @@
     Item que pode ser obtido ao derrotar um boss e que concede novas habilidades ao jogador
 ]]
 
-local BaseItem = require("src.items.base_item")
+local BaseItem = require("src.entities.equipments.base_item")
 
 local Rune = setmetatable({}, { __index = BaseItem })
 Rune.__index = Rune

@@ -3,11 +3,12 @@ local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local elements = require("src.ui.ui_elements")
 local Constants = require("src.config.constants")
-local TooltipManager = require("src.ui.tooltip_manager")
+local HoverManager = require("src.ui.item_details_modal_manager")
 local ManagerRegistry = require("src.managers.manager_registry")
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
 local ReputationSummaryColumn = require("src.ui.components.ReputationSummaryColumn")
 local GameStatsColumn = require("src.ui.components.GameStatsColumn")
+local ItemGridUI = require("src.ui.item_grid_ui")
 
 ---@class ExtractionSummaryScene
 local ExtractionSummaryScene = {}
@@ -106,7 +107,8 @@ function ExtractionSummaryScene:update(dt)
         end
     end
 
-    TooltipManager.update(dt, mx, my, self.tooltipItem)
+    -- Atualiza o gerenciador de tooltip
+    HoverManager.update(dt, mx, my, self.tooltipItem)
 end
 
 --- Desenha os elementos da cena.
@@ -350,14 +352,19 @@ function ExtractionSummaryScene:draw()
         love.graphics.printf("Nenhum item extraído.", extractedItemsX, columnContentStartY + 20, columnWidth, "center")
     end
 
-    -- Linha 3: Instrução para continuar
-    local instructionY = screenH - 70
-    love.graphics.setFont(fonts.main_large or fonts.main)
-    love.graphics.setColor(colors.text_highlight)
+    -- Instrução para continuar
+    local instructionY = screenH - 40
+    love.graphics.setFont(fonts.main_large)
+    love.graphics.setColor(colors.text_label)
     love.graphics.printf("Pressione qualquer tecla para continuar", 0, instructionY, screenW, "center")
 
     -- Desenhar Tooltip
-    TooltipManager.draw()
+    HoverManager.draw()
+
+    if self.itemDataManager and self.itemGridArea then
+        ItemGridUI.drawItemGrid(self.items, self.gridRows, self.gridCols, self.itemGridArea.x, self.itemGridArea.y,
+            self.itemGridArea.w, self.itemGridArea.h, self.itemDataManager)
+    end
 
     love.graphics.setColor(colors.white) -- Reset final
 end

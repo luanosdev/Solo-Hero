@@ -42,7 +42,7 @@ function GenericChainLightning:equip(playerManager, itemData)
     end
     Logger.debug("[GenericChainLightning:equip]", string.format("  - attackClass found: %s. Attempting to load...", baseData.attackClass))
 
-    local attackClassPath = string.format("src.abilities.player.attacks.%s", baseData.attackClass)
+    local attackClassPath = string.format("src.entities.attacks.player.%s", baseData.attackClass)
     local success, AttackClass = pcall(require, attackClassPath)
     if not success or not AttackClass then
         error(string.format("[GenericChainLightning:equip] - Falha ao carregar AttackClass '%s'. Erro: %s", baseData.attackClass,

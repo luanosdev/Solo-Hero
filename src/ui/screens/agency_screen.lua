@@ -13,7 +13,7 @@ local LoadoutManager = require("src.managers.loadout_manager")                  
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")         -- << NOVO
 local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn") -- << NOVO
 local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn")     -- << NOVO
-local TooltipManager = require("src.ui.tooltip_manager")                         -- <<< ADICIONADO
+local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
 
 ---@class AgencyScreen
 ---@field hunterManager HunterManager
@@ -335,9 +335,13 @@ function AgencyScreen:draw(x, y, w, h, mx, my)
                 -- 2. Desenha Coluna de Equipamento
                 if self.hunterManager then
                     -- Passa o ID do caçador selecionado para a coluna
-                    self.equipmentSlotAreas = HunterEquipmentColumn.draw(equipColX, detailsContentY, equipColW,
+                    self.equipmentSlotAreas = HunterEquipmentColumn.draw(
+                        equipColX,
+                        detailsContentY,
+                        equipColW,
                         detailsContentHeight,
-                        self.hunterManager, self.selectedHunterId)
+                        self.selectedHunterId
+                    )
                 else
                     love.graphics.setColor(colors.red)
                     love.graphics.printf("HunterMan. Indisp.", equipColX, detailsContentY + detailsContentHeight / 2,
@@ -395,7 +399,7 @@ function AgencyScreen:draw(x, y, w, h, mx, my)
 
     -- Desenha o Tooltip no final, somente se o modal de recrutamento não estiver ativo
     if not self.isRecruiting then
-        TooltipManager.draw()
+        ItemDetailsModalManager.draw()
     end
 end
 
@@ -614,52 +618,71 @@ function AgencyScreen:_recruitCandidate(candidateIndex)
     self:_closeRecruitmentModal()
 end
 
-function AgencyScreen:update(dt, mx, my, allowHover)
-    if self.isActiveFrame then
-        self.isActiveFrame = false
-    end
-    self.itemToShowTooltip = nil -- Reseta a cada frame
+function AgencyScreen:update(mx, my, dt)
+    self.isActiveFrame = true -- Marca que a tela está ativa neste frame
+    self.itemToShowTooltip = nil
 
-    -- <<< ATUALIZA ESTADO E HOVER DO BOTÃO 'Definir Ativo' >>>
-    if self.setActiveButton then
-        local canSetActive = self.selectedHunterId ~= nil and
-            self.selectedHunterId ~= self.hunterManager:getActiveHunterId()
-        self.setActiveButton.isEnabled = canSetActive
-        self.setActiveButton:update(dt, mx, my, allowHover and not self.isRecruiting)
-    end
-
-    if self.isRecruiting then
-        for i, stack in pairs(self.recruitModalColumns) do
-            stack:update(dt, mx, my, allowHover)
-            local button = self.recruitModalButtons[i]
-            if button then
-                button:update(dt, mx, my, allowHover)
+    -- Lógica de hover/clique para a lista de caçadores
+    if not self.isRecruiting then -- Só processa cliques na lista se o modal não estiver ativo
+        for hunterId, rect in pairs(self.hunterSlotRects) do
+            if mx >= rect.x and mx < rect.x + rect.w and my >= rect.y and my < rect.y + rect.h then
+                if love.mouse.wasPressed(1) then
+                    self.selectedHunterId = hunterId
+                    print(string.format("[AgencyScreen] Hunter selected: %s", hunterId))
+                end
+                break -- Para de checar outros slots se um foi "hoverado"
             end
         end
-        if self.recruitCancelButton then
-            self.recruitCancelButton:update(dt, mx, my, allowHover)
-        end
-    else
-        if self.recruitButton then
-            self.recruitButton:update(dt, mx, my, allowHover)
-            self.recruitButton.isEnabled = true -- Habilita fora do modal
-        end
-    end
 
-    if not self.isRecruiting and self.selectedHunterId and self.equipmentSlotAreas and allowHover then
-        local equippedItems = self.hunterManager:getEquippedItems(self.selectedHunterId)
-        if equippedItems then
-            for slotId, area in pairs(self.equipmentSlotAreas) do
-                if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
-                    if equippedItems[slotId] then
-                        self.itemToShowTooltip = equippedItems[slotId]
-                        break
+        -- Lógica de hover para itens de equipamento e inventário do caçador selecionado
+        if self.equipmentSlotAreas then
+            local equippedItems = self.hunterManager:getEquippedItems(self.selectedHunterId)
+            if equippedItems then
+                for slotId, area in pairs(self.equipmentSlotAreas) do
+                    if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
+                        if equippedItems[slotId] then
+                            self.itemToShowTooltip = equippedItems[slotId]
+                            break
+                        end
                     end
                 end
             end
         end
     end
-    TooltipManager.update(dt, mx, my, self.isRecruiting and nil or self.itemToShowTooltip)
+
+    -- Atualiza o HoverManager com o item que está sob o mouse (se houver)
+    ItemDetailsModalManager.update(dt, mx, my, self.itemToShowTooltip)
+
+    -- Atualiza os botões (sempre, para que o de cancelar no modal funcione)
+    if self.recruitButton then
+        self.recruitButton:update(mx, my)
+    end
+    if self.recruitCancelButton then
+        self.recruitCancelButton:update(mx, my)
+    end
+    if self.setActiveButton then
+        self.setActiveButton.isEnabled = self.selectedHunterId and
+        (self.selectedHunterId ~= self.hunterManager:getActiveHunterId())
+        self.setActiveButton:update(mx, my)
+    end
+
+    -- Atualiza colunas/botões do modal de recrutamento
+    if self.isRecruiting then
+        for i, col in ipairs(self.recruitModalColumns) do
+            col:update(dt, mx, my)
+        end
+        for i, btn in ipairs(self.recruitModalButtons) do
+            btn:update(mx, my)
+        end
+    end
+end
+
+function AgencyScreen:keypressed(key)
+    if key == "escape" and self.isRecruiting then
+        self:_cancelRecruitment()
+        return true -- Impede que o 'escape' feche a LobbyScene
+    end
+    return false
 end
 
 function AgencyScreen:handleMousePress(clickX, clickY, button)
@@ -697,13 +720,6 @@ function AgencyScreen:handleMousePress(clickX, clickY, button)
                         print(string.format("[AgencyScreen] Hunter selected: %s", hunterId))
                         if self.setActiveButton then
                             self.setActiveButton.isEnabled = (self.selectedHunterId ~= nil and self.selectedHunterId ~= self.hunterManager:getActiveHunterId())
-                        end
-                        if self.loadoutManager and self.loadoutManager.setActiveHunter then
-                            print(string.format("  >> Notifying LoadoutManager to set active hunter to %s", hunterId))
-                            self.loadoutManager:setActiveHunter(hunterId)
-                        else
-                            print(
-                                "  >> WARNING: LoadoutManager or setActiveHunter method not found for selection change.")
                         end
                     end
                     return true

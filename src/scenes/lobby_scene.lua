@@ -9,7 +9,6 @@ local LobbyPortalManager = require("src.managers.lobby_portal_manager")
 local EquipmentScreen = require("src.ui.screens.equipment_screen")
 local PortalScreen = require("src.ui.screens.portal_screen")
 local AgencyScreen = require("src.ui.screens.agency_screen")
-local TooltipManager = require("src.ui.tooltip_manager")
 
 local TabIds = Constants.TabIds
 
@@ -458,8 +457,6 @@ function LobbyScene:update(dt)
             self.agencyScreen:update(dt, mx, my, allowAgencyScreenHover)
         end
     end
-
-    -- TooltipManager.update(dt, mx, my) -- REMOVIDO: Cada tela/componente agora chama update do TooltipManager individualmente
 end
 
 --- Desenha os elementos da cena.
@@ -503,8 +500,14 @@ function LobbyScene:draw()
                     isDropValid = self.isDropValid,
                     equipmentSlotAreas = self.equipmentSlotAreas
                 }
-                self.storageGridArea, self.loadoutGridArea, self.equipmentSlotAreas = self.equipmentScreen:draw(screenW,
-                    screenH, tabSettings, dragState, mx, my)
+                self.storageGridArea, self.loadoutGridArea, self.equipmentSlotAreas = self.equipmentScreen:draw(
+                    screenW,
+                    screenH,
+                    tabSettings,
+                    dragState,
+                    mx,
+                    my
+                )
             elseif activeTab.id == TabIds.AGENCY then
                 if self.agencyScreen then
                     -- Define área de desenho (toda a área acima das tabs)
@@ -543,11 +546,8 @@ function LobbyScene:draw()
         })
     end
 
-    TooltipManager.draw()
-
     -- Reset final
-    love.graphics.setColor(colors.white)
-    if fonts.main then love.graphics.setFont(fonts.main) end
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 --- Processa cliques do mouse.
@@ -764,6 +764,25 @@ function LobbyScene:wheelmoved(x, y)
         --     if self.equipmentScreen and self.equipmentScreen.handleMouseScroll then
         --         self.equipmentScreen:handleMouseScroll(x, y)
         --     end
+    end
+end
+
+function LobbyScene:debugAddItemToPlayerInventory(itemId, quantity)
+    quantity = quantity or 1
+    print(string.format("[DEBUG] Tentando adicionar %d de '%s' ao inventário do jogador...", quantity, itemId))
+
+    if not self.itemDataManager:getBaseItemData(itemId) then
+        print(string.format("[DEBUG] ERRO: Item com ID base '%s' não encontrado no ItemDataManager.", itemId))
+        return
+    end
+
+    local addedQuantity = self.lobbyStorageManager:addItem(itemId, quantity)
+    if addedQuantity > 0 then
+        print(string.format("[DEBUG] Adicionado %d de '%s' ao inventário.", addedQuantity, itemId))
+    else
+        print(
+            string.format("[DEBUG] Não foi possível adicionar '%s' ao inventário (pode estar cheio ou item inválido)."),
+            itemId)
     end
 end
 

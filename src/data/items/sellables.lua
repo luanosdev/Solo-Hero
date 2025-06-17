@@ -25,7 +25,6 @@ local sellables = {
         maxStack = 99,
         value = 1
     },
-
     -- MVP
     intact_brain = {
         id = "intact_brain",
@@ -84,8 +83,7 @@ local sellables = {
         stackable = false,
         maxStack = 1,
         value = 100
-    }
-
+    },
 }
 
 return sellables

@@ -1,15 +1,16 @@
--- src/ui/inventory_screen.lua
+-----------------------------------------------------------
+--- Tela de Inventário durante a cena de jogo
+-----------------------------------------------------------
+
 local elements = require("src.ui.ui_elements")
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
-local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado
-local TooltipManager = require("src.ui.tooltip_manager")         -- <<< ADICIONADO
-local ItemGridUI = require("src.ui.item_grid_ui")                -- <<< ADICIONADO (ou garantir que existe)
-
--- Carrega as NOVAS colunas
+local ManagerRegistry = require("src.managers.manager_registry")
+local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
+local ItemGridUI = require("src.ui.item_grid_ui")
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
 local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn")
-local HunterInventoryColumn = require("src.ui.components.HunterInventoryColumn") -- <<< ADICIONADO: Coluna de Inventário Gameplay
+local HunterInventoryColumn = require("src.ui.components.HunterInventoryColumn")
 
 local InventoryScreen = {}
 InventoryScreen.isVisible = false
@@ -19,34 +20,16 @@ InventoryScreen.equipmentSlotAreas = {} -- Mantém como cache local, mas será r
 InventoryScreen.inventoryGridArea = {}  -- Mantém como cache local, mas será retornado
 InventoryScreen.itemToShowTooltip = nil -- Adicionado para armazenar o item para tooltip
 
--- <<< REMOVENDO Variáveis de Estado de Drag Internas >>>
--- InventoryScreen.isDragging = false
--- InventoryScreen.draggedItem = nil
--- InventoryScreen.draggedItemOffsetX = 0
--- InventoryScreen.draggedItemOffsetY = 0
--- InventoryScreen.sourceGridId = nil
--- InventoryScreen.sourceSlotId = nil
--- InventoryScreen.draggedItemIsRotated = false
--- InventoryScreen.targetGridId = nil
--- InventoryScreen.targetSlotCoords = nil
--- InventoryScreen.isDropValid = false
-
--- Função para obter o shader (mantida, mas o shader não é usado atualmente)
-function InventoryScreen.setGlowShader(shader)
-    -- glowShader = shader -- Shader não é usado neste novo layout, remover ou adaptar se necessário
-end
-
-function InventoryScreen.hide() -- Função para esconder
+function InventoryScreen.hide()         -- Função para esconder
     InventoryScreen.isVisible = false
-    -- print("[InventoryScreen.hide] Hiding.")
+    ItemDetailsModalManager.hide()
 end
 
 function InventoryScreen.show() -- Função para mostrar
     InventoryScreen.isVisible = true
     InventoryScreen.equipmentSlotAreas = {}
     InventoryScreen.inventoryGridArea = {}
-    InventoryScreen.itemToShowTooltip = nil -- Limpa ao mostrar
-    -- print("[InventoryScreen.show] Showing and resetting areas.")
+    InventoryScreen.itemToShowTooltip = nil
 end
 
 function InventoryScreen.toggle()
@@ -54,11 +37,9 @@ function InventoryScreen.toggle()
     if InventoryScreen.isVisible then
         InventoryScreen.equipmentSlotAreas = {}
         InventoryScreen.inventoryGridArea = {}
-        InventoryScreen.itemToShowTooltip = nil -- Limpa ao mostrar
-        -- print("[InventoryScreen.toggle] Became visible, resetting areas.")
+        InventoryScreen.itemToShowTooltip = nil
     else
-        InventoryScreen.itemToShowTooltip = nil -- Limpa ao esconder
-        -- print("[InventoryScreen.toggle] Became hidden.")
+        InventoryScreen.itemToShowTooltip = nil
     end
     return InventoryScreen.isVisible
 end
@@ -78,15 +59,14 @@ function InventoryScreen.update(dt, mx, my, dragState)
 
     -- Só mostra tooltip se não estiver arrastando
     if not (dragState and dragState.isDragging) then
-        local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
-        local hunterManager = ManagerRegistry:get("hunterManager") ---@type HunterManager
-        local inventoryManager = ManagerRegistry:get("inventoryManager") ---@type InventoryManager
+        ---@type HunterManager
+        local hunterManager = ManagerRegistry:get("hunterManager")
 
-        if not playerManager or not hunterManager or not inventoryManager then
-            -- Não pode determinar tooltip sem managers
-            TooltipManager.update(dt, mx, my, nil)
-            return
-        end
+        ---@type PlayerManager
+        local playerManager = ManagerRegistry:get("playerManager")
+
+        ---@type InventoryManager
+        local inventoryManager = ManagerRegistry:get("inventoryManager")
 
         -- 1. Checa hover em slots de equipamento
         local currentHunterId = playerManager:getCurrentHunterId()
@@ -128,29 +108,25 @@ function InventoryScreen.update(dt, mx, my, dragState)
         end
     end
 
-    TooltipManager.update(dt, mx, my, InventoryScreen.itemToShowTooltip)
+    -- Atualiza o gerenciador de tooltips com o item sob o mouse
+    ItemDetailsModalManager.update(dt, InventoryScreen.mouseX, InventoryScreen.mouseY, InventoryScreen.itemToShowTooltip)
 end
 
--- Função principal de desenho da tela (MODIFICADA)
 ---@param dragState table|nil Estado do drag-and-drop gerenciado pela cena pai (pode ser nil)
 function InventoryScreen.draw(dragState)
     if not InventoryScreen.isVisible then return nil, nil end
 
     -- Obtém Managers do registro
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
+    ---@type HunterManager
     local hunterManager = ManagerRegistry:get("hunterManager")
+    ---@type ArchetypeManager
     local archetypeManager = ManagerRegistry:get("archetypeManager")
-    local inventoryManager = ManagerRegistry:get("inventoryManager") -- <<< OBTÉM INVENTORY MANAGER
+    ---@type InventoryManager
+    local inventoryManager = ManagerRegistry:get("inventoryManager")
+    ---@type ItemDataManager
     local itemDataManager = ManagerRegistry:get("itemDataManager")
-
-    -- MODIFICADO: Usa inventoryManager na checagem
-    if not playerManager or not hunterManager or not archetypeManager or not inventoryManager or not itemDataManager then
-        local screenW, screenH = love.graphics.getDimensions()
-        love.graphics.setColor(colors.red)
-        love.graphics.printf("Erro: Managers essenciais não encontrados!", 0, screenH / 2, screenW, "center")
-        love.graphics.setColor(colors.white)
-        return nil, nil
-    end
 
     local screenW, screenH = love.graphics.getDimensions()
 
@@ -163,7 +139,7 @@ function InventoryScreen.draw(dragState)
     local colW = screenW / 3
     local statsX = 0
     local equipX = colW
-    local inventoryX = colW * 2 -- Renomeado para clareza
+    local inventoryX = colW * 2
     local padding = 10
     local topPadding = 100
     local innerColW = colW - padding * 2
@@ -182,7 +158,7 @@ function InventoryScreen.draw(dragState)
     love.graphics.setColor(colors.text_highlight)
     love.graphics.printf("ATRIBUTOS", statsX + innerColXOffset, titleY, innerColW, "center")
     love.graphics.printf("EQUIPAMENTO", equipX + innerColXOffset, titleY, innerColW, "center")
-    love.graphics.printf("INVENTÁRIO", inventoryX + innerColXOffset, titleY, innerColW, "center") -- Título correto
+    love.graphics.printf("INVENTÁRIO", inventoryX + innerColXOffset, titleY, innerColW, "center")
     love.graphics.setColor(colors.white)
     love.graphics.setFont(fonts.main or titleFont)
 
@@ -209,7 +185,7 @@ function InventoryScreen.draw(dragState)
             -- print("    Weapon ID: nil") -- COMENTADO
         end
     else
-        print("[InventoryScreen DEBUG] currentFinalStats de PlayerManager é NULO.") -- MANTIDO COMO ALERTA
+        error("[InventoryScreen DEBUG] currentFinalStats de PlayerManager é NULO.")
     end
 
     local statsColumnConfig = {
@@ -219,21 +195,25 @@ function InventoryScreen.draw(dragState)
         xpToNextLevel = playerManager.state and playerManager.state.experienceToNextLevel,
         finalStats = currentFinalStats,
         archetypeIds = hunterArchetypeIds or {},
-        archetypeManager = archetypeManager,
         mouseX = InventoryScreen.mouseX or 0,
         mouseY = InventoryScreen.mouseY or 0
     }
 
     -- Desenha Coluna de Stats
     local statsTooltipLines, statsTooltipX, statsTooltipY = HunterStatsColumn.draw(
-        statsX + innerColXOffset, centeredContentStartY, innerColW, centeredContentH,
+        statsX + innerColXOffset,
+        centeredContentStartY,
+        innerColW,
+        centeredContentH,
         statsColumnConfig
     )
 
     -- Desenha Coluna de Equipamento
     local tempAreas = HunterEquipmentColumn.draw(
-        equipX + innerColXOffset, centeredContentStartY, innerColW, centeredContentH,
-        hunterManager,
+        equipX + innerColXOffset,
+        centeredContentStartY,
+        innerColW,
+        centeredContentH,
         currentHunterId
     )
     -- Atribui o resultado retornado (para uso local e retorno)
@@ -250,7 +230,6 @@ function InventoryScreen.draw(dragState)
         -- Usa mouseX/Y local da tela para desenho (assumindo que 'update' ainda armazena)
         local mx_draw, my_draw = InventoryScreen.mouseX, InventoryScreen.mouseY
         if mx_draw and my_draw then
-            local elements = require("src.ui.ui_elements")
             local ghostX = mx_draw - (dragState.draggedItemOffsetX or 0) -- Usa offset do dragState
             local ghostY = my_draw - (dragState.draggedItemOffsetY or 0) -- Usa offset do dragState
             elements.drawItemGhost(ghostX, ghostY, dragState.draggedItem, 0.75,
@@ -306,7 +285,7 @@ function InventoryScreen.draw(dragState)
     end
 
     -- Desenha o tooltip no final
-    TooltipManager.draw()
+    ItemDetailsModalManager.draw()
 
     -- Desenha o Tooltip de Stats (se houver)
     if statsTooltipLines and #statsTooltipLines > 0 then

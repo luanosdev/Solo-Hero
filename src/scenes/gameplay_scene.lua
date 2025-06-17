@@ -9,10 +9,10 @@ local HUD = require("src.ui.hud")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local InventoryScreen = require("src.ui.screens.inventory_screen")
-local ItemDetailsModal = require("src.ui.item_details_modal")
+local ItemDetailsModal = require("src.ui._item_details_modal")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Bootstrap = require("src.core.bootstrap")
-local TooltipManager = require("src.ui.tooltip_manager")
+local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
 local colors = require("src.ui.colors")
 local AssetManager = require("src.managers.asset_manager")
 local portalDefinitions = require("src.data.portals.portal_definitions")
@@ -190,6 +190,19 @@ function GameplayScene:load(args)
     hudGameplayManager:setupGameplay(self.hunterId)
 
     self:_snapshotInitialItems()
+
+    -- DEBUG: Spawna uma arma de rank E aleatória perto do jogador
+    local rankEWeapons = {
+        "circular_smash_e_001",
+        "cone_slash_e_001",
+        "alternating_cone_strike_e_001",
+        "flame_stream_e_001",
+        "arrow_projectile_e_001",
+        "chain_lightning_e_001"
+    }
+    local randomWeaponId = rankEWeapons[math.random(#rankEWeapons)]
+    self:createDropNearPlayer(randomWeaponId)
+    Logger.info("GameplayScene", "Arma de rank E aleatória dropada perto do jogador: " .. randomWeaponId)
 
     -- Configura o callback de morte do jogador para usar o GameOverManager
     playerMgr:setOnPlayerDiedCallback(function()
@@ -489,7 +502,7 @@ function GameplayScene:draw()
     end
     ItemDetailsModal:draw()
     --HUD:draw()
-    TooltipManager.draw()
+    ItemDetailsModalManager.draw()
 
     if hudGameplayManager then
         hudGameplayManager:draw(self.isPaused)
@@ -1008,7 +1021,7 @@ function GameplayScene:requestUseItem(itemInstance)
 
         -- Informa imediatamente ao TooltipManager para limpar/esconder o tooltip
         local mx, my = love.mouse.getPosition() -- Obter posições atuais do mouse
-        TooltipManager.update(0, mx, my, nil)   -- dt=0 é ok aqui, o importante é o 'nil'
+        ItemDetailsModalManager.update(0, mx, my, nil)   -- dt=0 é ok aqui, o importante é o 'nil'
         print("  GameplayScene: TooltipManager.update(0, mx, my, nil) chamado para esconder tooltip.")
     end
 

@@ -19,6 +19,8 @@ local profiler = require("src.libs.profiler")
 local Logger = require("src.libs.logger")
 local lurker = require("src.libs.lurker")
 
+_G.Shaders = {}
+
 -- [[ Inicialização LOVE ]] --
 function love.load()
     --- Registra o Logger globalmente
@@ -31,6 +33,11 @@ function love.load()
     if DEV and PROFILER then
         profiler.start()
     end
+
+    pcall(function()
+        _G.Shaders.glow = love.graphics.newShader("src/ui/shaders/simple_glow.fs")
+        Logger.info("Main", "Shader de brilho carregado com sucesso.")
+    end)
 
     fonts.load()
     love.graphics.setDefaultFilter("nearest", "nearest")
@@ -203,6 +210,7 @@ end
 -- Em algum lugar que é executado (ex: main.lua ou um arquivo de debug)
 _G.GSAddItem = function(itemId, quantity)
     local scene = SceneManager and SceneManager.currentScene
+    Logger.debug("Main", "Current scene: " .. tostring(scene))
     if scene and scene.debugAddItemToPlayerInventory then
         scene:debugAddItemToPlayerInventory(itemId, quantity)
     else

@@ -2,6 +2,7 @@ local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local StatsSection = require("src.ui.inventory.sections.stats_section")
 local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local HunterStatsColumn = {}
 
@@ -18,7 +19,6 @@ local HunterStatsColumn = {}
 ---	  xpToNextLevel = number?,      -- Opcional: XP para próx nível (Gameplay)
 ---	  finalStats = table,           -- Obrigatório: Tabela com status finais (lobby ou gameplay)
 ---	  archetypeIds = table,         -- Obrigatório: Lista de IDs/Info dos arquétipos
----	  archetypeManager = ArchetypeManager, -- Obrigatório: Instância do ArchetypeManager
 ---	  mouseX = number,              -- Obrigatório: Posição X do mouse
 ---	  mouseY = number               -- Obrigatório: Posição Y do mouse
 ---
@@ -26,6 +26,9 @@ local HunterStatsColumn = {}
 ---@return number|nil tooltipX Retorna a posição X do tooltip de stats se houver hover, senão nil.
 ---@return number|nil tooltipY Retorna a posição Y do tooltip de stats se houver hover, senão nil.
 function HunterStatsColumn.draw(x, y, w, h, config)
+    ---@type ArchetypeManager
+    local archetypeManager = ManagerRegistry:get("archetypeManager")
+
     -- Extrai dados da config para facilitar
     local currentHp = config.currentHp
     local level = config.level
@@ -33,7 +36,6 @@ function HunterStatsColumn.draw(x, y, w, h, config)
     local xpToNextLevel = config.xpToNextLevel
     local finalStats = config.finalStats
     local archetypeIds = config.archetypeIds
-    local archetypeManager = config.archetypeManager
     local mx = config.mouseX or 0
     local my = config.mouseY or 0
 
@@ -48,7 +50,7 @@ function HunterStatsColumn.draw(x, y, w, h, config)
     end
 
     -- Validações básicas
-    if not finalStats or not archetypeIds or not archetypeManager then
+    if not finalStats or not archetypeIds then
         love.graphics.setColor(colors.red)
         love.graphics.printf("Erro: Dados essenciais ausentes na configuração de HunterStatsColumn!", x, y + h / 2, w,
             "center")
@@ -130,10 +132,16 @@ function HunterStatsColumn.draw(x, y, w, h, config)
 
     -- 1. Desenha Seção de Stats (usando finalStats da config)
     if finalStats and next(finalStats) then
-        -- Passa sortedArchetypes e archetypeManager para StatsSection poder calcular tooltips
-        -- print("[HunterStatsColumn DEBUG] Chamando StatsSection.drawBaseStats. finalStats tem _learnedLevelUpBonuses? ", finalStats._learnedLevelUpBonuses ~= nil and not not next(finalStats._learnedLevelUpBonuses or {})) -- COMENTADO
-        statsTooltipLines, statsTooltipX, statsTooltipY = StatsSection.drawBaseStats(x, statsY, w, statsSectionH,
-            finalStats, sortedArchetypes, archetypeManager, mx, my)
+        statsTooltipLines, statsTooltipX, statsTooltipY = StatsSection.drawBaseStats(
+            x,
+            statsY,
+            w,
+            statsSectionH,
+            finalStats,
+            sortedArchetypes,
+            mx,
+            my
+        )
     else
         -- Mensagem de erro se faltar dados de stats
         love.graphics.setColor(colors.red)

@@ -4,18 +4,20 @@
 -- Ex: Escopetas, arcos de múltiplas flechas.
 --------------------------------------------------------------------------------
 
-local BaseProjectile = require("src.entities.projectiles.base_projectile")
+local BaseProjectile = require("src.entities.projectiles.base_projectile_attack")
 
----@class BurstProjectile : BaseProjectile
+---@class BurstProjectile : BaseProjectileAttack
 local BurstProjectile = setmetatable({}, { __index = BaseProjectile })
 BurstProjectile.__index = BurstProjectile
 
 --- Cria uma nova instância da habilidade de projétil em rajada.
 ---@param playerManager PlayerManager
 ---@param weaponInstance BaseWeapon
----@param projectileClass table A classe do projétil a ser usada.
 ---@return BurstProjectile
-function BurstProjectile:new(playerManager, weaponInstance, projectileClass)
+function BurstProjectile:new(playerManager, weaponInstance)
+    local projectileClassPath = "src.entities.projectiles." .. weaponInstance:getBaseData().projectileClass
+    local projectileClass = require(projectileClassPath)
+
     -- Chama o construtor da classe base
     local o = BaseProjectile.new(self, playerManager, weaponInstance, projectileClass)
     setmetatable(o, self) -- Re-estabelece a metatable para a classe filha

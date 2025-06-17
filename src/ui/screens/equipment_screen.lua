@@ -5,11 +5,10 @@ local ItemGridUI = require("src.ui.item_grid_ui")
 local Constants = require("src.config.constants")
 local SLOT_IDS = Constants.SLOT_IDS
 
--- <<< ADICIONADO: Requires para os novos componentes >>>
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
 local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn")
 local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn")
-local TooltipManager = require("src.ui.tooltip_manager")
+local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
 
 ---@class EquipmentScreen
 ---@field itemDataManager ItemDataManager
@@ -98,7 +97,7 @@ function EquipmentScreen:update(dt, mx, my, dragState)
         end
     end
 
-    TooltipManager.update(dt, mx, my, self.itemToShowTooltip)
+    ItemDetailsModalManager.update(dt, mx, my, self.itemToShowTooltip)
 end
 
 --- Desenha a tela de equipamento completa.
@@ -171,18 +170,18 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     -- 1. Desenha Coluna de Stats e Arquétipos (usando o novo componente)
     local statsTooltipLines, statsTooltipX, statsTooltipY -- Para armazenar dados do tooltip de stats
     if self.hunterManager and finalStats and archetypeIds and archetypeManager then
-        -- <<<< CRIA TABELA DE CONFIGURAÇÃO >>>>
         local statsColumnConfig = {
-            -- SEM dados de gameplay (currentHp, level, etc.)
-            finalStats = finalStats,           -- Passa stats finais de LOBBY
-            archetypeIds = archetypeIds or {}, -- Passa IDs de arquétipo
-            archetypeManager = archetypeManager,
-            mouseX = mx,                       -- Passa mouse coords
+            finalStats = finalStats,
+            archetypeIds = archetypeIds or {},
+            mouseX = mx,
             mouseY = my
         }
-        statsTooltipLines, statsTooltipX, statsTooltipY = HunterStatsColumn.draw(statsX, contentStartY, statsW,
+        statsTooltipLines, statsTooltipX, statsTooltipY = HunterStatsColumn.draw(
+            statsX,
+            contentStartY,
+            statsW,
             sectionContentH,
-            statsColumnConfig -- <<<< Passa a tabela de configuração
+            statsColumnConfig
         )
     else
         -- Mensagem de erro se HunterManager ou dados essenciais não estiverem disponíveis
@@ -196,8 +195,14 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     -- 2. Desenha Coluna de Equipamento/Runas (usando o novo componente)
     if self.hunterManager then
         local activeHunterId = self.hunterManager:getActiveHunterId() -- Garante que temos o ID aqui
-        self.equipmentSlotAreas = HunterEquipmentColumn.draw(equipmentX, contentStartY, equipmentW, sectionContentH,
-            self.hunterManager, activeHunterId, nil, self.itemDataManager)
+        self.equipmentSlotAreas = HunterEquipmentColumn.draw(
+            equipmentX,
+            contentStartY,
+            equipmentW,
+            sectionContentH,
+            activeHunterId,
+            nil
+        )
     else
         -- Mensagem de erro se HunterManager não estiver disponível
         love.graphics.setColor(colors.red)
@@ -305,7 +310,7 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
     -- <<< FIM DRAG-AND-DROP DRAW >>>
 
     -- Desenha o Tooltip no final
-    TooltipManager.draw()
+    ItemDetailsModalManager.draw()
 
     -- Desenha o Tooltip de Stats (se houver)
     if statsTooltipLines and #statsTooltipLines > 0 then

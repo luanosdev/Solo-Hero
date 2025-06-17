@@ -4,24 +4,28 @@
 -- Ex: Rifles de rajada, varinhas mágicas que disparam 3 orbes.
 --------------------------------------------------------------------------------
 
-local BaseProjectileAbility = require("src.abilities.player.attacks.base_projectile_ability")
-local table_utils = require("src.utils.table_utils")
+local BaseProjectileAttack = require("src.entities.attacks.player.base_projectile_attack")
 
----@class SequentialProjectileAbility : BaseProjectileAbility
+---@class SequentialProjectile : BaseProjectileAttack
 ---@field isSequenceActive boolean Se uma sequência de disparos está em andamento.
 ---@field projectilesLeftInSequence number Quantos projéteis ainda faltam na sequência.
 ---@field timeToNextShot number Temporizador para o próximo disparo na sequência.
 ---@field sequenceCadence number O tempo entre disparos na sequência.
-local SequentialProjectileAbility = setmetatable({}, { __index = BaseProjectileAbility })
-SequentialProjectileAbility.__index = SequentialProjectileAbility
+local SequentialProjectile = setmetatable({}, { __index = BaseProjectileAttack })
+SequentialProjectile.__index = SequentialProjectile
+SequentialProjectile.name = "Disparo de Projéteis"
+SequentialProjectile.description = "Dispara múltiplos projéteis em sequência."
+SequentialProjectile.damageType = "melee"
 
 --- Cria uma nova instância da habilidade de projétil sequencial.
 ---@param playerManager PlayerManager
 ---@param weaponInstance BaseWeapon
----@param projectileClass table A classe do projétil a ser usada.
----@return SequentialProjectileAbility
-function SequentialProjectileAbility:new(playerManager, weaponInstance, projectileClass)
-    local o = BaseProjectileAbility.new(self, playerManager, weaponInstance, projectileClass)
+---@return SequentialProjectile
+function SequentialProjectile:new(playerManager, weaponInstance)
+    local projectileClassPath = "src.entities.projectiles." .. weaponInstance:getBaseData().projectileClass
+    local projectileClass = require(projectileClassPath)
+
+    local o = BaseProjectileAttack.new(self, playerManager, weaponInstance, projectileClass)
     setmetatable(o, self)
 
     local baseData = o.weaponInstance:getBaseData()
@@ -37,14 +41,14 @@ end
 
 --- Inicia a sequência de disparos.
 ---@param args table Argumentos de disparo.
-function SequentialProjectileAbility:cast(args)
+function SequentialProjectile:cast(args)
     -- Não pode iniciar uma nova sequência se outra já estiver ativa.
     if self.isSequenceActive then
         return false, "sequence_active"
     end
 
     -- 1. Verifica o cooldown principal na classe base.
-    local canFire, reason = BaseProjectileAbility.cast(self, args)
+    local canFire, reason = BaseProjectileAttack.cast(self, args)
     if not canFire then
         return false, reason
     end
@@ -60,9 +64,9 @@ end
 --- Atualiza a habilidade, gerenciando a sequência de disparos.
 ---@param dt number Delta time.
 ---@param angle number Ângulo atual (da mira).
-function SequentialProjectileAbility:update(dt, angle)
+function SequentialProjectile:update(dt, angle)
     -- Chama o update da classe base para gerenciar cooldown principal e projéteis.
-    BaseProjectileAbility.update(self, dt, angle)
+    BaseProjectileAttack.update(self, dt, angle)
 
     -- Gerencia a lógica da sequência.
     if self.isSequenceActive then
@@ -83,4 +87,4 @@ function SequentialProjectileAbility:update(dt, angle)
     end
 end
 
-return SequentialProjectileAbility
+return SequentialProjectile

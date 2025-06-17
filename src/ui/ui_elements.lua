@@ -1,7 +1,6 @@
 local elements = {}
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
-local glowShader = nil
 
 -- Helper para formatar números (MOVIDO DE inventory_screen.lua)
 function elements.formatNumber(num)
@@ -26,23 +25,15 @@ elements.cacheHealth = {}
 -- Velocidade de diminuição da barra de cache
 elements.cacheSpeed = 0.5
 
-function elements.setGlowShader(shader)
-    glowShader = shader
-end
-
+--- Desenha um frame de janela com efeito de brilho.
+---@param x number Posição X do frame.
+---@param y number Posição Y do frame.
+---@param w number Largura do frame.
+---@param h number Altura do frame.
+---@param title string|nil Título opcional para o frame.
 function elements.drawWindowFrame(x, y, w, h, title)
     love.graphics.setColor(colors.window_bg)
     love.graphics.rectangle("fill", x, y, w, h, 5, 5)
-
-    if glowShader then
-        love.graphics.setShader(glowShader)
-        local glowColor = { colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.5 }
-        glowShader:send("glowColor", glowColor)
-        glowShader:send("glowRadius", 4.0)
-        love.graphics.setLineWidth(5)
-        love.graphics.rectangle("line", x, y, w, h, 5, 5)
-        love.graphics.setShader()
-    end
 
     love.graphics.setColor(colors.window_border)
     love.graphics.setLineWidth(2)
@@ -185,11 +176,13 @@ function elements.drawResourceBar(config)
     love.graphics.rectangle("line", config.x, config.y, config.width, config.height)
 
     -- Aplica o efeito de brilho se necessário
-    if config.glow and glowShader then
-        love.graphics.setShader(glowShader)
+    if config.glow and _G.Shaders and _G.Shaders.glow then
+        local glow = _G.Shaders.glow
+        love.graphics.setShader(glow)
         local glowCol = config.glowColor or { config.color[1], config.color[2], config.color[3], 0.6 }
-        glowShader:send("glowColor", glowCol)
-        glowShader:send("glowRadius", config.glowRadius)
+        love.graphics.setColor(unpack(glowCol))
+        glow:send("glowSize", config.glowRadius or 4.0)
+        glow:send("smoothness", 1.5)
         love.graphics.setLineWidth(2)
         love.graphics.rectangle("line", config.x, config.y, config.width, config.height)
         love.graphics.setShader()
@@ -219,19 +212,46 @@ end
 
 function elements.drawRarityBorderAndGlow(itemRarity, x, y, w, h)
     local rarityColor = colors.rarity[itemRarity] or colors.rarity['E']
+    local shader = _G.Shaders and _G.Shaders.glow
 
-    if glowShader then
-        love.graphics.setShader(glowShader)
-        local glowCol = { rarityColor[1], rarityColor[2], rarityColor[3], 0.6 }
-        glowShader:send("glowColor", glowCol)
-        glowShader:send("glowRadius", 4.0)
-        love.graphics.setLineWidth(5)
-        love.graphics.rectangle("line", x, y, w, h, 3, 3)
-        love.graphics.setShader()
+    -- 1. Desenha o brilho primeiro (se aplicável)
+    if shader and itemRarity and itemRarity ~= 'E' and itemRarity ~= 'D' then
+        local r, g, b = unpack(rarityColor)
+        local glowSize, smoothness, alpha
+
+        if itemRarity == 'S' then
+            glowSize, smoothness, alpha = 7, 2.5, 0.8
+        elseif itemRarity == 'A' then
+            glowSize, smoothness, alpha = 5, 2.0, 0.75
+        elseif itemRarity == 'B' then
+            glowSize, smoothness, alpha = 4, 1.8, 0.7
+        elseif itemRarity == 'C' then
+            glowSize, smoothness, alpha = 3, 1.5, 0.65
+        else
+            glowSize, smoothness, alpha = 0, 0, 0 -- Sem brilho
+        end
+
+        if glowSize > 0 then
+            -- Salva a cor atual para restaurar depois do brilho
+            local originalColor = { love.graphics.getColor() }
+
+            love.graphics.setShader(shader)
+            love.graphics.setColor(r, g, b, alpha)
+            shader:send("glowSize", glowSize)
+            shader:send("smoothness", smoothness)
+
+            -- O shader desenha para fora da forma, então usamos a forma original
+            love.graphics.rectangle("fill", x, y, w, h, 3, 3)
+
+            love.graphics.setShader()
+            -- Restaura a cor original
+            love.graphics.setColor(originalColor)
+        end
     end
 
+    -- 2. Desenha a borda da raridade por cima do brilho
     love.graphics.setLineWidth(2)
-    love.graphics.setColor(rarityColor[1], rarityColor[2], rarityColor[3], rarityColor[4])
+    love.graphics.setColor(rarityColor)
     love.graphics.rectangle("line", x, y, w, h, 3, 3)
     love.graphics.setLineWidth(1)
 end
@@ -410,7 +430,7 @@ function elements.drawItemGhost(x, y, itemInstance, alpha, isRotated)
 
     -- 3. Desenha a borda da raridade (com as dimensões corretas)
     local rarity = itemInstance.rarity or 'E'
-    elements.drawRarityBorderAndGlow(rarity, x, y, visualW, visualH, alpha)
+    elements.drawRarityBorderAndGlow(rarity, x, y, visualW, visualH)
 
     love.graphics.setColor(1, 1, 1, 1) -- Reseta cor
 end

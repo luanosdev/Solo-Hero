@@ -7,6 +7,7 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field owner PlayerManager|nil Referência ao PlayerManager que equipou a arma
 ---@field attackInstance table|nil Instância da lógica de ataque associada
 ---@field itemData table|nil Dados específicos da instância do item (pode incluir encantamentos, etc.)
+---@field modifiers HunterModifier[]|nil Modificadores da arma
 local BaseWeapon = {}
 BaseWeapon.__index = BaseWeapon -- Herança básica
 
@@ -95,18 +96,8 @@ function BaseWeapon:equip(playerManager, itemData)
         return
     end
 
-    -- Validação das classes necessárias nos dados da arma
-    if not baseData.attackClass then
-        error(string.format("BaseWeapon:equip - 'attackClass' não definido para %s", self.itemBaseId))
-        return
-    end
-    if not baseData.projectileClass then
-        error(string.format("BaseWeapon:equip - 'projectileClass' não definido para %s", self.itemBaseId))
-        return
-    end
-
     -- Carregamento dinâmico da Classe de Ataque (ex: 'burst_projectile_ability')
-    local attackClassPath = "src.abilities.player.attacks." .. baseData.attackClass
+    local attackClassPath = "src.entities.attacks.player." .. baseData.attackClass
     local success, AttackClass = pcall(require, attackClassPath)
     if not success or not AttackClass then
         error(string.format("BaseWeapon:equip - Falha ao carregar AttackClass '%s' em '%s'", baseData.attackClass,
@@ -114,13 +105,14 @@ function BaseWeapon:equip(playerManager, itemData)
         return
     end
 
-    -- Carregamento dinâmico da Classe do Projétil (ex: 'arrow')
-    local projectileClassPath = "src.projectiles." .. baseData.projectileClass
-    local projSuccess, ProjectileClass = pcall(require, projectileClassPath)
-    if not projSuccess or not ProjectileClass then
-        error(string.format("BaseWeapon:equip - Falha ao carregar ProjectileClass '%s' em '%s'", baseData
-        .projectileClass, projectileClassPath))
-        return
+    if baseData.projectileClass then
+        -- Carregamento dinâmico da Classe do Projétil (ex: 'arrow')
+        local projectileClassPath = "src.entities.projectiles." .. baseData.projectileClass
+        local projSuccess, ProjectileClass = pcall(require, projectileClassPath)
+        if not projSuccess or not ProjectileClass then
+            error(string.format("BaseWeapon:equip - Falha ao carregar ProjectileClass '%s' em '%s'", baseData
+                .projectileClass, projectileClassPath))
+        end
     end
 
     -- Cria a instância da habilidade, passando a classe do projétil

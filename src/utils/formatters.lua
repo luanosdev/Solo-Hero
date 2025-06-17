@@ -8,7 +8,9 @@ local statDisplayNames = {
     ["defense"] = "Defesa",
     ["moveSpeed"] = "Vel. Movimento",
     ["critChance"] = "Chance Crítica",
+    ["criticalChance"] = "Chance Crítica",
     ["critDamage"] = "Mult. Crítico",
+    ["criticalDamage"] = "Mult. Crítico",
     ["healthPerTick"] = "Regen. Vida/s",
     ["healthRegenDelay"] = "Delay Regen.",
     ["multiAttackChance"] = "Atq. Múltiplo",
@@ -21,6 +23,30 @@ local statDisplayNames = {
     ["healingBonus"] = "Bônus Cura",
     ["runeSlots"] = "Slots Runa",
     ["luck"] = "Sorte",
+    ["strength"] = "Força",
+    ["damage"] = "Dano",
+}
+
+local STAT_LABELS = {
+    health = "Vida Máxima",
+    defense = "Defesa",
+    strength = "Força",
+    moveSpeed = "Vel. Movimento",
+    critChance = "Chance Crítico",
+    critDamage = "Dano Crítico",
+    healthPerTick = "Regen. Vida/s",
+    healthRegenDelay = "Atraso Regen.",
+    attackSpeed = "Vel. Ataque",
+    multiAttackChance = "Chance Atq. Múltiplo",
+    cooldownReduction = "Red. Recarga",
+    range = "Alcance",
+    attackArea = "Área de Efeito",
+    expBonus = "Bônus EXP",
+    pickupRadius = "Raio de Coleta",
+    healingBonus = "Bônus de Cura",
+    runeSlots = "Slots de Runa",
+    luck = "Sorte",
+    damageMultiplier = "Multiplicador de Dano"
 }
 
 --- Formata o tempo em segundos para o formato MM:SS.
@@ -177,7 +203,7 @@ function Formatters.formatCompactNumber(num)
         { value = 1e12, suffix = "T" }, -- Trilhão
         { value = 1e9,  suffix = "B" }, -- Bilhão
         { value = 1e6,  suffix = "M" }, -- Milhão
-        { value = 1e3,  suffix = "K" } -- Milhar
+        { value = 1e3,  suffix = "K" }  -- Milhar
     }
 
     for _, entry in ipairs(suffixes) do
@@ -192,6 +218,13 @@ function Formatters.formatCompactNumber(num)
     end
 
     return tostring(num) -- Menor que 1000, mostra o número puro
+end
+
+--- Retorna um nome legível para uma chave de atributo.
+---@param statKey string A chave do atributo (ex: "moveSpeed").
+---@return string|nil O nome legível (ex: "Vel. Movimento") ou nil se não encontrado.
+function Formatters.getStatLabel(statKey)
+    return statDisplayNames[statKey]
 end
 
 -- Adicionar outras funções de formatação aqui no futuro, se necessário.

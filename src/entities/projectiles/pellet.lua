@@ -3,6 +3,13 @@
 -- Um projétil simples, circular, usado por armas como escopetas.
 --------------------------------------------------------------------------------
 
+local TablePool = require("src.utils.table_pool")
+local CombatHelpers = require("src.utils.combat_helpers")
+
+local bulletImage = love.graphics.newImage("assets/attacks/bullet/bullet.png")
+local imageWidth = bulletImage:getWidth()
+local imageHeight = bulletImage:getHeight()
+
 ---@class Pellet
 ---@field position table {x, y}
 ---@field angle number
@@ -30,6 +37,23 @@ Pellet.__index = Pellet
 local BASE_RADIUS = 4
 
 --- Cria uma nova instância de Pellet.
+---@param x number
+---@param y number
+---@param angle number
+---@param speed number
+---@param range number
+---@param damage number
+---@param isCritical boolean
+---@param spatialGrid SpatialGridIncremental
+---@param color table
+---@param piercing number
+---@param areaScale number
+---@param knockbackPower number
+---@param knockbackForce number
+---@param playerStrength number
+---@param playerManager PlayerManager
+---@param weaponInstance BaseWeapon
+---@return Pellet
 function Pellet:new(
     x, y, angle, speed, range, damage, isCritical, spatialGrid, color,
     piercing, areaScale, knockbackPower, knockbackForce, playerStrength,
@@ -45,6 +69,22 @@ function Pellet:new(
 end
 
 --- Reseta um Pellet para reutilização (pooling).
+---@param x number
+---@param y number
+---@param angle number
+---@param speed number
+---@param range number
+---@param damage number
+---@param isCritical boolean
+---@param spatialGrid SpatialGridIncremental
+---@param color table
+---@param piercing number
+---@param areaScale number
+---@param knockbackPower number
+---@param knockbackForce number
+---@param playerStrength number
+---@param playerManager PlayerManager
+---@param weaponInstance BaseWeapon
 function Pellet:reset(
     x, y, angle, speed, range, damage, isCritical, spatialGrid, color,
     piercing, areaScale, knockbackPower, knockbackForce, playerStrength,
@@ -112,6 +152,46 @@ function Pellet:checkCollision()
             local sumOfRadiiSq = sumOfRadii * sumOfRadii
 
             if distanceSq <= sumOfRadiiSq then
+                if self.knockbackPower > 0 then
+                    local dirX, dirY = 0, 0
+                    if self.speed > 0 then -- self.speed é a magnitude original de self.velocity
+                        dirX = self.velocity.x / self.speed
+                        dirY = self.velocity.y / self.speed
+                    else
+                        local dxTipToEnemy = enemy.position.x - self.position.x
+                        local dyTipToEnemy = enemy.position.y - self.position.y
+                        local distTipToEnemySq = dxTipToEnemy * dxTipToEnemy + dyTipToEnemy * dyTipToEnemy
+                        if distTipToEnemySq > 0 then
+                            local distTip = math.sqrt(distTipToEnemySq)
+                            dirX = dxTipToEnemy / distTip
+                            dirY = dyTipToEnemy / distTip
+                        else -- Fallback para direção aleatória se sobrepostos
+                            local randomAngle = math.random() * 2 * math.pi
+                            dirX = math.cos(randomAngle)
+                            dirY = math.sin(randomAngle)
+                        end
+                    end
+
+                    CombatHelpers.applyKnockback(
+                        enemy,                 -- targetEnemy
+                        nil,                   -- attackerPosition (projétil usa override)
+                        self.knockbackPower,   -- attackKnockbackPower
+                        self.knockbackForce,   -- attackKnockbackForce
+                        self.playerStrength,   -- playerStrength
+                        { x = dirX, y = dirY } -- knockbackDirectionOverride
+                    )
+                end
+
+
+                -- Registra o dano para o GameStatisticsManager
+                if self.playerManager and self.weaponInstance then
+                    local isSuperCritical = false -- TODO: Implementar super-crítico
+                    local source = { weaponId = self.weaponInstance.itemBaseId }
+                    self.playerManager:registerDamageDealt(self.damage, self.isCritical, source, isSuperCritical)
+                end
+
+                enemy:takeDamage(self.damage, self.isCritical)
+
                 self.hitEnemies[enemy.id] = true
 
                 -- TODO: Chamar helper de combate para aplicar dano e knockback.
@@ -120,17 +200,31 @@ function Pellet:checkCollision()
                 self.currentPiercing = self.currentPiercing - 1
                 if self.currentPiercing < 0 then
                     self.isActive = false
+
+                    TablePool.release(nearbyEnemies)
                     return -- Sai da função após desativar
                 end
             end
         end
     end
+
+    TablePool.release(nearbyEnemies)
 end
 
 function Pellet:draw()
     if not self.isActive then return end
     love.graphics.setColor(self.color)
-    love.graphics.circle("fill", self.position.x, self.position.y, self.radius)
+    local scale = (self.radius * 2) / imageWidth
+    love.graphics.draw(
+        bulletImage,
+        self.position.x,
+        self.position.y,
+        self.angle,
+        scale,
+        scale,
+        imageWidth / 2,
+        imageHeight / 2
+    )
 end
 
 return Pellet

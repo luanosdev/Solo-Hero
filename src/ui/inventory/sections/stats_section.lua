@@ -5,6 +5,7 @@ local elements = require("src.ui.ui_elements")    -- Para formatNumber e drawToo
 local Constants = require("src.config.constants") -- <<< IMPORTANTE: Precisamos dos stats base
 local Formatters = require("src.utils.formatters")
 local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 -- Helper para formatar Chance de Ataque Múltiplo (Movido de inventory_screen)
 local function formatMultiAttack(value)
@@ -499,27 +500,26 @@ end
 ---@param h number Altura da área.
 ---@param finalStats table Tabela contendo os atributos FINAIS calculados.
 ---@param archetypeIds table Lista de IDs dos arquétipos do caçador.
----@param archetypeManager ArchetypeManager Instância do ArchetypeManager.
 ---@param mx number Posição X do mouse.
 ---@param my number Posição Y do mouse.
 ---@return table|nil tooltipLines Retorna as linhas do tooltip se houver hover, senão nil.
 ---@return number|nil tooltipX Retorna a posição X do tooltip se houver hover, senão nil.
 ---@return number|nil tooltipY Retorna a posição Y do tooltip se houver hover, senão nil.
-function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archetypeManager, mx, my) -- <<< NOVOS PARÂMETROS MX, MY
-    if not finalStats or not next(finalStats) then
-        love.graphics.setFont(fonts.main)
-        love.graphics.setColor(colors.text_label)
-        love.graphics.printf("Herói sem stats calculados?", x, y + h / 2, w, "center")
-        return
-    end
-    local baseStats = Constants.HUNTER_DEFAULT_STATS
-    if not baseStats then
-        love.graphics.setFont(fonts.main)
-        love.graphics.setColor(colors.red)
-        love.graphics.printf("ERRO: HUNTER_DEFAULT_STATS não encontrado!", x, y + h / 2, w, "center")
-        return
+function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, mx, my)
+    -- Obtém managers do registro
+    ---@type ArchetypeManager
+    local archetypeManager = ManagerRegistry:get("archetypeManager")
+    ---@type ItemDataManager
+    local itemDataManager = ManagerRegistry:get("itemDataManager")
+    ---@type HunterManager
+    local hunterManager = ManagerRegistry:get("hunterManager")
+
+    if not finalStats or not archetypeManager or not itemDataManager or not hunterManager then
+        error(
+            "StatsSection.drawBaseStats: finalStats, archetypeManager, itemDataManager, hunterManager são obrigatórios")
     end
 
+    local baseStats = Constants.HUNTER_DEFAULT_STATS
     local lineHeight = fonts.main:getHeight() * 1
     local currentY = y
     local sectionStartY = y
@@ -573,11 +573,6 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
         end
 
         local defaultValue = baseStats[attr.key] -- Pode ser nil para stats como weaponDamage
-
-        if attr.key == "luck" then
-            -- print(string.format("[StatsSection DEBUG Sorte] Attr: %s, FinalValue: %s, DefaultValue (from Constants): %s, NoDirectBase: %s", -- COMENTADO
-            --     tostring(attr.key), tostring(finalValue), tostring(defaultValue), tostring(attr.noDirectBase)))
-        end
 
         -- Condição para exibir: finalValue deve existir. Se noDirectBase não for true, defaultValue também deve existir.
         if finalValue ~= nil and (attr.noDirectBase or defaultValue ~= nil) then
@@ -696,19 +691,28 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                     end
                 end
 
-                local weaponInstance = finalStats.equippedItems and finalStats.equippedItems[Constants.SLOT_IDS.WEAPON]
-                if weaponInstance and weaponInstance.itemBaseId then
-                    local weaponBaseData = itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
-                    if weaponBaseData and weaponBaseData.modifiers then
-                        for _, mod in ipairs(weaponBaseData.modifiers) do
-                            if mod.stat == attr.key then
-                                local sourceText = "(Arma: " .. (weaponBaseData.name or weaponBaseData.id) .. ")"
-                                local modStr = Formatters.formatStatValue(attr.key, mod.value, mod.type)
-                                local text = string.format("%s%s %s", (mod.value >= 0 and "+" or ""), modStr, sourceText)
-                                if mod.type == "fixed" or mod.type == "fixed_percentage_as_fraction" then
-                                    table.insert(fixedBonusesTexts, { text = text, color = colors.positive })
-                                else
-                                    table.insert(percentBonusesTexts, {                                             text = text,                                             color = colors.positive                                         })
+                local equippedItems = finalStats.equippedItems
+                if equippedItems then
+                    for _, slot in pairs(Constants.SLOT_IDS) do
+                        local item = equippedItems[slot]
+                        if item then
+                            local itemBaseData = itemDataManager:getBaseItemData(item)
+                            if itemBaseData and itemBaseData.modifiers then
+                                for _, mod in ipairs(itemBaseData.modifiers) do
+                                    if mod.stat == attr.key then
+                                        local sourceText = "(" .. (itemBaseData.name or itemBaseData.id) .. ")"
+                                        local modStr = Formatters.formatStatValue(attr.key, mod.value, mod.type)
+                                        local prefix = mod.value >= 0 and "+" or ""
+                                        local text = "    " .. sourceText .. ": " .. prefix .. modStr
+
+                                        if mod.type == "fixed" then
+                                            table.insert(fixedBonusesTexts,
+                                                { text = text, color = fixedBonusColor })
+                                        elseif mod.type == "percentage" or mod.type == "fixed_percentage_as_fraction" then
+                                            table.insert(percentBonusesTexts,
+                                                { text = text, color = percentBonusColor })
+                                        end
+                                    end
                                 end
                             end
                         end

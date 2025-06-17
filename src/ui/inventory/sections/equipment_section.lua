@@ -2,8 +2,7 @@
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
-local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado
-local SpritePlayer = require("src.animations.sprite_player")     -- Adicionado
+local ManagerRegistry = require("src.managers.manager_registry")
 
 local EquipmentSection = {}
 
@@ -11,14 +10,17 @@ local EquipmentSection = {}
 local SLOT_IDS = {
     HEAD = "helmet",
     CHEST = "chest",
-    LEGS = "legs", -- Mapeia para o nome da chave esperado pelo HunterManager
+    LEGS = "legs",
     FEET = "boots",
     WEAPON = "weapon"
-    -- Adicione outros conforme necessário
 }
 
--- Função HELPER para desenhar um único slot (EQUIPAMENTO ou RUNA)
--- (Adaptada de inventory_screen)
+---@param slotX number
+---@param slotY number
+---@param slotW number
+---@param slotH number
+---@param itemInstance BaseItem
+---@param label string
 local function drawSingleSlot(slotX, slotY, slotW, slotH, itemInstance, label)
     if itemInstance then
         local rarity = (itemInstance and itemInstance.rarity) or 'E'
@@ -26,22 +28,24 @@ local function drawSingleSlot(slotX, slotY, slotW, slotH, itemInstance, label)
             rankLetterForStyle = rarity,
             text = "",
             showGlow = true,
-            cornerRadius = 3 -- Mantendo o cornerRadius do design anterior
+            cornerRadius = 3
         }
         elements.drawTextCard(slotX, slotY, slotW, slotH, "", cardConfig)
         love.graphics.setColor(colors.white) -- Reset color
     else
-        elements.drawWindowFrame(slotX - 2, slotY - 2, slotW + 4, slotH + 4, nil,
-            colors.slot_empty_bg, colors.slot_empty_border)
+        elements.drawWindowFrame(
+            slotX - 2,
+            slotY - 2,
+            slotW + 4,
+            slotH + 4,
+            nil
+        )
         local bgColor = colors.slot_empty_bg
-        if bgColor then
-            love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
-        else
-            print("AVISO: colors.slot_empty_bg não encontrado em drawSingleSlot, usando cor padrão.")
-            love.graphics.setColor(0.1, 0.1, 0.1, 0.8) -- Fallback
-        end
+        love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
         love.graphics.rectangle("fill", slotX, slotY, slotW, slotH, 3, 3)
-        love.graphics.setColor(1, 1, 1, 1) -- Reset cor antes de desenhar conteúdo
+
+        -- reset color
+        love.graphics.setColor(1, 1, 1, 1)
     end
 
     -- Desenha Ícone ou Texto (Lógica Mantida)
@@ -64,18 +68,23 @@ local function drawSingleSlot(slotX, slotY, slotW, slotH, itemInstance, label)
     elseif label then
         -- Desenha texto indicando slot vazio
         local emptyTextMap = {
-            ["Cabeça"] = "Nenhuma Cabeça Equipada",
-            ["Peito"] = "Nenhum Peito Equipado",
-            ["Pernas"] = "Nenhuma Perna Equipada", -- Usando singular para Perna/Calça
-            ["Pés"] = "Nenhum Calçado Equipado"
+            ["Cabeça"] = "Sem equipamento na cabeça",
+            ["Peito"] = "Sem equipamento no peito",
+            ["Pernas"] = "Sem equipamento nas pernas",
+            ["Pés"] = "Sem equipamento nos pés"
         }
-        local emptyText = emptyTextMap[label] or "Slot Vazio" -- Fallback
+        local emptyText = emptyTextMap[label] or "Slot vazio"
 
         love.graphics.setFont(fonts.main_small)
         love.graphics.setColor(colors.text_label)
         -- Centraliza o texto dentro do slot (usando slotW)
-        love.graphics.printf(emptyText, slotX + 4, slotY + slotH / 2 - fonts.main_small:getHeight() / 2, slotW - 8,
-            "center")
+        love.graphics.printf(
+            emptyText,
+            slotX + 4,
+            slotY + slotH / 2 - fonts.main_small:getHeight() / 2,
+            slotW - 8,
+            "center"
+        )
         love.graphics.setFont(fonts.main)
     end
 
@@ -161,41 +170,31 @@ local function drawRuneSlotInfo(slotX, slotY, slotW, slotH, rune)
 end
 
 -- Desenha a seção de equipamento (centro)
---- @param hunterManager HunterManager Instância do gerenciador de caçadores.
 --- @param slotAreasTable table Tabela vazia a ser preenchida com as áreas dos slots { [slotId] = {x,y,w,h} }.
 --- @param hunterId string ID do caçador.
-function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunterId)
-    if not hunterManager then
-        love.graphics.setColor(colors.red or { 1, 0, 0 })
-        love.graphics.printf("Erro: HunterManager não fornecido para EquipmentSection!", x, y, w, "center")
-        return
-    end
+function EquipmentSection:draw(x, y, w, h, slotAreasTable, hunterId)
     if not slotAreasTable then
         love.graphics.setColor(colors.red or { 1, 0, 0 })
         love.graphics.printf("Erro: Tabela de áreas de slot não fornecida para EquipmentSection!", x, y, w, "center")
         return
     end
 
+    ---@type HunterManager
+    local hunterManager = ManagerRegistry:get("hunterManager")
+
     local targetHunterId = hunterId or hunterManager:getActiveHunterId()
     if not targetHunterId then
-        love.graphics.setColor(colors.red or { 1, 0, 0 })
-        love.graphics.printf("Nenhum Caçador Ativo/Selecionado!", x, y + h / 2, w, "center")
-        return -- Não pode desenhar sem um caçador
+        error("[EquipmentSection:draw] targetHunterId is nil")
     end
 
     local equippedItems = hunterManager:getEquippedItems(targetHunterId)
     if not equippedItems then
-        -- Isso pode acontecer se o activeHunterId for inválido por algum motivo
-        love.graphics.setColor(colors.red or { 1, 0, 0 })
-        love.graphics.printf("Erro: Não foi possível obter itens equipados do HunterManager!", x, y, w, "center")
-        return
+        error("[EquipmentSection:draw] equippedItems is nil")
     end
 
     local hunterData = hunterManager.hunters and hunterManager.hunters[targetHunterId]
     if not hunterData then
-        love.graphics.setColor(colors.red or { 1, 0, 0 })
-        love.graphics.printf("Dados do Caçador %s não encontrados!", targetHunterId, x, y + h / 2, w, "center")
-        return -- Não pode desenhar sem dados
+        error("[EquipmentSection:draw] hunterData is nil")
     end
 
     local currentY = y
@@ -267,14 +266,8 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
         elements.drawTextCard(weaponSlotX, weaponSlotY, weaponSlotW, weaponSlotH, "", cardConfig)
         love.graphics.setColor(colors.white) -- Reset color
     else
-        -- <<< MANTIDO: Desenho original para slot de ARMA VAZIO >>>
-        elements.drawWindowFrame(weaponSlotX - 2, weaponSlotY - 2, weaponSlotW + 4, weaponSlotH + 4, nil,
-            slotBgColor, slotBorderColor) -- slotBgColor e slotBorderColor são definidos antes para o slot vazio
-        if slotBgColor then
-            love.graphics.setColor(slotBgColor[1], slotBgColor[2], slotBgColor[3], slotBgColor[4] or 1)
-        else
-            love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
-        end
+        elements.drawWindowFrame(weaponSlotX - 2, weaponSlotY - 2, weaponSlotW + 4, weaponSlotH + 4, nil)
+        love.graphics.setColor(slotBgColor[1], slotBgColor[2], slotBgColor[3], slotBgColor[4] or 1)
         love.graphics.rectangle("fill", weaponSlotX, weaponSlotY, weaponSlotW, weaponSlotH, 3, 3)
         love.graphics.setColor(1, 1, 1, 1) -- Reset
     end
@@ -443,17 +436,13 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
                 elements.drawTextCard(slotX, slotY, runeSlotW, runeSlotH, "", cardConfig)
                 love.graphics.setColor(colors.white) -- Reset color
             else
-                -- <<< MANTIDO: Desenho original para slot de RUNA VAZIO >>>
-                elements.drawWindowFrame(slotX - 2, slotY - 2, runeSlotW + 4, runeSlotH + 4, nil,
-                    colors.slot_empty_bg,                   -- Usando cor padrão de slot vazio
-                    colors.slot_empty_border)
-                local currentBgColor = colors.slot_empty_bg -- Renomeado para evitar conflito
-                if currentBgColor then
-                    love.graphics.setColor(currentBgColor[1], currentBgColor[2], currentBgColor[3],
-                        currentBgColor[4] or 1)
-                else
-                    love.graphics.setColor(0.1, 0.1, 0.1, 0.8)
-                end
+                elements.drawWindowFrame(slotX - 2, slotY - 2, runeSlotW + 4, runeSlotH + 4, nil)
+                love.graphics.setColor(
+                    colors.slot_empty_bg[1],
+                    colors.slot_empty_bg[2],
+                    colors.slot_empty_bg[3],
+                    colors.slot_empty_bg[4] or 1
+                )
                 love.graphics.rectangle("fill", slotX, slotY, runeSlotW, runeSlotH, 3, 3)
                 love.graphics.setColor(1, 1, 1, 1)
             end
@@ -481,8 +470,12 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
                 elements.drawEmptySlotBackground(iconX, iconY, iconSize, iconSize)
                 love.graphics.setColor(colors.white)
                 love.graphics.setFont(fonts.title)
-                love.graphics.printf(string.sub(itemInstance.name or "R", 1, 1), iconX, iconY + iconSize * 0.1, iconSize,
-                    "center")
+                love.graphics.printf(
+                    string.sub(itemInstance.name or "R", 1, 1),
+                    iconX, iconY + iconSize * 0.1,
+                    iconSize,
+                    "center"
+                )
             end
 
             -- Desenha textos (Nome, Stats)
@@ -520,8 +513,13 @@ function EquipmentSection:draw(x, y, w, h, hunterManager, slotAreasTable, hunter
                 -- Slot Vazio
                 love.graphics.setFont(fonts.main)
                 love.graphics.setColor(colors.text_label)
-                love.graphics.printf("Slot de Runa", slotX, slotY + runeSlotH / 2 - fonts.main:getHeight() / 2, runeSlotW,
-                    "center")
+                love.graphics.printf(
+                    "Slot de Runa",
+                    slotX,
+                    slotY + runeSlotH / 2 - fonts.main:getHeight() / 2,
+                    runeSlotW,
+                    "center"
+                )
             end
             love.graphics.setColor(1, 1, 1, 1)
             love.graphics.setFont(fonts.main)

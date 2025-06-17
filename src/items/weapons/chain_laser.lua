@@ -1,5 +1,5 @@
 local BaseWeapon = require("src.items.weapons.base_weapon")
-local ChainLightning = require("src.abilities.player.attacks.chain_lightning") -- Criaremos este arquivo
+local ChainLightning = require("src.entities.attacks.player.chain_lightning") -- Criaremos este arquivo
 
 ---@class ChainLaser : BaseWeapon
 local ChainLaser = setmetatable({}, { __index = BaseWeapon })

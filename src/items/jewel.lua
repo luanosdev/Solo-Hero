@@ -1,5 +1,5 @@
 -- src/items/jewel.lua
-local BaseItem = require("src.items.base_item")
+local BaseItem = require("src.entities.equipments.base_item")
 
 local Jewel = setmetatable({}, {__index = BaseItem })
 Jewel.__index = Jewel -- Garante que métodos sejam encontrados na própria tabela

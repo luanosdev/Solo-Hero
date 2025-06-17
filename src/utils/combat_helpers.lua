@@ -23,7 +23,7 @@ end
 
 --- Aplica knockback a um inimigo alvo.
 --- @param targetEnemy BaseEnemy O inimigo que sofrerá o knockback.
---- @param attackerPosition table Posição {x, y} da origem do ataque (jogador, centro do AoE).
+--- @param attackerPosition table|nil Posição {x, y} da origem do ataque (jogador, centro do AoE).
 --- @param attackKnockbackPower number O poder de knockback do ataque.
 --- @param attackKnockbackForce number A força base de knockback do ataque.
 --- @param playerStrength number A força atual do jogador.

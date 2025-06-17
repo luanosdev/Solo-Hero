@@ -26,6 +26,9 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field pooledArrows table Tabela para flechas reutilizáveis.
 local ArrowProjectile = {}
 ArrowProjectile.__index = ArrowProjectile
+ArrowProjectile.name = "Flecha"
+ArrowProjectile.description = "Atira uma flecha em um ângulo e alcance específicos."
+ArrowProjectile.damageType = "melee"
 
 -- Configurações Visuais
 ArrowProjectile.visual = {

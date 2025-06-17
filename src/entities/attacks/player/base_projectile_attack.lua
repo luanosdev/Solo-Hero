@@ -7,7 +7,7 @@
 
 local ManagerRegistry = require("src.managers.manager_registry")
 
----@class BaseProjectile
+---@class BaseProjectileAttack
 ---@field playerManager PlayerManager
 ---@field weaponInstance BaseWeapon
 ---@field projectileClass table A classe do projétil a ser instanciada (ex: Arrow, FireParticle).
@@ -26,8 +26,8 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field currentAngle number
 ---@field finalStats table Cache dos stats finais do jogador.
 ---@field visual table Configurações visuais.
-local BaseProjectile = {}
-BaseProjectile.__index = BaseProjectile
+local BaseProjectileAttack = {}
+BaseProjectileAttack.__index = BaseProjectileAttack
 
 -- Fator de conversão para Força -> Perfuração.
 -- Ex: 0.1 significa que 10 de Força = +1 de Perfuração.
@@ -37,9 +37,9 @@ local STRENGTH_TO_PIERCING_FACTOR = 0.1
 --- Este método deve ser chamado pelo :new da classe filha.
 ---@param playerManager PlayerManager
 ---@param weaponInstance BaseWeapon
----@param projectileClass table A classe do projétil (ex: require("src.projectiles.arrow")).
+---@param projectileClass Pellet A classe do projétil (ex: require("src.projectiles.arrow")).
 ---@return table self
-function BaseProjectile:new(playerManager, weaponInstance, projectileClass)
+function BaseProjectileAttack:new(playerManager, weaponInstance, projectileClass)
     local o = setmetatable({}, self)
 
     o.playerManager = playerManager
@@ -68,6 +68,9 @@ function BaseProjectile:new(playerManager, weaponInstance, projectileClass)
 
     -- Configurações visuais
     o.visual = {
+        preview = {
+            active = false,
+        },
         attack = {
             color = weaponInstance.attackColor or { 1, 1, 1, 1 },
             -- Velocidade do projétil pode ser um atributo da arma ou da habilidade
@@ -85,7 +88,7 @@ end
 --- Atualiza o estado da habilidade e dos projéteis.
 ---@param dt number Delta time.
 ---@param angle number Ângulo atual (da mira).
-function BaseProjectile:update(dt, angle)
+function BaseProjectileAttack:update(dt, angle)
     if self.cooldownRemaining > 0 then
         self.cooldownRemaining = self.cooldownRemaining - dt
     end
@@ -118,7 +121,7 @@ end
 --- Lógica principal de disparo, a ser chamada pelas subclasses.
 --- As subclasses devem implementar o método :cast e chamar este.
 ---@param args table Argumentos de disparo, como `angle`.
-function BaseProjectile:cast(args)
+function BaseProjectileAttack:cast(args)
     -- Lógica de cooldown
     if self.cooldownRemaining > 0 then
         return false, "cooldown"
@@ -134,7 +137,7 @@ end
 --- Dispara um único projétil.
 -- Este é um método auxiliar para ser usado pelas subclasses.
 ---@param fireAngle number O ângulo exato para este disparo.
-function BaseProjectile:_fireSingleProjectile(fireAngle)
+function BaseProjectileAttack:_fireSingleProjectile(fireAngle)
     local stats = self.finalStats
     if not stats then
         print("AVISO [BaseProjectile:_fireSingleProjectile]: finalStats não disponíveis.")
@@ -161,6 +164,7 @@ function BaseProjectile:_fireSingleProjectile(fireAngle)
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager and enemyManager.spatialGrid
 
+    ---@type Pellet
     local projectile = nil
     if #self.pooledProjectiles > 0 then
         -- Reutiliza um projétil do pool
@@ -188,7 +192,7 @@ end
 
 --- Calcula o número total de projéteis com base nos stats.
 ---@return number O número total de projéteis a serem disparados.
-function BaseProjectile:_getTotalProjectiles()
+function BaseProjectileAttack:_getTotalProjectiles()
     if not self.finalStats then return self.baseProjectiles end
 
     -- Bônus de MultiAttack
@@ -202,4 +206,25 @@ function BaseProjectile:_getTotalProjectiles()
     return self.baseProjectiles + multiAttackBonus
 end
 
-return BaseProjectile
+function BaseProjectileAttack:draw()
+    -- Desenha a prévia (agora uma linha de range inicial)
+    if self.visual.preview.active then
+        self:drawPreviewLine(self.visual.preview.color)
+        -- Poderia desenhar um círculo menor para o jumpRange também
+    end
+
+    for _, projectiles in ipairs(self.activeProjectiles) do
+        projectiles:draw()
+    end
+end
+
+function BaseProjectileAttack:drawPreviewLine(color)
+    love.graphics.setColor(color)
+    -- Desenha uma linha do jogador na direção da mira com o comprimento do range atual
+    local startX, startY = self.currentPosition.x, self.currentPosition.y
+    local endX = startX + math.cos(self.currentAngle) * self.baseRange
+    local endY = startY + math.sin(self.currentAngle) * self.baseRange
+    love.graphics.line(startX, startY, endX, endY)
+end
+
+return BaseProjectileAttack

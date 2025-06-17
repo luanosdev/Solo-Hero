@@ -93,16 +93,16 @@ local PlayerManager = {
     -- Level Up Modal Management
     pendingLevelUps = 0, -- << NOVO: Contador para level ups pendentes
 
-    inputManager = nil, ---@class InputManager
-    enemyManager = nil, ---@class EnemyManager
-    floatingTextManager = nil, ---@class FloatingTextManager
-    inventoryManager = nil, ---@class InventoryManager
-    hunterManager = nil, ---@class HunterManager
-    itemDataManager = nil, ---@class ItemDataManager
-    archetypeManager = nil, ---@class ArchetypeManager
-    gameStatisticsManager = nil, ---@class GameStatisticsManager
+    inputManager = nil, ---@type InputManager
+    enemyManager = nil, ---@type EnemyManager
+    floatingTextManager = nil, ---@type FloatingTextManager
+    inventoryManager = nil, ---@type InventoryManager
+    hunterManager = nil, ---@type HunterManager
+    itemDataManager = nil, ---@type ItemDataManager
+    archetypeManager = nil, ---@type ArchetypeManager
+    gameStatisticsManager = nil, ---@type GameStatisticsManager
 
-    currentHunterId = nil,         -- <<< ADICIONADO: Para armazenar o ID do caçador ativo
+    currentHunterId = nil,
 
     finalStatsCache = nil,         -- Guarda a última tabela de stats calculada
     statsNeedRecalculation = true, -- Flag para indicar se o cache precisa ser atualizado
@@ -180,14 +180,14 @@ function PlayerManager:setupGameplay(registry, hunterId)
     self.onPlayerDiedCallback = nil -- <<< NOVO: Reseta callback de morte >>>
 
     -- 1. Obtém os managers necessários do Registry
-    self.inputManager = registry:get("inputManager") ---@class InputManager
-    self.enemyManager = registry:get("enemyManager") ---@class EnemyManager
-    self.floatingTextManager = registry:get("floatingTextManager") ---@class FloatingTextManager
-    self.inventoryManager = registry:get("inventoryManager") ---@class InventoryManager
-    self.hunterManager = registry:get("hunterManager") ---@class HunterManager
-    self.itemDataManager = registry:get("itemDataManager") ---@class ItemDataManager
-    self.archetypeManager = registry:get("archetypeManager") ---@class ArchetypeManager
-    self.gameStatisticsManager = registry:get("gameStatisticsManager") ---@class GameStatisticsManager
+    self.inputManager = registry:get("inputManager") ---@type InputManager
+    self.enemyManager = registry:get("enemyManager") ---@type EnemyManager
+    self.floatingTextManager = registry:get("floatingTextManager") ---@type FloatingTextManager
+    self.inventoryManager = registry:get("inventoryManager") ---@type InventoryManager
+    self.hunterManager = registry:get("hunterManager") ---@type HunterManager
+    self.itemDataManager = registry:get("itemDataManager") ---@type ItemDataManager
+    self.archetypeManager = registry:get("archetypeManager") ---@type ArchetypeManager
+    self.gameStatisticsManager = registry:get("gameStatisticsManager") ---@type GameStatisticsManager
 
     -- Validação crucial das dependências
     if not self.inputManager or not self.enemyManager or not self.floatingTextManager or
@@ -235,7 +235,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
                 .itemBaseId))
         end
 
-        local weaponClassPath = string.format("src.items.weapons.%s", weaponBaseData.weaponClass)
+        local weaponClassPath = string.format("src.entities.equipments.weapons.%s", weaponBaseData.weaponClass)
 
         -- Tenta carregar a classe da arma
         local success, WeaponClass = pcall(require, weaponClassPath)
@@ -917,6 +917,25 @@ function PlayerManager:getCurrentFinalStats()
         end
     end
 
+    -- 2c. Bônus da Arma Equipada
+    local weaponInstance = self.state.equippedItems and self.state.equippedItems[Constants.SLOT_IDS.WEAPON]
+    if weaponInstance and weaponInstance.itemBaseId and self.itemDataManager then
+        local weaponData = self.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
+        if weaponData and weaponData.modifiers then
+            for _, mod in ipairs(weaponData.modifiers) do
+                local statName = mod.stat
+                local modValue = mod.value or 0
+                if mod.type == "fixed" then
+                    totalFixedBonuses[statName] = (totalFixedBonuses[statName] or 0) + modValue
+                elseif mod.type == "fixed_percentage_as_fraction" then
+                    totalFixedFractionBonuses[statName] = (totalFixedFractionBonuses[statName] or 0) + modValue
+                elseif mod.type == "percentage" then
+                    totalPercentageBonuses[statName] = (totalPercentageBonuses[statName] or 0) + modValue
+                end
+            end
+        end
+    end
+
     -- 3. Calcula os Stats FINAIS aplicando bônus na NOVA ORDEM
     local calculatedStats = {} -- Usar tabela temporária para o cálculo
     for statKey, baseValue in pairs(baseStats) do
@@ -1019,7 +1038,7 @@ function PlayerManager:setActiveWeapon(weaponInstance)
                 weaponInstance.itemBaseId, tostring(itemData.weaponClass)))
         end
 
-        local weaponClassPath = string.format("src.items.weapons.%s", itemData.weaponClass)
+        local weaponClassPath = string.format("src.entities.equipments.weapons.%s", itemData.weaponClass)
         local success, WeaponClass = pcall(require, weaponClassPath)
 
         if success and WeaponClass then

@@ -166,6 +166,10 @@ function Logger.dumpTable(tbl, indent)
         return "nil"
     end
 
+    if not type(tbl) == "table" then
+        return tostring(tbl)
+    end
+
     for k, v in pairs(tbl) do
         toprint = toprint .. string.rep(" ", indent)
         if type(k) == "number" then
