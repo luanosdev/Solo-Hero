@@ -1,0 +1,205 @@
+--------------------------------------------------------------------------------
+-- BaseProjectileAbility
+-- Classe base para habilidades que disparam projéteis.
+-- Contém a lógica compartilhada de cooldown, pooling, cálculo de stats e
+-- gerenciamento do ciclo de vida dos projéteis.
+--------------------------------------------------------------------------------
+
+local ManagerRegistry = require("src.managers.manager_registry")
+
+---@class BaseProjectile
+---@field playerManager PlayerManager
+---@field weaponInstance BaseWeapon
+---@field projectileClass table A classe do projétil a ser instanciada (ex: Arrow, FireParticle).
+---@field activeProjectiles table Lista de projéteis ativos em jogo.
+---@field pooledProjectiles table Lista de projéteis inativos para reutilização.
+---@field cooldownRemaining number
+---@field baseDamage number
+---@field baseCooldown number
+---@field baseRange number
+---@field baseProjectiles number
+---@field basePiercing number
+---@field baseKnockbackPower number
+---@field baseKnockbackForce number
+---@field baseProjectileScale number
+---@field currentPosition table {x, y}
+---@field currentAngle number
+---@field finalStats table Cache dos stats finais do jogador.
+---@field visual table Configurações visuais.
+local BaseProjectile = {}
+BaseProjectile.__index = BaseProjectile
+
+-- Fator de conversão para Força -> Perfuração.
+-- Ex: 0.1 significa que 10 de Força = +1 de Perfuração.
+local STRENGTH_TO_PIERCING_FACTOR = 0.1
+
+--- Cria uma nova instância da habilidade base.
+--- Este método deve ser chamado pelo :new da classe filha.
+---@param playerManager PlayerManager
+---@param weaponInstance BaseWeapon
+---@param projectileClass table A classe do projétil (ex: require("src.projectiles.arrow")).
+---@return table self
+function BaseProjectile:new(playerManager, weaponInstance, projectileClass)
+    local o = setmetatable({}, self)
+
+    o.playerManager = playerManager
+    o.weaponInstance = weaponInstance
+    o.projectileClass = projectileClass -- Classe do projétil (Arrow, FireParticle, etc)
+
+    o.cooldownRemaining = 0
+    o.activeProjectiles = {}
+    o.pooledProjectiles = {}
+
+    local baseData = o.weaponInstance:getBaseData()
+    if not baseData then
+        error(string.format("BaseProjectileAbility:new - Falha ao obter dados base para %s",
+            o.weaponInstance.itemBaseId or "arma desconhecida"))
+    end
+
+    -- Stats base da arma
+    o.baseDamage = baseData.damage or 10
+    o.baseCooldown = baseData.cooldown or 1
+    o.baseRange = baseData.range or 100
+    o.baseProjectiles = baseData.projectiles or 1
+    o.basePiercing = baseData.piercing or 0
+    o.baseKnockbackPower = baseData.knockbackPower or 0
+    o.baseKnockbackForce = baseData.knockbackForce or 0
+    o.baseProjectileScale = baseData.projectileScale or 1
+
+    -- Configurações visuais
+    o.visual = {
+        attack = {
+            color = weaponInstance.attackColor or { 1, 1, 1, 1 },
+            -- Velocidade do projétil pode ser um atributo da arma ou da habilidade
+            projectileSpeed = baseData.projectileSpeed or 300,
+        }
+    }
+
+    o.currentPosition = { x = 0, y = 0 }
+    o.currentAngle = 0
+    o.finalStats = {}
+
+    return o
+end
+
+--- Atualiza o estado da habilidade e dos projéteis.
+---@param dt number Delta time.
+---@param angle number Ângulo atual (da mira).
+function BaseProjectile:update(dt, angle)
+    if self.cooldownRemaining > 0 then
+        self.cooldownRemaining = self.cooldownRemaining - dt
+    end
+
+    -- Atualiza posição e ângulo
+    if self.playerManager and self.playerManager.player and self.playerManager.player.position then
+        self.currentPosition = self.playerManager.player.position
+    else
+        return -- Impede atualização se não há jogador
+    end
+    self.currentAngle = angle
+
+    -- Cache dos stats para uso no frame
+    self.finalStats = self.playerManager:getCurrentFinalStats()
+    if not self.finalStats then
+        return -- Impede atualização se não há stats
+    end
+
+    -- Atualiza projéteis ativos e os move para o pool quando inativos
+    for i = #self.activeProjectiles, 1, -1 do
+        local projectile = self.activeProjectiles[i]
+        projectile:update(dt)
+        if not projectile.isActive then
+            table.remove(self.activeProjectiles, i)
+            table.insert(self.pooledProjectiles, projectile)
+        end
+    end
+end
+
+--- Lógica principal de disparo, a ser chamada pelas subclasses.
+--- As subclasses devem implementar o método :cast e chamar este.
+---@param args table Argumentos de disparo, como `angle`.
+function BaseProjectile:cast(args)
+    -- Lógica de cooldown
+    if self.cooldownRemaining > 0 then
+        return false, "cooldown"
+    end
+
+    local totalAttackSpeed = self.finalStats.attackSpeed or 1
+    if totalAttackSpeed <= 0 then totalAttackSpeed = 0.01 end
+    self.cooldownRemaining = (self.baseCooldown or 1) / totalAttackSpeed
+
+    return true, "fired"
+end
+
+--- Dispara um único projétil.
+-- Este é um método auxiliar para ser usado pelas subclasses.
+---@param fireAngle number O ângulo exato para este disparo.
+function BaseProjectile:_fireSingleProjectile(fireAngle)
+    local stats = self.finalStats
+    if not stats then
+        print("AVISO [BaseProjectile:_fireSingleProjectile]: finalStats não disponíveis.")
+        return
+    end
+
+    -- Dano
+    local damage = stats.weaponDamage or self.baseDamage
+    local isCritical = math.random() <= (stats.critChance or 0)
+    if isCritical then
+        damage = math.floor(damage * (stats.critDamage or 1.5))
+    end
+
+    -- Alcance
+    local range = self.baseRange * (stats.range or 1)
+
+    -- Tamanho/Área
+    local scale = self.baseProjectileScale * (stats.attackArea or 1)
+
+    -- Perfuração
+    local strengthBonusPiercing = math.floor((stats.strength or 0) * STRENGTH_TO_PIERCING_FACTOR)
+    local piercing = (self.basePiercing or 0) + strengthBonusPiercing
+
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    local spatialGrid = enemyManager and enemyManager.spatialGrid
+
+    local projectile = nil
+    if #self.pooledProjectiles > 0 then
+        -- Reutiliza um projétil do pool
+        projectile = table.remove(self.pooledProjectiles)
+        projectile:reset(
+            self.currentPosition.x, self.currentPosition.y, fireAngle,
+            self.visual.attack.projectileSpeed, range, damage, isCritical,
+            spatialGrid, self.visual.attack.color, piercing, scale,
+            self.baseKnockbackPower, self.baseKnockbackForce,
+            stats.strength, self.playerManager, self.weaponInstance
+        )
+    else
+        -- Cria um novo projétil se o pool estiver vazio
+        projectile = self.projectileClass:new(
+            self.currentPosition.x, self.currentPosition.y, fireAngle,
+            self.visual.attack.projectileSpeed, range, damage, isCritical,
+            spatialGrid, self.visual.attack.color, piercing, scale,
+            self.baseKnockbackPower, self.baseKnockbackForce,
+            stats.strength, self.playerManager, self.weaponInstance
+        )
+    end
+
+    table.insert(self.activeProjectiles, projectile)
+end
+
+--- Calcula o número total de projéteis com base nos stats.
+---@return number O número total de projéteis a serem disparados.
+function BaseProjectile:_getTotalProjectiles()
+    if not self.finalStats then return self.baseProjectiles end
+
+    -- Bônus de MultiAttack
+    local multiAttackBonus = 0
+    local multiAttackValue = self.finalStats.multiAttack or 0
+    multiAttackBonus = math.floor(multiAttackValue)
+    if (multiAttackValue - multiAttackBonus) > math.random() then
+        multiAttackBonus = multiAttackBonus + 1
+    end
+
+    return self.baseProjectiles + multiAttackBonus
+end
+
+return BaseProjectile

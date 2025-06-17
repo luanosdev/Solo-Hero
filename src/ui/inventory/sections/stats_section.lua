@@ -696,45 +696,19 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, archet
                     end
                 end
 
-                -- 3. Coleta de Bônus de Level Up Aprendidos
-                local learnedBonusesData = finalStats._learnedLevelUpBonuses or {}
-                for bonusDefId, learnedLevel in pairs(learnedBonusesData) do
-                    local bonusDef = LevelUpBonusesData.Bonuses
-                        [bonusDefId] -- Pega a definição completa do bônus
-                    -- print(string.format(
-                    --     "[StatsSection Tooltip DEBUG] Processando LevelUp Bonus: ID=%s, Level=%s, DefExists=%s",
-                    --     tostring(bonusDefId), tostring(learnedLevel), tostring(bonusDef ~= nil))) -- Log para cada bônus
-                    if bonusDef and bonusDef.modifiers_per_level then
-                        for _, modEffect in ipairs(bonusDef.modifiers_per_level) do
-                            if modEffect.stat == attr.key then
-                                -- MODIFICADO: Formato "Nvl (NomeDoBonus X)"
-                                local sourceText = "Nvl (" .. (bonusDef.name or bonusDefId) .. " " .. learnedLevel .. ")"
-                                -- Corrigido: O valor do modificador já é por nível, então multiplicamos o valor unitário pelo nível.
-                                -- No entanto, se a intenção é mostrar o bônus TOTAL daquela fonte, então o cálculo do modStr deve ser o total.
-                                -- Vamos assumir que `modEffect.value` é o bônus POR NÍVEL, e queremos mostrar o bônus total DESTE MODIFICADOR para o nível atual.
-                                -- O valor total do bônus para este `modEffect` específico seria `modEffect.value * learnedLevel`.
-                                local totalEffectValue = modEffect.value * learnedLevel
-                                local modStr = Formatters.formatStatValue(attr.key, totalEffectValue, modEffect.type)
-
-                                -- A linha abaixo era a antiga para modStr, que multiplicava pelo nível.
-                                -- local modStr = Formatters.formatStatValue(attr.key, modEffect.value * learnedLevel, modEffect.type) -- Multiplica pelo nível AQUI
-
-                                -- O prefixo deve ser baseado no valor total do efeito.
-                                local prefix = totalEffectValue > 0 and "+" or ""
-                                if modEffect.type == "fixed" then
-                                    table.insert(fixedBonusesTexts,
-                                        {
-                                            text = "    " .. sourceText .. ": " .. prefix .. modStr,
-                                            color =
-                                                fixedBonusColor
-                                        })
-                                elseif modEffect.type == "percentage" or modEffect.type == "fixed_percentage_as_fraction" then
-                                    table.insert(percentBonusesTexts,
-                                        {
-                                            text = "    " .. sourceText .. ": " .. prefix .. modStr,
-                                            color =
-                                                percentBonusColor
-                                        })
+                local weaponInstance = finalStats.equippedItems and finalStats.equippedItems[Constants.SLOT_IDS.WEAPON]
+                if weaponInstance and weaponInstance.itemBaseId then
+                    local weaponBaseData = itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
+                    if weaponBaseData and weaponBaseData.modifiers then
+                        for _, mod in ipairs(weaponBaseData.modifiers) do
+                            if mod.stat == attr.key then
+                                local sourceText = "(Arma: " .. (weaponBaseData.name or weaponBaseData.id) .. ")"
+                                local modStr = Formatters.formatStatValue(attr.key, mod.value, mod.type)
+                                local text = string.format("%s%s %s", (mod.value >= 0 and "+" or ""), modStr, sourceText)
+                                if mod.type == "fixed" or mod.type == "fixed_percentage_as_fraction" then
+                                    table.insert(fixedBonusesTexts, { text = text, color = colors.positive })
+                                else
+                                    table.insert(percentBonusesTexts, {                                             text = text,                                             color = colors.positive                                         })
                                 end
                             end
                         end
