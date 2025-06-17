@@ -86,7 +86,7 @@ local enemies = {
         speed = 30,
         health = 200,
         damage = 18,
-        experienceValue = 20,
+        experienceValue = 30,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
         assetPaths = {
@@ -118,7 +118,7 @@ local enemies = {
         speed = 50,
         health = 100,
         damage = 30,
-        experienceValue = 25,
+        experienceValue = 45,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
         assetPaths = {
@@ -149,7 +149,7 @@ local enemies = {
         speed = 30,
         health = 200,
         damage = 18,
-        experienceValue = 20,
+        experienceValue = 30,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
         assetPaths = {
@@ -180,7 +180,7 @@ local enemies = {
         speed = 50,
         health = 100,
         damage = 30,
-        experienceValue = 25,
+        experienceValue = 45,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
         assetPaths = {
