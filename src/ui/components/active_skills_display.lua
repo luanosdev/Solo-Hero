@@ -54,8 +54,13 @@ function ActiveSkillsDisplay:new(playerManager, itemDataManager)
     instance.playerManager = playerManager
     instance.itemDataManager = itemDataManager
     instance.skills = {} -- Tabela para armazenar o estado de cada slot de habilidade
+    -- Caching de imagens para evitar carregamentos de disco repetidos
+    instance.imageCache = {}
+    -- Cache para o layout dos ícones para otimizar o desenho
+    instance.skillLayouts = {}
+    instance.layoutNeedsUpdate = true
     instance.silhouetteShader = love.graphics.newShader("src/ui/shaders/silhouette.fs")
-    instance.debugged = false
+    instance.lastWeaponId = nil -- Para rastrear a arma
 
     return instance
 end
@@ -74,8 +79,19 @@ function ActiveSkillsDisplay:update(dt)
 
     -- 1. Arma
     local weapon = self.playerManager.equippedWeapon
+    local weaponId = nil
     if weapon and weapon.itemInstance and weapon.attackInstance then
-        local baseData = weapon:getBaseData()
+        weaponId = weapon.itemInstance.itemBaseId
+    end
+
+    -- Lógica para detectar e tratar a mudança de arma
+    local isNewWeapon = (weaponId ~= self.lastWeaponId)
+    if isNewWeapon then
+        self.lastWeaponId = weaponId
+    end
+
+    if weaponId then
+        local baseData = self.itemDataManager:getBaseItemData(weaponId)
         local cooldownTotal = baseData.cooldown / finalStats.attackSpeed
         local cooldownRemaining = weapon.attackInstance.cooldownRemaining
         local progress = 1 -- Começa como pronto
@@ -83,17 +99,12 @@ function ActiveSkillsDisplay:update(dt)
             progress = 1 - (cooldownRemaining / cooldownTotal)
         end
 
-        Logger.debug("ActiveSkillsDisplay", "weapon: " .. weapon.itemInstance.itemBaseId)
-        Logger.debug("ActiveSkillsDisplay", "progress: " .. progress)
         table.insert(currentSkills, {
-            id = weapon.itemInstance.itemBaseId,
+            id = weaponId,
             type = "weapon",
             progress = progress,
+            isNew = isNewWeapon, -- Adiciona o flag para indicar que é uma nova arma
         })
-
-        Logger.debug("ActiveSkillsDisplay", "currentSkills: " .. #currentSkills)
-    else
-        Logger.debug("ActiveSkillsDisplay", "weapon: nil")
     end
 
     -- 2. Runas
@@ -133,87 +144,81 @@ end
 
 --- Lógica interna para atualizar a lista de skills, carregar imagens e gerenciar efeitos.
 function ActiveSkillsDisplay:_updateSkillList(currentSkills, dt)
-    -- Marca todas as skills existentes para verificação
+    local oldSkillsById = {}
     for _, skill in ipairs(self.skills) do
-        skill.isActive = false
+        oldSkillsById[skill.id] = skill
     end
 
-    -- Itera sobre as skills atuais que devem ser exibidas
+    local newSkills = {}
+    local anySkillChanged = #currentSkills ~= #self.skills
+
     for _, currentSkillData in ipairs(currentSkills) do
-        local existingSkill = self:_findSkillById(currentSkillData.id)
+        local existingSkill = oldSkillsById[currentSkillData.id]
+        if not existingSkill then
+            anySkillChanged = true
+        end
 
-        if existingSkill then
-            -- Skill já existe, apenas atualiza
-            local previous_progress = existingSkill.progress
-            local wasReady = existingSkill.cooldown_ready
+        -- Tenta obter a imagem do cache primeiro
+        local image = self.imageCache[currentSkillData.id]
+        local shockwaveTimer = existingSkill and existingSkill.shockwaveTimer or -1
 
-            existingSkill.progress = currentSkillData.progress
-            existingSkill.cooldown_ready = currentSkillData.progress >= 1
-            existingSkill.isActive = true
-
-            -- O pulso deve acontecer quando a skill FICA pronta.
-            -- Condição 1: Não estava pronta e agora está (progress >= 1).
-            local justBecameReady = not wasReady and existingSkill.cooldown_ready
-            -- Condição 2: Não estava pronta, e o progresso regrediu.
-            -- Isso significa que ela ficou pronta e foi usada antes da UI atualizar.
-            local wasUsedWithoutBeingReady = not wasReady and existingSkill.progress < previous_progress
-
-            if justBecameReady or wasUsedWithoutBeingReady then
-                existingSkill.shockwaveTimer = 0 -- Acabou de ficar pronta ou foi usada
-            end
-        else
-            -- Nova skill, precisa ser criada
-            local imagePath = nil
+        if not image then
             local baseItemData = self.itemDataManager:getBaseItemData(currentSkillData.id)
+            if baseItemData and baseItemData.iconPath then
+                local success, imgOrErr = pcall(love.graphics.newImage, baseItemData.iconPath)
+                if success then
+                    image = imgOrErr
+                    -- Armazena a imagem no cache para uso futuro
+                    self.imageCache[currentSkillData.id] = image
+                    Logger.info("[ASDisplay]",
+                        "Successfully loaded and cached new image for skill: " .. currentSkillData.id)
+                else
+                    Logger.warn("[ASDisplay]", string.format("Failed to load image for skill '%s' from '%s'. Error: %s",
+                        currentSkillData.id, baseItemData.iconPath, tostring(imgOrErr)))
+                end
+            else
+                Logger.warn("[ASDisplay]",
+                    "Could not add skill, as no image path was found for ID: " .. currentSkillData.id)
+            end
+        end
 
-            if baseItemData then
-                imagePath = baseItemData.iconPath -- Usa o novo campo com o caminho original
+        if image then
+            local wasReady = existingSkill and existingSkill.cooldown_ready or false
+            local isReady = currentSkillData.progress >= 1
+
+            local justBecameReady = not wasReady and isReady
+            local wasUsedWithoutBeingReady = not wasReady and existingSkill and
+                currentSkillData.progress < existingSkill.progress
+
+            -- Aciona o shockwave se a habilidade ficou pronta, foi usada ou se a arma foi trocada
+            if (justBecameReady or wasUsedWithoutBeingReady or currentSkillData.isNew) and shockwaveTimer <= 0 then
+                shockwaveTimer = 0
             end
 
-            if imagePath then
-                local success, img = pcall(love.graphics.newImage, imagePath)
-                if success then
-                    local isReady = currentSkillData.progress >= 1
-
-                    -- Define a cor baseada no tipo e ID/Raridade
-                    local color = { 1, 1, 1, 1 } -- Cor padrão (branco)
-                    if currentSkillData.type == "weapon" and baseItemData and baseItemData.rarity then
-                        -- Usa a cor de texto do rank definida em colors.lua
-                        color = Colors.rankDetails[baseItemData.rarity].text or color
-                    elseif currentSkillData.type == "rune" and baseItemData then
-                        -- Usa a cor definida diretamente nos dados da runa
-                        color = baseItemData.color or color
-                    end
-
-                    table.insert(self.skills, {
-                        id = currentSkillData.id,
-                        type = currentSkillData.type,
-                        image = img,
-                        progress = currentSkillData.progress,
-                        cooldown_ready = isReady,
-                        shockwaveTimer = isReady and 0 or -1,
-                        color = color,
-                        isActive = true,
-                    })
-                else
-                    Logger.warn("[ActiveSkillsDisplay]",
-                        string.format(" Falha ao carregar imagem para a skill '%s' em '%s'",
-                            currentSkillData.id, imagePath))
+            local color = { 1, 1, 1, 1 }
+            local baseItemData = self.itemDataManager:getBaseItemData(currentSkillData.id)
+            if baseItemData then
+                if currentSkillData.type == "weapon" and baseItemData.rarity then
+                    color = Colors.rankDetails[baseItemData.rarity].text or color
+                elseif currentSkillData.type == "rune" then
+                    color = baseItemData.color or color
                 end
             end
+
+            table.insert(newSkills, {
+                id = currentSkillData.id,
+                type = currentSkillData.type,
+                image = image,
+                progress = currentSkillData.progress,
+                cooldown_ready = isReady,
+                shockwaveTimer = shockwaveTimer,
+                color = color,
+            })
         end
     end
 
-    -- Remove as skills que não estão mais ativas
-    for i = #self.skills, 1, -1 do
-        local skill = self.skills[i]
-        if not skill.isActive then
-            table.remove(self.skills, i)
-        end
-    end
-
-    -- Atualiza o efeito de shockwave
-    for _, skill in ipairs(self.skills) do
+    -- Atualiza o efeito de shockwave para todas as skills ativas
+    for _, skill in ipairs(newSkills) do
         if skill.shockwaveTimer >= 0 then
             skill.shockwaveTimer = skill.shockwaveTimer + dt
             if skill.shockwaveTimer > CONFIG.shockwave_duration then
@@ -221,25 +226,35 @@ function ActiveSkillsDisplay:_updateSkillList(currentSkills, dt)
             end
         end
     end
-end
 
---- Encontra uma skill na lista interna pelo seu ID de item base.
-function ActiveSkillsDisplay:_findSkillById(id)
-    for _, skill in ipairs(self.skills) do
-        if skill.id == id then
-            return skill
+    -- Compara a lista de skills nova e antiga para ver se o layout precisa ser recalculado
+    if anySkillChanged then
+        self.layoutNeedsUpdate = true
+    else
+        for i, newSkill in ipairs(newSkills) do
+            if newSkill.id ~= self.skills[i].id or newSkill.type ~= self.skills[i].type then
+                self.layoutNeedsUpdate = true
+                break
+            end
         end
     end
-    return nil
+
+    -- Substitui a lista antiga pela nova, garantindo a ordem correta
+    self.skills = newSkills
 end
 
---- Desenha os ícones de habilidade.
-function ActiveSkillsDisplay:draw()
-    if #self.skills == 0 then return end
+--- Pré-calcula as posições e tamanhos dos ícones para otimizar o desenho.
+function ActiveSkillsDisplay:_calculateLayout()
+    if #self.skills == 0 then
+        self.skillLayouts = {}
+        self.layoutNeedsUpdate = false
+        return
+    end
 
     local base_size = CONFIG.icon_size
     local weapon_size = base_size * 1.2
     local rune_size = base_size
+    local newLayouts = {}
 
     -- Calcula a largura total do grupo de ícones para centralização
     local total_width
@@ -263,10 +278,50 @@ function ActiveSkillsDisplay:draw()
         local current_size = (skill.type == "weapon") and weapon_size or rune_size
         local x = start_x + (i - 1) * CONFIG.spacing
         local y = CONFIG.y_position
-        local radius = current_size / 2
+
+        table.insert(newLayouts, {
+            x = x,
+            y = y,
+            size = current_size,
+            radius = current_size / 2
+        })
+    end
+
+    self.skillLayouts = newLayouts
+    self.layoutNeedsUpdate = false
+end
+
+--- Encontra uma skill na lista interna pelo seu ID de item base.
+function ActiveSkillsDisplay:_findSkillById(id)
+    for _, skill in ipairs(self.skills) do
+        if skill.id == id then
+            return skill
+        end
+    end
+    return nil
+end
+
+--- Desenha os ícones de habilidade.
+function ActiveSkillsDisplay:draw()
+    if #self.skills == 0 then return end
+
+    -- Recalcula o layout apenas se necessário, otimizando o desenho
+    if self.layoutNeedsUpdate then
+        self:_calculateLayout()
+    end
+
+    for i, skill in ipairs(self.skills) do
+        local layout = self.skillLayouts[i]
+        -- Cláusula de guarda para evitar erros se o layout ainda não estiver pronto
+        if not layout then goto continue end
+
+        local x = layout.x
+        local y = layout.y
+        local radius = layout.radius
+        local current_size = layout.size
         local skill_color = skill.color or { 1, 1, 1, 1 }
 
-        -- Animação de expansão horizontal no shockwave
+        -- Animação de expansão
         local expand_scale = 1
         if skill.shockwaveTimer >= 0 then
             local shock_progress = skill.shockwaveTimer / CONFIG.shockwave_duration
@@ -276,7 +331,7 @@ function ActiveSkillsDisplay:draw()
 
         love.graphics.push()
         love.graphics.translate(x, y)
-        love.graphics.scale(expand_scale, expand_scale) -- Aplica a expansão em ambos os eixos
+        love.graphics.scale(expand_scale, expand_scale) -- Aplica a expansão
 
         -- Desenha o fundo com cor baseada no progresso do cooldown
         local r, g, b = skill_color[1], skill_color[2], skill_color[3]
@@ -296,7 +351,7 @@ function ActiveSkillsDisplay:draw()
             love.graphics.setShader() -- Remove o shader de silhueta
 
             local imgW, imgH = skill.image:getDimensions()
-            local scale = current_size * 0.7 / math.max(imgW, imgH) -- Usa o tamanho atual
+            local scale = current_size * 0.7 / math.max(imgW, imgH) -- Usa o tamanho do layout
             love.graphics.setColor(1, 1, 1, 1)                      -- Garante que a imagem seja desenhada com sua cor original
             love.graphics.draw(skill.image, 0, 0, 0, scale, scale, imgW / 2, imgH / 2)
 
@@ -315,6 +370,7 @@ function ActiveSkillsDisplay:draw()
             love.graphics.setColor(skill_color[1], skill_color[2], skill_color[3], alpha)
             love.graphics.circle("line", x, y, currentRadius)
         end
+        ::continue::
     end
 
     -- Reseta a cor e a largura da linha
