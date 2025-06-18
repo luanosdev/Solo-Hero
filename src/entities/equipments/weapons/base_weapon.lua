@@ -148,4 +148,9 @@ function BaseWeapon:getBaseData()
     return itemDataManager:getBaseItemData(self.itemBaseId)
 end
 
+--- Ativa ou desativa a visualização do ataque da arma.
+function BaseWeapon:togglePreview()
+    self.attackInstance:togglePreview()
+end
+
 return BaseWeapon

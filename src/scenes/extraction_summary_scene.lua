@@ -3,7 +3,7 @@ local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local elements = require("src.ui.ui_elements")
 local Constants = require("src.config.constants")
-local HoverManager = require("src.ui.item_details_modal_manager")
+local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
 local ManagerRegistry = require("src.managers.manager_registry")
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
 local ReputationSummaryColumn = require("src.ui.components.ReputationSummaryColumn")
@@ -108,7 +108,7 @@ function ExtractionSummaryScene:update(dt)
     end
 
     -- Atualiza o gerenciador de tooltip
-    HoverManager.update(dt, mx, my, self.tooltipItem)
+    ItemDetailsModalManager.update(dt, mx, my, self.tooltipItem)
 end
 
 --- Desenha os elementos da cena.
@@ -359,7 +359,7 @@ function ExtractionSummaryScene:draw()
     love.graphics.printf("Pressione qualquer tecla para continuar", 0, instructionY, screenW, "center")
 
     -- Desenhar Tooltip
-    HoverManager.draw()
+    ItemDetailsModalManager.draw()
 
     if self.itemDataManager and self.itemGridArea then
         ItemGridUI.drawItemGrid(self.items, self.gridRows, self.gridCols, self.itemGridArea.x, self.itemGridArea.y,

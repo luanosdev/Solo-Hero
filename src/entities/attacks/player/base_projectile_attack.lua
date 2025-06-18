@@ -6,13 +6,15 @@
 --------------------------------------------------------------------------------
 
 local ManagerRegistry = require("src.managers.manager_registry")
+local TablePool = require("src.utils.table_pool")
+local Constants = require("src.config.constants")
 
 ---@class BaseProjectileAttack
 ---@field playerManager PlayerManager
 ---@field weaponInstance BaseWeapon
 ---@field projectileClass table A classe do projétil a ser instanciada (ex: Arrow, FireParticle).
 ---@field activeProjectiles table Lista de projéteis ativos em jogo.
----@field pooledProjectiles table Lista de projéteis inativos para reutilização.
+---@field pooledProjectiles BaseProjectile[] Lista de projéteis inativos para reutilização.
 ---@field cooldownRemaining number
 ---@field baseDamage number
 ---@field baseCooldown number
@@ -37,7 +39,7 @@ local STRENGTH_TO_PIERCING_FACTOR = 0.1
 --- Este método deve ser chamado pelo :new da classe filha.
 ---@param playerManager PlayerManager
 ---@param weaponInstance BaseWeapon
----@param projectileClass Pellet A classe do projétil (ex: require("src.projectiles.arrow")).
+---@param projectileClass BaseProjectile A classe do projétil (ex: require("src.projectiles.arrow")).
 ---@return table self
 function BaseProjectileAttack:new(playerManager, weaponInstance, projectileClass)
     local o = setmetatable({}, self)
@@ -164,30 +166,39 @@ function BaseProjectileAttack:_fireSingleProjectile(fireAngle)
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager and enemyManager.spatialGrid
 
-    ---@type Pellet
     local projectile = nil
+    local params = TablePool.get()
+    params.x = self.currentPosition.x
+    params.y = self.currentPosition.y
+    params.angle = fireAngle
+    params.speed = self.visual.attack.projectileSpeed
+    params.range = range
+    params.damage = damage
+    params.isCritical = isCritical
+    params.spatialGrid = spatialGrid
+    params.color = self.visual.attack.color
+    params.piercing = piercing
+    params.areaScale = scale
+    params.knockbackPower = self.baseKnockbackPower
+    params.knockbackForce = self.baseKnockbackForce
+    params.playerStrength = stats.strength
+    params.playerManager = self.playerManager
+    params.weaponInstance = self.weaponInstance
+    params.owner = self.playerManager.player
+    params.hitCost = Constants.HIT_COST.BULLET
+
     if #self.pooledProjectiles > 0 then
         -- Reutiliza um projétil do pool
+        ---@type BaseProjectile
         projectile = table.remove(self.pooledProjectiles)
-        projectile:reset(
-            self.currentPosition.x, self.currentPosition.y, fireAngle,
-            self.visual.attack.projectileSpeed, range, damage, isCritical,
-            spatialGrid, self.visual.attack.color, piercing, scale,
-            self.baseKnockbackPower, self.baseKnockbackForce,
-            stats.strength, self.playerManager, self.weaponInstance
-        )
+        projectile:reset(params)
     else
         -- Cria um novo projétil se o pool estiver vazio
-        projectile = self.projectileClass:new(
-            self.currentPosition.x, self.currentPosition.y, fireAngle,
-            self.visual.attack.projectileSpeed, range, damage, isCritical,
-            spatialGrid, self.visual.attack.color, piercing, scale,
-            self.baseKnockbackPower, self.baseKnockbackForce,
-            stats.strength, self.playerManager, self.weaponInstance
-        )
+        projectile = self.projectileClass:new(params)
     end
 
     table.insert(self.activeProjectiles, projectile)
+    TablePool.release(params)
 end
 
 --- Calcula o número total de projéteis com base nos stats.

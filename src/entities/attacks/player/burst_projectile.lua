@@ -4,10 +4,10 @@
 -- Ex: Escopetas, arcos de múltiplas flechas.
 --------------------------------------------------------------------------------
 
-local BaseProjectile = require("src.entities.projectiles.base_projectile_attack")
+local BaseProjectileAttack = require("src.entities.attacks.player.base_projectile_attack")
 
 ---@class BurstProjectile : BaseProjectileAttack
-local BurstProjectile = setmetatable({}, { __index = BaseProjectile })
+local BurstProjectile = setmetatable({}, { __index = BaseProjectileAttack })
 BurstProjectile.__index = BurstProjectile
 
 --- Cria uma nova instância da habilidade de projétil em rajada.
@@ -19,7 +19,7 @@ function BurstProjectile:new(playerManager, weaponInstance)
     local projectileClass = require(projectileClassPath)
 
     -- Chama o construtor da classe base
-    local o = BaseProjectile.new(self, playerManager, weaponInstance, projectileClass)
+    local o = BaseProjectileAttack.new(self, playerManager, weaponInstance, projectileClass)
     setmetatable(o, self) -- Re-estabelece a metatable para a classe filha
 
     -- Carrega configurações específicas do Burst
@@ -35,7 +35,7 @@ end
 ---@return string reason
 function BurstProjectile:cast(args)
     -- 1. Verifica o cooldown na classe base
-    local canFire, reason = BaseProjectile.cast(self, args)
+    local canFire, reason = BaseProjectileAttack.cast(self, args)
     if not canFire then
         return false, reason
     end

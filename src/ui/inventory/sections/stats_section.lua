@@ -651,11 +651,11 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, mx, my
                 local percentBonusesTexts = {}
 
                 -- DEBUG: Verificar finalStats._learnedLevelUpBonuses
-                if not finalStats._learnedLevelUpBonuses or not next(finalStats._learnedLevelUpBonuses or {}) then
+                --[[ if not finalStats._learnedLevelUpBonuses or not next(finalStats._learnedLevelUpBonuses or {}) then
                     -- print("[StatsSection Tooltip DEBUG] finalStats._learnedLevelUpBonuses está VAZIO ou NULO.") -- COMENTADO
                 else
                     -- print("[StatsSection Tooltip DEBUG] finalStats._learnedLevelUpBonuses existe e não está vazio. Contagem:", #finalStats._learnedLevelUpBonuses) -- COMENTADO
-                end
+                end ]]
 
                 -- 2. Coleta de Bônus de Arquétipos Ativos
                 if archetypeIds and archetypeManager then
@@ -683,6 +683,37 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, mx, my
                                                 text = "    " .. sourceText .. ": " .. prefix .. modStr,
                                                 color =
                                                     percentBonusColor
+                                            })
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- 3. Coleta de Bônus de Level Up
+                if finalStats._learnedLevelUpBonuses and LevelUpBonusesData then
+                    for _, bonusId in ipairs(finalStats._learnedLevelUpBonuses) do
+                        local bonusData = LevelUpBonusesData[bonusId]
+                        if bonusData and bonusData.modifiers then
+                            for _, modifierData in ipairs(bonusData.modifiers) do
+                                if modifierData.stat == attr.key then
+                                    local sourceText = "(Level Up)" -- Simplificado para claridade
+                                    local modStr = Formatters.formatStatValue(attr.key, modifierData.value,
+                                        modifierData.type)
+                                    local prefix = modifierData.value > 0 and "+" or ""
+
+                                    if modifierData.type == "fixed" then
+                                        table.insert(fixedBonusesTexts,
+                                            {
+                                                text = "    " .. sourceText .. ": " .. prefix .. modStr,
+                                                color = fixedBonusColor
+                                            })
+                                    elseif modifierData.type == "percentage" or modifierData.type == "fixed_percentage_as_fraction" then
+                                        table.insert(percentBonusesTexts,
+                                            {
+                                                text = "    " .. sourceText .. ": " .. prefix .. modStr,
+                                                color = percentBonusColor
                                             })
                                     end
                                 end

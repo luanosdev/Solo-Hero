@@ -116,4 +116,10 @@ Constants.KNOCKBACK_FORCE = {
 -- Duração padrão do knockback em segundos
 Constants.KNOCKBACK_DURATION = 0.5
 
+Constants.HIT_COST = {
+    BULLET = 0.4,
+    ARROW = 0.8,
+    FIRE_PARTICLE = 0.6,
+}
+
 return Constants
