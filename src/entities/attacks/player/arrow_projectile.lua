@@ -5,6 +5,8 @@
 
 local Arrow = require("src.entities.projectiles.arrow")
 local ManagerRegistry = require("src.managers.manager_registry")
+local Constants = require("src.config.constants")
+local TablePool = require("src.utils.table_pool")
 
 ---@class ArrowProjectile
 ---@field visual table Configurações visuais da habilidade.
@@ -221,51 +223,36 @@ function ArrowProjectile:cast(args)
         end
 
         local arrowInstance = nil
+        local params = TablePool.get()
+        params.x = self.currentPosition.x
+        params.y = self.currentPosition.y
+        params.angle = arrowAngle
+        params.speed = self.visual.attack.arrowSpeed
+        params.range = currentArrowRange
+        params.damage = finalDamageThisArrow
+        params.isCritical = isCritical
+        params.spatialGrid = spatialGrid
+        params.color = self.visual.attack.color
+        params.piercing = currentPiercing
+        params.areaScale = areaScaleMultiplier
+        params.knockbackPower = self.knockbackPower
+        params.knockbackForce = self.knockbackForce
+        params.playerStrength = finalStats.strength
+        params.playerManager = self.playerManager
+        params.weaponInstance = self.weaponInstance
+        params.owner = self.playerManager.player
+        params.hitCost = Constants.HIT_COST.ARROW
+
         if #self.pooledArrows > 0 then
             -- Reutiliza uma flecha do pool
             arrowInstance = table.remove(self.pooledArrows)
-            arrowInstance:reset(
-                self.currentPosition.x,
-                self.currentPosition.y,
-                arrowAngle,
-                self.visual.attack.arrowSpeed,
-                currentArrowRange,
-                finalDamageThisArrow,
-                isCritical,
-                spatialGrid,
-                self.visual.attack.color,
-                currentPiercing,
-                areaScaleMultiplier,
-                self.knockbackPower,
-                self.knockbackForce,
-                finalStats.strength,
-                self.playerManager,
-                self.weaponInstance
-            )
-            -- print("Flecha REUTILIZADA do pool. Pool size: " .. #self.pooledArrows)
+            arrowInstance:reset(params)
         else
             -- Cria uma nova flecha se o pool estiver vazio
-            arrowInstance = Arrow:new(
-                self.currentPosition.x,
-                self.currentPosition.y,
-                arrowAngle,
-                self.visual.attack.arrowSpeed,
-                currentArrowRange,
-                finalDamageThisArrow,
-                isCritical,
-                spatialGrid,
-                self.visual.attack.color,
-                currentPiercing,
-                areaScaleMultiplier,
-                self.knockbackPower,
-                self.knockbackForce,
-                finalStats.strength,
-                self.playerManager,
-                self.weaponInstance
-            )
-            -- print("Nova flecha CRIADA. Pool size: " .. #self.pooledArrows)
+            arrowInstance = Arrow:new(params)
         end
         table.insert(self.activeArrows, arrowInstance)
+        TablePool.release(params)
     end
 
     return true

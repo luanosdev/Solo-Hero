@@ -206,11 +206,14 @@ end
 function BaseProjectileAttack:_getTotalProjectiles()
     if not self.finalStats then return self.baseProjectiles end
 
-    -- Bônus de MultiAttack
-    local multiAttackBonus = 0
     local multiAttackValue = self.finalStats.multiAttack or 0
-    multiAttackBonus = math.floor(multiAttackValue)
-    if (multiAttackValue - multiAttackBonus) > math.random() then
+
+    -- A parte inteira do multiAttack é o número de projéteis extras garantidos.
+    local multiAttackBonus = math.floor(multiAttackValue)
+
+    -- A parte fracionária é a chance de disparar um projétil a mais.
+    local fractionalChance = multiAttackValue - multiAttackBonus
+    if fractionalChance > 0 and math.random() < fractionalChance then
         multiAttackBonus = multiAttackBonus + 1
     end
 
