@@ -59,7 +59,7 @@ end
 --- Obtém os dados base de um item.
 ---@param self ItemDataManager
 ---@param itemBaseId string O ID base do item a ser obtido.
----@return table data Os dados base do item, ou nil se o itemBaseId não for encontrado.
+---@return Weapon|table data Os dados base do item, ou nil se o itemBaseId não for encontrado.
 function ItemDataManager:getBaseItemData(itemBaseId)
     local data = self.itemDatabase[itemBaseId]
     if not data then
