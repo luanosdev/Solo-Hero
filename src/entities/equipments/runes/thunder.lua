@@ -3,7 +3,8 @@
     Faz raios caírem em inimigos aleatórios periodicamente
 ]]
 
-local RenderPipeline = require("src.render_pipeline")
+local RenderPipeline = require("src.core.render_pipeline")
+local TablePool = require("src.utils.table_pool")
 
 local ThunderRune = {}
 ThunderRune.__index = ThunderRune -- Para permitir que instâncias herdem métodos
@@ -90,7 +91,11 @@ function ThunderRune:new(playerManager, runeItemData)
     return instance
 end
 
-function ThunderRune:update(dt, enemies)
+--- Atualiza a habilidade do Trovão.
+--- @param dt number Tempo de atualização.
+--- @param enemies BaseEnemy[] Lista de inimigos.
+--- @param finalStats table Estatísticas finais do jogador.
+function ThunderRune:update(dt, enemies, finalStats)
     self.currentCooldown = self.currentCooldown - dt
 
     for i = #self.activeBolts, 1, -1 do
@@ -102,13 +107,17 @@ function ThunderRune:update(dt, enemies)
             bolt.animation.timer = bolt.animation.timer - self.animation.frameTime
             bolt.animation.currentFrame = bolt.animation.currentFrame + 1
             if bolt.animation.currentFrame > self.animation.frameCount then
-                -- Bolt animation finished, remove it or handle loop if desired
+                -- Bolt animation finished, release it
+                TablePool.release(bolt.animation)
+                TablePool.release(bolt)
                 table.remove(self.activeBolts, i)
                 goto continue_bolt_loop -- Salta para o próximo bolt se este for removido
             end
         end
 
         if bolt.timer >= bolt.duration then
+            TablePool.release(bolt.animation)
+            TablePool.release(bolt)
             table.remove(self.activeBolts, i)
         end
         ::continue_bolt_loop::
@@ -116,7 +125,8 @@ function ThunderRune:update(dt, enemies)
 
     if self.currentCooldown <= 0 and enemies and #enemies > 0 then
         self:cast(enemies)
-        self.currentCooldown = self.cooldown
+        local finalCooldown = self.cooldown * (finalStats and finalStats.cooldownReduction or 1)
+        self.currentCooldown = finalCooldown
     end
 end
 
@@ -146,7 +156,7 @@ function ThunderRune:cast(enemies)
         return
     end
 
-    local validEnemies = {}
+    local validEnemies = TablePool.get()
     local playerX = self.playerManager.player.position.x
     local playerY = self.playerManager.player.position.y
 
@@ -154,10 +164,10 @@ function ThunderRune:cast(enemies)
         if enemy.isAlive then
             local dx = enemy.position.x - playerX
             local dy = enemy.position.y - playerY
-            local distSq = dx * dx + dy * dy -- Calcula o quadrado da distância
+            local distSq = dx * dx + dy * dy        -- Calcula o quadrado da distância
             local rangeSq = self.range * self.range -- Calcula o quadrado do alcance
 
-            if distSq <= rangeSq then -- Compara os quadrados
+            if distSq <= rangeSq then               -- Compara os quadrados
                 table.insert(validEnemies, enemy)
             end
         end
@@ -170,38 +180,48 @@ function ThunderRune:cast(enemies)
 
         if not target or not target.position then
             print("AVISO [ThunderRune:cast]: Alvo ou posição do alvo inválidos para o raio.")
+            TablePool.release(validEnemies) -- Libera a tabela antes de sair
             return
         end
         local targetPosX = target.position.x
         local targetPosY = target.position.y + 10 -- Ajuste isométrico similar ao getCollisionPosition de BaseEnemy
 
-        table.insert(self.activeBolts, {
-            x = targetPosX,
-            y = targetPosY + 20, -- Mantém o ajuste adicional de +20 específico do raio
-            timer = 0,
-            duration = self.animation.frameCount * self.animation.frameTime, -- Duração baseada na animação completa
-            animation = {                                                    -- Estado da animação para ESTE bolt
-                currentFrame = 1,
-                timer = 0
-                -- frameTime e frameCount vêm de self.animation
-            }
-        })
+        -- Pega tabelas do pool para o novo raio e seu estado de animação
+        local newBolt = TablePool.get()
+        newBolt.x = targetPosX
+        newBolt.y = targetPosY +
+            20                                                                  -- Mantém o ajuste adicional de +20 específico do raio
+        newBolt.timer = 0
+        newBolt.duration = self.animation.frameCount * self.animation.frameTime -- Duração baseada na animação completa
+
+        local animState = TablePool.get()
+        animState.currentFrame = 1
+        animState.timer = 0
+        newBolt.animation = animState
+
+        table.insert(self.activeBolts, newBolt)
     end
+
+    TablePool.release(validEnemies) -- Libera a tabela de inimigos válidos
 end
 
 function ThunderRune:applyDamage(target)
-    if not target or not target.receiveDamage then -- Alterado para receiveDamage
-        print("AVISO [ThunderRune:applyDamage]: Alvo inválido ou sem método receiveDamage.")
-        return false
-    end
-    -- Em vez de target:takeDamage, que pode ter lógica de redução específica do PlayerState,
-    -- idealmente teríamos um target:receiveDamage(amount, type) mais genérico.
-    -- Por ora, vamos manter target:takeDamage, mas isso pode precisar de refatoração.
-    -- Se target for um inimigo, ele deve ter o método takeDamage que o PlayerManager usa.
+    if not target then return false end
+
+    local damageAmount = self.damage
+    local died = false
+
     if target.takeDamage then
-        return target:takeDamage(self.damage) -- Passa o dano da instância da runa
-    elseif target.receiveDamage then          -- Fallback se existir um receiveDamage mais genérico
-        target:receiveDamage(self.damage, "thunder")
+        died = target:takeDamage(damageAmount)
+        if self.playerManager and self.playerManager.registerDamageDealt then
+            self.playerManager:registerDamageDealt(damageAmount, false, { abilityId = self.identifier })
+        end
+        return died
+    elseif target.receiveDamage then
+        target:receiveDamage(damageAmount, "thunder")
+        if self.playerManager and self.playerManager.registerDamageDealt then
+            self.playerManager:registerDamageDealt(damageAmount, false, { abilityId = self.identifier })
+        end
         return true
     end
     return false

@@ -226,7 +226,6 @@ function PlayerManager:setupGameplay(registry, hunterId)
     -- 5. Equipa a Arma
     local weaponItem = equippedItems[Constants.SLOT_IDS.WEAPON]
 
-
     if weaponItem then
         -- Constrói o caminho para a CLASSE da arma (ex: src.items.weapons.dual_daggers)
         local weaponBaseData = self.itemDataManager:getBaseItemData(weaponItem.itemBaseId)
@@ -247,6 +246,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
             if weaponInstance then
                 print(string.format("    - Weapon instance created for '%s'.", weaponItem.itemBaseId))
                 -- Armazena a instância da arma
+                weaponInstance.itemInstance = weaponItem -- Anexa os dados do item
                 self.equippedWeapon = weaponInstance
 
                 if self.equippedWeapon.equip then -- Verifica se o método existe
@@ -373,12 +373,7 @@ function PlayerManager:update(dt)
 
     -- Define a posição do alvo e calcula o ângulo UMA VEZ
     local targetPosition = self:getTargetPosition()
-    local currentAngle = 0
-    if self.player and self.player.position then -- Garante que player existe
-        local dx = targetPosition.x - self.player.position.x
-        local dy = targetPosition.y - self.player.position.y
-        currentAngle = math.atan2(dy, dx)
-    end
+    local currentAngle = math.atan2(targetPosition.y - self.player.position.y, targetPosition.x - self.player.position.x)
 
     -- Atualiza o ataque da arma, passando o ângulo calculado
     if self.equippedWeapon and self.equippedWeapon.attackInstance then
@@ -388,10 +383,13 @@ function PlayerManager:update(dt)
     -- Update health recovery
     self:updateHealthRecovery(dt)
 
+    -- Obtém os stats finais uma vez para passar para as habilidades
+    local finalStats = self:getCurrentFinalStats()
+
     -- Update ATIVAS rune abilities (baseado nos slots equipados)
     -- Itera sobre as habilidades ativas que foram criadas em setupGameplay (ou quando equipadas)
     for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
-        abilityInstance:update(dt, self.enemyManager.enemies)
+        abilityInstance:update(dt, self.enemyManager.enemies, finalStats)
         -- Executa a runa automaticamente se o cooldown zerar
         if abilityInstance.cooldownRemaining and abilityInstance.cooldownRemaining <= 0 then
             abilityInstance:cast(self.player.position.x, self.player.position.y)

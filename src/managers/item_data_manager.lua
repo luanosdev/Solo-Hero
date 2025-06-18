@@ -23,9 +23,11 @@ function ItemDataManager:_loadDataFile(filePath, categoryName)
             -- Garante que o ID dentro da tabela seja o mesmo que a chave
             itemData.id = itemId
 
-            -- Processa o campo 'icon' para carregar a imagem
+            -- Processa o campo 'icon' para carregar a imagem, mas preserva o caminho original
             if itemData.icon and type(itemData.icon) == 'string' then
                 local imagePath = itemData.icon
+                itemData.iconPath = imagePath -- Preserva o caminho original
+
                 local success_img, imgOrError = pcall(love.graphics.newImage, imagePath)
                 if success_img then
                     itemData.icon = imgOrError

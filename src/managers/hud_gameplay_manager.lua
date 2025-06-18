@@ -3,10 +3,12 @@ local PlayerHPBar = require("src.ui.components.PlayerHPBar")
 local fonts = require("src.ui.fonts")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Camera = require("src.config.camera")
+local ActiveSkillsDisplay = require("src.ui.components.active_skills_display")
 
 ---@class HUDGameplayManager
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
 ---@field playerHPBar PlayerHPBar|nil Instância da barra de HP do jogador.
+---@field skillsDisplay ActiveSkillsDisplay|nil Instância do display de cooldowns.
 ---@field lastPlayerLevel number Armazena o nível do jogador no frame anterior.
 ---@field lastPlayerXPInLevel number Armazena o XP do jogador DENTRO do nível no frame anterior.
 ---@field lastTotalPlayerXP number Armazena o XP TOTAL ACUMULADO do jogador no frame anterior.
@@ -19,6 +21,7 @@ local Camera = require("src.config.camera")
 local HUDGameplayManager = {
     progressLevelBar = nil,
     playerHPBar = nil,
+    skillsDisplay = nil,
     lastPlayerLevel = 0,
     lastPlayerXPInLevel = 0,
     lastTotalPlayerXP = 0,
@@ -46,6 +49,7 @@ end
 function HUDGameplayManager:setupGameplay()
     local playerManager = ManagerRegistry:get("playerManager")
     local hunterManager = ManagerRegistry:get("hunterManager")
+    local itemDataManager = ManagerRegistry:get("itemDataManager")
 
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
@@ -121,6 +125,9 @@ function HUDGameplayManager:setupGameplay()
     }
     self.progressLevelBar = ProgressLevelBar:new(xpBarConfig)
 
+    -- Configuração do ActiveSkillsDisplay
+    self.skillsDisplay = ActiveSkillsDisplay:new(playerManager, itemDataManager)
+
     -- Posicionamento dinâmico das barras
     local paddingFromScreenEdgeX = 20
     local paddingFromScreenEdgeBottom = 20
@@ -164,6 +171,7 @@ function HUDGameplayManager:update(dt)
     if not playerManager or not playerManager.state or not hunterManager then
         if self.progressLevelBar then self.progressLevelBar:update(dt) end
         if self.playerHPBar then self.playerHPBar:update(dt) end
+        if self.skillsDisplay then self.skillsDisplay:update(dt) end
         return
     end
 
@@ -250,6 +258,7 @@ function HUDGameplayManager:update(dt)
     self.lastPlayerRank = newRank
 
     self.playerHPBar:update(dt)
+    self.skillsDisplay:update(dt)
 end
 
 --- Desenha todos os elementos da UI gerenciados.
@@ -261,6 +270,7 @@ function HUDGameplayManager:draw(isPaused)
     self.progressLevelBar:draw()
     self.playerHPBar:draw()
     self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
+    self.skillsDisplay:draw()
 end
 
 --- Reseta o estado do manager (se necessário).

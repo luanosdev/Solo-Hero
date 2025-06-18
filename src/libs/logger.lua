@@ -156,9 +156,9 @@ end
 
 --- Debuga recursivamente uma tabela
 --- @param tbl table
---- @param indent number
+--- @param indent? number
 function Logger.dumpTable(tbl, indent)
-    indent = indent or 0
+    indent = indent or 2
     local toprint = string.rep(" ", indent) .. "{\n"
     indent = indent + 2
 

@@ -3,7 +3,8 @@
     Cria orbes que orbitam ao redor do jogador e causam dano aos inimigos próximos
 ]]
 
-local RenderPipeline = require("src.render_pipeline")
+local RenderPipeline = require("src.core.render_pipeline")
+local TablePool = require("src.utils.table_pool")
 
 local OrbitalRune = {}
 OrbitalRune.__index = OrbitalRune -- Para permitir que instâncias herdem métodos
@@ -102,7 +103,11 @@ function OrbitalRune:new(playerManager, runeItemData)
     return instance
 end
 
-function OrbitalRune:update(dt, enemies)
+--- Atualiza a habilidade da Orbital.
+--- @param dt number Tempo de atualização.
+--- @param enemies BaseEnemy[] Lista de inimigos.
+--- @param finalStats table Estatísticas finais do jogador.
+function OrbitalRune:update(dt, enemies, finalStats)
     self.animation.timer = self.animation.timer + dt
     if self.animation.timer >= self.animation.frameTime then
         self.animation.timer = self.animation.timer - self.animation.frameTime
@@ -116,7 +121,7 @@ function OrbitalRune:update(dt, enemies)
         orb.angle = orb.angle + self.rotationSpeed * dt
         orb.lastDamageTime = orb.lastDamageTime + dt
 
-        local enemiesToRemoveFromOrbCD = {}
+        local enemiesToRemoveFromOrbCD = TablePool.get()
         for enemyId, time in pairs(orb.damagedEnemies) do
             orb.damagedEnemies[enemyId] = time - dt
             if orb.damagedEnemies[enemyId] <= 0 then
@@ -126,8 +131,9 @@ function OrbitalRune:update(dt, enemies)
         for _, enemyId in ipairs(enemiesToRemoveFromOrbCD) do
             orb.damagedEnemies[enemyId] = nil
         end
+        TablePool.release(enemiesToRemoveFromOrbCD)
 
-        self:applyOrbitalDamage(orb, i, dt, enemies)
+        self:applyOrbitalDamage(orb, i, dt, enemies, finalStats)
     end
 end
 
@@ -167,13 +173,23 @@ function OrbitalRune:cast()
 end
 
 -- Função auxiliar para aplicar dano a um único alvo.
-function OrbitalRune:applyDamageToTarget(target) -- Renomeado para clareza
+function OrbitalRune:applyDamageToTarget(target)
     if not target then return false end
 
+    local damageAmount = self.damage
+    local died = false
+
     if target.takeDamage then
-        return target:takeDamage(self.damage)
+        died = target:takeDamage(damageAmount)
+        if self.playerManager and self.playerManager.registerDamageDealt then
+            self.playerManager:registerDamageDealt(damageAmount, false, { abilityId = self.identifier })
+        end
+        return died
     elseif target.receiveDamage then
-        target:receiveDamage(self.damage, "orbital")
+        target:receiveDamage(damageAmount, "orbital")
+        if self.playerManager and self.playerManager.registerDamageDealt then
+            self.playerManager:registerDamageDealt(damageAmount, false, { abilityId = self.identifier })
+        end
         return true
     else
         print("AVISO [OrbitalRune:applyDamageToTarget]: Alvo inválido ou sem método de dano.")
@@ -181,10 +197,17 @@ function OrbitalRune:applyDamageToTarget(target) -- Renomeado para clareza
     return false
 end
 
-function OrbitalRune:applyOrbitalDamage(orb, orbIndex, dt, enemies)
+--- Aplica dano ao orbe.
+--- @param orb table Orbe.
+--- @param orbIndex number Índice do orbe.
+--- @param dt number Tempo de atualização.
+--- @param enemies BaseEnemy[] Lista de inimigos.
+--- @param finalStats table Estatísticas finais do jogador.
+function OrbitalRune:applyOrbitalDamage(orb, orbIndex, dt, enemies, finalStats)
     if not enemies or not self.playerManager or not self.playerManager.player or not self.playerManager.player.position then return end
 
-    if orb.lastDamageTime < self.orbDamageCooldown then return end
+    local finalOrbCooldown = self.orbDamageCooldown * (finalStats and finalStats.cooldownReduction or 1)
+    if orb.lastDamageTime < finalOrbCooldown then return end
 
     local playerPos = self.playerManager.player.position
     local orbScreenX = playerPos.x + math.cos(orb.angle) * self.orbitRadius
@@ -194,19 +217,24 @@ function OrbitalRune:applyOrbitalDamage(orb, orbIndex, dt, enemies)
     local damageRadius = self.orbRadius
 
     local anEnemyWasHitThisOrb = false
+    local enemiesHitThisTick = 0
 
     for _, enemy in ipairs(enemies) do
         if enemy.isAlive and enemy.id and enemy.position then
             local enemyId = enemy.id
 
             local dx = enemy.position.x - orbScreenX
-            local dy = (enemy:getCollisionPosition().position.y) - orbScreenY -- Compara com base do inimigo
+            local dy = (enemy.position.y) - orbScreenY -- Compara com base do inimigo
             local distance = math.sqrt(dx * dx + dy * dy)
 
             if distance <= (damageRadius + (enemy.radius or 10)) then -- Colisão círculo-círculo simples
                 if not orb.damagedEnemies[enemyId] then
                     local died = self:applyDamageToTarget(enemy)
-                    orb.damagedEnemies[enemyId] = self.enemyCooldownPerOrb
+                    enemiesHitThisTick = enemiesHitThisTick + 1
+
+                    local finalEnemyCooldown = self.enemyCooldownPerOrb *
+                        (finalStats and finalStats.cooldownReduction or 1)
+                    orb.damagedEnemies[enemyId] = finalEnemyCooldown
                     anEnemyWasHitThisOrb = true
                     -- Não precisa de `enemiesHitThisPass` se o cooldown geral do orbe for curto
                     -- e o cooldown por inimigo for mais longo.
@@ -215,6 +243,10 @@ function OrbitalRune:applyOrbitalDamage(orb, orbIndex, dt, enemies)
                 end
             end
         end
+    end
+
+    if enemiesHitThisTick > 0 and self.playerManager.gameStatisticsManager then
+        self.playerManager.gameStatisticsManager:registerEnemiesHit(enemiesHitThisTick)
     end
 
     if anEnemyWasHitThisOrb then

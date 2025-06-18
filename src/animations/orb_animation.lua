@@ -1,4 +1,4 @@
-local config = require("src.runes.orbital")
+local config = require("src.entities.equipments.runes.orbital")
 
 local animation = {
     frames = config.animation.frames,

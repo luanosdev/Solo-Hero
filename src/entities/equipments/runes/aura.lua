@@ -3,7 +3,7 @@
     Uma aura que causa dano aos inimigos próximos periodicamente
 ]]
 
-local RenderPipeline = require("src.render_pipeline")
+local RenderPipeline = require("src.core.render_pipeline")
 
 local Aura = {}
 Aura.__index = Aura -- Para permitir que instâncias herdem métodos
@@ -12,7 +12,7 @@ Aura.__index = Aura -- Para permitir que instâncias herdem métodos
 Aura.identifier = "rune_aura"
 Aura.defaultDepth = RenderPipeline.DEPTH_DROPS
 Aura.defaultDamagePerTick = 80
-Aura.defaultTickInterval = 1.0
+Aura.defaultCooldown = 1.0
 Aura.defaultRadius = 100
 Aura.defaultColor = { 0.8, 0, 0.8, 0.03 } -- Cor roxa suave para a aura base
 Aura.defaultPulseDuration = 0.3
@@ -48,12 +48,12 @@ function Aura:new(playerManager, runeItemData)
 
     instance.name = runeItemData.name or "Aura de Dano (Instância)"
     instance.damage_per_tick = runeItemData.damage or self.defaultDamagePerTick
-    instance.tick_interval = runeItemData.tick_interval or self.defaultTickInterval
+    instance.cooldown = runeItemData.tick_interval or self.defaultCooldown
     instance.radius = runeItemData.radius or self.defaultRadius
     instance.color = runeItemData.color or deepcopy(self.defaultColor) -- Copia para evitar modificação global
     instance.pulseDuration = runeItemData.pulseDuration or self.defaultPulseDuration
 
-    instance.cooldownRemaining = instance.tick_interval -- Começa no cooldown para não disparar imediatamente
+    instance.currentCooldown = instance.cooldown -- Começa no cooldown para não disparar imediatamente
 
     -- Estado da aura (específico da instância)
     instance.auraState = {
@@ -76,13 +76,17 @@ function Aura:new(playerManager, runeItemData)
     }
 
     print(string.format("Instância de Aura criada: Dmg/Tick=%d, Interval=%.2f, Radius=%.1f", instance.damage_per_tick,
-        instance.tick_interval, instance.radius))
+        instance.cooldown, instance.radius))
     return instance
 end
 
-function Aura:update(dt, enemies)
-    if self.cooldownRemaining > 0 then
-        self.cooldownRemaining = math.max(0, self.cooldownRemaining - dt)
+--- Atualiza a habilidade da Aura.
+--- @param dt number Tempo de atualização.
+--- @param enemies BaseEnemy[] Lista de inimigos.
+--- @param finalStats table Estatísticas finais do jogador.
+function Aura:update(dt, enemies, finalStats)
+    if self.currentCooldown > 0 then
+        self.currentCooldown = math.max(0, self.currentCooldown - dt)
     end
 
     if self.shockwave.isActive then
@@ -102,14 +106,15 @@ function Aura:update(dt, enemies)
 
     -- A aura está "sempre ativa" se a runa estiver equipada. O dano ocorre em intervalos.
     if self.auraState.active then
-        if self.cooldownRemaining <= 0 then
+        if self.currentCooldown <= 0 then
             self.shockwave.isActive = true
             self.shockwave.currentRadius = 0
             self.shockwave.timer = 0
 
             self:applyAuraDamage(enemies)
 
-            self.cooldownRemaining = self.tick_interval
+            local finalCooldown = self.cooldown * (finalStats and finalStats.cooldownReduction or 1)
+            self.currentCooldown = finalCooldown
         end
     end
 end
@@ -156,20 +161,30 @@ function Aura:cast()
     -- Este método pode ser usado para reativar ou forçar um pulso se necessário.
     self.auraState.active = true
     -- Força um pulso imediato se desejado (opcional)
-    -- self.cooldownRemaining = 0
+    -- self.currentCooldown = 0
     -- print("Aura cast (ativada ou pulso forçado)")
     return true
 end
 
 -- Função auxiliar para aplicar dano a um único alvo.
 -- O dano principal da aura é feito em applyAuraDamage.
-function Aura:applyDamageToTarget(target) -- Renomeado para clareza
+function Aura:applyDamageToTarget(target)
     if not target then return false end
 
+    local damageAmount = self.damage_per_tick
+    local died = false
+
     if target.takeDamage then
-        return target:takeDamage(self.damage_per_tick)
+        died = target:takeDamage(damageAmount)
+        if self.playerManager and self.playerManager.registerDamageDealt then
+            self.playerManager:registerDamageDealt(damageAmount, false, { abilityId = self.identifier })
+        end
+        return died
     elseif target.receiveDamage then
-        target:receiveDamage(self.damage_per_tick, "aura")
+        target:receiveDamage(damageAmount, "aura")
+        if self.playerManager and self.playerManager.registerDamageDealt then
+            self.playerManager:registerDamageDealt(damageAmount, false, { abilityId = self.identifier })
+        end
         return true
     else
         print("AVISO [Aura:applyDamageToTarget]: Alvo inválido ou sem método de dano.")
@@ -181,6 +196,7 @@ function Aura:applyAuraDamage(enemies)
     if not enemies or not self.playerManager or not self.playerManager.player or not self.playerManager.player.position then return end
 
     local playerPos = self.playerManager.player.position
+    local enemiesHitCount = 0
     for _, enemy in ipairs(enemies) do
         if enemy.isAlive then
             local dx = enemy.position.x - playerPos.x
@@ -189,8 +205,13 @@ function Aura:applyAuraDamage(enemies)
 
             if distance <= self.radius then
                 self:applyDamageToTarget(enemy)
+                enemiesHitCount = enemiesHitCount + 1
             end
         end
+    end
+
+    if enemiesHitCount > 0 and self.playerManager.gameStatisticsManager then
+        self.playerManager.gameStatisticsManager:registerEnemiesHit(enemiesHitCount)
     end
 end
 

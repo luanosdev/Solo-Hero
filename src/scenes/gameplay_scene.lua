@@ -238,7 +238,6 @@ function GameplayScene:load(args)
         Camera:setPosition(0, 0)
     end
 
-
     Logger.debug("GameplayScene", "GameplayScene:load concluído.")
 end
 
@@ -1020,8 +1019,8 @@ function GameplayScene:requestUseItem(itemInstance)
         -- O estado de self.isPaused será reavaliado no próximo GameplayScene:update()
 
         -- Informa imediatamente ao TooltipManager para limpar/esconder o tooltip
-        local mx, my = love.mouse.getPosition() -- Obter posições atuais do mouse
-        ItemDetailsModalManager.update(0, mx, my, nil)   -- dt=0 é ok aqui, o importante é o 'nil'
+        local mx, my = love.mouse.getPosition()        -- Obter posições atuais do mouse
+        ItemDetailsModalManager.update(0, mx, my, nil) -- dt=0 é ok aqui, o importante é o 'nil'
         print("  GameplayScene: TooltipManager.update(0, mx, my, nil) chamado para esconder tooltip.")
     end
 

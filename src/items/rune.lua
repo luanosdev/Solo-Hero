@@ -130,9 +130,9 @@ function Rune:getRandomAbilities(rarity)
 
     -- Lista de todas as habilidades disponíveis (referências às classes)
     local availableAbilities = {
-        require("src.runes.aura"),
-        require("src.runes.orbital"),
-        require("src.runes.thunder"),
+        require("src.entities.equipments.runes.aura"),
+        require("src.entities.equipments.runes.orbital"),
+        require("src.entities.equipments.runes.thunder"),
         -- Adicione mais referências de classes de habilidade aqui
     }
 
