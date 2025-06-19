@@ -171,11 +171,22 @@ function BaseBoss:useAbility(playerManager)
     -- TODO: Implementar seleção de habilidade baseada em peso. Por agora, usa a próxima da lista.
     local ability_data = self.abilities[self.currentAbilityIndex]
 
-    if ability_data and ability_data.classPath then
+    if not ability_data then return end
+
+    -- Verifica a distância mínima, se especificada
+    local playerPos = playerManager:getCollisionPosition().position
+    local distanceToPlayer = math.sqrt((self.position.x - playerPos.x) ^ 2 + (self.position.y - playerPos.y) ^ 2)
+
+    if ability_data.params and distanceToPlayer > ability_data.params.range then
+        -- O jogador está muito longe para esta habilidade, então o boss continua a perseguição
+        return
+    end
+
+    if ability_data.classPath then
         local AbilityClass = require(ability_data.classPath)
         if AbilityClass then
-            local params = table.copy(ability_data.params or {})
-            params.damage = ability_data.damage -- Adiciona o dano aos parâmetros
+            -- Passa a tabela de parâmetros diretamente
+            local params = ability_data.params or {}
 
             self.currentAbility = AbilityClass:new(self, params)
             self.currentAbility:start(playerManager)

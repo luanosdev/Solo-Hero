@@ -1236,10 +1236,13 @@ function GameplayScene:checkForBossPresentation()
 
     for _, enemy in ipairs(enemies) do
         if enemy.isBoss and not enemy.isPresented then
-            local distance = lume.distance(playerPos.x, playerPos.y, enemy.position.x, enemy.position.y)
-            local triggerDistance = (Camera.screenWidth / Camera.scale) * 0.50 -- 50% da largura da tela
+            local distanceX = math.abs(playerPos.x - enemy.position.x)
+            local distanceY = math.abs(playerPos.y - enemy.position.y)
 
-            if distance < triggerDistance then
+            local triggerDistanceX = (Camera.screenWidth / Camera.scale) * 0.3
+            local triggerDistanceY = (Camera.screenHeight / Camera.scale) * 0.3
+
+            if distanceX < triggerDistanceX and distanceY < triggerDistanceY then
                 self.bossPresentationManager:start(enemy, playerManager)
                 -- Para a verificação assim que a primeira apresentação começar
                 return

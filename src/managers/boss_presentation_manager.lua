@@ -4,7 +4,6 @@
 
 local CameraEffects = require("src.utils.camera_effects")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
-local Colors = require("src.ui.colors")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 
 ---@class BossPresentationManager
@@ -19,6 +18,10 @@ local PRESENTATION_STATE = {
     PAN_TO_PLAYER = "pan_to_player"
 }
 
+local PAN_TO_BOSS_DURATION = 1.5
+local ZOOM_ON_BOSS_SCALE = 1.5
+local SHOWCASE_DURATION = 1
+
 --- Cria uma nova instância do gerenciador.
 --- @return BossPresentationManager
 function BossPresentationManager:new()
@@ -29,7 +32,7 @@ function BossPresentationManager:new()
     instance.boss = nil
     instance.playerManager = nil
     instance.timer = 0
-    instance.showcaseDuration = 1 -- Duração da cena de showcase (em segundos)
+    instance.showcaseDuration = SHOWCASE_DURATION
     return instance
 end
 
@@ -53,7 +56,7 @@ function BossPresentationManager:start(boss, playerManager)
 
     -- Salva o alvo original da câmera (o jogador) e inicia o pan/zoom
     self.cameraEffects.originalCameraTarget = self.playerManager.player
-    self.cameraEffects:panAndZoomTo(self.boss.position.x, self.boss.position.y, 1.2, 1.5)
+    self.cameraEffects:panAndZoomTo(self.boss.position.x, self.boss.position.y, ZOOM_ON_BOSS_SCALE, PAN_TO_BOSS_DURATION)
 end
 
 --- Atualiza a lógica da apresentação.

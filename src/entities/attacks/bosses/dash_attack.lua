@@ -7,7 +7,7 @@ local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 ---@field telegraphDuration number Duração da animação "taunt" e do aviso.
 ---@field dashSpeedMultiplier number Multiplicador de velocidade durante o avanço.
 ---@field stunDuration number Duração do "stun" após o avanço.
----@field dashRange number Alcance fixo do avanço.
+---@field range number Alcance fixo do avanço.
 ---@field damage number Dano da habilidade.
 
 ---@class DashAttack
@@ -70,7 +70,7 @@ function DashAttack:start(playerManager)
     end
 
     -- Calcula a posição final do dash com base no alcance fixo
-    local dashRange = self.params.dashRange or 500 -- Usa o parâmetro ou um fallback
+    local dashRange = self.params.range or 500 -- Usa o parâmetro ou um fallback
     self.targetPosition = {
         x = self.boss.position.x + self.dashVector.x * dashRange,
         y = self.boss.position.y + self.dashVector.y * dashRange
@@ -114,8 +114,11 @@ function DashAttack:updateDash(dt, playerManager)
     self.boss.position.y = self.boss.position.y + self.dashVector.y * speed * dt
 
     -- Verifica colisão com o jogador
-    -- (A lógica de colisão do BaseEnemy pode ser usada ou uma específica aqui)
+    -- Temporariamente aumenta o dano do boss para o dano da habilidade
+    local baseBossDamage = self.boss.damage
+    self.boss.damage = self.params.damage
     self.boss:checkPlayerCollision(dt, playerManager) -- Reutilizando a colisão padrão
+    self.boss.damage = baseBossDamage
 
     -- Verifica se chegou perto o suficiente do alvo para parar
     local dx = self.targetPosition.x - self.boss.position.x

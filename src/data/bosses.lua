@@ -106,7 +106,7 @@ local bosses = {
                     telegraphDuration = 1,   -- Duração da animação "taunt" e do aviso
                     dashSpeedMultiplier = 5, -- Multiplicador de velocidade durante o avanço
                     stunDuration = 2,        -- Duração do "stun" após o avanço
-                    dashRange = 500,         -- Alcance fixo do avanço
+                    range = 500,         -- Alcance fixo do avanço
                 }
             }
         },
