@@ -261,7 +261,10 @@ function AnimatedSpritesheet.update(unitType, instanceAnimConfig, dt, targetPosi
         end
     end
 
-    if isMoving then
+    -- Animações como 'idle' ou 'taunt' devem ser executadas mesmo se a entidade estiver parada.
+    local alwaysAnimate = (currentAnimationKey == 'idle' or currentAnimationKey == 'taunt')
+
+    if isMoving or alwaysAnimate then
         anim.timer = anim.timer + dt
         while anim.timer >= frameTime do
             anim.timer = anim.timer - frameTime

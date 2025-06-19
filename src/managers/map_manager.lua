@@ -279,16 +279,19 @@ function MapManager:_prepareTileBatches()
             end
             for i, gidInLayer in ipairs(layer.data) do
                 if gidInLayer ~= 0 then
+                    --[[
                     Logger.debug("MapManager",
                         string.format("    Camada '%s', Tile #%d, GID: %d", layer.name or "N/A", i, gidInLayer))
+                    ]]
                     if gidToTileRenderInfo[gidInLayer] then
                         local tileRenderInfo = gidToTileRenderInfo[gidInLayer]
                         local tileImage = tileRenderInfo.image
                         local tileQuad = tileRenderInfo.quad
+                        --[[
                         Logger.debug("MapManager",
                             string.format("      GID %d encontrado em gidToTileRenderInfo. Imagem associada: %s",
                                 gidInLayer, tostring(tileImage)))
-
+                        ]]
                         local mapTileX = (i - 1) % layer.width
                         local mapTileY = math.floor((i - 1) / layer.width)
 
@@ -322,10 +325,12 @@ function MapManager:_prepareTileBatches()
                             end
                             self.tileBatches[tileImage]:add(tileQuad, finalDrawX, finalDrawY, 0, scaleX, scaleY)
                             tilesAddedToBatches = tilesAddedToBatches + 1
+                            --[[
                             Logger.debug("MapManager",
                                 string.format(
                                     "      GID %d adicionado ao batch. finalX: %.2f, finalY: %.2f, scaleX: %.2f, scaleY: %.2f",
                                     gidInLayer, finalDrawX, finalDrawY, scaleX, scaleY))
+                            ]]
                         end
                     else
                         Logger.warn("MapManager",

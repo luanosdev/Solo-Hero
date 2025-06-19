@@ -47,6 +47,32 @@ local function lerp(a, b, t)
     return a * (1 - t) + b * t
 end
 
+--- Funcção para verificar se o mouse está sobre a área
+--- @param area table A área para verificar com x, y, width, height
+--- @return boolean
+function IsMouseOver(area)
+    local mx, my = love.mouse.getPosition()
+    return mx >= area.x and mx <= area.x + area.width and
+        my >= area.y and my <= area.y + area.height
+end
+
+--- Copia uma tabela (shallow copy).
+--- @param orig table A tabela original.
+--- @return table Uma nova tabela que é uma cópia da original.
+function table.copy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in pairs(orig) do
+            copy[orig_key] = orig_value
+        end
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+
 return {
     normalizeAngle = normalizeAngle,
     deepCopy = deepCopy,

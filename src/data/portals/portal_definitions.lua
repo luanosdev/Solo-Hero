@@ -21,7 +21,7 @@ local ZombieWalkerMale1 = require("src.enemies.common.zombie_walker_male_1")
 local ZombieWalkerFemale1 = require("src.enemies.common.zombie_walker_female_1")
 local ZombieRunnerMale1 = require("src.enemies.common.zombie_runner_male_1")
 local ZombieRunnerFemale1 = require("src.enemies.common.zombie_runner_female_1")
-
+local TheRottenImmortal = require("src.enemies.boss.the_rotten_immortal")
 
 ---@type PortalDefinitions
 local portalDefinitions = {
@@ -131,7 +131,7 @@ local portalDefinitions = {
         theme = "CementeryTheme",
         rank = "TEST",
         map = "forest",
-        requiredUnitTypes = { "zombie_walker_male_1" },
+        requiredUnitTypes = { "zombie_walker_male_1", "the_rotten_immortal" },
         hordeConfig = {
             mapRank = "TEST",
             mvpConfig = { -- MVP desligado para este teste
@@ -142,7 +142,9 @@ local portalDefinitions = {
                 experienceMultiplier = 1
             },
             bossConfig = {
-                spawnTimes = {} -- Sem bosses
+                spawnTimes = {
+                    { time = 1, class = TheRottenImmortal, unitType = "the_rotten_immortal" }
+                }
             },
             cycles = {
                 {

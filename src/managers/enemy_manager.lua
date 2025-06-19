@@ -529,13 +529,25 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
 
                     renderPipelineInstance:add(rendable)
 
+                    if enemy.isBoss and enemy.draw then
+                        local bossDrawRenderable = TablePool.get()
+                        bossDrawRenderable.type = "drawFunction"
+                        bossDrawRenderable.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI -- Renderiza sobre os sprites
+                        bossDrawRenderable.sortY = sortY + 1000                          -- Garante que fique sobre o sprite
+
+                        local capturedEnemy = enemy
+                        bossDrawRenderable.drawFunction = function()
+                            capturedEnemy:draw()
+                        end
+                        renderPipelineInstance:add(bossDrawRenderable)
+                    end
+
                     -- <<< NOVA LÓGICA PARA BARRAS DE VIDA DE MVP >>>
                     if enemy.isMVP and enemy.isAlive then
                         local mvpBarRenderable = TablePool.get()
                         mvpBarRenderable.type = "drawFunction"
                         mvpBarRenderable.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI -- Renderiza sobre os sprites
-                        mvpBarRenderable.sortY = sortY +
-                        1000                                                           -- Garante que fique sobre o sprite
+                        mvpBarRenderable.sortY = sortY + 1000
 
                         local capturedEnemy = enemy
                         mvpBarRenderable.drawFunction = function()
@@ -759,19 +771,34 @@ function EnemyManager:spawnMVP()
 end
 
 function EnemyManager:spawnBoss(bossClass, powerLevel)
-    -- Calcula posição de spawn usando a nova lógica inteligente
-    local spawnX, spawnY = self:calculateSpawnPosition()
+    if not bossClass then
+        error("[EnemyManager:spawnBoss]: Tentativa de spawnar boss com classe nula.")
+    end
 
-    -- Obtém o próximo ID disponível
-    local enemyId = self.nextEnemyId
+    local enemyClassName = bossClass.className
+    if not enemyClassName then
+        error("[EnemyManager:spawnBoss]: Classe de boss sem 'className'.")
+    end
+
+    -- Obter instância do pool ou criar nova
+    local bossInstance = self:getOrCreateEnemyInstance(enemyClassName, bossClass)
+
+    -- Calcular posição de spawn
+    local spawnX, spawnY = self:calculateSpawnPosition()
+    bossInstance:reset({ x = spawnX, y = spawnY }, self.nextEnemyId)
     self.nextEnemyId = self.nextEnemyId + 1
 
-    -- Cria o boss com o nível de poder especificado
-    local boss = bossClass:new({ x = spawnX, y = spawnY }, enemyId)
-    boss.powerLevel = powerLevel or 3 -- Usa 3 como padrão se não for especificado
-    table.insert(self.enemies, boss)
+    -- Propriedades específicas do Boss
+    bossInstance.powerLevel = powerLevel or 3
 
-    print(string.format("Boss %s (ID: %d, Nível %d) spawnado!", boss.name, enemyId, boss.powerLevel))
+    -- Adiciona à lista de ativos
+    table.insert(self.enemies, bossInstance)
+
+    Logger.info(
+        "[EnemyManager:spawnBoss]",
+        string.format("Boss %s (ID: %d, Nível %d) spawnado!", bossInstance.name, bossInstance.id, bossInstance
+            .powerLevel)
+    )
 end
 
 --- Retorna uma instância de inimigo ativa pelo seu ID.
