@@ -20,12 +20,20 @@ local BOSS_STATE = {
 ---@field currentAbility table
 ---@field isPresented boolean
 ---@field isPresentationFinished boolean
+---@field isUnderPresentation boolean
+---@field presentationAnimState string
+---@field presentationFrameTimer number
+---@field presentationPingPongDir number
 local BaseBoss = setmetatable({}, { __index = BaseEnemy })
 
 -- Configurações base para todos os bosses
 BaseBoss.isBoss = true
 BaseBoss.isPresented = false            -- Se a cena de apresentação já foi triggada
 BaseBoss.isPresentationFinished = false -- Se a cena de apresentação já terminou
+BaseBoss.isUnderPresentation = false    -- Se está ATIVAMENTE na cena de apresentação.
+BaseBoss.presentationAnimState = nil    -- Estado da animação durante a apresentação ('idle', 'taunt_once', 'taunt_loop')
+BaseBoss.presentationFrameTimer = 0
+BaseBoss.presentationPingPongDir = 1
 
 -- Sistema de habilidades
 BaseBoss.abilities = {}          -- Tabela de habilidades do boss
@@ -49,6 +57,10 @@ function BaseBoss:new(position, id)
     boss.currentAbility = nil
     boss.isPresented = false
     boss.isPresentationFinished = false
+    boss.isUnderPresentation = false
+    boss.presentationAnimState = nil
+    boss.presentationFrameTimer = 0
+    boss.presentationPingPongDir = 1
 
     return boss
 end
@@ -58,10 +70,50 @@ end
 --- @param playerManager PlayerManager Manager do jogador.
 --- @param enemyManager EnemyManager Manager de inimigos.
 function BaseBoss:update(dt, playerManager, enemyManager)
+    -- Lógica especial de animação durante a apresentação
+    if self.isUnderPresentation then
+        local animState = self.sprite.animation
+        local TAUNT_FRAMES = 15 -- Suposição sobre o número de frames. Ajuste se necessário.
+        local TAUNT_DURATION = 1
+        local frameDuration = TAUNT_DURATION / TAUNT_FRAMES
+
+        if self.presentationAnimState == 'idle' then
+            AnimatedSpritesheet.setMovementType(self.sprite, 'idle', self.unitType)
+            AnimatedSpritesheet.update(self.unitType, self.sprite, dt, nil)
+        elseif self.presentationAnimState == 'taunt_once' then
+            AnimatedSpritesheet.setMovementType(self.sprite, 'taunt', self.unitType)
+
+            self.presentationFrameTimer = self.presentationFrameTimer + dt
+            if self.presentationFrameTimer >= frameDuration then
+                self.presentationFrameTimer = self.presentationFrameTimer - frameDuration
+                if animState.currentFrame < TAUNT_FRAMES then
+                    animState.currentFrame = animState.currentFrame + 1
+                end
+            end
+        elseif self.presentationAnimState == 'taunt_loop' then
+            AnimatedSpritesheet.setMovementType(self.sprite, 'taunt', self.unitType)
+            self.presentationFrameTimer = self.presentationFrameTimer + dt
+            if animState.frameDuration and animState.frameDuration > 0 and self.presentationFrameTimer >= animState.frameDuration then
+                self.presentationFrameTimer = self.presentationFrameTimer - animState.frameDuration
+                animState.currentFrame = animState.currentFrame + self.presentationPingPongDir
+                if animState.currentFrame >= TAUNT_FRAMES then
+                    animState.currentFrame = TAUNT_FRAMES
+                    self.presentationPingPongDir = -1
+                elseif animState.currentFrame <= 1 then
+                    animState.currentFrame = 1
+                    self.presentationPingPongDir = 1
+                end
+            end
+        end
+        return -- Interrompe o update normal durante a apresentação
+    end
+
     if not self.isAlive or self.isDying then
         -- Se estiver morrendo, apenas atualiza a animação de morte
         if self.isDying then
             BaseEnemy.update(self, dt, playerManager, enemyManager, false)
+            AnimatedSpritesheet.setMovementType(self.sprite, "taunt", self.unitType)
+            self.isImmobile = true
         end
         return
     end

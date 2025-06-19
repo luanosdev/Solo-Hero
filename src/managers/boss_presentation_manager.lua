@@ -5,6 +5,7 @@
 local CameraEffects = require("src.utils.camera_effects")
 local BossHealthBar = require("src.ui.boss_health_bar")
 local Colors = require("src.ui.colors")
+local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 
 ---@class BossPresentationManager
 local BossPresentationManager = {}
@@ -28,7 +29,7 @@ function BossPresentationManager:new()
     instance.boss = nil
     instance.playerManager = nil
     instance.timer = 0
-    instance.showcaseDuration = 3 -- Duração da cena de showcase (em segundos)
+    instance.showcaseDuration = 1 -- Duração da cena de showcase (em segundos)
     return instance
 end
 
@@ -43,7 +44,12 @@ function BossPresentationManager:start(boss, playerManager)
     self.playerManager = playerManager
     self.state = PRESENTATION_STATE.PAN_TO_BOSS
     self.timer = 0
-    self.boss.isPresented = true -- Marca como apresentado para não triggar de novo
+
+    -- Prepara o boss para a apresentação
+    self.boss.isPresented = false
+    self.boss.isImmobile = true
+    self.boss.isUnderPresentation = true
+    self.boss.presentationAnimState = "idle"
 
     -- Salva o alvo original da câmera (o jogador) e inicia o pan/zoom
     self.cameraEffects.originalCameraTarget = self.playerManager.player
@@ -62,8 +68,8 @@ function BossPresentationManager:update(dt)
         if not self.cameraEffects:isActive() then
             self.state = PRESENTATION_STATE.SHOWCASE
             self.timer = 0
-            -- Boss executa a animação de "taunt"
-            if self.boss.taunt then self.boss:taunt() end
+            -- Inicia a animação de "taunt" que dura 1s
+            self.boss.presentationAnimState = "taunt_once"
             -- Inicia o tremor da câmera
             self.cameraEffects:shake(1, 4)
             -- Mostra a barra de vida
@@ -73,9 +79,10 @@ function BossPresentationManager:update(dt)
         if self.timer >= self.showcaseDuration then
             self.state = PRESENTATION_STATE.PAN_TO_PLAYER
             self.timer = 0
+            -- Inicia a animação de "taunt" em loop (ping-pong)
+            self.boss.presentationAnimState = "taunt_loop"
             -- Inicia o retorno da câmera para o jogador
             self.cameraEffects:restore(1.0)
-            BossHealthBar:hide() -- Esconde a barra temporariamente até o boss se tornar ativo
         end
     elseif self.state == PRESENTATION_STATE.PAN_TO_PLAYER then
         if not self.cameraEffects:isActive() then
@@ -105,7 +112,12 @@ function BossPresentationManager:finish()
     Logger.info("[BossPresentationManager]", "Apresentação finalizada.")
     if self.boss then
         self.boss.isPresentationFinished = true -- Libera o boss para atacar
+        self.boss.isPresented = true
         self.boss.isImmobile = false            -- Garante que o boss possa se mover novamente
+        self.boss.isUnderPresentation = false
+        self.boss.presentationAnimState = nil
+        -- Garante que o boss volte para a animação de andar
+        AnimatedSpritesheet.setMovementType(self.boss.sprite, "walk", self.boss.unitType)
     end
 
     self.state = PRESENTATION_STATE.INACTIVE
