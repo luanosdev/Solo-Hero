@@ -192,7 +192,8 @@ local portalDefinitions = {
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 1, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "S" }
+                    { time = 1, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "S" },
+                    { time = 10, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "E" }
                 }
             },
             cycles = {
@@ -247,7 +248,7 @@ local portalDefinitions = {
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 600, class = SpiderBoss, unitType = "spider", rank = "E" }
+                    { time = 600, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "E" }
                 }
             },
             cycles = {

@@ -213,7 +213,7 @@ function BossHPBar:draw()
                         math.floor(segmentX),
                         emptyBarY - (layout.hpBarHeight / 2),
                         math.floor(segmentX),
-                        emptyBarY + 1
+                        emptyBarY - 1
                     )
                 end
             end
