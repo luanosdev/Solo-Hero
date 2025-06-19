@@ -18,10 +18,14 @@ local BOSS_STATE = {
 ---@field abilityTimer number
 ---@field bossState string
 ---@field currentAbility table
+---@field isPresented boolean
+---@field isPresentationFinished boolean
 local BaseBoss = setmetatable({}, { __index = BaseEnemy })
 
 -- Configurações base para todos os bosses
 BaseBoss.isBoss = true
+BaseBoss.isPresented = false            -- Se a cena de apresentação já foi triggada
+BaseBoss.isPresentationFinished = false -- Se a cena de apresentação já terminou
 
 -- Sistema de habilidades
 BaseBoss.abilities = {}          -- Tabela de habilidades do boss
@@ -43,6 +47,8 @@ function BaseBoss:new(position, id)
     boss.currentAbilityIndex = 1
     boss.bossState = BOSS_STATE.CHASING
     boss.currentAbility = nil
+    boss.isPresented = false
+    boss.isPresentationFinished = false
 
     return boss
 end
@@ -78,7 +84,7 @@ function BaseBoss:update(dt, playerManager, enemyManager)
             -- Se a habilidade em andamento define um alvo, a animação deve usá-lo.
             if self.currentAbility and self.currentAbility.targetPosition then
                 targetPos = self.currentAbility.targetPosition
-            elseif playerManager.player and playerManager.state.isAlive then
+            elseif playerManager.player and playerManager.player.isAlive then
                 targetPos = playerManager.player.position
             end
             AnimatedSpritesheet.update(self.unitType, self.sprite, dt, targetPos)
@@ -87,8 +93,8 @@ function BaseBoss:update(dt, playerManager, enemyManager)
         -- Atualiza o timer de habilidades
         self.abilityTimer = self.abilityTimer + dt
 
-        -- Verifica se pode usar uma habilidade
-        if self.abilityTimer >= self.abilityCooldown then
+        -- Verifica se pode usar uma habilidade (só ataca após a apresentação)
+        if self.isPresentationFinished and self.abilityTimer >= self.abilityCooldown then
             self:useAbility(playerManager)
         end
 
@@ -97,6 +103,12 @@ function BaseBoss:update(dt, playerManager, enemyManager)
             BaseEnemy.update(self, dt, playerManager, enemyManager, false)
         end
     end
+end
+
+--- Ativa a animação de provocação (taunt) do boss.
+function BaseBoss:taunt()
+    AnimatedSpritesheet.setMovementType(self.sprite, "taunt", self.unitType)
+    self.isImmobile = true
 end
 
 --- Usa uma habilidade do boss.

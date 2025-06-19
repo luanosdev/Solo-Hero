@@ -316,7 +316,8 @@ end
 function EnemyManager:updateBossHealthBarVisibility(dt)
     local activeBoss = nil
     for _, enemy in ipairs(self.enemies) do
-        if enemy.isBoss and enemy.isAlive then
+        -- A barra só deve ser gerenciada aqui se for um boss vivo E sua apresentação já acabou
+        if enemy.isBoss and enemy.isAlive and enemy.isPresentationFinished then
             activeBoss = enemy
             break
         end
@@ -533,7 +534,7 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
                         local bossDrawRenderable = TablePool.get()
                         bossDrawRenderable.type = "drawFunction"
                         bossDrawRenderable.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI -- Renderiza sobre os sprites
-                        bossDrawRenderable.sortY = sortY + 1000                          -- Garante que fique sobre o sprite
+                        bossDrawRenderable.sortY = sortY + 1000
 
                         local capturedEnemy = enemy
                         bossDrawRenderable.drawFunction = function()

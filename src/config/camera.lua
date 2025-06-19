@@ -6,14 +6,20 @@
 ---@field smoothness number
 ---@field screenWidth number
 ---@field screenHeight number
+---@field offsetX number
+---@field offsetY number
+---@field moveSpeed number
 local Camera = {
     x = 0,
     y = 0,
-    scale = 1.2,
+    scale = 1,
     rotation = 0,
     smoothness = 5, -- Suavidade da câmera (maior = mais suave)
+    offsetX = 0,
+    offsetY = 0,
     screenWidth = 0,
-    screenHeight = 0
+    screenHeight = 0,
+    moveSpeed = 4
 }
 
 function Camera:new()
@@ -44,14 +50,10 @@ end
 
 function Camera:attach()
     love.graphics.push()
-    -- Centraliza o ponto de origem do zoom/rotação no centro da tela
-    love.graphics.translate(self.screenWidth / 2, self.screenHeight / 2)
-    love.graphics.scale(self.scale, self.scale)
-    love.graphics.rotate(self.rotation)
-    -- Move o mundo de volta para a posição correta
+    love.graphics.scale(self.scale)
     love.graphics.translate(
-        -math.floor(self.x + 0.5) - self.screenWidth / 2,
-        -math.floor(self.y + 0.5) - self.screenHeight / 2
+        -math.floor(self.x + self.offsetX),
+        -math.floor(self.y + self.offsetY)
     )
 end
 
@@ -79,7 +81,7 @@ end
 
 ---@return number x, number y, number width, number height
 function Camera:getViewPort()
-    return self.x, self.y, self.screenWidth, self.screenHeight
+    return self.x, self.y, self.screenWidth / self.scale, self.screenHeight / self.scale
 end
 
 function Camera:getPosition()

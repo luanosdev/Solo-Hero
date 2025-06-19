@@ -23,7 +23,8 @@ local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local GameOverManager = require("src.managers.game_over_manager")
 local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
-local helpers = require("src.utils.helpers")
+local lume = require("src.libs.lume")
+local BossPresentationManager = require("src.managers.boss_presentation_manager")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
@@ -35,9 +36,10 @@ GameplayScene.castDuration = 0 ---@type number
 GameplayScene.castingItem = nil ---@type table|nil Instância do item sendo conjurado
 GameplayScene.onCastCompleteCallback = nil ---@type function|nil
 GameplayScene.currentCastType = nil ---@type string|nil -- Adicionado para armazenar o tipo de extração durante o cast
-GameplayScene.initialItemInstanceIds = {} -- Usado para rastrear itens saqueados
+GameplayScene.initialItemInstanceIds = {}   -- Usado para rastrear itens saqueados
 
-GameplayScene.gameOverManager = nil       -- Instância do GameOverManager
+GameplayScene.gameOverManager = nil         -- Instância do GameOverManager
+GameplayScene.bossPresentationManager = nil -- Instância do BossPresentationManager
 
 function GameplayScene:load(args)
     Logger.debug("GameplayScene", "GameplayScene:load - Inicializando sistemas de gameplay...")
@@ -53,6 +55,9 @@ function GameplayScene:load(args)
     self.gameOverManager = GameOverManager:new()
     self.gameOverManager:init(ManagerRegistry, SceneManager) -- Passa dependências
     self.gameOverManager:reset()                             -- Garante estado inicial limpo
+
+    -- Instancia o BossPresentationManager
+    self.bossPresentationManager = BossPresentationManager:new()
 
     -- Instancia o UiGameplayManager
 
@@ -260,6 +265,21 @@ function GameplayScene:update(dt)
         return
     end
 
+    -- Atualiza a apresentação do boss se estiver ativa
+    if self.bossPresentationManager:isActive() then
+        self.bossPresentationManager:update(dt)
+
+        -- Atualiza a animação do boss durante a apresentação
+        if self.bossPresentationManager.boss then
+            local playerMgr = ManagerRegistry:get("playerManager")
+            local enemyMgr = ManagerRegistry:get("enemyManager")
+            self.bossPresentationManager.boss:update(dt, playerMgr, enemyMgr)
+        end
+
+        -- Trava o resto da lógica do jogo durante a apresentação
+        return
+    end
+
     local mx, my = love.mouse.getPosition()
 
     InventoryScreen.update(dt, mx, my, self.inventoryDragState)
@@ -290,6 +310,9 @@ function GameplayScene:update(dt)
 
     if not self.isPaused then
         ManagerRegistry:update(dt)
+
+        -- Verifica se um boss precisa ser apresentado
+        self:checkForBossPresentation()
 
         if self.mapManager then
             self.mapManager:update(dt)
@@ -507,6 +530,11 @@ function GameplayScene:draw()
         hudGameplayManager:draw(self.isPaused)
     end
 
+    -- Desenha a apresentação do boss por cima de tudo
+    if self.bossPresentationManager then
+        self.bossPresentationManager:draw()
+    end
+
     -- Desenha UI de Casting (exemplo simples)
     if self.isCasting and self.castDuration > 0 then
         local barWidth = 200
@@ -615,6 +643,11 @@ function GameplayScene:keyreleased(key, scancode)
 end
 
 function GameplayScene:mousepressed(x, y, button, istouch, presses)
+    -- Impede inputs durante a apresentação do boss
+    if self.bossPresentationManager and self.bossPresentationManager:isActive() then
+        return
+    end
+
     if self.gameOverManager and self.gameOverManager.isGameOverActive then
         if self.gameOverManager.canExit then
             self.gameOverManager:handleExit()
@@ -676,6 +709,11 @@ function GameplayScene:unload()
     -- Reseta HUDGameplayManager se existir
     if self.hudGameplayManager and self.hudGameplayManager.reset then
         self.hudGameplayManager:reset()
+    end
+
+    if self.bossPresentationManager and self.bossPresentationManager.destroy then
+        self.bossPresentationManager:destroy()
+        self.bossPresentationManager = nil
     end
 
     if self.enemyManager and self.enemyManager.destroy then
@@ -1150,7 +1188,7 @@ function GameplayScene:_snapshotInitialItems()
     end
     Logger.debug("GameplayScene",
         string.format("Snapshot concluído. Total de %d IDs de itens únicos.",
-            helpers.table_size(self.initialItemInstanceIds)))
+            #self.initialItemInstanceIds))
 end
 
 --- Identifica os itens que foram adquiridos durante a incursão.
@@ -1171,6 +1209,31 @@ function GameplayScene:_getLootedItems(allFinalItems)
     end
     Logger.debug("GameplayScene", string.format("Identificados %d itens saqueados.", #lootedItems))
     return lootedItems
+end
+
+--- Verifica se há um boss próximo que necessite de uma apresentação.
+function GameplayScene:checkForBossPresentation()
+    if self.bossPresentationManager:isActive() then return end
+
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    local playerManager = ManagerRegistry:get("playerManager")
+    if not enemyManager or not playerManager or not playerManager.player then return end
+
+    local playerPos = playerManager.player.position
+    local enemies = enemyManager:getEnemies()
+
+    for _, enemy in ipairs(enemies) do
+        if enemy.isBoss and not enemy.isPresented then
+            local distance = lume.distance(playerPos.x, playerPos.y, enemy.position.x, enemy.position.y)
+            local triggerDistance = (Camera.screenWidth / Camera.scale) * 0.50 -- 50% da largura da tela
+
+            if distance < triggerDistance then
+                self.bossPresentationManager:start(enemy, playerManager)
+                -- Para a verificação assim que a primeira apresentação começar
+                return
+            end
+        end
+    end
 end
 
 return GameplayScene

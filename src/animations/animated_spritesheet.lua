@@ -184,11 +184,11 @@ function AnimatedSpritesheet.getClosestAngle(unitType, targetAngle)
 end
 
 --- Atualiza a animação da instância.
--- @param unitType String: O tipo de unidade.
--- @param instanceAnimConfig Table: A configuração de animação da instância (anteriormente instanceConfig).
--- @param dt Number: Delta time.
--- @param targetPosition Table (opcional): {x, y} Posição do alvo para movimento e direção.
--- @return Boolean: True se a animação de morte terminou, false caso contrário.
+--- @param unitType string: O tipo de unidade.
+--- @param instanceAnimConfig table: A configuração de animação da instância (anteriormente instanceConfig).
+--- @param dt number: Delta time.
+--- @param targetPosition table|nil (opcional): {x, y} Posição do alvo para movimento e direção.
+--- @return boolean: True se a animação de morte terminou, false caso contrário.
 function AnimatedSpritesheet.update(unitType, instanceAnimConfig, dt, targetPosition) -- instanceAnimConfig é o self.sprite do inimigo
     local assets = AnimatedSpritesheet.assets[unitType]
     local baseConfig = AnimatedSpritesheet.configs[unitType]
