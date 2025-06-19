@@ -3,7 +3,7 @@
 ------------------------------------------------------------------------------------------------
 
 local CameraEffects = require("src.utils.camera_effects")
-local BossHealthBar = require("src.ui.boss_health_bar")
+local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
 local Colors = require("src.ui.colors")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 
@@ -66,14 +66,14 @@ function BossPresentationManager:update(dt)
 
     if self.state == PRESENTATION_STATE.PAN_TO_BOSS then
         if not self.cameraEffects:isActive() then
+            BossHealthBarManager:startPresentation(self.boss)
             self.state = PRESENTATION_STATE.SHOWCASE
             self.timer = 0
             -- Inicia a animação de "taunt" que dura 1s
             self.boss.presentationAnimState = "taunt_once"
             -- Inicia o tremor da câmera
             self.cameraEffects:shake(1, 4)
-            -- Mostra a barra de vida
-            BossHealthBar:show(self.boss)
+            -- Mostra a barra de vida através do novo manager
         end
     elseif self.state == PRESENTATION_STATE.SHOWCASE then
         if self.timer >= self.showcaseDuration then
@@ -101,10 +101,8 @@ function BossPresentationManager:draw()
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
     love.graphics.setColor(1, 1, 1, 1)
 
-    -- Mostra a barra de vida do boss durante a apresentação
-    if self.state == PRESENTATION_STATE.SHOWCASE or self.state == PRESENTATION_STATE.PAN_TO_BOSS then
-        BossHealthBar:show(self.boss)
-    end
+    -- A barra de vida agora é desenhada pelo seu próprio manager,
+    -- que é chamado pelo EnemyManager ou pela cena principal.
 end
 
 --- Finaliza a apresentação e restaura o estado do jogo.
@@ -124,7 +122,7 @@ function BossPresentationManager:finish()
     self.boss = nil
     self.playerManager = nil
     self.cameraEffects:stop()
-    BossHealthBar:hide()
+    -- Não é mais necessário esconder a barra aqui. O manager cuida do ciclo de vida.
 end
 
 --- Verifica se a apresentação está ativa.

@@ -7,7 +7,6 @@ local HUD = {}
 local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
-local BossHealthBar = require("src.ui.boss_health_bar")
 local ManagerRegistry = require("src.managers.manager_registry")
 
 -- Função auxiliar para formatar tempo
@@ -53,9 +52,6 @@ end
 function HUD:draw()
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
-
-    -- Desenha a barra de vida do boss
-    BossHealthBar:draw()
 
     local playerManager = ManagerRegistry:get("playerManager")
     -- Barra de XP com estilo Solo Leveling

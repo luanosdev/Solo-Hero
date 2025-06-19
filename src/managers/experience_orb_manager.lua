@@ -94,4 +94,10 @@ function ExperienceOrbManager:collectRenderables(renderPipeline)
     end
 end
 
+--- Destrói o manager de orbes de experiência.
+function ExperienceOrbManager:destroy()
+    self.orbs = {}
+    Logger.info("[ExperienceOrbManager]", "ExperienceOrbManager destruído.")
+end
+
 return ExperienceOrbManager

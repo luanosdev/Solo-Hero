@@ -1,6 +1,4 @@
 local SceneManager = require("src.core.scene_manager")
-
--- <<< NOVOS REQUIRES >>>
 local Camera = require("src.config.camera")
 local AnimationLoader = require("src.animations.animation_loader")
 local LevelUpModal = require("src.ui.level_up_modal")
@@ -22,7 +20,7 @@ local MapManager = require("src.managers.map_manager")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local GameOverManager = require("src.managers.game_over_manager")
-local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
+local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
 local lume = require("src.libs.lume")
 local BossPresentationManager = require("src.managers.boss_presentation_manager")
 
@@ -274,6 +272,8 @@ function GameplayScene:update(dt)
             local playerMgr = ManagerRegistry:get("playerManager")
             local enemyMgr = ManagerRegistry:get("enemyManager")
             self.bossPresentationManager.boss:update(dt, playerMgr, enemyMgr)
+            -- Força a atualização da barra de vida do boss
+            BossHealthBarManager:update(dt)
         end
 
         -- Trava o resto da lógica do jogo durante a apresentação
@@ -706,9 +706,21 @@ function GameplayScene:unload()
         Logger.debug("GameplayScene", "MapManager destruído.")
     end
 
+    if self.dropManager and self.dropManager.destroy then
+        self.dropManager:destroy()
+        self.dropManager = nil
+        Logger.debug("GameplayScene", "DropManager destruído.")
+    end
+
+    if self.experienceOrbManager and self.experienceOrbManager.destroy then
+        self.experienceOrbManager:destroy()
+        self.experienceOrbManager = nil
+        Logger.debug("GameplayScene", "ExperienceOrbManager destruído.")
+    end
+
     -- Reseta HUDGameplayManager se existir
-    if self.hudGameplayManager and self.hudGameplayManager.reset then
-        self.hudGameplayManager:reset()
+    if self.hudGameplayManager and self.hudGameplayManager.destroy then
+        self.hudGameplayManager:destroy()
     end
 
     if self.bossPresentationManager and self.bossPresentationManager.destroy then

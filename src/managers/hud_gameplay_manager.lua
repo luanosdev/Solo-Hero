@@ -4,6 +4,7 @@ local fonts = require("src.ui.fonts")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Camera = require("src.config.camera")
 local ActiveSkillsDisplay = require("src.ui.components.active_skills_display")
+local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
 
 ---@class HUDGameplayManager
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
@@ -50,6 +51,8 @@ function HUDGameplayManager:setupGameplay()
     local playerManager = ManagerRegistry:get("playerManager")
     local hunterManager = ManagerRegistry:get("hunterManager")
     local itemDataManager = ManagerRegistry:get("itemDataManager")
+
+    BossHealthBarManager:init()
 
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
@@ -259,6 +262,7 @@ function HUDGameplayManager:update(dt)
 
     self.playerHPBar:update(dt)
     self.skillsDisplay:update(dt)
+    BossHealthBarManager:update(dt)
 end
 
 --- Desenha todos os elementos da UI gerenciados.
@@ -271,6 +275,7 @@ function HUDGameplayManager:draw(isPaused)
     self.playerHPBar:draw()
     self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
     self.skillsDisplay:draw()
+    BossHealthBarManager:draw()
 end
 
 --- Reseta o estado do manager (se necessário).
@@ -322,6 +327,12 @@ function HUDGameplayManager:reset()
     end
 
     print("HUDGameplayManager: reset chamado")
+end
+
+function HUDGameplayManager:destroy()
+    if BossHealthBarManager and BossHealthBarManager.destroy then
+        BossHealthBarManager:destroy()
+    end
 end
 
 return HUDGameplayManager

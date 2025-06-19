@@ -27,6 +27,12 @@ local BaseEnemy = {
     isMVP = false,
     isBoss = false,
 
+    -- Boss-specific data
+    rank = nil,
+    isPresented = false,
+    isPresentationFinished = false,
+    isImmobile = false,
+
     -- MVP-specific data
     mvpProperName = nil, -- << NOVO
     mvpTitleData = nil,  -- << NOVO

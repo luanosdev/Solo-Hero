@@ -1,3 +1,14 @@
+---@class Fonts
+---@field main_small love.Font
+---@field main love.Font
+---@field main_large love.Font
+---@field title love.Font
+---@field title_large love.Font
+---@field game_over love.Font
+---@field hud love.Font
+---@field details_title love.Font
+---@field tooltip love.Font
+---@field stack_count love.Font
 local fonts = {}
 local font_path = "assets/fonts/"
 local bold_font_file -- Definido em fonts.load
@@ -33,7 +44,7 @@ end
 ---@param targetHeight number Altura máxima para o texto.
 ---@param initialSize integer Tamanho inicial da fonte a tentar.
 ---@param minSize integer Tamanho mínimo da fonte a tentar.
----@return Font Objeto da fonte que se encaixa, ou a fonte de tamanho mínimo se nenhuma maior couber.
+---@return love.Font Objeto da fonte que se encaixa, ou a fonte de tamanho mínimo se nenhuma maior couber.
 function fonts.getFittingBoldFont(text, targetWidth, targetHeight, initialSize, minSize)
     initialSize = initialSize or 24
     minSize = minSize or 8

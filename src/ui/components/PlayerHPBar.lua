@@ -389,19 +389,22 @@ function PlayerHPBar:draw()
     if self.maxHP > 0 then visualHPPercentage = math.max(0, math.min(1, self.visualHP / self.maxHP)) end
     local visualHPFillWidth = layout.hpBarW * visualHPPercentage
 
-    r, g, b, a = unpack(self.colors.hpBarBase); love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+    r, g, b, a = unpack(self.colors.hpBarBase);
+    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
     local emptyBarY = layout.hpBarY + (layout.hpBarActualFillHeight - layout.hpBarEmptyVisualHeight)
     love.graphics.rectangle("fill", layout.hpBarX, emptyBarY, layout.hpBarW, layout.hpBarEmptyVisualHeight)
 
     if self.visualHP > self.currentHP and visualHPFillWidth > currentHPFillWidth then
         local trailWidth = visualHPFillWidth - currentHPFillWidth
-        r, g, b, a = unpack(self.colors.hpBarDamageTrail); love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        r, g, b, a = unpack(self.colors.hpBarDamageTrail);
+        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
         love.graphics.rectangle("fill", layout.hpBarX + currentHPFillWidth, layout.hpBarY, trailWidth,
             layout.hpBarActualFillHeight)
     end
 
     if currentHPFillWidth > 0 then
-        r, g, b, a = unpack(self.colors.hpBarFill); love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        r, g, b, a = unpack(self.colors.hpBarFill);
+        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
         love.graphics.rectangle("fill", layout.hpBarX, layout.hpBarY, currentHPFillWidth, layout.hpBarActualFillHeight)
     end
 

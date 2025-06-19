@@ -2,16 +2,65 @@
 -- Este arquivo define as configurações para os diferentes portais do jogo.
 -- Cada portal tem sua própria temática, ranking, nome e configuração de hordas.
 
----@alias MVPConfig { spawnInterval: number, statusMultiplier: number, speedMultiplier: number, sizeMultiplier: number, experienceMultiplier: number }
----@alias BossSpawn { time: number, class: any, unitType: string }
----@alias BossConfig { spawnTimes: BossSpawn[] }
----@alias AllowedEnemy { class: any, weight: number, unitType: string }
----@alias MajorSpawnConfig { interval: number, baseCount: number, countScalePerMin: number }
----@alias MinorSpawnConfig { baseInterval: number, intervalReductionPerMin: number, minInterval: number, count: number }
----@alias HordeCycle { duration: number, allowedEnemies: AllowedEnemy[], majorSpawn: MajorSpawnConfig, minorSpawn: MinorSpawnConfig }
----@alias HordeConfig { mapRank: string, mvpConfig: MVPConfig, bossConfig: BossConfig, cycles: HordeCycle[] }
----@alias MapDefinition { theme: string, objectSpawnRules: table[], eventSpawnRules: table[] }
----@alias PortalDefinition { name: string, theme: string, rank: string, map: string, requiredUnitTypes: string[], hordeConfig: HordeConfig, mapDefinition: MapDefinition, randomEvents: table[], assetPack: any | nil }
+---@class MVPConfig
+---@field spawnInterval number
+---@field statusMultiplier number
+---@field speedMultiplier number
+---@field sizeMultiplier number
+---@field experienceMultiplier number
+
+---@class BossSpawn
+---@field time number
+---@field class any
+---@field unitType string
+---@field rank string
+
+---@class BossConfig
+---@field spawnTimes BossSpawn[]
+
+---@class AllowedEnemy
+---@field class any
+---@field weight number
+---@field unitType string
+
+---@class MajorSpawnConfig
+---@field interval number
+---@field baseCount number
+---@field countScalePerMin number
+
+---@class MinorSpawnConfig
+---@field baseInterval number
+---@field intervalReductionPerMin number
+---@field minInterval number
+---@field count number
+
+---@class HordeCycle
+---@field duration number
+---@field allowedEnemies AllowedEnemy[]
+---@field majorSpawn MajorSpawnConfig
+---@field minorSpawn MinorSpawnConfig
+
+---@class HordeConfig
+---@field mapRank string
+---@field mvpConfig MVPConfig
+---@field bossConfig BossConfig
+---@field cycles HordeCycle[]
+
+---@class MapDefinition
+---@field theme string
+---@field objectSpawnRules table[]
+---@field eventSpawnRules table[]
+
+---@class PortalDefinition
+---@field name string
+---@field theme string
+---@field rank string
+---@field map string
+---@field requiredUnitTypes string[]
+---@field hordeConfig HordeConfig
+---@field mapDefinition MapDefinition
+---@field randomEvents table[]
+---@field assetPack any | nil
 
 ---@class PortalDefinitions
 ---@field [string] PortalDefinition
@@ -143,7 +192,7 @@ local portalDefinitions = {
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 1, class = TheRottenImmortal, unitType = "the_rotten_immortal" }
+                    { time = 1, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "S" }
                 }
             },
             cycles = {
@@ -198,7 +247,7 @@ local portalDefinitions = {
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 600, class = SpiderBoss, unitType = "spider" }
+                    { time = 600, class = SpiderBoss, unitType = "spider", rank = "E" }
                 }
             },
             cycles = {
@@ -318,7 +367,7 @@ local portalDefinitions = {
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 600, class = SpiderBoss, unitType = "spider" } -- Boss final no minuto 10
+                    { time = 600, class = SpiderBoss, unitType = "spider", rank = "E" }
                 }
             },
             cycles = {

@@ -1,6 +1,3 @@
-local HordeConfigManager = require("src.managers.horde_config_manager")
-local BossHealthBar = require("src.ui.boss_health_bar")
-local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local SpatialGridIncremental = require("src.utils.spatial_grid_incremental")
 local TablePool = require("src.utils.table_pool")
 local Camera = require("src.config.camera")
@@ -16,7 +13,7 @@ local Fonts = require("src.ui.fonts")
 ---@field enemies table<number, BaseEnemy>
 ---@field maxEnemies number
 ---@field nextEnemyId number
----@field worldConfig table
+---@field worldConfig table|nil
 ---@field currentCycleIndex number
 ---@field gameTimer number
 ---@field timeInCurrentCycle number
@@ -30,7 +27,7 @@ local Fonts = require("src.ui.fonts")
 ---@field playerManager PlayerManager
 ---@field dropManager DropManager
 ---@field enemyPool table<string, table<number, BaseEnemy>> Pool de inimigos reutilizáveis, categorizados por classe
----@field spatialGrid SpatialGridIncremental
+---@field spatialGrid SpatialGridIncremental|nil
 ---@field mapDimensions table
 ---@field gridCellSize number
 ---@field despawnMargin number
@@ -103,9 +100,6 @@ function EnemyManager:setupGameplay(config)
     self.currentCycleIndex = 1
     self.nextBossIndex = 1
 
-    -- Inicializa a barra de vida do boss
-    BossHealthBar:init()
-
     -- Valida a configuração carregada
     if not self.worldConfig or not self.worldConfig.cycles or #self.worldConfig.cycles == 0 then
         error("Erro [EnemyManager:init]: Configuração de horda inválida ou vazia fornecida.")
@@ -154,7 +148,7 @@ function EnemyManager:update(dt)
     if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
         local nextBoss = self.worldConfig.bossConfig.spawnTimes[self.nextBossIndex]
         if nextBoss and self.gameTimer >= nextBoss.time then
-            self:spawnBoss(nextBoss.class, nextBoss.powerLevel)
+            self:spawnBoss(nextBoss)
             self.nextBossIndex = self.nextBossIndex + 1
         end
     end
@@ -314,33 +308,10 @@ end
 
 -- Função auxiliar para gerenciar visibilidade da barra de vida do boss
 function EnemyManager:updateBossHealthBarVisibility(dt)
-    local activeBoss = nil
+    local activeBosses = {}
     for _, enemy in ipairs(self.enemies) do
-        -- A barra só deve ser gerenciada aqui se for um boss vivo E sua apresentação já acabou
         if enemy.isBoss and enemy.isAlive and enemy.isPresentationFinished then
-            activeBoss = enemy
-            break
-        end
-    end
-
-    if activeBoss then
-        BossHealthBar:show(activeBoss)
-        self.lastBossDeathTime = 0 -- Reseta se um boss estiver vivo
-        self.bossDeathTimer = 0
-    else
-        -- Se não houver boss vivo, mas um morreu recentemente
-        if self.lastBossDeathTime > 0 then
-            self.bossDeathTimer = self.gameTimer - self.lastBossDeathTime
-            if self.bossDeathTimer <= self.bossDeathDuration then
-                BossHealthBar:show(nil) -- Mostra barra vazia
-            else
-                BossHealthBar:hide()
-                self.lastBossDeathTime = 0 -- Reseta timers após esconder
-                self.bossDeathTimer = 0
-            end
-        else
-            -- Nenhum boss vivo e nenhum morreu recentemente
-            BossHealthBar:hide()
+            table.insert(activeBosses, enemy)
         end
     end
 end
@@ -388,28 +359,6 @@ function EnemyManager:selectEnemyFromList(enemyList)
     -- Fallback (não deve acontecer com pesos positivos, mas por segurança)
     print("Aviso: Falha ao selecionar inimigo por peso, retornando o primeiro da lista.")
     return #enemyList > 0 and enemyList[1].class or nil
-end
-
--- Desenha todos os inimigos ativos na tela
-function EnemyManager:draw()
-    -- Desenha a barra de vida do boss se houver um boss ativo ou se ainda não passou o tempo de exibição após a morte
-    local shouldShowBossBar = false
-    for _, enemy in ipairs(self.enemies) do
-        if enemy.isBoss and enemy.isAlive then
-            shouldShowBossBar = true
-            BossHealthBar:show(enemy)
-            break
-        end
-    end
-
-    -- Se não houver boss vivo, mas ainda estiver dentro do tempo de exibição após a morte
-    if not shouldShowBossBar and self.bossDeathTimer > 0 and self.bossDeathTimer <= self.bossDeathDuration then
-        BossHealthBar:show(nil)    -- Mostra a barra vazia
-    elseif self.bossDeathTimer > self.bossDeathDuration then
-        BossHealthBar:hide()       -- Esconde a barra após o tempo limite
-        self.lastBossDeathTime = 0 -- Reseta o timer
-        self.bossDeathTimer = 0
-    end
 end
 
 --- Coleta renderizáveis dos inimigos para a renderList principal da cena.
@@ -771,7 +720,10 @@ function EnemyManager:spawnMVP()
     self:spawnSpecificEnemy(enemyClass, { isMVP = true })
 end
 
-function EnemyManager:spawnBoss(bossClass, powerLevel)
+--- Spawna um boss específico.
+---@param bossConfig BossSpawn Configuração do boss a ser spawnado.
+function EnemyManager:spawnBoss(bossConfig)
+    local bossClass = bossConfig.class
     if not bossClass then
         error("[EnemyManager:spawnBoss]: Tentativa de spawnar boss com classe nula.")
     end
@@ -790,15 +742,34 @@ function EnemyManager:spawnBoss(bossClass, powerLevel)
     self.nextEnemyId = self.nextEnemyId + 1
 
     -- Propriedades específicas do Boss
-    bossInstance.powerLevel = powerLevel or 3
+    local rank = bossConfig.rank or "E"
+    bossInstance.rank = rank -- Armazena o rank na instância do boss
+
+    -- Aplica os multiplicadores com base no rank
+    local rankMultipliers = { E = 1, D = 2, C = 3, B = 4, A = 5, S = 6 }
+    local speedMultipliers = { E = 1.0, D = 1.1, C = 1.2, B = 1.3, A = 1.4, S = 1.5 }
+    local cooldownMultipliers = { E = 1.0, D = 0.9, C = 0.8, B = 0.7, A = 0.6, S = 0.5 }
+
+    local statMultiplier = rankMultipliers[rank] or 1
+    local speedMultiplier = speedMultipliers[rank] or 1.0
+    local cooldownMultiplier = cooldownMultipliers[rank] or 1.0
+
+    bossInstance.maxHealth = bossInstance.maxHealth * statMultiplier
+    bossInstance.currentHealth = bossInstance.maxHealth
+    bossInstance.speed = bossInstance.speed * speedMultiplier
+    bossInstance.damageMultiplier = (bossInstance.damageMultiplier or 1) * statMultiplier
+    bossInstance.abilityCooldownMultiplier = (bossInstance.abilityCooldownMultiplier or 1) * cooldownMultiplier
 
     -- Adiciona à lista de ativos
     table.insert(self.enemies, bossInstance)
 
+    -- Notifica o gerenciador de barras de vida
+    local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
+    BossHealthBarManager:addBoss(bossInstance)
+
     Logger.info(
         "[EnemyManager:spawnBoss]",
-        string.format("Boss %s (ID: %d, Nível %d) spawnado!", bossInstance.name, bossInstance.id, bossInstance
-            .powerLevel)
+        string.format("Boss %s (ID: %d, Rank %s) spawnado!", bossInstance.name, bossInstance.id, bossInstance.rank)
     )
 end
 
@@ -830,7 +801,7 @@ function EnemyManager:destroy()
     self.enemyPool = {}
     self.gameTimer = 0
     DamageNumberManager:destroy()
-    print("EnemyManager destruído.")
+    Logger.info("[EnemyManager]", "EnemyManager destruído.")
 end
 
 --- Calcula uma posição de spawn inteligente fora da tela, com viés na direção do movimento do jogador.

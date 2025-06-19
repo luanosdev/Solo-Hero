@@ -434,4 +434,11 @@ function DropManager:spreadDrops(dropsToCreate, centerPosition)
     end
 end
 
+--- Destrói o manager de drops.
+function DropManager:destroy()
+    self.activeDrops = {}
+    self.dropPool = {}
+    Logger.info("[DropManager]", "DropManager destruído.")
+end
+
 return DropManager
