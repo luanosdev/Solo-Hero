@@ -45,17 +45,14 @@ function Camera:follow(position, dt)
     -- Interpola suavemente para a posição alvo
     self.x = self.x + (targetX - self.x) * dt * self.smoothness
     self.y = self.y + (targetY - self.y) * dt * self.smoothness
-    -- PARA TESTE: Remover suavização
-    self.x = targetX
-    self.y = targetY
 end
 
 function Camera:attach()
     love.graphics.push()
     love.graphics.scale(self.scale)
     love.graphics.translate(
-        -math.floor(self.x + self.offsetX),
-        -math.floor(self.y + self.offsetY)
+        -(self.x + self.offsetX),
+        -(self.y + self.offsetY)
     )
 end
 
