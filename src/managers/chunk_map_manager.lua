@@ -18,10 +18,15 @@ function ChunkMapManager:new(playerManager)
 
     -- Armazena os chunks ativos. A chave é uma string "cx_cy".
     instance.chunks = {}
-    -- Armazena os SpriteBatches por textura de tileset.
-    instance.spriteBatches = {}
 
-    -- Estrutura para armazenar os assets (quads e texturas) dos tiles carregados.
+    -- Atlas de textura para todos os tiles e o único SpriteBatch.
+    instance.tileAtlas = nil
+    instance.mainSpriteBatch = nil
+
+    -- Lista de todos os tiles dos chunks visíveis, para ordenação.
+    instance.sortedRenderList = {}
+
+    -- Estrutura para armazenar os assets (quads) dos tiles carregados.
     instance.tileAssets = {
         ground = {},
         grass = {}
@@ -31,65 +36,67 @@ function ChunkMapManager:new(playerManager)
     instance.lastPlayerChunkX = nil
     instance.lastPlayerChunkY = nil
 
-    -- Flag para indicar que os SpriteBatches precisam ser reconstruídos.
-    instance.batchesDirty = true
+    -- Flag para indicar que a lista de renderização e o batch precisam ser reconstruídos.
+    instance.renderListDirty = true
 
-    instance:_loadTileAssets()
+    instance:_loadTileAssetsAndCreateAtlas()
 
     return instance
 end
 
---- Carrega as imagens e quads dos tiles e cria os SpriteBatches.
-function ChunkMapManager:_loadTileAssets()
+--- Carrega as imagens dos tiles, cria um atlas de textura dinâmico (Canvas)
+--- e o SpriteBatch único para renderização otimizada.
+function ChunkMapManager:_loadTileAssetsAndCreateAtlas()
     local path = "assets/tilesets/forest/tiles/"
     local directions = { "N", "S", "E", "W" }
+    local allTileInfo = {}
+    local totalWidth = 0
+    local maxHeight = 0
 
-    -- Helper para garantir que um batch exista para uma textura
-    local function getOrCreateBatch(texture)
-        if not self.spriteBatches[texture] then
-            self.spriteBatches[texture] = love.graphics.newSpriteBatch(texture, 10000, "stream")
+    -- 1. Coleta informações de todas as imagens de tiles
+    local tilePrefixes = { ground = "Ground A1_", grass = "Ground G1_" }
+    for tileType, prefix in pairs(tilePrefixes) do
+        for _, dir in ipairs(directions) do
+            local filename = prefix .. dir .. ".png"
+            local fullPath = path .. filename
+            local image = AssetManager:getImage(fullPath)
+            if image then
+                table.insert(allTileInfo, {
+                    type = tileType,
+                    dir = dir,
+                    image = image,
+                    width = image:getWidth(),
+                    height = image:getHeight()
+                })
+                totalWidth = totalWidth + image:getWidth()
+                maxHeight = math.max(maxHeight, image:getHeight())
+            else
+                error("Falha ao carregar imagem para atlas: " .. fullPath)
+            end
         end
     end
 
-    -- Carrega os quads e texturas para os tiles de terra (Ground)
-    for _, dir in ipairs(directions) do
-        local imageName = "Ground A1_" .. dir .. ".png" -- Corrigido para o nome de arquivo real
-        local fullPath = path .. imageName
-        print("[ChunkMapManager] Tentando carregar imagem: " .. fullPath)
-        local image = AssetManager:getImage(fullPath)
+    if #allTileInfo == 0 then return end
 
-        if image then
-            -- Correção: O objeto 'image' já é a textura. Não é necessário chamar :getTexture().
-            local texture = image
-            getOrCreateBatch(texture)
-            self.tileAssets.ground[dir] = {
-                texture = texture,
-                quad = love.graphics.newQuad(0, 0, image:getWidth(), image:getHeight(), texture:getDimensions())
-            }
-        else
-            error("Não foi possível carregar a imagem para 'ground': " .. fullPath)
-        end
+    -- 2. Cria o Canvas (atlas), desenha as imagens e cria os Quads
+    self.tileAtlas = love.graphics.newCanvas(totalWidth, maxHeight)
+    love.graphics.setCanvas(self.tileAtlas)
+    love.graphics.clear()
+
+    local currentX = 0
+    for _, info in ipairs(allTileInfo) do
+        love.graphics.draw(info.image, currentX, 0)
+        self.tileAssets[info.type][info.dir] = {
+            quad = love.graphics.newQuad(currentX, 0, info.width, info.height, self.tileAtlas:getDimensions())
+        }
+        currentX = currentX + info.width
     end
 
-    -- Carrega os quads e texturas para os tiles de grama (Grass)
-    for _, dir in ipairs(directions) do
-        local imageName = "Ground G1_" .. dir .. ".png" -- Corrigido para o nome de arquivo real
-        local fullPath = path .. imageName
-        print("[ChunkMapManager] Tentando carregar imagem: " .. fullPath)
-        local image = AssetManager:getImage(fullPath)
+    love.graphics.setCanvas() -- Volta para a tela
 
-        if image then
-            -- Correção: O objeto 'image' já é a textura. Não é necessário chamar :getTexture().
-            local texture = image
-            getOrCreateBatch(texture)
-            self.tileAssets.grass[dir] = {
-                texture = texture,
-                quad = love.graphics.newQuad(0, 0, image:getWidth(), image:getHeight(), texture:getDimensions())
-            }
-        else
-            error("Não foi possível carregar a imagem para 'grass': " .. fullPath)
-        end
-    end
+    -- 3. Cria o único SpriteBatch para o atlas
+    local maxTiles = Constants.CHUNK_SIZE * Constants.CHUNK_SIZE * (Constants.VISIBLE_CHUNKS_RADIUS * 2 + 1) ^ 2
+    self.mainSpriteBatch = love.graphics.newSpriteBatch(self.tileAtlas, maxTiles, "stream")
 end
 
 --- Converte coordenadas do mundo para coordenadas de chunk.
@@ -144,7 +151,7 @@ function ChunkMapManager:_updateVisibleChunks(pcx, pcy)
             visibleChunks[key] = true
             if not self.chunks[key] then
                 self:_generateChunk(cx, cy)
-                self.batchesDirty = true
+                self.renderListDirty = true
             end
         end
     end
@@ -153,7 +160,7 @@ function ChunkMapManager:_updateVisibleChunks(pcx, pcy)
     for key, chunk in pairs(self.chunks) do
         if not visibleChunks[key] then
             self:_unloadChunk(key)
-            self.batchesDirty = true
+            self.renderListDirty = true
         end
     end
 end
@@ -182,7 +189,6 @@ function ChunkMapManager:_generateChunk(cx, cy)
             local dir = directions[love.math.random(1, 4)]
             local assetInfo = self.tileAssets[tileType][dir]
 
-            tileData.texture = assetInfo.texture
             tileData.quad = assetInfo.quad
 
             -- Calcula a posição no mundo isométrico
@@ -213,78 +219,90 @@ function ChunkMapManager:_unloadChunk(key)
     end
 end
 
---- Desenha o mapa. Otimizado para reconstruir o SpriteBatch apenas quando necessário.
+--- Desenha o mapa. Otimizado para reconstruir a lista de renderização e o SpriteBatch apenas quando necessário.
 function ChunkMapManager:draw()
-    if self.batchesDirty then
-        -- Limpa todos os batches
-        for _, batch in pairs(self.spriteBatches) do
-            batch:clear()
+    if self.renderListDirty then
+        -- 1. Libera a lista antiga e cria uma nova.
+        if self.sortedRenderList then
+            TablePool.release(self.sortedRenderList)
         end
+        self.sortedRenderList = TablePool.get()
 
-        -- Preenche os batches com os tiles dos chunks ativos
+        -- 2. Popula a lista com todos os tiles dos chunks ativos.
         for _, chunk in pairs(self.chunks) do
             for _, tile in ipairs(chunk.tiles) do
-                local batch = self.spriteBatches[tile.texture]
-                if batch then
-                    batch:add(tile.quad, tile.x, tile.y)
-                end
+                table.insert(self.sortedRenderList, tile)
             end
         end
-        self.batchesDirty = false
-    end
 
-    -- Desenha todos os batches
-    for _, batch in pairs(self.spriteBatches) do
-        love.graphics.draw(batch)
-    end
+        -- 3. Ordena a lista pela posição Y para renderização isométrica correta.
+        table.sort(self.sortedRenderList, function(a, b) return a.y < b.y end)
 
-    -- <<< ADICIONADO: Lógica de Debug Visual >>>
-    if DEBUG_SHOW_CHUNK_BOUNDS then
-        local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
-        local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
-        local CHUNK_SIZE = Constants.CHUNK_SIZE
-
-        love.graphics.setLineWidth(2)
-        for key, chunk in pairs(self.chunks) do
-            -- Calcula os 4 cantos do chunk no espaço isométrico
-            local cx, cy = chunk.cx, chunk.cy
-
-            -- Coordenadas do tile no canto superior (menor mapX, menor mapY)
-            local corner1_mapX = cx * CHUNK_SIZE
-            local corner1_mapY = cy * CHUNK_SIZE
-            local corner1_isoX = (corner1_mapX - corner1_mapY) * TILE_WIDTH_HALF
-            local corner1_isoY = (corner1_mapX + corner1_mapY) * TILE_HEIGHT_HALF
-
-            -- Canto direito
-            local corner2_mapX = (cx + 1) * CHUNK_SIZE
-            local corner2_mapY = cy * CHUNK_SIZE
-            local corner2_isoX = (corner2_mapX - corner2_mapY) * TILE_WIDTH_HALF
-            local corner2_isoY = (corner2_mapX + corner2_mapY) * TILE_HEIGHT_HALF
-
-            -- Canto inferior
-            local corner3_mapX = (cx + 1) * CHUNK_SIZE
-            local corner3_mapY = (cy + 1) * CHUNK_SIZE
-            local corner3_isoX = (corner3_mapX - corner3_mapY) * TILE_WIDTH_HALF
-            local corner3_isoY = (corner3_mapX + corner3_mapY) * TILE_HEIGHT_HALF
-
-            -- Canto esquerdo
-            local corner4_mapX = cx * CHUNK_SIZE
-            local corner4_mapY = (cy + 1) * CHUNK_SIZE
-            local corner4_isoX = (corner4_mapX - corner4_mapY) * TILE_WIDTH_HALF
-            local corner4_isoY = (corner4_mapX + corner4_mapY) * TILE_HEIGHT_HALF
-
-            -- Desenha o losango do chunk
-            love.graphics.setColor(1, 0, 0, 0.8) -- Vermelho para as bordas
-            love.graphics.polygon("line", corner1_isoX, corner1_isoY, corner2_isoX, corner2_isoY, corner3_isoX,
-                corner3_isoY, corner4_isoX, corner4_isoY)
-
-            -- Escreve as coordenadas do chunk no centro
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf(key, corner1_isoX - 50, corner1_isoY + (corner3_isoY - corner1_isoY) / 2, 100, "center")
+        -- 4. Preenche o SpriteBatch com os tiles ordenados.
+        self.mainSpriteBatch:clear()
+        for _, tile in ipairs(self.sortedRenderList) do
+            self.mainSpriteBatch:add(tile.quad, tile.x, tile.y)
         end
-        love.graphics.setLineWidth(1)
+
+        self.renderListDirty = false
     end
-    -- <<< FIM DA ADIÇÃO >>>
+
+    -- Desenha o batch inteiro de uma só vez.
+    if self.mainSpriteBatch then
+        love.graphics.draw(self.mainSpriteBatch)
+    end
+
+    -- Desenha informações de debug.
+    self:_drawDebug()
+end
+
+--- Desenha informações de debug, como as bordas dos chunks.
+function ChunkMapManager:_drawDebug()
+    if not DEBUG_SHOW_CHUNK_BOUNDS then return end
+
+    local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
+    local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
+    local CHUNK_SIZE = Constants.CHUNK_SIZE
+
+    love.graphics.setLineWidth(2)
+    for key, chunk in pairs(self.chunks) do
+        -- Calcula os 4 cantos do chunk no espaço isométrico
+        local cx, cy = chunk.cx, chunk.cy
+
+        -- Coordenadas do tile no canto superior (menor mapX, menor mapY)
+        local corner1_mapX = cx * CHUNK_SIZE
+        local corner1_mapY = cy * CHUNK_SIZE
+        local corner1_isoX = (corner1_mapX - corner1_mapY) * TILE_WIDTH_HALF
+        local corner1_isoY = (corner1_mapX + corner1_mapY) * TILE_HEIGHT_HALF
+
+        -- Canto direito
+        local corner2_mapX = (cx + 1) * CHUNK_SIZE
+        local corner2_mapY = cy * CHUNK_SIZE
+        local corner2_isoX = (corner2_mapX - corner2_mapY) * TILE_WIDTH_HALF
+        local corner2_isoY = (corner2_mapX + corner2_mapY) * TILE_HEIGHT_HALF
+
+        -- Canto inferior
+        local corner3_mapX = (cx + 1) * CHUNK_SIZE
+        local corner3_mapY = (cy + 1) * CHUNK_SIZE
+        local corner3_isoX = (corner3_mapX - corner3_mapY) * TILE_WIDTH_HALF
+        local corner3_isoY = (corner3_mapX + corner3_mapY) * TILE_HEIGHT_HALF
+
+        -- Canto esquerdo
+        local corner4_mapX = cx * CHUNK_SIZE
+        local corner4_mapY = (cy + 1) * CHUNK_SIZE
+        local corner4_isoX = (corner4_mapX - corner4_mapY) * TILE_WIDTH_HALF
+        local corner4_isoY = (corner4_mapX + corner4_mapY) * TILE_HEIGHT_HALF
+
+        -- Desenha o losango do chunk
+        love.graphics.setColor(1, 0, 0, 0.8) -- Vermelho para as bordas
+        love.graphics.polygon("line", corner1_isoX, corner1_isoY, corner2_isoX, corner2_isoY, corner3_isoX,
+            corner3_isoY, corner4_isoX, corner4_isoY)
+
+        -- Escreve as coordenadas do chunk no centro
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(key, corner1_isoX - 50, corner1_isoY + (corner3_isoY - corner1_isoY) / 2, 100, "center")
+    end
+    love.graphics.setLineWidth(1)
 end
 
 return ChunkMapManager
