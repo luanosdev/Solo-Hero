@@ -5,6 +5,7 @@ LOGGERS = true                               -- Define o modo de desenvolvimento
 LOGS_ON_CONSOLE = true                       -- Define se os logs serão impressos no console
 DEBUG_SHOW_PARTICLE_COLLISION_RADIUS = false -- Define se o raio de colisão das partículas deve ser exibido
 HOT_RELOAD = false                           -- Define se o hot reload deve ser ativado
+DEBUG_SHOW_CHUNK_BOUNDS = true               -- Mostra bordas e coordenadas dos chunks
 
 function love.conf(t)
     t.window.title = "Solo Hero"

@@ -17,6 +17,7 @@ local portalDefinitions = require("src.data.portals.portal_definitions")
 local Constants = require("src.config.constants")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local MapManager = require("src.managers.map_manager")
+local ChunkMapManager = require("src.managers.chunk_map_manager")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local GameOverManager = require("src.managers.game_over_manager")
@@ -163,24 +164,8 @@ function GameplayScene:load(args)
         end
     end
 
-    if self.currentPortalData and self.currentPortalData.map then
-        local mapName = self.currentPortalData.map
-        self.mapManager = MapManager:new(mapName, AssetManager)
-        if self.mapManager then
-            local mapLoaded = self.mapManager:loadMap()
-            if mapLoaded then
-                Logger.debug("GameplayScene", "MapManager carregou o mapa '" .. mapName .. "' com sucesso.")
-            else
-                Logger.error("GameplayScene", "ERRO - MapManager falhou ao carregar o mapa: " .. mapName)
-            end
-        else
-            Logger.error("GameplayScene",
-                "ERRO CRÍTICO - Falha ao criar instância do MapManager para o mapa: " .. mapName)
-        end
-    else
-        Logger.error("GameplayScene",
-            "ERRO CRÍTICO [GameplayScene:load]: 'map' não definido nos dados do portal para inicializar MapManager!")
-    end
+    self.mapManager = ChunkMapManager:new(playerMgr)
+    Logger.debug("GameplayScene", "ChunkMapManager instanciado.")
 
     playerMgr:setupGameplay(ManagerRegistry, self.hunterId, self.hudGameplayManager)
     local enemyManagerConfig = {
@@ -700,11 +685,12 @@ function GameplayScene:unload()
     if HUD.reset then HUD:reset() end
     local enemyMgr = ManagerRegistry:get("enemyManager"); if enemyMgr and enemyMgr.reset then enemyMgr:reset() end
 
-    if self.mapManager and self.mapManager.destroy then
-        self.mapManager:destroy()
-        self.mapManager = nil
-        Logger.debug("GameplayScene", "MapManager destruído.")
-    end
+    -- if self.mapManager and self.mapManager.destroy then
+    --     self.mapManager:destroy()
+    --     self.mapManager = nil
+    --     Logger.debug("GameplayScene", "MapManager destruído.")
+    -- end
+    self.mapManager = nil -- Apenas define como nil, o GC cuida do resto.
 
     if self.dropManager and self.dropManager.destroy then
         self.dropManager:destroy()
