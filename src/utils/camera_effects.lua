@@ -138,7 +138,7 @@ function CameraEffects:restore(duration)
     if self.originalCameraTarget and self.originalCameraTarget.position then
         self:panTo(self.originalCameraTarget.position.x, self.originalCameraTarget.position.y, duration)
     end
-    self:zoomTo(1.0, duration) -- Retorna ao zoom normal
+    self:zoomTo(Camera.defaultScale, duration) -- Retorna ao zoom normal
 end
 
 --- Verifica se algum efeito está ativo.
