@@ -8,6 +8,7 @@ RecruitmentManager.__index = RecruitmentManager
 
 local Constants = require("src.config.constants")
 local ArchetypesData = require("src.data.archetypes_data")
+local NamesData = require("src.data.names")
 
 --- Helper function for weighted random selection from a table.
 --- Input table format: { { weight = w1, data = d1 }, { weight = w2, data = d2 }, ... }
@@ -168,7 +169,6 @@ end
 function RecruitmentManager:generateHunterCandidates(count)
     print(string.format("[RecruitmentManager] Generating %d hunter candidates...", count))
     local candidates = {}
-    local names = { "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta" }
     local archetypesByRank = {}
     for archId, archData in pairs(self.archetypeManager:getAllArchetypeData()) do -- Usa getter do ArchetypeManager
         local rank = archData.rank
@@ -181,7 +181,9 @@ function RecruitmentManager:generateHunterCandidates(count)
     for i = 1, count do
         local candidate = {}
         candidate.id = "candidate_" .. i
-        candidate.name = "Candidato " .. (names[i] or i)
+        local firstName = NamesData.first_names[love.math.random(#NamesData.first_names)]
+        local lastName = NamesData.last_names[love.math.random(#NamesData.last_names)]
+        candidate.name = firstName .. " " .. lastName
 
         local chosenRankId = weightedRandomChoice(ArchetypesData.Ranks)
         if not chosenRankId then
