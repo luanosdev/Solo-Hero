@@ -531,19 +531,22 @@ function LobbyScene:draw()
     end
 
     -- 2. Desenha Tabs (sempre por cima)
-    local tabFont = fonts.main or love.graphics.getFont()
-    for i, tab in ipairs(tabs) do
-        elements.drawTabButton({
-            x = tab.x,
-            y = tab.y,
-            w = tab.w,
-            h = tab.h,
-            text = tab.text,
-            isHovering = tab.isHovering,
-            highlighted = (i == self.activeTabIndex),
-            font = tabFont,
-            colors = tabSettings.colors
-        })
+    -- Só desenha as tabs se o modal de recrutamento da tela da agência não estiver ativo.
+    if not (self.agencyScreen and self.agencyScreen.recruitmentManager and self.agencyScreen.recruitmentManager.isRecruiting) then
+        local tabFont = fonts.main or love.graphics.getFont()
+        for i, tab in ipairs(tabs) do
+            elements.drawTabButton({
+                x = tab.x,
+                y = tab.y,
+                w = tab.w,
+                h = tab.h,
+                text = tab.text,
+                isHovering = tab.isHovering,
+                highlighted = (i == self.activeTabIndex),
+                font = tabFont,
+                colors = tabSettings.colors
+            })
+        end
     end
 
     -- Reset final

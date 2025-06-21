@@ -8,13 +8,16 @@ local Section = require("src.ui.components.Section")
 local ArchetypeDetails = require("src.ui.components.ArchetypeDetails")
 local HunterAttributesList = require("src.ui.components.HunterAttributesList")
 local Grid = require("src.ui.components.Grid")
+local lume = require("src.libs.lume")
 
 ---@class RecruitmentModal
 ---@field recruitmentManager RecruitmentManager
 ---@field archetypeManager ArchetypeManager
+---@field onRecruit function
 ---@field columns table<number, YStack>
----@field chooseButtons table<number, Button>
----@field cancelButton Button|nil
+---@field hoveredIndex number|nil
+---@field scales table<number, number>
+---@field backgroundColors table<number, {number, number, number}>
 local RecruitmentModal = {}
 RecruitmentModal.__index = RecruitmentModal
 
@@ -25,10 +28,48 @@ function RecruitmentModal:new(recruitmentManager, archetypeManager)
     instance.recruitmentManager = recruitmentManager
     instance.archetypeManager = archetypeManager
     instance.columns = {}
-    instance.chooseButtons = {}
-    instance.cancelButton = nil
+    instance.hoveredIndex = nil
+    instance.scales = {}
+    instance.backgroundColors = {}
     Logger.debug("[RecruitmentModal:new]", "Created.")
     return instance
+end
+
+function RecruitmentModal:_drawCard(index)
+    local columnStack = self.columns[index]
+    if not columnStack then
+        return
+    end
+
+    local screenW, screenH = love.graphics.getDimensions()
+    local numCandidates = #self.recruitmentManager.hunterCandidates
+    local totalPadding = 40
+    local modalColumnGap = 20
+    local fixedModalContentHeight = screenH * 0.95
+    local modalBaseY = (screenH - fixedModalContentHeight) / 2
+    local availableWidthForColumns = screenW - (totalPadding * 2) - (modalColumnGap * (numCandidates - 1))
+    local baseCardWidth = availableWidthForColumns / numCandidates
+
+    local currentScale = self.scales[index] or 1.0
+    local baseX = columnStack.rect.x
+    local currentBgColor = self.backgroundColors[index] or colors.window_bg
+
+    love.graphics.push()
+    love.graphics.translate(baseX + baseCardWidth / 2, modalBaseY + fixedModalContentHeight / 2)
+    love.graphics.scale(currentScale, currentScale)
+    love.graphics.translate(-(baseX + baseCardWidth / 2), -(modalBaseY + fixedModalContentHeight / 2))
+
+    local backgroundCard = Card:new({
+        rect = { x = baseX, y = modalBaseY, w = baseCardWidth, h = fixedModalContentHeight },
+        backgroundColor = currentBgColor,
+        borderColor = (self.hoveredIndex == index) and colors.border_active or colors.window_border,
+        borderWidth = (self.hoveredIndex == index) and 2 or 1,
+    })
+    backgroundCard:draw()
+
+    columnStack:draw()
+
+    love.graphics.pop()
 end
 
 function RecruitmentModal:draw(mx, my)
@@ -36,7 +77,6 @@ function RecruitmentModal:draw(mx, my)
         return
     end
 
-    -- Fundo semi-transparente (TELA INTEIRA)
     local screenW, screenH = love.graphics.getDimensions()
     love.graphics.setColor(0, 0, 0, 0.7)
     love.graphics.rectangle("fill", 0, 0, screenW, screenH)
@@ -44,65 +84,18 @@ function RecruitmentModal:draw(mx, my)
     if not self.recruitmentManager.hunterCandidates or #self.recruitmentManager.hunterCandidates == 0 then
         love.graphics.setColor(colors.red)
         love.graphics.printf("Erro ao gerar candidatos!", 0, screenH / 2, screenW, "center")
-        if self.cancelButton then
-            self.cancelButton.rect.x = (screenW - self.cancelButton.rect.w) / 2
-            self.cancelButton:draw()
-        end
         return
     end
 
-    -- Cálculos de Dimensão e Posição
     local numCandidates = #self.recruitmentManager.hunterCandidates
-    local totalPadding = 40
-    local modalColumnGap = 20
-    local fixedModalContentHeight = screenH * 0.80
-    local buttonAreaHeight = 50
-    local totalColumnHeight = fixedModalContentHeight + buttonAreaHeight
-    local modalBottomPadding = 80
-    local availableWidthForColumns = screenW - totalPadding
-    local modalWidth = math.max(0, (availableWidthForColumns - (modalColumnGap * (numCandidates - 1))) / numCandidates)
-    local modalBaseY = (screenH - totalColumnHeight - modalBottomPadding) / 2
-    local startX = totalPadding / 2
-    local modalButtonW = 150
-    local modalButtonH = 35
-    local buttonPaddingY = (buttonAreaHeight - modalButtonH) / 2
-
-    for i, candidate in ipairs(self.recruitmentManager.hunterCandidates) do
-        local modalX = startX + (i - 1) * (modalWidth + modalColumnGap)
-        local columnStack = self.columns[i]
-        local chooseButton = self.chooseButtons[i]
-
-        -- Desenha o Card de fundo
-        local cardHeight = fixedModalContentHeight
-        local backgroundCard = Card:new({
-            rect = { x = modalX, y = modalBaseY, w = modalWidth, h = cardHeight },
-            backgroundColor = colors.window_bg,
-            borderColor = colors.window_border,
-            borderWidth = 1,
-        })
-        backgroundCard:draw()
-
-        -- Desenha o CONTEÚDO da Stack (com clipping e scroll)
-        if columnStack then
-            columnStack:draw()
-        end
-
-        -- Desenha o Botão "Escolher"
-        if chooseButton then
-            local buttonX = modalX + (modalWidth - modalButtonW) / 2
-            local buttonY = modalBaseY + cardHeight + buttonPaddingY
-            chooseButton.rect.x = math.floor(buttonX)
-            chooseButton.rect.y = math.floor(buttonY)
-            chooseButton:draw()
+    for i = 1, numCandidates do
+        if i ~= self.hoveredIndex then
+            self:_drawCard(i)
         end
     end
 
-    -- Desenha o botão Cancelar global
-    if self.cancelButton then
-        local cancelY = modalBaseY + totalColumnHeight + 20
-        self.cancelButton.rect.x = (screenW - self.cancelButton.rect.w) / 2
-        self.cancelButton.rect.y = math.floor(cancelY)
-        self.cancelButton:draw()
+    if self.hoveredIndex then
+        self:_drawCard(self.hoveredIndex)
     end
 
     love.graphics.setColor(1, 1, 1, 1)
@@ -113,28 +106,30 @@ function RecruitmentModal:_createOrUpdateModalElements()
     local numCandidates = #self.recruitmentManager.hunterCandidates
     local totalPadding = 40
     local modalColumnGap = 20
-    local fixedModalContentHeight = screenH * 0.80
-    local availableWidthForColumns = screenW - totalPadding
-    local modalWidth = math.max(0, (availableWidthForColumns - (modalColumnGap * (numCandidates - 1))) / numCandidates)
-    local modalBaseY = (screenH - (fixedModalContentHeight + 50 + 80)) / 2
-    local startX = totalPadding / 2
+    local fixedModalContentHeight = screenH * 0.95
+    local availableWidthForColumns = screenW - (totalPadding * 2) - (modalColumnGap * (numCandidates - 1))
+    local modalBaseY = (screenH - fixedModalContentHeight) / 2
     local modalContentPadding = 14
 
-    -- Limpa elementos antigos se o número de candidatos mudar
     if #self.columns ~= numCandidates then
         self.columns = {}
-        self.chooseButtons = {}
+        self.scales = {}
+        self.backgroundColors = {}
     end
 
     for i, candidate in ipairs(self.recruitmentManager.hunterCandidates) do
-        local modalX = startX + (i - 1) * (modalWidth + modalColumnGap)
+        local initialWidth = availableWidthForColumns / numCandidates
+        local baseX = totalPadding + (i - 1) * (initialWidth + modalColumnGap)
 
         if not self.columns[i] then
-            -- Cria a Stack de Conteúdo
+            self.scales[i] = 1.0
+            local r, g, b = unpack(colors.window_bg)
+            self.backgroundColors[i] = { r, g, b }
+
             local columnStack = YStack:new({
-                x = modalX,
-                y = modalBaseY,
-                width = modalWidth,
+                x = 0,
+                y = 0,
+                width = initialWidth,
                 height = fixedModalContentHeight,
                 padding = modalContentPadding,
                 gap = modalColumnGap,
@@ -144,154 +139,152 @@ function RecruitmentModal:_createOrUpdateModalElements()
             local headerStack = YStack:new({
                 x = 0,
                 y = 0,
-                width = modalWidth,
+                width = initialWidth,
                 padding = 0,
                 gap = 6,
-                alignment = "center"
+                alignment = "center",
             })
             headerStack:addChild(Text:new({
                 width = 0,
                 text = candidate.name,
                 size = "h1",
                 variant = "text_title",
-                align = "center"
+                align = "center",
             }))
             headerStack:addChild(Text:new({
                 width = 0,
                 text = "Caçador Rank " .. candidate.finalRankId,
                 size = "h2",
                 variant = "rank_" .. candidate.finalRankId,
-                align = "center"
+                align = "center",
             }))
             columnStack:addChild(headerStack)
 
             local attributesComponent = HunterAttributesList:new({
                 attributes = candidate.finalStats,
-                archetypes =
-                    candidate.archetypes,
-                archetypeManager = self.archetypeManager
+                archetypes = candidate.archetypes,
+                archetypeManager = self.archetypeManager,
             })
             local attributesSection = Section:new({
                 titleConfig = { text = "Atributos", font = fonts.main_large },
-                contentComponent =
-                    attributesComponent,
-                gap = 10
+                contentComponent = attributesComponent,
+                gap = 10,
             })
             columnStack:addChild(attributesSection)
 
-            local archetypeGrid = Grid:new({ width = modalWidth, columns = 3, gap = { vertical = 5, horizontal = 5 } })
+            local archetypeGrid = Grid:new({ width = initialWidth, columns = 3, gap = { vertical = 5, horizontal = 5 } })
             if candidate.archetypes and #candidate.archetypes > 0 then
                 for _, d in ipairs(candidate.archetypes) do
                     archetypeGrid:addChild(ArchetypeDetails:new({ archetypeData = d }))
                 end
             else
-                archetypeGrid:addChild(Text:new({ text = "Nenhum", width = modalWidth, align = "center" }))
+                archetypeGrid:addChild(Text:new({ text = "Nenhum", width = initialWidth, align = "center" }))
             end
             local archetypeSection = Section:new({
                 titleConfig = { text = "Arquétipos", font = fonts.main_large },
-                contentComponent =
-                    archetypeGrid,
-                gap = 10
+                contentComponent = archetypeGrid,
+                gap = 10,
             })
             columnStack:addChild(archetypeSection)
 
             self.columns[i] = columnStack
-
-            -- Cria o Botão "Escolher"
-            local index = i
-            local onChooseClick = function()
-                local newHunterId = self.recruitmentManager:recruitCandidate(index)
-                if self.onRecruit then self.onRecruit(newHunterId) end
-            end
-            self.chooseButtons[i] = Button:new({
-                rect = { w = 150, h = 35 },
-                text = "Escolher",
-                variant = "primary",
-                onClick = onChooseClick,
-                font = fonts.main
-            })
-        else
-            -- Atualiza posição/dimensão
-            local columnStack = self.columns[i]
-            columnStack.rect.x = modalX
-            columnStack.rect.y = modalBaseY
-            columnStack.rect.w = modalWidth
-            columnStack.fixedHeight = fixedModalContentHeight
-            columnStack.needsLayout = true
         end
 
-        self.columns[i]:_updateLayout()
-    end
-
-    -- Cria o botão Cancelar
-    if not self.cancelButton then
-        self.cancelButton = Button:new({
-            rect = { w = 150, h = 35 },
-            text = "Cancelar",
-            variant = "secondary",
-            onClick = function() self.recruitmentManager:cancelRecruitment() end,
-            font = fonts.main
-        })
+        local stack = self.columns[i]
+        stack.rect.x = baseX
+        stack.rect.y = modalBaseY
+        stack.rect.w = initialWidth
+        stack.rect.h = fixedModalContentHeight
+        stack:_updateLayout()
     end
 end
 
 function RecruitmentModal:update(dt, mx, my, allowHover)
     if not self.recruitmentManager.isRecruiting then
-        -- Limpa os botões quando não está recrutando para evitar updates desnecessários
-        if #self.chooseButtons > 0 or self.cancelButton then
+        if #self.columns > 0 then -- Limpa estado ao fechar
             self.columns = {}
-            self.chooseButtons = {}
-            self.cancelButton = nil
+            self.scales = {}
+            self.backgroundColors = {}
+            self.hoveredIndex = nil
         end
         return
     end
 
-    -- Cria os elementos do modal na primeira vez que o update é chamado
-    if #self.chooseButtons == 0 then
+    if #self.columns == 0 then
         self:_createOrUpdateModalElements()
     end
 
-    for i, stack in pairs(self.columns) do
-        stack:update(dt, mx, my, allowHover)
-        local button = self.chooseButtons[i]
-        if button then
-            button:update(dt, mx, my, allowHover)
+    -- Lógica de Hover e Animação de Escala
+    local screenW, screenH = love.graphics.getDimensions()
+    local numCandidates = #self.columns
+    if numCandidates == 0 then return end
+
+    local totalPadding = 40
+    local modalColumnGap = 20
+    local availableWidth = screenW - (totalPadding * 2) - (modalColumnGap * (numCandidates - 1))
+    local baseCardWidth = availableWidth / numCandidates
+    local fixedModalContentHeight = screenH * 0.95
+    local modalBaseY = (screenH - fixedModalContentHeight) / 2
+
+    -- Detecta qual card está sob o mouse (usando as posições BASE)
+    self.hoveredIndex = nil
+    if allowHover then
+        for i = 1, numCandidates do
+            local cardX = totalPadding + (i - 1) * (baseCardWidth + modalColumnGap)
+            if mx >= cardX and mx < cardX + baseCardWidth and my >= modalBaseY and my < modalBaseY + fixedModalContentHeight then
+                self.hoveredIndex = i
+                break
+            end
         end
     end
-    if self.cancelButton then
-        self.cancelButton:update(dt, mx, my, allowHover)
+
+    -- Anima (lerp) a escala e a cor atual em direção ao alvo
+    local lerpFactor = dt * 8.0
+    for i = 1, numCandidates do
+        -- Animação da escala
+        local targetScale = (i == self.hoveredIndex) and 1.05 or 1.0
+        self.scales[i] = (self.scales[i] or 1.0) + (targetScale - self.scales[i]) * lerpFactor
+
+        -- Animação da cor
+        local targetColor = (i == self.hoveredIndex) and colors.slot_hover_bg or colors.window_bg
+        local currentColor = self.backgroundColors[i]
+        currentColor[1] = lume.lerp(currentColor[1], targetColor[1], lerpFactor)
+        currentColor[2] = lume.lerp(currentColor[2], targetColor[2], lerpFactor)
+        currentColor[3] = lume.lerp(currentColor[3], targetColor[3], lerpFactor)
+
+        self.columns[i]:update(dt, mx, my, allowHover)
     end
 end
 
 function RecruitmentModal:handleMousePress(x, y, button)
     if not self.recruitmentManager.isRecruiting or button ~= 1 then return false end
 
-    if self.cancelButton and self.cancelButton:handleMousePress(x, y, button) then return true end
-    for i, btn in pairs(self.chooseButtons) do
-        if btn:handleMousePress(x, y, button) then return true end
+    -- O clique agora é no próprio card, que é verificado pelo hoverIndex
+    if self.hoveredIndex then
+        local index = self.hoveredIndex
+        Logger.debug("[RecruitmentModal]", string.format("Card %d clicado para recrutar.", index))
+        local newHunterId = self.recruitmentManager:recruitCandidate(index)
+        if self.onRecruit then self.onRecruit(newHunterId) end
+        return true -- Consome o clique
     end
 
-    for i, stack in pairs(self.columns) do
-        if x >= stack.rect.x and x < stack.rect.x + stack.rect.w and
-            y >= stack.rect.y and y < stack.rect.y + stack.rect.h then
-            if stack:handleMousePress(x - stack.rect.x, y - stack.rect.y - (stack.scrollY or 0), button) then return true end
-        end
-    end
-
-    return true -- Consome o clique para evitar interação com a tela de fundo
+    return true -- Consome o clique na área do modal para evitar interação com a tela de fundo
 end
 
 function RecruitmentModal:handleMouseRelease(x, y, button)
     if not self.recruitmentManager.isRecruiting or button ~= 1 then return false end
 
-    if self.cancelButton and self.cancelButton:handleMouseRelease(x, y, button) then return true end
-    for i, btn in pairs(self.chooseButtons) do
-        if btn:handleMouseRelease(x, y, button) then return true end
-    end
+    -- Não há mais botões para tratar o release, mas consumimos para evitar click-through
     for i, stack in pairs(self.columns) do
         stack:handleMouseRelease(x - stack.rect.x, y - stack.rect.y - (stack.scrollY or 0), button)
     end
     return true
+end
+
+function RecruitmentModal:handleKeyPress(key)
+    if key == "escape" then
+        self.recruitmentManager:cancelRecruitment()
+    end
 end
 
 function RecruitmentModal:handleMouseScroll(dx, dy, mx, my)

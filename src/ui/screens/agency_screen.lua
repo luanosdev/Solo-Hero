@@ -420,9 +420,10 @@ function AgencyScreen:update(dt, mx, my, allowHover)
 end
 
 function AgencyScreen:keypressed(key)
-    if key == "escape" and self.recruitmentManager.isRecruiting then
-        self.recruitmentManager:cancelRecruitment()
-        return true -- Impede que o 'escape' feche a LobbyScene
+    if self.recruitmentManager.isRecruiting then
+        if self.recruitmentModal:handleKeyPress(key) then
+            return true
+        end
     end
     return false
 end

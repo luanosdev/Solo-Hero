@@ -13,8 +13,8 @@
 local Camera = {
     x = 0,
     y = 0,
-    scale = 1.5,
-    defaultScale = 1.5,
+    scale = 1.3,
+    defaultScale = 1.3,
     rotation = 0,
     smoothness = 5, -- Suavidade da câmera (maior = mais suave)
     offsetX = 0,
