@@ -584,7 +584,6 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                         -- print("LobbyScene: Tab changed")
                         -- <<< SET GUILD SCREEN FLAG >>>
                         if tab.id == TabIds.AGENCY and self.agencyScreen then
-                            -- if self.agencyScreen.onActivate then self.agencyScreen:onActivate() end -- REMOVED
                             self.agencyScreen.isActiveFrame = true
                         end
                     end
@@ -637,9 +636,12 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
             end
         elseif activeTab and activeTab.id == TabIds.AGENCY then
             if self.agencyScreen then
-                -- print("LobbyScene:mousepressed - DELEGATING click to GuildScreen") -- LOG 4
+                Logger.debug("[LobbyScene]", "Delegando clique para AgencyScreen...")
                 local consumed = self.agencyScreen:handleMousePress(x, y, buttonIdx)
-                if consumed then return end -- Se a agency screen consumiu, termina aqui
+                if consumed then
+                    Logger.debug("[LobbyScene]", "Clique consumido pela AgencyScreen.")
+                    return
+                end
             end
         end
 
