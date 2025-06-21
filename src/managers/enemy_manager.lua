@@ -8,6 +8,7 @@ local MVPTitlesData = require("src.data.mvp_titles_data")
 local EnemyNamesData = require("src.data.enemy_names_data")
 local Colors = require("src.ui.colors")
 local Fonts = require("src.ui.fonts")
+local Constants = require("src.config.constants")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -608,8 +609,9 @@ function EnemyManager:transformToMVP(enemy)
 
     -- 1. Marcação e Boosts Base
     enemy.isMVP = true
-    enemy.maxHealth = enemy.maxHealth * 10
+    enemy.maxHealth = enemy.maxHealth * 30
     enemy.radius = enemy.radius * 1.2
+    enemy.knockbackResistance = Constants.KNOCKBACK_RESISTANCE.IMMUNE
     enemy.sprite.scale = enemy.sprite.scale * 1.2 -- Assumindo que a escala está no sprite
 
     -- 2. Seleção de Título

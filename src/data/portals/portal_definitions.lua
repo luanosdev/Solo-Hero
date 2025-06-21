@@ -240,15 +240,15 @@ local portalDefinitions = {
         hordeConfig = {
             mapRank = "E",
             mvpConfig = {
-                spawnInterval = 60 * 3, -- A cada 3 min
-                statusMultiplier = 14,
-                speedMultiplier = 1.15,
+                spawnInterval = 60 * 2, -- A cada 3 min
+                statusMultiplier = 30,
+                speedMultiplier = 1.5,
                 sizeMultiplier = 1.3,
-                experienceMultiplier = 16
+                experienceMultiplier = 20
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 600, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "E" }
+                    { time = 60 * 6, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "E" }
                 }
             },
             cycles = {
@@ -273,12 +273,12 @@ local portalDefinitions = {
                 },
                 -- 🔹 Min 2–5: Walkers + primeiros Runners
                 {
-                    duration = 180,
+                    duration = 120,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1,   weight = 1,   unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerMale1,   weight = 3,   unitType = "zombie_walker_male_1" },
                         { class = ZombieWalkerFemale1, weight = 1,   unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1,   weight = 0.5, unitType = "zombie_runner_male_1" },
-                        { class = ZombieRunnerFemale1, weight = 0.5, unitType = "zombie_runner_female_1" }
+                        { class = ZombieRunnerMale1,   weight = 1, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
                         interval = 12,
@@ -294,12 +294,12 @@ local portalDefinitions = {
                 },
                 -- 🔹 Min 5–8: Mais runners, densidade aumenta
                 {
-                    duration = 180,
+                    duration = 120,
                     allowedEnemies = {
                         { class = ZombieWalkerMale1,   weight = 1, unitType = "zombie_walker_male_1" },
                         { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1,   weight = 1, unitType = "zombie_runner_male_1" },
-                        { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
+                        { class = ZombieRunnerMale1,   weight = 3, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 3, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
                         interval = 10,
@@ -313,27 +313,6 @@ local portalDefinitions = {
                         count = 5
                     }
                 },
-                -- 🔹 Min 8–10: Rush final com máxima densidade
-                {
-                    duration = 120,
-                    allowedEnemies = {
-                        { class = ZombieWalkerMale1,   weight = 1,   unitType = "zombie_walker_male_1" },
-                        { class = ZombieWalkerFemale1, weight = 1,   unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1,   weight = 1.5, unitType = "zombie_runner_male_1" },
-                        { class = ZombieRunnerFemale1, weight = 1.5, unitType = "zombie_runner_female_1" }
-                    },
-                    majorSpawn = {
-                        interval = 8,
-                        baseCount = 25,
-                        countScalePerMin = 0.5
-                    },
-                    minorSpawn = {
-                        baseInterval = 1.8,
-                        intervalReductionPerMin = 0.4,
-                        minInterval = 0.5,
-                        count = 6
-                    }
-                }
             }
         },
         mapDefinition = {
