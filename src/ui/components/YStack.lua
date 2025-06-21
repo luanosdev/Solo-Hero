@@ -145,26 +145,28 @@ function YStack:draw()
     -- Desenha debug da stack base
     Component.draw(self)
 
-    -- >>> Aplica Scissor INTERNO se altura for fixa e área for válida
-    local needsScissor = self.fixedHeight ~= nil
-    local scissorX, scissorY, scissorW, scissorH
-    if needsScissor then
-        -- Calcula área de recorte DENTRO do padding
-        scissorX = math.floor(self.rect.x + self.padding.left)
-        scissorY = math.floor(self.rect.y + self.padding.top)
-        scissorW = math.floor(self.rect.w - self.padding.left - self.padding.right)
-        scissorH = math.floor(self.rect.h - self.padding.top - self.padding.bottom)
+    local needsClipping = self.fixedHeight ~= nil
+    local clipX, clipY, clipW, clipH
 
-        -- Só aplica se a área for positiva
-        if scissorW > 0 and scissorH > 0 then
-            love.graphics.push()
-            love.graphics.setScissor(scissorX, scissorY, scissorW, scissorH)
+    if needsClipping then
+        clipX = math.floor(self.rect.x + self.padding.left)
+        clipY = math.floor(self.rect.y + self.padding.top)
+        clipW = math.floor(self.rect.w - self.padding.left - self.padding.right)
+        clipH = math.floor(self.rect.h - self.padding.top - self.padding.bottom)
+
+        if clipW > 0 and clipH > 0 then
+            love.graphics.push("all")
+            local stencilFunc = function()
+                love.graphics.rectangle("fill", clipX, clipY, clipW, clipH)
+            end
+            love.graphics.stencil(stencilFunc, "replace", 1)
+            love.graphics.setStencilTest("equal", 1)
         else
-            needsScissor = false -- Não aplicar se área for inválida
+            needsClipping = false
         end
     end
 
-    -- Desenha os filhos (dentro ou fora do scissor)
+    -- Desenha os filhos (dentro ou fora do stencil)
     for _, child in ipairs(self.children) do
         if child.draw then
             child:draw()
@@ -178,9 +180,7 @@ function YStack:draw()
         end
     end
 
-    -- >>> Remove Scissor se foi aplicado
-    if needsScissor then
-        love.graphics.setScissor()
+    if needsClipping then
         love.graphics.pop()
     end
 end
