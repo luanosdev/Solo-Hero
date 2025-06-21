@@ -175,7 +175,7 @@ function RecruitmentModal:_createOrUpdateModalElements()
             local archetypeGrid = Grid:new({ width = initialWidth, columns = 3, gap = { vertical = 5, horizontal = 5 } })
             if candidate.archetypes and #candidate.archetypes > 0 then
                 for _, d in ipairs(candidate.archetypes) do
-                    archetypeGrid:addChild(ArchetypeDetails:new({ archetypeData = d }))
+                    archetypeGrid:addChild(ArchetypeDetails:new({ archetypeData = d, showModifiers = false }))
                 end
             else
                 archetypeGrid:addChild(Text:new({ text = "Nenhum", width = initialWidth, align = "center" }))
@@ -244,6 +244,7 @@ function RecruitmentModal:update(dt, mx, my, allowHover)
         -- Animação da escala
         local targetScale = (i == self.hoveredIndex) and 1.05 or 1.0
         self.scales[i] = (self.scales[i] or 1.0) + (targetScale - self.scales[i]) * lerpFactor
+        local currentScale = self.scales[i]
 
         -- Animação da cor
         local targetColor = (i == self.hoveredIndex) and colors.slot_hover_bg or colors.window_bg
@@ -252,7 +253,18 @@ function RecruitmentModal:update(dt, mx, my, allowHover)
         currentColor[2] = lume.lerp(currentColor[2], targetColor[2], lerpFactor)
         currentColor[3] = lume.lerp(currentColor[3], targetColor[3], lerpFactor)
 
-        self.columns[i]:update(dt, mx, my, allowHover)
+        -- Transforma as coordenadas do mouse para o sistema de coordenadas do card escalado
+        local tmx, tmy = mx, my
+        local cardIsHovered = allowHover and self.hoveredIndex == i
+        if currentScale ~= 1.0 then
+            local cardStack = self.columns[i]
+            local cardCenterX = cardStack.rect.x + cardStack.rect.w / 2
+            local cardCenterY = cardStack.rect.y + cardStack.rect.h / 2
+            tmx = cardCenterX + (mx - cardCenterX) / currentScale
+            tmy = cardCenterY + (my - cardCenterY) / currentScale
+        end
+
+        self.columns[i]:update(dt, tmx, tmy, cardIsHovered)
     end
 end
 
