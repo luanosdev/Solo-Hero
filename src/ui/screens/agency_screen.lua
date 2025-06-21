@@ -419,7 +419,9 @@ function AgencyScreen:update(dt, mx, my, allowHover)
     ItemDetailsModalManager.update(dt, mx, my, self.itemToShowTooltip)
 end
 
-function AgencyScreen:keypressed(key)
+---@param key string
+---@return boolean
+function AgencyScreen:handleKeyPress(key)
     if self.recruitmentManager.isRecruiting then
         if self.recruitmentModal:handleKeyPress(key) then
             return true

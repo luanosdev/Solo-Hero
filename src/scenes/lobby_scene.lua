@@ -745,9 +745,12 @@ function LobbyScene:keypressed(key, scancode, isrepeat)
         if wantsToRotate and self.draggedItem then
             -- Alterna o estado de rotação VISUAL
             self.draggedItemIsRotated = not self.draggedItemIsRotated
-            print(string.format("LobbyScene: Rotação visual alternada para: %s", tostring(self.draggedItemIsRotated)))
             -- NÃO modifica self.draggedItem aqui
         end
+    end
+
+    if activeTab and activeTab.id == TabIds.AGENCY then
+        self.agencyScreen:handleKeyPress(key)
     end
 
     -- TODO: Adicionar delegação para outras telas/abas se necessário
