@@ -43,7 +43,7 @@ function AgencyScreen:new(hunterManager, archetypeManager, itemDataManager, load
     instance.loadoutManager = loadoutManager
     instance.agencyManager = agencyManager
 
-    instance.recruitmentManager = RecruitmentManager:new(hunterManager)
+    instance.recruitmentManager = RecruitmentManager:new(hunterManager, archetypeManager)
     instance.recruitmentModal = RecruitmentModal:new(instance.recruitmentManager, archetypeManager)
     -- Callback para quando um recruta é escolhido no modal
     instance.recruitmentModal.onRecruit = function(newHunterId)
