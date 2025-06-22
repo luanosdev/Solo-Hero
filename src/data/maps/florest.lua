@@ -22,7 +22,7 @@ local map_data = {
                 placement = "clustered",
                 cluster_scale = 20,
                 cluster_density = 0.7,
-                cluster_threshold = 0.5,
+                cluster_threshold = 0.6,
                 types = {
                     {
                         id = "bush_type_1",
@@ -106,6 +106,24 @@ local map_data = {
                     }
                 }
             },
+            -- Layer 3: Árvores aleatórias.
+            {
+                id = "tree_layer",
+                placement = "random",
+                density = 0.01, -- Chance de 5% de uma árvore aparecer em qualquer tile.
+                types = {
+                    {
+                        id = "tree_type_1",
+                        affectedByWind = true, -- As copas podem balançar
+                        variants = {
+                            { name = "E", path = "assets/tilesets/forest/tiles/Tree A9_E.png" },
+                            { name = "N", path = "assets/tilesets/forest/tiles/Tree A9_N.png" },
+                            { name = "S", path = "assets/tilesets/forest/tiles/Tree A9_S.png" },
+                            { name = "W", path = "assets/tilesets/forest/tiles/Tree A9_W.png" },
+                        }
+                    }
+                }
+            }
         }
     }
 

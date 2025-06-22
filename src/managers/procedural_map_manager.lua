@@ -38,13 +38,13 @@ function ProceduralMapManager:new(mapName, assetManager)
 
     -- Configurações do mapa procedural.
     instance.chunks = {}
-    instance.chunkSize = 16
+    instance.chunkSize = 24
     instance.viewDistance = 1
     instance.sessionSeed = love.math.random(1, 1000000)
 
     -- Parâmetros de vento.
-    instance.windStrength = 2
-    instance.windSpeed = 1.5
+    instance.windStrength = 1.2
+    instance.windSpeed = 1.2
 
     -- Recursos de renderização.
     instance.groundImage = nil
