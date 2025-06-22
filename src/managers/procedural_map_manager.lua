@@ -101,7 +101,7 @@ function ProceduralMapManager:generateChunk(chunkX, chunkY)
     Logger.debug("ProceduralMapManager.generateChunk", "Gerando chunk: " .. chunkId)
 
     local groundBatch = love.graphics.newSpriteBatch(self.groundImage, self.chunkSize * self.chunkSize, "static")
-    local decorations = {}
+    local decorationsByTile = {} -- Estrutura para armazenar decorações por tile.
 
     local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
     local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
@@ -109,7 +109,9 @@ function ProceduralMapManager:generateChunk(chunkX, chunkY)
     local rng = love.math.newRandomGenerator()
 
     for tileY = 0, self.chunkSize - 1 do
+        decorationsByTile[tileY] = {}
         for tileX = 0, self.chunkSize - 1 do
+            decorationsByTile[tileY][tileX] = {}
             local worldTileX = chunkX * self.chunkSize + tileX
             local worldTileY = chunkY * self.chunkSize + tileY
 
@@ -148,8 +150,9 @@ function ProceduralMapManager:generateChunk(chunkX, chunkY)
                         local variantIndex = rng:random(#decoType.variants)
                         local variant = decoType.variants[variantIndex]
 
-                        table.insert(decorations, {
-                            path = variant.path, -- Armazena apenas o path.
+                        -- Adiciona a decoração à lista do tile correspondente.
+                        table.insert(decorationsByTile[tileY][tileX], {
+                            path = variant.path,
                             pivot_x = variant.pivot_x or 0.5,
                             pivot_y = variant.pivot_y or 1,
                             affectedByWind = decoType.affectedByWind,
@@ -165,7 +168,7 @@ function ProceduralMapManager:generateChunk(chunkX, chunkY)
 
     self.chunks[chunkId] = {
         ground = groundBatch,
-        decorations = decorations
+        decorations = decorationsByTile -- Salva a grade de decorações.
     }
 end
 
@@ -265,42 +268,45 @@ function ProceduralMapManager:draw()
     -- Se não houver atlas/batch, não há o que desenhar.
     if not self.decorationBatch then return end
 
-    -- 2. Renderização ultra-otimizada das decorações usando o atlas.
+    -- 2. Desenha as decorações sem ordenação por quadro.
+    -- A iteração sobre os chunks (já ordenados) e sobre os tiles na ordem
+    -- correta (de trás para frente) garante a perspectiva isométrica sem
+    -- a necessidade de ordenar a lista de todas as decorações.
     self.decorationBatch:clear()
     local time = love.timer.getTime()
 
-    -- 2.1 Coleta todas as decorações visíveis.
-    local allDecorations = {}
     for _, chunkData in ipairs(chunksToDraw) do
-        for _, deco in ipairs(chunkData.chunk.decorations) do
-            table.insert(allDecorations, deco)
-        end
-    end
+        local decorationsByTile = chunkData.chunk.decorations
+        -- Itera sobre a grade de tiles na ordem de renderização correta (Y, depois X).
+        for tileY = 0, self.chunkSize - 1 do
+            if decorationsByTile[tileY] then
+                for tileX = 0, self.chunkSize - 1 do
+                    if decorationsByTile[tileY][tileX] then
+                        for _, deco in ipairs(decorationsByTile[tileY][tileX]) do
+                            local quad = self.decorationAtlas.quads[deco.path]
+                            if quad then
+                                local x, y = deco.x, deco.y
+                                if deco.affectedByWind then
+                                    local posOffset = (x + y) * 0.01
+                                    local windEffect = math.sin(time * self.windSpeed + posOffset) * self.windStrength
+                                    x = x + windEffect
+                                end
 
-    -- 2.2 Ordena pela posição Y para a perspectiva isométrica.
-    table.sort(allDecorations, function(a, b) return a.y < b.y end)
+                                -- Calcula o pivô em pixels a partir do quad.
+                                local quadW, quadH = quad:getViewport()
+                                local pivotX = quadW * deco.pivot_x
+                                local pivotY = quadH * deco.pivot_y
 
-    -- 2.3 Adiciona as decorações ordenadas ao batch.
-    for _, deco in ipairs(allDecorations) do
-        local quad = self.decorationAtlas.quads[deco.path]
-        if quad then
-            local x, y = deco.x, deco.y
-            if deco.affectedByWind then
-                local posOffset = (x + y) * 0.01
-                local windEffect = math.sin(time * self.windSpeed + posOffset) * self.windStrength
-                x = x + windEffect
+                                self.decorationBatch:add(quad, x, y, 0, 1, 1, pivotX, pivotY)
+                            end
+                        end
+                    end
+                end
             end
-
-            -- Calcula o pivô em pixels a partir do quad.
-            local quadW, quadH = quad:getViewport()
-            local pivotX = quadW * deco.pivot_x
-            local pivotY = quadH * deco.pivot_y
-
-            self.decorationBatch:add(quad, x, y, 0, 1, 1, pivotX, pivotY)
         end
     end
 
-    -- 2.4 Desenha o batch inteiro de uma só vez.
+    -- Desenha o batch inteiro de uma só vez.
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(self.decorationBatch)
 
