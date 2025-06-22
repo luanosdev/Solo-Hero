@@ -13,7 +13,7 @@ DEBUG_SHOW_PARTICLE_COLLISION_RADIUS = DEV and false
 -- Define se o hot reload deve ser ativado
 HOT_RELOAD = DEV and false
 -- Define se as bordas e coordenadas dos chunks devem ser exibidas
-DEBUG_SHOW_CHUNK_BOUNDS = DEV and false
+DEBUG_SHOW_CHUNK_BOUNDS = DEV and true
 
 function love.conf(t)
     t.window.title = "Solo Hero"

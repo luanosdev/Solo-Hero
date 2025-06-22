@@ -3,7 +3,7 @@
 
 local MapManager = require("src.managers.map_manager")
 local Constants = require("src.config.constants")
-local Logger = require("src.libs.logger")
+local fonts = require("src.ui.fonts")
 
 ---@class ProceduralMapManager
 ---@field mapName string
@@ -184,6 +184,47 @@ function ProceduralMapManager:draw()
     -- Desenha os chunks na ordem correta.
     for _, chunkData in ipairs(chunksToDraw) do
         love.graphics.draw(chunkData.batch)
+
+        if DEBUG_SHOW_CHUNK_BOUNDS then
+            love.graphics.push()
+            local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
+            local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
+
+            local chunkX, chunkY = chunkData.x, chunkData.y
+
+            -- Calcula os 4 cantos do chunk em coordenadas de tile do mundo
+            local topLeft = { x = chunkX * self.chunkSize, y = chunkY * self.chunkSize }
+            local topRight = { x = (chunkX + 1) * self.chunkSize, y = chunkY * self.chunkSize }
+            local bottomRight = { x = (chunkX + 1) * self.chunkSize, y = (chunkY + 1) * self.chunkSize }
+            local bottomLeft = { x = chunkX * self.chunkSize, y = (chunkY + 1) * self.chunkSize }
+
+            -- Converte os cantos para coordenadas isométricas
+            local isoTopLeftX = (topLeft.x - topLeft.y) * TILE_WIDTH_HALF
+            local isoTopLeftY = (topLeft.x + topLeft.y) * TILE_HEIGHT_HALF
+            local isoTopRightX = (topRight.x - topRight.y) * TILE_WIDTH_HALF
+            local isoTopRightY = (topRight.x + topRight.y) * TILE_HEIGHT_HALF
+            local isoBottomRightX = (bottomRight.x - bottomRight.y) * TILE_WIDTH_HALF
+            local isoBottomRightY = (bottomRight.x + bottomRight.y) * TILE_HEIGHT_HALF
+            local isoBottomLeftX = (bottomLeft.x - bottomLeft.y) * TILE_WIDTH_HALF
+            local isoBottomLeftY = (bottomLeft.x + bottomLeft.y) * TILE_HEIGHT_HALF
+
+            love.graphics.setColor(1, 1, 0, 0.7) -- Amarelo semi-transparente
+            love.graphics.setLineWidth(2)
+            love.graphics.polygon('line', isoTopLeftX, isoTopLeftY, isoTopRightX, isoTopRightY, isoBottomRightX,
+                isoBottomRightY, isoBottomLeftX, isoBottomLeftY)
+
+            -- Calcula o centro do chunk para o texto
+            local centerTileX = chunkX * self.chunkSize + self.chunkSize / 2
+            local centerTileY = chunkY * self.chunkSize + self.chunkSize / 2
+            local isoCenterX = (centerTileX - centerTileY) * TILE_WIDTH_HALF
+            local isoCenterY = (centerTileX + centerTileY) * TILE_HEIGHT_HALF
+
+            love.graphics.setFont(fonts.main)
+            love.graphics.printf(chunkData.x .. "," .. chunkData.y, isoCenterX - 50, isoCenterY - 10, 100, 'center')
+
+            love.graphics.pop() -- Restaura cor e outras propriedades gráficas
+            love.graphics.setColor(1, 1, 1, 1)
+        end
     end
 end
 
