@@ -13,6 +13,10 @@ local fonts = require("src.ui.fonts")
 ---@field chunkSize number
 ---@field viewDistance number
 ---@field groundImage love.Image
+---@field groundQuad love.Quad
+---@field decorationData table
+---@field windStrength number
+---@field windSpeed number
 local ProceduralMapManager = {}
 ProceduralMapManager.__index = ProceduralMapManager
 
@@ -31,13 +35,18 @@ function ProceduralMapManager:new(mapName, assetManager)
 
     -- Armazena os chunks gerados. A chave será uma string "x,y", e o valor será o SpriteBatch do chunk.
     instance.chunks = {}
-    instance.chunkSize = 16   -- Tamanho do chunk em tiles (16x16).
-    instance.viewDistance = 1 -- Distância em chunks ao redor do jogador (1 = grid 3x3).
+    instance.chunkSize = 16                             -- Tamanho do chunk em tiles (16x16).
+    instance.viewDistance = 1                           -- Distância em chunks ao redor do jogador (1 = grid 3x3).
+    instance.sessionSeed = love.math.random(1, 1000000) -- Seed para esta sessão de gameplay.
 
-    -- Recursos para renderização do chão.
-    -- O groundBatch global foi removido.
+    -- Parâmetros para o efeito de vento nas decorações.
+    instance.windStrength = 2 -- Deslocamento horizontal máximo em pixels.
+    instance.windSpeed = 1.5  -- Velocidade da oscilação do vento.
+
+    -- Recursos para renderização do chão e decorações.
     instance.groundImage = nil
     instance.groundQuad = nil
+    instance.decorationData = {}
 
     instance:_initializeRenderer()
 
@@ -60,14 +69,31 @@ function ProceduralMapManager:_initializeRenderer()
     local w, h = self.groundImage:getDimensions()
     self.groundQuad = love.graphics.newQuad(0, 0, w, h, w, h)
 
-    -- Remove a criação do SpriteBatch global. Eles serão criados por chunk.
+    -- Carrega as imagens de decoração
+    if self.mapData.decorations and self.mapData.decorations.tiles then
+        for _, decoPath in ipairs(self.mapData.decorations.tiles) do
+            local img = self.assetManager:getImage(decoPath)
+            if img then
+                local imgW, imgH = img:getDimensions()
+                table.insert(self.decorationData, {
+                    image = img,
+                    width = imgW,
+                    height = imgH,
+                    pivot_x = imgW / 2, -- Pivô no centro horizontal
+                    pivot_y = imgH      -- Pivô na base da imagem
+                })
+            else
+                Logger.warn("ProceduralMapManager", "Falha ao carregar imagem de decoração: " .. decoPath)
+            end
+        end
+    end
+
     Logger.info("ProceduralMapManager.start", "Renderizador do ProceduralMapManager inicializado.")
 end
 
 --- Gera um chunk específico do mapa.
--- Por enquanto, apenas preenche com o tile de chão padrão.
--- @param chunkX (number) A coordenada X do chunk.
--- @param chunkY (number) A coordenada Y do chunk.
+--- @param chunkX number A coordenada X do chunk.
+--- @param chunkY number A coordenada Y do chunk.
 function ProceduralMapManager:generateChunk(chunkX, chunkY)
     local chunkId = chunkX .. "," .. chunkY
     if self.chunks[chunkId] then
@@ -76,11 +102,13 @@ function ProceduralMapManager:generateChunk(chunkX, chunkY)
 
     Logger.debug("ProceduralMapManager.generateChunk", "Gerando chunk: " .. chunkId)
 
-    -- Cria um novo SpriteBatch para este chunk.
-    local chunkBatch = love.graphics.newSpriteBatch(self.groundImage, self.chunkSize * self.chunkSize, "static")
+    -- Cria um novo SpriteBatch para o chão deste chunk.
+    local groundBatch = love.graphics.newSpriteBatch(self.groundImage, self.chunkSize * self.chunkSize, "static")
+    local decorations = {}
 
     local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
     local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
+    local decoDensity = self.mapData.decorations and self.mapData.decorations.density or 0
 
     for tileY = 0, self.chunkSize - 1 do
         for tileX = 0, self.chunkSize - 1 do
@@ -92,21 +120,51 @@ function ProceduralMapManager:generateChunk(chunkX, chunkY)
             local isoX = (worldTileX - worldTileY) * TILE_WIDTH_HALF
             local isoY = (worldTileX + worldTileY) * TILE_HEIGHT_HALF
 
-            -- Adiciona o tile ao SpriteBatch específico do chunk.
-            chunkBatch:add(self.groundQuad, isoX, isoY)
+            -- Adiciona o tile de chão ao batch.
+            groundBatch:add(self.groundQuad, isoX, isoY)
+
+            -- Decide se coloca uma decoração neste tile de forma determinística.
+            if #self.decorationData > 0 then
+                -- Geramos um valor de ruído pseudo-aleatório, mas determinístico.
+                -- A função noise() não tem uma distribuição uniforme, então usamos um truque
+                -- para obter um resultado mais parecido com um "random" uniforme:
+                -- multiplicamos por um número grande e pegamos a parte fracionária.
+                local noiseVal = love.math.noise(worldTileX / 20, worldTileY / 20, self.sessionSeed)
+                local uniformVal = (noiseVal * 12345.678) % 1
+
+                if uniformVal < decoDensity then
+                    -- Usa um segundo valor de noise para decidir qual decoração usar, garantindo variedade.
+                    local decoNoise = love.math.noise(worldTileX / 20 + 1000, worldTileY / 20 + 1000, self.sessionSeed)
+                    local uniformDecoVal = (decoNoise * 54321.123) % 1
+                    local decoIndex = math.floor(uniformDecoVal * #self.decorationData) + 1
+
+                    local deco = self.decorationData[decoIndex]
+                    table.insert(decorations, {
+                        data = deco,
+                        x = isoX + TILE_WIDTH_HALF, -- Posição no centro do tile
+                        y = isoY + TILE_HEIGHT_HALF
+                    })
+                end
+            end
         end
     end
 
-    self.chunks[chunkId] = chunkBatch -- Armazena o batch do chunk.
+    -- Armazena o batch do chão e a lista de decorações para este chunk.
+    self.chunks[chunkId] = {
+        ground = groundBatch,
+        decorations = decorations
+    }
 end
 
 --- Descarrega um chunk específico do mapa.
 --- @param chunkId string O ID do chunk a ser descarregado (ex: "0,0").
 function ProceduralMapManager:unloadChunk(chunkId)
-    local chunkBatch = self.chunks[chunkId]
-    if chunkBatch then
+    local chunk = self.chunks[chunkId]
+    if chunk then
         Logger.debug("ProceduralMapManager.unloadChunk", "Descarregando chunk: " .. chunkId)
-        chunkBatch:release() -- Libera os recursos do SpriteBatch.
+        if chunk.ground and chunk.ground.release then
+            chunk.ground:release() -- Libera os recursos do SpriteBatch do chão.
+        end
         self.chunks[chunkId] = nil
     end
 end
@@ -152,18 +210,17 @@ function ProceduralMapManager:update(dt, playerPosition)
     end
 end
 
---- Desenha o mapa procedural gerado.
-function ProceduralMapManager:draw()
-    -- Para a renderização isométrica correta, os chunks devem ser desenhados
-    -- em uma ordem específica (de trás para frente).
+--- Retorna a lista de chunks visíveis, ordenados para renderização isométrica.
+--- @return table
+function ProceduralMapManager:_getVisibleChunksSorted()
     local chunksToDraw = {}
-    for chunkId, chunkBatch in pairs(self.chunks) do
+    for chunkId, chunk in pairs(self.chunks) do
         local xStr, yStr = chunkId:match("^(-?%d+),(-?%d+)$")
         if xStr and yStr then
             table.insert(chunksToDraw, {
                 x = tonumber(xStr),
                 y = tonumber(yStr),
-                batch = chunkBatch
+                chunk = chunk
             })
         end
     end
@@ -181,11 +238,45 @@ function ProceduralMapManager:draw()
         return sumA < sumB
     end)
 
-    -- Desenha os chunks na ordem correta.
-    for _, chunkData in ipairs(chunksToDraw) do
-        love.graphics.draw(chunkData.batch)
+    return chunksToDraw
+end
 
-        if DEBUG_SHOW_CHUNK_BOUNDS then
+--- Desenha o mapa procedural gerado.
+function ProceduralMapManager:draw()
+    -- Para a renderização isométrica correta, os chunks devem ser desenhados
+    -- em uma ordem específica (de trás para frente).
+    local chunksToDraw = self:_getVisibleChunksSorted()
+
+    -- 1. Desenha os batches de chão na ordem correta.
+    for _, chunkData in ipairs(chunksToDraw) do
+        love.graphics.draw(chunkData.chunk.ground)
+    end
+
+    -- 2. Coleta todas as decorações dos chunks visíveis.
+    local allDecorations = {}
+    for _, chunkData in ipairs(chunksToDraw) do
+        for _, deco in ipairs(chunkData.chunk.decorations) do
+            table.insert(allDecorations, deco)
+        end
+    end
+
+    -- 3. Ordena as decorações pela sua posição Y para renderização isométrica.
+    table.sort(allDecorations, function(a, b) return a.y < b.y end)
+
+    -- 4. Desenha as decorações, já ordenadas.
+    love.graphics.setColor(1, 1, 1, 1) -- Garante que a cor está normal.
+    local time = love.timer.getTime()
+    for _, deco in ipairs(allDecorations) do
+        local data = deco.data
+        -- Efeito de vento
+        local posOffset = (deco.x + deco.y) * 0.01
+        local windEffect = math.sin(time * self.windSpeed + posOffset) * self.windStrength
+        love.graphics.draw(data.image, deco.x + windEffect, deco.y, 0, 1, 1, data.pivot_x, data.pivot_y)
+    end
+
+    -- Desenha as bordas de debug por cima de tudo, se ativado.
+    if DEBUG_SHOW_CHUNK_BOUNDS then
+        for _, chunkData in ipairs(chunksToDraw) do
             love.graphics.push()
             local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
             local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
@@ -231,9 +322,9 @@ end
 --- Libera os recursos utilizados pelo gerenciador.
 function ProceduralMapManager:destroy()
     -- Libera todos os SpriteBatches de chunks restantes.
-    for chunkId, chunkBatch in pairs(self.chunks) do
-        if chunkBatch and chunkBatch.release then
-            chunkBatch:release()
+    for chunkId, chunk in pairs(self.chunks) do
+        if chunk.ground then
+            chunk.ground:release()
         end
     end
     self.chunks = {}

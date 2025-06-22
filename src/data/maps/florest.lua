@@ -12,6 +12,18 @@ local map_data = {
         tile = "assets/tilesets/forest/tiles/Ground G1_E.png",
     },
 
+    -- Definições para as decorações do mapa
+    decorations = {
+        -- Lista de possíveis tiles de decoração
+        tiles = {
+            "assets/tilesets/forest/tiles/Flora A1_E.png",
+            "assets/tilesets/forest/tiles/Flora A2_E.png",
+        },
+        -- Densidade: um valor entre 0 (nenhuma) e 1 (todas) que controla
+        -- a chance de um tile ter uma decoração.
+        density = 0.05, -- 5% de chance
+    }
+
     -- Futuramente, poderemos adicionar mais camadas, como decorações, inimigos, etc.
     -- decorations = {
     --     ...
