@@ -115,7 +115,7 @@ end
 function ProceduralMapManager:_createChunkGenerator(chunkX, chunkY)
     return coroutine.create(function()
         local chunkId = chunkX .. "," .. chunkY
-        if self.chunks[chunkId] then
+        if self.chunks[chunkY] and self.chunks[chunkY][chunkX] then
             return -- Evita gerar novamente se outro processo o fez enquanto estava na fila.
         end
 
@@ -181,7 +181,10 @@ function ProceduralMapManager:_createChunkGenerator(chunkX, chunkY)
             end
         end
 
-        self.chunks[chunkId] = {
+        if not self.chunks[chunkY] then
+            self.chunks[chunkY] = {}
+        end
+        self.chunks[chunkY][chunkX] = {
             ground = groundBatch,
             decorations = decorationsByTile
         }
@@ -237,7 +240,8 @@ function ProceduralMapManager:update(dt, playerPosition)
             local chunkId = x .. "," .. y
             requiredChunks[chunkId] = true
             -- Adiciona o chunk à fila de geração se ele não existir e não estiver sendo processado.
-            if not self.chunks[chunkId] and not self:_isChunkInQueueOrGenerating(chunkId) then
+            local chunkExists = self.chunks[y] and self.chunks[y][x]
+            if not chunkExists and not self:_isChunkInQueueOrGenerating(chunkId) then
                 -- Adiciona no início da fila para priorizar os mais próximos.
                 table.insert(self.generationQueue, 1, { x = x, y = y })
             end
@@ -246,14 +250,22 @@ function ProceduralMapManager:update(dt, playerPosition)
 
     -- Descarrega os chunks que não são mais necessários.
     local chunksToUnload = {}
-    for chunkId, _ in pairs(self.chunks) do
-        if not requiredChunks[chunkId] then
-            table.insert(chunksToUnload, chunkId)
+    for y, row in pairs(self.chunks) do
+        for x, _ in pairs(row) do
+            local chunkId = x .. "," .. y
+            if not requiredChunks[chunkId] then
+                table.insert(chunksToUnload, { x = x, y = y })
+            end
         end
     end
 
-    for _, chunkId in ipairs(chunksToUnload) do
-        self.chunks[chunkId] = nil
+    for _, pos in ipairs(chunksToUnload) do
+        if self.chunks[pos.y] then
+            self.chunks[pos.y][pos.x] = nil
+            if next(self.chunks[pos.y]) == nil then
+                self.chunks[pos.y] = nil -- Limpa a linha se estiver vazia.
+            end
+        end
     end
 
     -- Processa a geração de chunks pendentes.
@@ -264,14 +276,15 @@ end
 --- @return table
 function ProceduralMapManager:_getVisibleChunksSorted()
     local chunksToDraw = {}
-    for chunkId, chunk in pairs(self.chunks) do
-        local xStr, yStr = chunkId:match("^(-?%d+),(-?%d+)$")
-        if xStr and yStr then
-            table.insert(chunksToDraw, {
-                x = tonumber(xStr),
-                y = tonumber(yStr),
-                chunk = chunk
-            })
+    for y, row in pairs(self.chunks) do
+        for x, chunk in pairs(row) do
+            if chunk then -- Garante que o chunk existe antes de adicioná-lo.
+                table.insert(chunksToDraw, {
+                    x = x,
+                    y = y,
+                    chunk = chunk
+                })
+            end
         end
     end
 
