@@ -81,7 +81,7 @@ local bosses = {
         frameTimes = {
             walk = 0.06,  -- Segundos por frame
             run = 0.06,   -- Segundos por frame
-            taunt = 0.06, -- Segundos por frame
+            taunt = 0.03, -- Segundos por frame
             idle = 0.06,  -- Segundos por frame
             death_die1 = 0.12,
             death_die2 = 0.12
@@ -102,11 +102,11 @@ local bosses = {
                 classPath = "src.entities.attacks.bosses.dash_attack", -- Caminho para a classe da habilidade
                 weight = 100,                                          -- Chance de seleção (de 1 a 100)
                 params = {
-                    damage = 150,
-                    telegraphDuration = 1,   -- Duração da animação "taunt" e do aviso
+                    damage = 250,
+                    telegraphDuration = 0.5, -- Duração da animação "taunt" e do aviso
                     dashSpeedMultiplier = 5, -- Multiplicador de velocidade durante o avanço
-                    stunDuration = 2,        -- Duração do "stun" após o avanço
-                    range = 500,         -- Alcance fixo do avanço
+                    stunDuration = 1,        -- Duração do "stun" após o avanço
+                    range = 500,             -- Alcance fixo do avanço
                 }
             }
         },
