@@ -4,6 +4,7 @@
 local MapManager = require("src.managers.map_manager")
 local Constants = require("src.config.constants")
 local fonts = require("src.ui.fonts")
+local TextureAtlasManager = require("src.managers.texture_atlas_manager")
 
 ---@class ProceduralMapManager
 ---@field mapName string
@@ -17,6 +18,8 @@ local fonts = require("src.ui.fonts")
 ---@field decorationData table
 ---@field windStrength number
 ---@field windSpeed number
+---@field decorationAtlas table
+---@field decorationBatch love.SpriteBatch
 local ProceduralMapManager = {}
 ProceduralMapManager.__index = ProceduralMapManager
 
@@ -27,26 +30,31 @@ ProceduralMapManager.__index = ProceduralMapManager
 function ProceduralMapManager:new(mapName, assetManager)
     local instance = setmetatable({}, ProceduralMapManager)
     instance.mapName = mapName
-    instance.assetManager = assetManager
+    instance.assetManager = assetManager -- Mantido para o chão e outros possíveis assets.
     Logger.info("ProceduralMapManager.new", "Criando ProceduralMapManager para o mapa: " .. mapName)
 
-    -- Carrega os dados de configuração do mapa usando o MapManager estático.
+    -- Carrega os dados de configuração do mapa.
     instance.mapData = MapManager:loadMap(mapName)
 
-    -- Armazena os chunks gerados. A chave será uma string "x,y", e o valor será o SpriteBatch do chunk.
+    -- Configurações do mapa procedural.
     instance.chunks = {}
-    instance.chunkSize = 16                             -- Tamanho do chunk em tiles (16x16).
-    instance.viewDistance = 1                           -- Distância em chunks ao redor do jogador (1 = grid 3x3).
-    instance.sessionSeed = love.math.random(1, 1000000) -- Seed para esta sessão de gameplay.
+    instance.chunkSize = 16
+    instance.viewDistance = 1
+    instance.sessionSeed = love.math.random(1, 1000000)
 
-    -- Parâmetros para o efeito de vento nas decorações.
-    instance.windStrength = 2 -- Deslocamento horizontal máximo em pixels.
-    instance.windSpeed = 1.5  -- Velocidade da oscilação do vento.
+    -- Parâmetros de vento.
+    instance.windStrength = 2
+    instance.windSpeed = 1.5
 
-    -- Recursos para renderização do chão e decorações.
+    -- Recursos de renderização.
     instance.groundImage = nil
     instance.groundQuad = nil
     instance.decorationData = {}
+    instance.decorationAtlas = nil
+    instance.decorationBatch = nil
+
+    -- O TextureAtlasManager agora é instanciado aqui.
+    instance.textureAtlasManager = TextureAtlasManager:new()
 
     instance:_initializeRenderer()
 
@@ -55,124 +63,106 @@ end
 
 --- Inicializa os recursos de renderização para o mapa.
 function ProceduralMapManager:_initializeRenderer()
+    -- Carrega o chão (sem mudanças).
     local groundTilePath = self.mapData and self.mapData.ground and self.mapData.ground.tile
     if not groundTilePath then
         error("ProceduralMapManager: Caminho do tile de chão não definido para o mapa " .. self.mapName)
     end
-
     self.groundImage = self.assetManager:getImage(groundTilePath)
     if not self.groundImage then
         error("ProceduralMapManager: Falha ao carregar imagem do tile: " .. groundTilePath)
     end
-
-    -- Assume que o tile usa a imagem inteira.
     local w, h = self.groundImage:getDimensions()
     self.groundQuad = love.graphics.newQuad(0, 0, w, h, w, h)
 
-    -- Carrega as imagens e dados das decorações a partir da nova estrutura.
-    if self.mapData.decorations and self.mapData.decorations.types then
-        for _, decoType in ipairs(self.mapData.decorations.types) do
-            local loadedVariants = {}
-            if decoType.variants then
-                for _, variant in ipairs(decoType.variants) do
-                    local img = self.assetManager:getImage(variant.path)
-                    if img then
-                        local imgW, imgH = img:getDimensions()
-                        table.insert(loadedVariants, {
-                            image = img,
-                            width = imgW,
-                            height = imgH,
-                            pivot_x = imgW / 2, -- Pivô no centro horizontal
-                            pivot_y = imgH      -- Pivô na base da imagem
-                        })
-                    else
-                        Logger.warn("ProceduralMapManager", "Falha ao carregar variante de decoração: " .. variant.path)
-                    end
-                end
-            end
+    -- Gera o Atlas de Texturas para as decorações.
+    self.decorationAtlas = self.textureAtlasManager:createAtlasForDecorations(self.mapData)
 
-            -- Apenas adiciona o tipo de decoração se pelo menos uma variante foi carregada com sucesso.
-            if #loadedVariants > 0 then
-                table.insert(self.decorationData, {
-                    id = decoType.id,
-                    density = decoType.density or 0,
-                    affectedByWind = decoType.affectedByWind,
-                    variants = loadedVariants
-                })
-            end
-        end
+    -- Se o atlas foi criado, cria o SpriteBatch para ele.
+    if self.decorationAtlas then
+        self.decorationBatch = love.graphics.newSpriteBatch(self.decorationAtlas.canvas, 2048, "stream")
+    end
+
+    -- Carrega a estrutura das layers de decoração (sem carregar as imagens).
+    if self.mapData.decorations and self.mapData.decorations.layers then
+        self.decorationData = self.mapData.decorations.layers
     end
 
     Logger.info("ProceduralMapManager.start", "Renderizador do ProceduralMapManager inicializado.")
 end
 
 --- Gera um chunk específico do mapa.
---- @param chunkX number A coordenada X do chunk.
---- @param chunkY number A coordenada Y do chunk.
 function ProceduralMapManager:generateChunk(chunkX, chunkY)
     local chunkId = chunkX .. "," .. chunkY
     if self.chunks[chunkId] then
-        return -- Chunk já foi gerado.
+        return
     end
 
     Logger.debug("ProceduralMapManager.generateChunk", "Gerando chunk: " .. chunkId)
 
-    -- Cria um novo SpriteBatch para o chão deste chunk.
     local groundBatch = love.graphics.newSpriteBatch(self.groundImage, self.chunkSize * self.chunkSize, "static")
     local decorations = {}
 
     local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
     local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
 
+    local rng = love.math.newRandomGenerator()
+
     for tileY = 0, self.chunkSize - 1 do
         for tileX = 0, self.chunkSize - 1 do
-            -- Converte de coordenadas do chunk para coordenadas de tile no mundo.
             local worldTileX = chunkX * self.chunkSize + tileX
             local worldTileY = chunkY * self.chunkSize + tileY
 
-            -- Converte de coordenadas de tile para coordenadas isométricas (pixels).
             local isoX = (worldTileX - worldTileY) * TILE_WIDTH_HALF
             local isoY = (worldTileX + worldTileY) * TILE_HEIGHT_HALF
 
-            -- Adiciona o tile de chão ao batch.
             groundBatch:add(self.groundQuad, isoX, isoY)
 
-            -- Decide se coloca uma decoração neste tile de forma determinística.
-            local noiseValX = worldTileX / 20
-            local noiseValY = worldTileY / 20
             local noiseOffset = 0
+            for layerIndex, layerData in ipairs(self.decorationData) do
+                local shouldPlace = false
+                local placementSeed = self.sessionSeed + noiseOffset
+                rng:setSeed(placementSeed + worldTileX * 13 + worldTileY * 31)
+                local randomValue = rng:random()
 
-            for _, decoType in ipairs(self.decorationData) do
-                -- Gera um valor de ruído único para este tipo de decoração neste tile.
-                local noiseVal = love.math.noise(noiseValX, noiseValY, self.sessionSeed + noiseOffset)
-                local uniformVal = (noiseVal * 12345.678) % 1
-
-                if uniformVal < decoType.density then
-                    -- Usa um segundo valor de noise para decidir qual variante usar.
-                    local variantNoise = love.math.noise(noiseValX + 1000, noiseValY + 1000,
-                        self.sessionSeed + noiseOffset)
-                    local uniformVariantVal = (variantNoise * 54321.123) % 1
-                    local variantIndex = math.floor(uniformVariantVal * #decoType.variants) + 1
-                    local variantData = decoType.variants[variantIndex]
-
-                    table.insert(decorations, {
-                        variant = variantData,
-                        affectedByWind = decoType.affectedByWind,
-                        x = isoX + TILE_WIDTH_HALF,
-                        y = isoY + TILE_HEIGHT_HALF
-                    })
-
-                    -- Quebra o loop para garantir apenas uma decoração por tile.
-                    -- Remova o 'break' se quiser permitir sobreposições.
-                    break
+                if layerData.placement == "clustered" then
+                    local clusterNoiseX = worldTileX / layerData.cluster_scale
+                    local clusterNoiseY = worldTileY / layerData.cluster_scale
+                    local clusterNoiseVal = (love.math.noise(clusterNoiseX, clusterNoiseY, placementSeed) + 1) / 2
+                    if clusterNoiseVal > layerData.cluster_threshold then
+                        if randomValue < layerData.cluster_density then
+                            shouldPlace = true
+                        end
+                    end
+                else
+                    if randomValue < layerData.density then
+                        shouldPlace = true
+                    end
                 end
-                -- Incrementa o offset para que o próximo tipo de decoração use um "slice" diferente do ruído.
+
+                if shouldPlace and layerData.types and #layerData.types > 0 then
+                    local typeIndex = rng:random(#layerData.types)
+                    local decoType = layerData.types[typeIndex]
+
+                    if decoType.variants and #decoType.variants > 0 then
+                        local variantIndex = rng:random(#decoType.variants)
+                        local variant = decoType.variants[variantIndex]
+
+                        table.insert(decorations, {
+                            path = variant.path, -- Armazena apenas o path.
+                            pivot_x = variant.pivot_x or 0.5,
+                            pivot_y = variant.pivot_y or 1,
+                            affectedByWind = decoType.affectedByWind,
+                            x = isoX + TILE_WIDTH_HALF,
+                            y = isoY + TILE_HEIGHT_HALF
+                        })
+                    end
+                end
                 noiseOffset = noiseOffset + 100
             end
         end
     end
 
-    -- Armazena o batch do chão e a lista de decorações para este chunk.
     self.chunks[chunkId] = {
         ground = groundBatch,
         decorations = decorations
@@ -266,16 +256,20 @@ end
 
 --- Desenha o mapa procedural gerado.
 function ProceduralMapManager:draw()
-    -- Para a renderização isométrica correta, os chunks devem ser desenhados
-    -- em uma ordem específica (de trás para frente).
+    -- 1. Desenha o chão.
     local chunksToDraw = self:_getVisibleChunksSorted()
-
-    -- 1. Desenha os batches de chão na ordem correta.
     for _, chunkData in ipairs(chunksToDraw) do
         love.graphics.draw(chunkData.chunk.ground)
     end
 
-    -- 2. Coleta todas as decorações dos chunks visíveis.
+    -- Se não houver atlas/batch, não há o que desenhar.
+    if not self.decorationBatch then return end
+
+    -- 2. Renderização ultra-otimizada das decorações usando o atlas.
+    self.decorationBatch:clear()
+    local time = love.timer.getTime()
+
+    -- 2.1 Coleta todas as decorações visíveis.
     local allDecorations = {}
     for _, chunkData in ipairs(chunksToDraw) do
         for _, deco in ipairs(chunkData.chunk.decorations) do
@@ -283,24 +277,32 @@ function ProceduralMapManager:draw()
         end
     end
 
-    -- 3. Ordena as decorações pela sua posição Y para renderização isométrica.
+    -- 2.2 Ordena pela posição Y para a perspectiva isométrica.
     table.sort(allDecorations, function(a, b) return a.y < b.y end)
 
-    -- 4. Desenha as decorações, já ordenadas.
-    love.graphics.setColor(1, 1, 1, 1) -- Garante que a cor está normal.
-    local time = love.timer.getTime()
+    -- 2.3 Adiciona as decorações ordenadas ao batch.
     for _, deco in ipairs(allDecorations) do
-        local data = deco.variant
-        local x, y = deco.x, deco.y
+        local quad = self.decorationAtlas.quads[deco.path]
+        if quad then
+            local x, y = deco.x, deco.y
+            if deco.affectedByWind then
+                local posOffset = (x + y) * 0.01
+                local windEffect = math.sin(time * self.windSpeed + posOffset) * self.windStrength
+                x = x + windEffect
+            end
 
-        if deco.affectedByWind then
-            -- Efeito de vento
-            local posOffset = (x + y) * 0.01
-            local windEffect = math.sin(time * self.windSpeed + posOffset) * self.windStrength
-            x = x + windEffect
+            -- Calcula o pivô em pixels a partir do quad.
+            local quadW, quadH = quad:getViewport()
+            local pivotX = quadW * deco.pivot_x
+            local pivotY = quadH * deco.pivot_y
+
+            self.decorationBatch:add(quad, x, y, 0, 1, 1, pivotX, pivotY)
         end
-        love.graphics.draw(data.image, x, y, 0, 1, 1, data.pivot_x, data.pivot_y)
     end
+
+    -- 2.4 Desenha o batch inteiro de uma só vez.
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(self.decorationBatch)
 
     -- Desenha as bordas de debug por cima de tudo, se ativado.
     if DEBUG_SHOW_CHUNK_BOUNDS then
@@ -349,13 +351,22 @@ end
 
 --- Libera os recursos utilizados pelo gerenciador.
 function ProceduralMapManager:destroy()
-    -- Libera todos os SpriteBatches de chunks restantes.
-    for chunkId, chunk in pairs(self.chunks) do
-        if chunk.ground then
+    -- Libera os recursos do chão.
+    for _, chunk in pairs(self.chunks) do
+        if chunk.ground and chunk.ground.release then
             chunk.ground:release()
         end
     end
     self.chunks = {}
+
+    -- Libera os recursos do atlas de decoração.
+    if self.decorationBatch and self.decorationBatch.release then
+        self.decorationBatch:release()
+    end
+    if self.decorationAtlas and self.decorationAtlas.canvas and self.decorationAtlas.canvas:isReleased() == false then
+        self.decorationAtlas.canvas:release()
+    end
+
     Logger.info("ProceduralMapManager.destroy", "ProceduralMapManager para o mapa " .. self.mapName .. " destruído.")
 end
 

@@ -12,48 +12,100 @@ local map_data = {
         tile = "assets/tilesets/forest/tiles/Ground G1_E.png",
     },
 
-    -- Definições para as decorações do mapa
+    -- Definições para as decorações do mapa, agora usando um sistema de layers.
+    -- As layers são renderizadas na ordem em que aparecem na lista.
     decorations = {
-        -- Densidade global, pode ser usada como um fallback se uma decoração não tiver densidade própria.
-        global_density = 0.05,
-
-        -- Definição dos tipos de decorações
-        types = {
+        layers = {
+            --- Grama por cima do chão
             {
-                id = "bush_type_1",
-                affectedByWind = true, -- Esta decoração é afetada pelo vento.
-                density = 0.03,        -- Chance de 3% de aparecer em um tile.
-                variants = {
-                    -- Lista de variações de imagem para esta decoração.
-                    { name = "E", path = "assets/tilesets/forest/tiles/Flora A1_E.png" },
-                    { name = "S", path = "assets/tilesets/forest/tiles/Flora A1_S.png" },
-                    { name = "W", path = "assets/tilesets/forest/tiles/Flora A1_W.png" },
-                    { name = "N", path = "assets/tilesets/forest/tiles/Flora A1_N.png" },
-                    -- Adicionar outras direções (N, S, W) aqui se existirem
+                id = "bush_cluster_layer",
+                placement = "clustered",
+                cluster_scale = 10,
+                cluster_density = 0.5,
+                cluster_threshold = 0.5,
+                types = {
+                    {
+                        id = "bush_type_1",
+                        affectedByWind = false,
+                        variants = {
+                            { path = "assets/tilesets/forest/tiles/Flora B1_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B1_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B1_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B1_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B2_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B2_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B2_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B2_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B3_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B3_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B3_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B3_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B4_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B4_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B4_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B4_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B5_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B5_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B5_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B5_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B6_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B6_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B6_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B6_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B7_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B7_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B7_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B7_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B8_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B8_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B8_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B8_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B9_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B9_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B9_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B9_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B10_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B10_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B10_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B10_N.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B11_E.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B11_S.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B11_W.png" },
+                            { path = "assets/tilesets/forest/tiles/Flora B11_N.png" },
+                        }
+                    }
                 }
             },
+            -- Arbustos por cima da grama
             {
-                id = "bush_type_2",
-                affectedByWind = true, -- Um arbusto baixo que não é afetado pelo vento.
-                density = 0.02,        -- Chance de 2% de aparecer.
-                variants = {
-                    { name = "E", path = "assets/tilesets/forest/tiles/Flora A2_E.png" },
-                    { name = "S", path = "assets/tilesets/forest/tiles/Flora A2_S.png" },
-                    { name = "W", path = "assets/tilesets/forest/tiles/Flora A2_W.png" },
-                    { name = "N", path = "assets/tilesets/forest/tiles/Flora A2_N.png" },
+                id = "ground_cover_layer",
+                placement = "clustered",
+                cluster_scale = 10,
+                cluster_density = 0.2,
+                cluster_threshold = 0.2,
+                types = {
+                    {
+                        id = "bush_type_2",
+                        affectedByWind = true,
+                        variants = {
+                            { name = "E", path = "assets/tilesets/forest/tiles/Flora A3_E.png" },
+                            { name = "S", path = "assets/tilesets/forest/tiles/Flora A3_S.png" },
+                            { name = "W", path = "assets/tilesets/forest/tiles/Flora A3_W.png" },
+                            { name = "N", path = "assets/tilesets/forest/tiles/Flora A3_N.png" },
+                        }
+                    },
+                    {
+                        id = "bush_type_3",
+                        affectedByWind = true,
+                        variants = {
+                            { name = "E", path = "assets/tilesets/forest/tiles/Flora A7_E.png" },
+                            { name = "S", path = "assets/tilesets/forest/tiles/Flora A7_S.png" },
+                            { name = "W", path = "assets/tilesets/forest/tiles/Flora A7_W.png" },
+                            { name = "N", path = "assets/tilesets/forest/tiles/Flora A7_N.png" },
+                        }
+                    }
                 }
             },
-            {
-                id = "bush_type_3",
-                affectedByWind = false, -- Um arbusto baixo que não é afetado pelo vento.
-                density = 0.01,         -- Chance de 1% de aparecer.
-                variants = {
-                    { name = "E", path = "assets/tilesets/forest/tiles/Flora A19_E.png" },
-                    { name = "S", path = "assets/tilesets/forest/tiles/Flora A19_S.png" },
-                    { name = "W", path = "assets/tilesets/forest/tiles/Flora A19_W.png" },
-                    { name = "N", path = "assets/tilesets/forest/tiles/Flora A19_N.png" },
-                }
-            }
         }
     }
 
