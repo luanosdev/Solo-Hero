@@ -112,8 +112,9 @@ function Aura:update(dt, enemies, finalStats)
             self.shockwave.timer = 0
 
             self:applyAuraDamage(enemies)
-
-            local finalCooldown = self.cooldown * (finalStats and finalStats.cooldownReduction or 1)
+            local cooldownReduction = finalStats.cooldownReduction
+            if cooldownReduction <= 0 then cooldownReduction = 0.01 end
+            local finalCooldown = self.cooldown / cooldownReduction
             self.currentCooldown = finalCooldown
         end
     end

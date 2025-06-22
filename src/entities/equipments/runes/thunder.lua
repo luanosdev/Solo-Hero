@@ -125,7 +125,9 @@ function ThunderRune:update(dt, enemies, finalStats)
 
     if self.currentCooldown <= 0 and enemies and #enemies > 0 then
         self:cast(enemies)
-        local finalCooldown = self.cooldown * (finalStats and finalStats.cooldownReduction or 1)
+        local cooldownReduction = finalStats.cooldownReduction
+        if cooldownReduction <= 0 then cooldownReduction = 0.01 end
+        local finalCooldown = self.cooldown / cooldownReduction
         self.currentCooldown = finalCooldown
     end
 end
