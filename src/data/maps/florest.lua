@@ -20,8 +20,8 @@ local map_data = {
             {
                 id = "bush_cluster_layer",
                 placement = "clustered",
-                cluster_scale = 10,
-                cluster_density = 0.5,
+                cluster_scale = 20,
+                cluster_density = 0.7,
                 cluster_threshold = 0.5,
                 types = {
                     {
