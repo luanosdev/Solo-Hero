@@ -5,6 +5,7 @@ local MapManager = require("src.managers.map_manager")
 local Constants = require("src.config.constants")
 local fonts = require("src.ui.fonts")
 local TextureAtlasManager = require("src.managers.texture_atlas_manager")
+local TablePool = require("src.utils.table_pool")
 
 ---@class ProceduralMapManager
 ---@field mapName string
@@ -234,7 +235,7 @@ function ProceduralMapManager:update(dt, playerPosition)
     local playerChunkY = math.floor(worldTileY / self.chunkSize)
 
     -- Define a área de chunks que devem estar ativos.
-    local requiredChunks = {}
+    local requiredChunks = TablePool.get()
     for y = playerChunkY - self.viewDistance, playerChunkY + self.viewDistance do
         for x = playerChunkX - self.viewDistance, playerChunkX + self.viewDistance do
             local chunkId = x .. "," .. y
@@ -249,7 +250,7 @@ function ProceduralMapManager:update(dt, playerPosition)
     end
 
     -- Descarrega os chunks que não são mais necessários.
-    local chunksToUnload = {}
+    local chunksToUnload = TablePool.get()
     for y, row in pairs(self.chunks) do
         for x, _ in pairs(row) do
             local chunkId = x .. "," .. y
@@ -258,6 +259,7 @@ function ProceduralMapManager:update(dt, playerPosition)
             end
         end
     end
+    TablePool.release(requiredChunks)
 
     for _, pos in ipairs(chunksToUnload) do
         if self.chunks[pos.y] then
@@ -267,6 +269,7 @@ function ProceduralMapManager:update(dt, playerPosition)
             end
         end
     end
+    TablePool.release(chunksToUnload)
 
     -- Processa a geração de chunks pendentes.
     self:_processGenerationQueue()
@@ -275,7 +278,7 @@ end
 --- Retorna a lista de chunks visíveis, ordenados para renderização isométrica.
 --- @return table
 function ProceduralMapManager:_getVisibleChunksSorted()
-    local chunksToDraw = {}
+    local chunksToDraw = TablePool.get()
     for y, row in pairs(self.chunks) do
         for x, chunk in pairs(row) do
             if chunk then -- Garante que o chunk existe antes de adicioná-lo.
@@ -312,50 +315,50 @@ function ProceduralMapManager:draw()
         love.graphics.draw(chunkData.chunk.ground)
     end
 
-    -- Se não houver atlas/batch, não há o que desenhar.
-    if not self.decorationBatch then return end
+    -- 2. Desenha as decorações se houver um batch.
+    if self.decorationBatch then
+        -- A iteração sobre os chunks (já ordenados) e sobre os tiles na ordem
+        -- correta (de trás para frente) garante a perspectiva isométrica sem
+        -- a necessidade de ordenar a lista de todas as decorações.
+        self.decorationBatch:clear()
+        local time = love.timer.getTime()
 
-    -- 2. Desenha as decorações sem ordenação por quadro.
-    -- A iteração sobre os chunks (já ordenados) e sobre os tiles na ordem
-    -- correta (de trás para frente) garante a perspectiva isométrica sem
-    -- a necessidade de ordenar a lista de todas as decorações.
-    self.decorationBatch:clear()
-    local time = love.timer.getTime()
+        for _, chunkData in ipairs(chunksToDraw) do
+            local decorationsByTile = chunkData.chunk.decorations
+            -- Itera sobre a grade de tiles na ordem de renderização correta (Y, depois X).
+            for tileY = 0, self.chunkSize - 1 do
+                if decorationsByTile[tileY] then
+                    for tileX = 0, self.chunkSize - 1 do
+                        if decorationsByTile[tileY][tileX] then
+                            for _, deco in ipairs(decorationsByTile[tileY][tileX]) do
+                                local quad = self.decorationAtlas.quads[deco.path]
+                                if quad then
+                                    local x, y = deco.x, deco.y
+                                    if deco.affectedByWind then
+                                        local posOffset = (x + y) * 0.01
+                                        local windEffect = math.sin(time * self.windSpeed + posOffset) *
+                                            self.windStrength
+                                        x = x + windEffect
+                                    end
 
-    for _, chunkData in ipairs(chunksToDraw) do
-        local decorationsByTile = chunkData.chunk.decorations
-        -- Itera sobre a grade de tiles na ordem de renderização correta (Y, depois X).
-        for tileY = 0, self.chunkSize - 1 do
-            if decorationsByTile[tileY] then
-                for tileX = 0, self.chunkSize - 1 do
-                    if decorationsByTile[tileY][tileX] then
-                        for _, deco in ipairs(decorationsByTile[tileY][tileX]) do
-                            local quad = self.decorationAtlas.quads[deco.path]
-                            if quad then
-                                local x, y = deco.x, deco.y
-                                if deco.affectedByWind then
-                                    local posOffset = (x + y) * 0.01
-                                    local windEffect = math.sin(time * self.windSpeed + posOffset) * self.windStrength
-                                    x = x + windEffect
+                                    -- Calcula o pivô em pixels a partir do quad.
+                                    local quadW, quadH = quad:getViewport()
+                                    local pivotX = quadW * deco.pivot_x
+                                    local pivotY = quadH * deco.pivot_y
+
+                                    self.decorationBatch:add(quad, x, y, 0, 1, 1, pivotX, pivotY)
                                 end
-
-                                -- Calcula o pivô em pixels a partir do quad.
-                                local quadW, quadH = quad:getViewport()
-                                local pivotX = quadW * deco.pivot_x
-                                local pivotY = quadH * deco.pivot_y
-
-                                self.decorationBatch:add(quad, x, y, 0, 1, 1, pivotX, pivotY)
                             end
                         end
                     end
                 end
             end
         end
-    end
 
-    -- Desenha o batch inteiro de uma só vez.
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.draw(self.decorationBatch)
+        -- Desenha o batch inteiro de uma só vez.
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(self.decorationBatch)
+    end
 
     -- Desenha as bordas de debug por cima de tudo, se ativado.
     if DEBUG_SHOW_CHUNK_BOUNDS then
@@ -400,6 +403,8 @@ function ProceduralMapManager:draw()
             love.graphics.setColor(1, 1, 1, 1)
         end
     end
+
+    TablePool.release(chunksToDraw)
 end
 
 --- Libera os recursos utilizados pelo gerenciador.
