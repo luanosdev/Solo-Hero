@@ -69,21 +69,36 @@ function ProceduralMapManager:_initializeRenderer()
     local w, h = self.groundImage:getDimensions()
     self.groundQuad = love.graphics.newQuad(0, 0, w, h, w, h)
 
-    -- Carrega as imagens de decoração
-    if self.mapData.decorations and self.mapData.decorations.tiles then
-        for _, decoPath in ipairs(self.mapData.decorations.tiles) do
-            local img = self.assetManager:getImage(decoPath)
-            if img then
-                local imgW, imgH = img:getDimensions()
+    -- Carrega as imagens e dados das decorações a partir da nova estrutura.
+    if self.mapData.decorations and self.mapData.decorations.types then
+        for _, decoType in ipairs(self.mapData.decorations.types) do
+            local loadedVariants = {}
+            if decoType.variants then
+                for _, variant in ipairs(decoType.variants) do
+                    local img = self.assetManager:getImage(variant.path)
+                    if img then
+                        local imgW, imgH = img:getDimensions()
+                        table.insert(loadedVariants, {
+                            image = img,
+                            width = imgW,
+                            height = imgH,
+                            pivot_x = imgW / 2, -- Pivô no centro horizontal
+                            pivot_y = imgH      -- Pivô na base da imagem
+                        })
+                    else
+                        Logger.warn("ProceduralMapManager", "Falha ao carregar variante de decoração: " .. variant.path)
+                    end
+                end
+            end
+
+            -- Apenas adiciona o tipo de decoração se pelo menos uma variante foi carregada com sucesso.
+            if #loadedVariants > 0 then
                 table.insert(self.decorationData, {
-                    image = img,
-                    width = imgW,
-                    height = imgH,
-                    pivot_x = imgW / 2, -- Pivô no centro horizontal
-                    pivot_y = imgH      -- Pivô na base da imagem
+                    id = decoType.id,
+                    density = decoType.density or 0,
+                    affectedByWind = decoType.affectedByWind,
+                    variants = loadedVariants
                 })
-            else
-                Logger.warn("ProceduralMapManager", "Falha ao carregar imagem de decoração: " .. decoPath)
             end
         end
     end
@@ -108,7 +123,6 @@ function ProceduralMapManager:generateChunk(chunkX, chunkY)
 
     local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
     local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
-    local decoDensity = self.mapData.decorations and self.mapData.decorations.density or 0
 
     for tileY = 0, self.chunkSize - 1 do
         for tileX = 0, self.chunkSize - 1 do
@@ -124,27 +138,36 @@ function ProceduralMapManager:generateChunk(chunkX, chunkY)
             groundBatch:add(self.groundQuad, isoX, isoY)
 
             -- Decide se coloca uma decoração neste tile de forma determinística.
-            if #self.decorationData > 0 then
-                -- Geramos um valor de ruído pseudo-aleatório, mas determinístico.
-                -- A função noise() não tem uma distribuição uniforme, então usamos um truque
-                -- para obter um resultado mais parecido com um "random" uniforme:
-                -- multiplicamos por um número grande e pegamos a parte fracionária.
-                local noiseVal = love.math.noise(worldTileX / 20, worldTileY / 20, self.sessionSeed)
+            local noiseValX = worldTileX / 20
+            local noiseValY = worldTileY / 20
+            local noiseOffset = 0
+
+            for _, decoType in ipairs(self.decorationData) do
+                -- Gera um valor de ruído único para este tipo de decoração neste tile.
+                local noiseVal = love.math.noise(noiseValX, noiseValY, self.sessionSeed + noiseOffset)
                 local uniformVal = (noiseVal * 12345.678) % 1
 
-                if uniformVal < decoDensity then
-                    -- Usa um segundo valor de noise para decidir qual decoração usar, garantindo variedade.
-                    local decoNoise = love.math.noise(worldTileX / 20 + 1000, worldTileY / 20 + 1000, self.sessionSeed)
-                    local uniformDecoVal = (decoNoise * 54321.123) % 1
-                    local decoIndex = math.floor(uniformDecoVal * #self.decorationData) + 1
+                if uniformVal < decoType.density then
+                    -- Usa um segundo valor de noise para decidir qual variante usar.
+                    local variantNoise = love.math.noise(noiseValX + 1000, noiseValY + 1000,
+                        self.sessionSeed + noiseOffset)
+                    local uniformVariantVal = (variantNoise * 54321.123) % 1
+                    local variantIndex = math.floor(uniformVariantVal * #decoType.variants) + 1
+                    local variantData = decoType.variants[variantIndex]
 
-                    local deco = self.decorationData[decoIndex]
                     table.insert(decorations, {
-                        data = deco,
-                        x = isoX + TILE_WIDTH_HALF, -- Posição no centro do tile
+                        variant = variantData,
+                        affectedByWind = decoType.affectedByWind,
+                        x = isoX + TILE_WIDTH_HALF,
                         y = isoY + TILE_HEIGHT_HALF
                     })
+
+                    -- Quebra o loop para garantir apenas uma decoração por tile.
+                    -- Remova o 'break' se quiser permitir sobreposições.
+                    break
                 end
+                -- Incrementa o offset para que o próximo tipo de decoração use um "slice" diferente do ruído.
+                noiseOffset = noiseOffset + 100
             end
         end
     end
@@ -267,11 +290,16 @@ function ProceduralMapManager:draw()
     love.graphics.setColor(1, 1, 1, 1) -- Garante que a cor está normal.
     local time = love.timer.getTime()
     for _, deco in ipairs(allDecorations) do
-        local data = deco.data
-        -- Efeito de vento
-        local posOffset = (deco.x + deco.y) * 0.01
-        local windEffect = math.sin(time * self.windSpeed + posOffset) * self.windStrength
-        love.graphics.draw(data.image, deco.x + windEffect, deco.y, 0, 1, 1, data.pivot_x, data.pivot_y)
+        local data = deco.variant
+        local x, y = deco.x, deco.y
+
+        if deco.affectedByWind then
+            -- Efeito de vento
+            local posOffset = (x + y) * 0.01
+            local windEffect = math.sin(time * self.windSpeed + posOffset) * self.windStrength
+            x = x + windEffect
+        end
+        love.graphics.draw(data.image, x, y, 0, 1, 1, data.pivot_x, data.pivot_y)
     end
 
     -- Desenha as bordas de debug por cima de tudo, se ativado.

@@ -14,14 +14,47 @@ local map_data = {
 
     -- Definições para as decorações do mapa
     decorations = {
-        -- Lista de possíveis tiles de decoração
-        tiles = {
-            "assets/tilesets/forest/tiles/Flora A1_E.png",
-            "assets/tilesets/forest/tiles/Flora A2_E.png",
-        },
-        -- Densidade: um valor entre 0 (nenhuma) e 1 (todas) que controla
-        -- a chance de um tile ter uma decoração.
-        density = 0.05, -- 5% de chance
+        -- Densidade global, pode ser usada como um fallback se uma decoração não tiver densidade própria.
+        global_density = 0.05,
+
+        -- Definição dos tipos de decorações
+        types = {
+            {
+                id = "bush_type_1",
+                affectedByWind = true, -- Esta decoração é afetada pelo vento.
+                density = 0.03,        -- Chance de 3% de aparecer em um tile.
+                variants = {
+                    -- Lista de variações de imagem para esta decoração.
+                    { name = "E", path = "assets/tilesets/forest/tiles/Flora A1_E.png" },
+                    { name = "S", path = "assets/tilesets/forest/tiles/Flora A1_S.png" },
+                    { name = "W", path = "assets/tilesets/forest/tiles/Flora A1_W.png" },
+                    { name = "N", path = "assets/tilesets/forest/tiles/Flora A1_N.png" },
+                    -- Adicionar outras direções (N, S, W) aqui se existirem
+                }
+            },
+            {
+                id = "bush_type_2",
+                affectedByWind = true, -- Um arbusto baixo que não é afetado pelo vento.
+                density = 0.02,        -- Chance de 2% de aparecer.
+                variants = {
+                    { name = "E", path = "assets/tilesets/forest/tiles/Flora A2_E.png" },
+                    { name = "S", path = "assets/tilesets/forest/tiles/Flora A2_S.png" },
+                    { name = "W", path = "assets/tilesets/forest/tiles/Flora A2_W.png" },
+                    { name = "N", path = "assets/tilesets/forest/tiles/Flora A2_N.png" },
+                }
+            },
+            {
+                id = "bush_type_3",
+                affectedByWind = false, -- Um arbusto baixo que não é afetado pelo vento.
+                density = 0.01,         -- Chance de 1% de aparecer.
+                variants = {
+                    { name = "E", path = "assets/tilesets/forest/tiles/Flora A19_E.png" },
+                    { name = "S", path = "assets/tilesets/forest/tiles/Flora A19_S.png" },
+                    { name = "W", path = "assets/tilesets/forest/tiles/Flora A19_W.png" },
+                    { name = "N", path = "assets/tilesets/forest/tiles/Flora A19_N.png" },
+                }
+            }
+        }
     }
 
     -- Futuramente, poderemos adicionar mais camadas, como decorações, inimigos, etc.
