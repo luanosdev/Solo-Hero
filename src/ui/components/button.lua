@@ -157,11 +157,12 @@ function Button:handleMouseRelease(x, y, button)
             y >= self.rect.y and y < self.rect.y + self.rect.h
 
         if wasPressed and isStillHovering and self.onClick then
-            print(string.format("Button [%s]: onClick triggered.", self.text))
+            Logger.debug(string.format("Button [%s]", self.text), "onClick disparado.")
             self.onClick()
             wasConsumed = true
         else
-            print(string.format("Button [%s]: Released outside, no onClick, or was not pressed.", self.text))
+            Logger.debug(string.format("Button [%s]", self.text),
+                "Release fora do botão ou sem ação. Nenhuma ação disparada.")
         end
     end
     return wasConsumed

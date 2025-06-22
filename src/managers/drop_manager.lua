@@ -9,6 +9,7 @@ local Constants = require("src.config.constants")
 local TablePool = require("src.utils.table_pool")
 local RenderPipeline = require("src.core.render_pipeline")
 local globalDropTable = require("src.data.global_drops")
+local mvpDropTable = require("src.data.mvp_drops")
 local Culling = require("src.core.culling")
 local Camera = require("src.config.camera")
 
@@ -105,6 +106,11 @@ function DropManager:processEntityDrop(entity)
     -- Garante que o multiplicador não seja negativo.
     if luckMultiplier < 0 then
         luckMultiplier = 0
+    end
+
+    -- Se a entidade for um MVP, processa o drop garantido de MVP.
+    if entity.isMVP then
+        self:_processMvpDrops(entity, dropsCreated)
     end
 
     self:_processGlobalDrops(entity, dropsCreated, luckMultiplier)
@@ -246,6 +252,33 @@ function DropManager:_processGlobalDrops(entity, dropsCreated, luckMultiplier)
                 string.format("Drop Global (Sorte: %d): Item %s dropado para %s (Base: %.4f%%, Final: %.4f%%)",
                     (luckMultiplier - 1) * 100, dropInfo.itemId, entity.name, dropInfo.chance, finalChance * 100))
         end
+    end
+end
+
+--- Processa o drop garantido para um MVP.
+---@param entity table A entidade MVP que foi derrotada.
+---@param dropsCreated table A lista de drops a serem criados, para adicionar novos drops.
+function DropManager:_processMvpDrops(entity, dropsCreated)
+    if not mvpDropTable or #mvpDropTable == 0 then
+        Logger.warn("DropManager:_processMvpDrops", "mvpDropTable está vazio ou não foi carregado.")
+        return
+    end
+
+    -- Seleciona um item aleatório da lista de drops de MVP
+    local randomIndex = love.math.random(#mvpDropTable)
+    local selectedDrop = mvpDropTable[randomIndex]
+
+    if selectedDrop and selectedDrop.itemId then
+        local dropConfig = {
+            type = "item",
+            itemId = selectedDrop.itemId,
+            quantity = 1 -- MVP drops are always quantity 1
+        }
+        table.insert(dropsCreated, dropConfig)
+        Logger.debug("DropManager:_processMvpDrops",
+            string.format("MVP Drop Garantido: Item %s dropado para %s", selectedDrop.itemId, entity.name))
+    else
+        Logger.warn("DropManager:_processMvpDrops", "Drop de MVP selecionado é inválido.")
     end
 end
 

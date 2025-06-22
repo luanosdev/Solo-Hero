@@ -16,7 +16,7 @@ local AssetManager = require("src.managers.asset_manager")
 local portalDefinitions = require("src.data.portals.portal_definitions")
 local Constants = require("src.config.constants")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
-local MapManager = require("src.managers.map_manager")
+local ProceduralMapManager = require("src.managers.procedural_map_manager")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local GameOverManager = require("src.managers.game_over_manager")
@@ -163,24 +163,13 @@ function GameplayScene:load(args)
         end
     end
 
-    if self.currentPortalData and self.currentPortalData.map then
-        local mapName = self.currentPortalData.map
-        self.mapManager = MapManager:new(mapName, AssetManager)
-        if self.mapManager then
-            local mapLoaded = self.mapManager:loadMap()
-            if mapLoaded then
-                Logger.debug("GameplayScene", "MapManager carregou o mapa '" .. mapName .. "' com sucesso.")
-            else
-                Logger.error("GameplayScene", "ERRO - MapManager falhou ao carregar o mapa: " .. mapName)
-            end
-        else
-            Logger.error("GameplayScene",
-                "ERRO CRÍTICO - Falha ao criar instância do MapManager para o mapa: " .. mapName)
-        end
-    else
-        Logger.error("GameplayScene",
-            "ERRO CRÍTICO [GameplayScene:load]: 'map' não definido nos dados do portal para inicializar MapManager!")
+    local mapName = self.currentPortalData.map
+    if not mapName then
+        error("GameplayScene:load  O portal " .. self.portalId .. " não define um 'map'.")
     end
+    self.mapManager = ProceduralMapManager:new(mapName, AssetManager)
+    self.renderPipeline:setMapManager(self.mapManager) -- Configura no RenderPipeline
+    Logger.debug("GameplayScene", "ProceduralMapManager instanciado e configurado no RenderPipeline.")
 
     playerMgr:setupGameplay(ManagerRegistry, self.hunterId, self.hudGameplayManager)
     local enemyManagerConfig = {
@@ -315,7 +304,10 @@ function GameplayScene:update(dt)
         self:checkForBossPresentation()
 
         if self.mapManager then
-            self.mapManager:update(dt)
+            -- Passa a posição do jogador para o update do mapa procedural
+            local playerMgr = ManagerRegistry:get("playerManager")
+            local playerPosition = playerMgr and playerMgr.player and playerMgr.player.position
+            self.mapManager:update(dt, playerPosition)
         end
 
         -- Lida com cancelamento de movimento AQUI, APÓS o PlayerManager ter sido atualizado por ManagerRegistry:update(dt)
@@ -479,7 +471,7 @@ function GameplayScene:draw()
     Camera:attach()
 
     -- Desenha tudo que está sob a câmera usando o RenderPipeline
-    self.renderPipeline:draw(self.mapManager, Camera.x, Camera.y)
+    self.renderPipeline:draw(Camera.x, Camera.y)
 
     -- DEBUG: Desenha informações de debug dos inimigos (como raios de colisão)
     if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS and enemyMgr and enemyMgr.getEnemies then
@@ -700,11 +692,12 @@ function GameplayScene:unload()
     if HUD.reset then HUD:reset() end
     local enemyMgr = ManagerRegistry:get("enemyManager"); if enemyMgr and enemyMgr.reset then enemyMgr:reset() end
 
-    if self.mapManager and self.mapManager.destroy then
-        self.mapManager:destroy()
-        self.mapManager = nil
-        Logger.debug("GameplayScene", "MapManager destruído.")
-    end
+    -- if self.mapManager and self.mapManager.destroy then
+    --     self.mapManager:destroy()
+    --     self.mapManager = nil
+    --     Logger.debug("GameplayScene", "MapManager destruído.")
+    -- end
+    self.mapManager = nil -- Apenas define como nil, o GC cuida do resto.
 
     if self.dropManager and self.dropManager.destroy then
         self.dropManager:destroy()

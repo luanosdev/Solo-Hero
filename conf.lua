@@ -1,10 +1,19 @@
 -- [[ Modo de Depuração Global ]] --
-DEV = true                                   -- Define o modo de desenvolvimento para este arquivo de configuração
-PROFILER = false                             -- Define o modo de desenvolvimento para este arquivo de configuração
-LOGGERS = true                               -- Define o modo de desenvolvimento para este arquivo de configuração
-LOGS_ON_CONSOLE = true                       -- Define se os logs serão impressos no console
-DEBUG_SHOW_PARTICLE_COLLISION_RADIUS = false -- Define se o raio de colisão das partículas deve ser exibido
-HOT_RELOAD = false                           -- Define se o hot reload deve ser ativado
+
+-- Define se o modo de desenvolvimento está ativo
+DEV = true
+-- Define se o profiler está ativo
+PROFILER = DEV and false
+-- Define se os loggers estão ativos
+LOGGERS = DEV and true
+-- Define se os logs serão impressos no console
+LOGS_ON_CONSOLE = DEV and true
+-- Define se o raio de colisão das partículas deve ser exibido
+DEBUG_SHOW_PARTICLE_COLLISION_RADIUS = DEV and false
+-- Define se o hot reload deve ser ativado
+HOT_RELOAD = DEV and false
+-- Define se as bordas e coordenadas dos chunks devem ser exibidas
+DEBUG_SHOW_CHUNK_BOUNDS = DEV and false
 
 function love.conf(t)
     t.window.title = "Solo Hero"
@@ -17,7 +26,6 @@ function love.conf(t)
     -- Se DEV for false ou nil, vsync é 1 (ligado, padrão).
     t.window.vsync = 0 -- VSync desligado para DEV mode
 
-    t.modules.joystick = false
-    t.modules.physics = false
+    t.modules.joystick = true
     t.console = true -- Habilita console para debug (pressione `)
 end

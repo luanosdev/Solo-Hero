@@ -531,19 +531,22 @@ function LobbyScene:draw()
     end
 
     -- 2. Desenha Tabs (sempre por cima)
-    local tabFont = fonts.main or love.graphics.getFont()
-    for i, tab in ipairs(tabs) do
-        elements.drawTabButton({
-            x = tab.x,
-            y = tab.y,
-            w = tab.w,
-            h = tab.h,
-            text = tab.text,
-            isHovering = tab.isHovering,
-            highlighted = (i == self.activeTabIndex),
-            font = tabFont,
-            colors = tabSettings.colors
-        })
+    -- Só desenha as tabs se o modal de recrutamento da tela da agência não estiver ativo.
+    if not (self.agencyScreen and self.agencyScreen.recruitmentManager and self.agencyScreen.recruitmentManager.isRecruiting) then
+        local tabFont = fonts.main or love.graphics.getFont()
+        for i, tab in ipairs(tabs) do
+            elements.drawTabButton({
+                x = tab.x,
+                y = tab.y,
+                w = tab.w,
+                h = tab.h,
+                text = tab.text,
+                isHovering = tab.isHovering,
+                highlighted = (i == self.activeTabIndex),
+                font = tabFont,
+                colors = tabSettings.colors
+            })
+        end
     end
 
     -- Reset final
@@ -584,7 +587,6 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                         -- print("LobbyScene: Tab changed")
                         -- <<< SET GUILD SCREEN FLAG >>>
                         if tab.id == TabIds.AGENCY and self.agencyScreen then
-                            -- if self.agencyScreen.onActivate then self.agencyScreen:onActivate() end -- REMOVED
                             self.agencyScreen.isActiveFrame = true
                         end
                     end
@@ -637,9 +639,12 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
             end
         elseif activeTab and activeTab.id == TabIds.AGENCY then
             if self.agencyScreen then
-                -- print("LobbyScene:mousepressed - DELEGATING click to GuildScreen") -- LOG 4
+                Logger.debug("[LobbyScene]", "Delegando clique para AgencyScreen...")
                 local consumed = self.agencyScreen:handleMousePress(x, y, buttonIdx)
-                if consumed then return end -- Se a agency screen consumiu, termina aqui
+                if consumed then
+                    Logger.debug("[LobbyScene]", "Clique consumido pela AgencyScreen.")
+                    return
+                end
             end
         end
 
@@ -740,9 +745,12 @@ function LobbyScene:keypressed(key, scancode, isrepeat)
         if wantsToRotate and self.draggedItem then
             -- Alterna o estado de rotação VISUAL
             self.draggedItemIsRotated = not self.draggedItemIsRotated
-            print(string.format("LobbyScene: Rotação visual alternada para: %s", tostring(self.draggedItemIsRotated)))
             -- NÃO modifica self.draggedItem aqui
         end
+    end
+
+    if activeTab and activeTab.id == TabIds.AGENCY then
+        self.agencyScreen:handleKeyPress(key)
     end
 
     -- TODO: Adicionar delegação para outras telas/abas se necessário

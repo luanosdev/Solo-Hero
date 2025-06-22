@@ -67,6 +67,9 @@ Constants.ENEMY_SPRITE_SIZES = {
 Constants.DEFENSE_DAMAGE_REDUCTION_K = 52
 Constants.MAX_DAMAGE_REDUCTION = 0.8
 
+Constants.CHUNK_SIZE = 10           -- 10x10 tiles por chunk
+Constants.VISIBLE_CHUNKS_RADIUS = 2 -- Raio de 2 chunks ao redor do jogador (total de 5x5 chunks visíveis)
+
 -- <<< ADICIONADO: Dimensões Padrão da Grade >>>
 Constants.GRID_ROWS = 4
 Constants.GRID_COLS = 4

@@ -8,6 +8,7 @@ local MVPTitlesData = require("src.data.mvp_titles_data")
 local EnemyNamesData = require("src.data.enemy_names_data")
 local Colors = require("src.ui.colors")
 local Fonts = require("src.ui.fonts")
+local Constants = require("src.config.constants")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -70,13 +71,16 @@ function EnemyManager:setupGameplay(config)
     self.playerManager = config.playerManager
     self.dropManager = config.dropManager
     self.mapManager = config.mapManager
-    self.mapDimensions = { width = 0, height = 0 } -- Será preenchido abaixo
-    self.gridCellSize = 64
+
+    -- Para um mapa procedural "infinito", definimos uma grande "área de jogo" para o SpatialGrid.
+    -- Isso garante que o sistema de detecção de colisão tenha limites para operar,
+    -- mesmo que o mapa em si não tenha.
+    local playableAreaSize = 20000 -- Define uma área de 20k x 20k pixels.
+    self.mapDimensions = { width = playableAreaSize, height = playableAreaSize }
+    -- Para um mundo grande, células de grid maiores são mais eficientes.
+    self.gridCellSize = 256
 
     self.worldConfig = config.hordeConfig
-
-    self.mapDimensions.width = self.mapManager:getMapPixelWidth()
-    self.mapDimensions.height = self.mapManager:getMapPixelHeight()
 
     if self.mapDimensions.width <= 0 or self.mapDimensions.height <= 0 or self.gridCellSize <= 0 then
         error(string.format(
@@ -605,8 +609,9 @@ function EnemyManager:transformToMVP(enemy)
 
     -- 1. Marcação e Boosts Base
     enemy.isMVP = true
-    enemy.maxHealth = enemy.maxHealth * 10
+    enemy.maxHealth = enemy.maxHealth * 30
     enemy.radius = enemy.radius * 1.2
+    enemy.knockbackResistance = Constants.KNOCKBACK_RESISTANCE.IMMUNE
     enemy.sprite.scale = enemy.sprite.scale * 1.2 -- Assumindo que a escala está no sprite
 
     -- 2. Seleção de Título

@@ -46,19 +46,12 @@
 ---@field bossConfig BossConfig
 ---@field cycles HordeCycle[]
 
----@class MapDefinition
----@field theme string
----@field objectSpawnRules table[]
----@field eventSpawnRules table[]
-
 ---@class PortalDefinition
 ---@field name string
----@field theme string
 ---@field rank string
 ---@field map string
 ---@field requiredUnitTypes string[]
 ---@field hordeConfig HordeConfig
----@field mapDefinition MapDefinition
 ---@field randomEvents table[]
 ---@field assetPack any | nil
 
@@ -77,16 +70,14 @@ local portalDefinitions = {
     -- TESTS --
     portal_teste_spawn_massivo = {
         name = "TESTE: Spawn Massivo",
-        theme = "CementeryTheme",
         rank = "TEST",
-        map = "forest",
+        map = "plains",
         requiredUnitTypes = {
             "zombie_walker_male_1",
             "zombie_walker_female_1",
             "zombie_runner_male_1",
             "zombie_runner_female_1",
         },
-
         hordeConfig = {
             mapRank = "TEST",
             mvpConfig = {
@@ -122,20 +113,14 @@ local portalDefinitions = {
                 }
             }
         },
-        mapDefinition = {
-            theme = "cemetery",
-            objectSpawnRules = {},
-            eventSpawnRules = {}
-        },
         randomEvents = {},
         assetPack = nil
     },
     portal_teste_sem_spawn = {
         name = "TESTE: Sem Spawn",
-        theme = "CementeryTheme", -- Usando um tema existente para simplicidade
         rank = "TEST",
-        map = "forest",           -- NOVO CAMPO
-        requiredUnitTypes = {},   -- Nenhum tipo de unidade requerido
+        map = "plains",
+        requiredUnitTypes = {},
 
         hordeConfig = {
             mapRank = "TEST",
@@ -167,19 +152,13 @@ local portalDefinitions = {
                 }
             }
         },
-        mapDefinition = {
-            theme = "cemetery",
-            objectSpawnRules = {},
-            eventSpawnRules = {}
-        },
         randomEvents = {},
         assetPack = nil
     },
     portal_teste_one_enemy = {
         name = "TESTE: Um Inimigo",
-        theme = "CementeryTheme",
         rank = "TEST",
-        map = "forest",
+        map = "plains",
         requiredUnitTypes = { "zombie_walker_male_1", "the_rotten_immortal" },
         hordeConfig = {
             mapRank = "TEST",
@@ -192,7 +171,7 @@ local portalDefinitions = {
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 1, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "S" },
+                    { time = 1,  class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "S" },
                     { time = 10, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "E" }
                 }
             },
@@ -216,11 +195,6 @@ local portalDefinitions = {
                 }
             }
         },
-        mapDefinition = {
-            theme = "cemetery",
-            objectSpawnRules = {},
-            eventSpawnRules = {}
-        },
         randomEvents = {},
         assetPack = nil
     },
@@ -228,9 +202,8 @@ local portalDefinitions = {
 
     portal_ranking_e_placeholder = {
         name = "Portal Placeholder Rank E",
-        theme = "CementeryTheme",
         rank = "E",
-        map = "forest",
+        map = "plains",
         requiredUnitTypes = {
             "zombie_walker_male_1",
             "zombie_walker_female_1",
@@ -240,15 +213,15 @@ local portalDefinitions = {
         hordeConfig = {
             mapRank = "E",
             mvpConfig = {
-                spawnInterval = 60 * 3, -- A cada 3 min
-                statusMultiplier = 14,
-                speedMultiplier = 1.15,
+                spawnInterval = 60 * 2, -- A cada 3 min
+                statusMultiplier = 30,
+                speedMultiplier = 1.5,
                 sizeMultiplier = 1.3,
-                experienceMultiplier = 16
+                experienceMultiplier = 20
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 600, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "E" }
+                    { time = 60 * 6, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "E" }
                 }
             },
             cycles = {
@@ -273,12 +246,12 @@ local portalDefinitions = {
                 },
                 -- 🔹 Min 2–5: Walkers + primeiros Runners
                 {
-                    duration = 180,
+                    duration = 120,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1,   weight = 1,   unitType = "zombie_walker_male_1" },
-                        { class = ZombieWalkerFemale1, weight = 1,   unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1,   weight = 0.5, unitType = "zombie_runner_male_1" },
-                        { class = ZombieRunnerFemale1, weight = 0.5, unitType = "zombie_runner_female_1" }
+                        { class = ZombieWalkerMale1,   weight = 3, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
+                        { class = ZombieRunnerMale1,   weight = 1, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
                         interval = 12,
@@ -294,12 +267,12 @@ local portalDefinitions = {
                 },
                 -- 🔹 Min 5–8: Mais runners, densidade aumenta
                 {
-                    duration = 180,
+                    duration = 120,
                     allowedEnemies = {
                         { class = ZombieWalkerMale1,   weight = 1, unitType = "zombie_walker_male_1" },
                         { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1,   weight = 1, unitType = "zombie_runner_male_1" },
-                        { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
+                        { class = ZombieRunnerMale1,   weight = 3, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 3, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
                         interval = 10,
@@ -313,33 +286,7 @@ local portalDefinitions = {
                         count = 5
                     }
                 },
-                -- 🔹 Min 8–10: Rush final com máxima densidade
-                {
-                    duration = 120,
-                    allowedEnemies = {
-                        { class = ZombieWalkerMale1,   weight = 1,   unitType = "zombie_walker_male_1" },
-                        { class = ZombieWalkerFemale1, weight = 1,   unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1,   weight = 1.5, unitType = "zombie_runner_male_1" },
-                        { class = ZombieRunnerFemale1, weight = 1.5, unitType = "zombie_runner_female_1" }
-                    },
-                    majorSpawn = {
-                        interval = 8,
-                        baseCount = 25,
-                        countScalePerMin = 0.5
-                    },
-                    minorSpawn = {
-                        baseInterval = 1.8,
-                        intervalReductionPerMin = 0.4,
-                        minInterval = 0.5,
-                        count = 6
-                    }
-                }
             }
-        },
-        mapDefinition = {
-            theme = "cemetery",
-            objectSpawnRules = {},
-            eventSpawnRules = {}
         },
         randomEvents = {},
         assetPack = nil
@@ -347,9 +294,8 @@ local portalDefinitions = {
 
     survivor_zombie_portal = {
         name = "Survivor Zombie Portal",
-        theme = "CementeryTheme",
         rank = "E",
-        map = "forest",
+        map = "plains",
         requiredUnitTypes = {
             "zombie_walker_male_1",
             "zombie_walker_female_1",
@@ -438,11 +384,6 @@ local portalDefinitions = {
             }
         },
 
-        mapDefinition = {
-            theme = "cemetery",
-            objectSpawnRules = {},
-            eventSpawnRules = {}
-        },
         randomEvents = {},
         assetPack = nil
     }
