@@ -42,6 +42,11 @@ function ProceduralMapManager:new(mapName, assetManager)
     instance.viewDistance = 1
     instance.sessionSeed = love.math.random(1, 1000000)
 
+    -- Fila e controle para geração assíncrona de chunks.
+    instance.generationQueue = {}
+    instance.generatingTask = nil
+    instance.workPerFrame = 4 -- Número de linhas de tiles a gerar por quadro.
+
     -- Parâmetros de vento.
     instance.windStrength = 1.2
     instance.windSpeed = 1.2
@@ -91,101 +96,124 @@ function ProceduralMapManager:_initializeRenderer()
     Logger.info("ProceduralMapManager.start", "Renderizador do ProceduralMapManager inicializado.")
 end
 
---- Gera um chunk específico do mapa.
-function ProceduralMapManager:generateChunk(chunkX, chunkY)
-    local chunkId = chunkX .. "," .. chunkY
-    if self.chunks[chunkId] then
-        return
+--- Verifica se um chunk está na fila de geração ou sendo gerado.
+--- @param chunkId string O ID do chunk.
+--- @return boolean
+function ProceduralMapManager:_isChunkInQueueOrGenerating(chunkId)
+    if self.generatingTask and self.generatingTask.id == chunkId then
+        return true
     end
+    for _, task in ipairs(self.generationQueue) do
+        if (task.x .. "," .. task.y) == chunkId then
+            return true
+        end
+    end
+    return false
+end
 
-    Logger.debug("ProceduralMapManager.generateChunk", "Gerando chunk: " .. chunkId)
+--- Cria uma corotina para gerar um chunk de forma assíncrona.
+function ProceduralMapManager:_createChunkGenerator(chunkX, chunkY)
+    return coroutine.create(function()
+        local chunkId = chunkX .. "," .. chunkY
+        if self.chunks[chunkId] then
+            return -- Evita gerar novamente se outro processo o fez enquanto estava na fila.
+        end
 
-    local groundBatch = love.graphics.newSpriteBatch(self.groundImage, self.chunkSize * self.chunkSize, "static")
-    local decorationsByTile = {} -- Estrutura para armazenar decorações por tile.
+        Logger.debug("ProceduralMapManager._createChunkGenerator", "Iniciando geração do chunk: " .. chunkId)
 
-    local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
-    local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
+        local groundBatch = love.graphics.newSpriteBatch(self.groundImage, self.chunkSize * self.chunkSize, "static")
+        local decorationsByTile = {}
+        local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
+        local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
+        local rng = love.math.newRandomGenerator()
 
-    local rng = love.math.newRandomGenerator()
-
-    for tileY = 0, self.chunkSize - 1 do
-        decorationsByTile[tileY] = {}
-        for tileX = 0, self.chunkSize - 1 do
-            decorationsByTile[tileY][tileX] = {}
-            local worldTileX = chunkX * self.chunkSize + tileX
-            local worldTileY = chunkY * self.chunkSize + tileY
-
-            local isoX = (worldTileX - worldTileY) * TILE_WIDTH_HALF
-            local isoY = (worldTileX + worldTileY) * TILE_HEIGHT_HALF
-
-            groundBatch:add(self.groundQuad, isoX, isoY)
-
-            local noiseOffset = 0
-            for layerIndex, layerData in ipairs(self.decorationData) do
-                local shouldPlace = false
-                local placementSeed = self.sessionSeed + noiseOffset
-                rng:setSeed(placementSeed + worldTileX * 13 + worldTileY * 31)
-                local randomValue = rng:random()
-
-                if layerData.placement == "clustered" then
-                    local clusterNoiseX = worldTileX / layerData.cluster_scale
-                    local clusterNoiseY = worldTileY / layerData.cluster_scale
-                    local clusterNoiseVal = (love.math.noise(clusterNoiseX, clusterNoiseY, placementSeed) + 1) / 2
-                    if clusterNoiseVal > layerData.cluster_threshold then
-                        if randomValue < layerData.cluster_density then
+        for tileY = 0, self.chunkSize - 1 do
+            decorationsByTile[tileY] = {}
+            for tileX = 0, self.chunkSize - 1 do
+                decorationsByTile[tileY][tileX] = {}
+                local worldTileX = chunkX * self.chunkSize + tileX
+                local worldTileY = chunkY * self.chunkSize + tileY
+                local isoX = (worldTileX - worldTileY) * TILE_WIDTH_HALF
+                local isoY = (worldTileX + worldTileY) * TILE_HEIGHT_HALF
+                groundBatch:add(self.groundQuad, isoX, isoY)
+                local noiseOffset = 0
+                for layerIndex, layerData in ipairs(self.decorationData) do
+                    local shouldPlace = false
+                    local placementSeed = self.sessionSeed + noiseOffset
+                    rng:setSeed(placementSeed + worldTileX * 13 + worldTileY * 31)
+                    local randomValue = rng:random()
+                    if layerData.placement == "clustered" then
+                        local clusterNoiseX = worldTileX / layerData.cluster_scale
+                        local clusterNoiseY = worldTileY / layerData.cluster_scale
+                        local clusterNoiseVal = (love.math.noise(clusterNoiseX, clusterNoiseY, placementSeed) + 1) / 2
+                        if clusterNoiseVal > layerData.cluster_threshold then
+                            if randomValue < layerData.cluster_density then
+                                shouldPlace = true
+                            end
+                        end
+                    else
+                        if randomValue < layerData.density then
                             shouldPlace = true
                         end
                     end
-                else
-                    if randomValue < layerData.density then
-                        shouldPlace = true
+                    if shouldPlace and layerData.types and #layerData.types > 0 then
+                        local typeIndex = rng:random(#layerData.types)
+                        local decoType = layerData.types[typeIndex]
+                        if decoType.variants and #decoType.variants > 0 then
+                            local variantIndex = rng:random(#decoType.variants)
+                            local variant = decoType.variants[variantIndex]
+                            table.insert(decorationsByTile[tileY][tileX], {
+                                path = variant.path,
+                                pivot_x = variant.pivot_x or 0.5,
+                                pivot_y = variant.pivot_y or 1,
+                                affectedByWind = decoType.affectedByWind,
+                                x = isoX + TILE_WIDTH_HALF,
+                                y = isoY + TILE_HEIGHT_HALF
+                            })
+                        end
                     end
+                    noiseOffset = noiseOffset + 100
                 end
-
-                if shouldPlace and layerData.types and #layerData.types > 0 then
-                    local typeIndex = rng:random(#layerData.types)
-                    local decoType = layerData.types[typeIndex]
-
-                    if decoType.variants and #decoType.variants > 0 then
-                        local variantIndex = rng:random(#decoType.variants)
-                        local variant = decoType.variants[variantIndex]
-
-                        -- Adiciona a decoração à lista do tile correspondente.
-                        table.insert(decorationsByTile[tileY][tileX], {
-                            path = variant.path,
-                            pivot_x = variant.pivot_x or 0.5,
-                            pivot_y = variant.pivot_y or 1,
-                            affectedByWind = decoType.affectedByWind,
-                            x = isoX + TILE_WIDTH_HALF,
-                            y = isoY + TILE_HEIGHT_HALF
-                        })
-                    end
-                end
-                noiseOffset = noiseOffset + 100
+            end
+            -- Pausa a cada N linhas para distribuir a carga.
+            if tileY > 0 and tileY % self.workPerFrame == 0 and tileX == self.chunkSize - 1 then
+                coroutine.yield()
             end
         end
-    end
 
-    self.chunks[chunkId] = {
-        ground = groundBatch,
-        decorations = decorationsByTile -- Salva a grade de decorações.
-    }
+        self.chunks[chunkId] = {
+            ground = groundBatch,
+            decorations = decorationsByTile
+        }
+        Logger.debug("ProceduralMapManager._createChunkGenerator", "Chunk gerado: " .. chunkId)
+    end)
 end
 
---- Descarrega um chunk específico do mapa.
---- @param chunkId string O ID do chunk a ser descarregado (ex: "0,0").
-function ProceduralMapManager:unloadChunk(chunkId)
-    local chunk = self.chunks[chunkId]
-    if chunk then
-        Logger.debug("ProceduralMapManager.unloadChunk", "Descarregando chunk: " .. chunkId)
-        if chunk.ground and chunk.ground.release then
-            chunk.ground:release() -- Libera os recursos do SpriteBatch do chão.
+--- Processa a fila de geração de chunks de forma assíncrona.
+function ProceduralMapManager:_processGenerationQueue()
+    -- Se há um chunk sendo gerado, continua sua execução.
+    if self.generatingTask then
+        local co = self.generatingTask.coroutine
+        local status, err = coroutine.resume(co)
+        if not status then
+            Logger.error("ProceduralMapManager._processGenerationQueue", "Erro na corotina: " .. tostring(err))
+            self.generatingTask = nil -- Aborta em caso de erro.
+        elseif coroutine.status(co) == 'dead' then
+            self.generatingTask = nil -- Limpa a tarefa quando concluída.
         end
-        self.chunks[chunkId] = nil
+    end
+
+    -- Se não há tarefa ativa e a fila tem itens, inicia a próxima.
+    if not self.generatingTask and #self.generationQueue > 0 then
+        local taskData = table.remove(self.generationQueue, 1)
+        local chunkId = taskData.x .. "," .. taskData.y
+        Logger.debug("ProceduralMapManager._processGenerationQueue", "Iniciando nova geração de chunk: " .. chunkId)
+        local co = self:_createChunkGenerator(taskData.x, taskData.y)
+        self.generatingTask = { id = chunkId, coroutine = co }
     end
 end
 
--- Atualiza o gerenciador do mapa.
+--- Atualiza o gerenciador do mapa.
 -- Determina quais chunks carregar/descarregar com base na posição do jogador.
 --- @param dt number O tempo delta.
 --- @param playerPosition { x: number, y: number } A posição do jogador {x, y}.
@@ -208,8 +236,11 @@ function ProceduralMapManager:update(dt, playerPosition)
         for x = playerChunkX - self.viewDistance, playerChunkX + self.viewDistance do
             local chunkId = x .. "," .. y
             requiredChunks[chunkId] = true
-            -- Gera o chunk se ele ainda não existir.
-            self:generateChunk(x, y)
+            -- Adiciona o chunk à fila de geração se ele não existir e não estiver sendo processado.
+            if not self.chunks[chunkId] and not self:_isChunkInQueueOrGenerating(chunkId) then
+                -- Adiciona no início da fila para priorizar os mais próximos.
+                table.insert(self.generationQueue, 1, { x = x, y = y })
+            end
         end
     end
 
@@ -222,8 +253,11 @@ function ProceduralMapManager:update(dt, playerPosition)
     end
 
     for _, chunkId in ipairs(chunksToUnload) do
-        self:unloadChunk(chunkId)
+        self.chunks[chunkId] = nil
     end
+
+    -- Processa a geração de chunks pendentes.
+    self:_processGenerationQueue()
 end
 
 --- Retorna a lista de chunks visíveis, ordenados para renderização isométrica.
