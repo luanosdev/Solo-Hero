@@ -16,8 +16,7 @@ local AssetManager = require("src.managers.asset_manager")
 local portalDefinitions = require("src.data.portals.portal_definitions")
 local Constants = require("src.config.constants")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
-local MapManager = require("src.managers.map_manager")
-local ChunkMapManager = require("src.managers.chunk_map_manager")
+local ProceduralMapManager = require("src.managers.procedural_map_manager")
 local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local GameOverManager = require("src.managers.game_over_manager")
@@ -164,8 +163,9 @@ function GameplayScene:load(args)
         end
     end
 
-    self.mapManager = ChunkMapManager:new(playerMgr)
-    Logger.debug("GameplayScene", "ChunkMapManager instanciado.")
+    self.mapManager = ProceduralMapManager:new("florest", AssetManager)
+    self.renderPipeline:setMapManager(self.mapManager) -- Configura no RenderPipeline
+    Logger.debug("GameplayScene", "ProceduralMapManager instanciado e configurado no RenderPipeline.")
 
     playerMgr:setupGameplay(ManagerRegistry, self.hunterId, self.hudGameplayManager)
     local enemyManagerConfig = {
@@ -300,7 +300,10 @@ function GameplayScene:update(dt)
         self:checkForBossPresentation()
 
         if self.mapManager then
-            self.mapManager:update(dt)
+            -- Passa a posição do jogador para o update do mapa procedural
+            local playerMgr = ManagerRegistry:get("playerManager")
+            local playerPosition = playerMgr and playerMgr.player and playerMgr.player.position
+            self.mapManager:update(dt, playerPosition)
         end
 
         -- Lida com cancelamento de movimento AQUI, APÓS o PlayerManager ter sido atualizado por ManagerRegistry:update(dt)
@@ -464,7 +467,7 @@ function GameplayScene:draw()
     Camera:attach()
 
     -- Desenha tudo que está sob a câmera usando o RenderPipeline
-    self.renderPipeline:draw(self.mapManager, Camera.x, Camera.y)
+    self.renderPipeline:draw(Camera.x, Camera.y)
 
     -- DEBUG: Desenha informações de debug dos inimigos (como raios de colisão)
     if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS and enemyMgr and enemyMgr.getEnemies then

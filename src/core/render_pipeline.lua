@@ -32,6 +32,9 @@ function RenderPipeline:new()
     -- A chave é a textura do SpriteBatch.
     instance.spriteBatchDrawData = {}
 
+    -- Nova referência para o gerenciador de mapa.
+    instance.mapManager = nil
+
     -- Configura quais buckets devem ser ordenados por 'sortY' para simular profundidade 2.5D.
     instance.sortableBuckets = {
         [RenderPipeline.DEPTH_ENTITIES] = true,
@@ -82,6 +85,12 @@ function RenderPipeline:registerSpriteBatch(texture, batch)
     end
 end
 
+--- Define o gerenciador de mapa a ser usado pelo pipeline.
+--- @param mapManager (table) A instância do gerenciador de mapa (ex: ProceduralMapManager).
+function RenderPipeline:setMapManager(mapManager)
+    self.mapManager = mapManager
+end
+
 --- Adiciona um item renderizável a um bucket de renderização apropriado baseado em sua profundidade.
 ---@param item RenderableItem O item a ser adicionado. Deve ter 'depth', 'type', e dados de renderização.
 -- Exemplo de item para SpriteBatch: { depth=2, type="enemy_sprite", texture=tex, quad=q, x=1, y=1, sortY=1, scale=1, ox=0, oy=0 }
@@ -104,13 +113,12 @@ end
 --- Desenha todos os elementos gerenciados pelo pipeline.
 --- Isso inclui o mapa, itens nos buckets (ordenados conforme necessário) e SpriteBatches.
 --- O Camera:attach() e Camera:detach() devem ser chamados externamente, antes e depois desta função.
----@param mapManager MapManager? Instância do gerenciador de mapa para desenhar o mapa.
 ---@param cameraX number Posição X da câmera (usada para parallax ou culling se o mapManager precisar).
 ---@param cameraY number Posição Y da câmera.
-function RenderPipeline:draw(mapManager, cameraX, cameraY)
-    -- 1. Desenha o Mapa (se fornecido)
-    if mapManager and mapManager.draw then
-        mapManager:draw(cameraX, cameraY)
+function RenderPipeline:draw(cameraX, cameraY)
+    -- 1. Desenha o Mapa (usando a referência interna)
+    if self.mapManager and self.mapManager.draw then
+        self.mapManager:draw(cameraX, cameraY)
     end
 
     -- 2. Processa e desenha itens dos buckets
