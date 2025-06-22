@@ -9,7 +9,7 @@ local Constants = require("src.config.constants")
 ---@field name string Nome identificador da habilidade.
 ---@field classPath string Caminho para o arquivo da classe da habilidade.
 ---@field weight number Peso para a seleção aleatória da habilidade.
----@field params DashAttackParams Parâmetros específicos para a configuração da habilidade.
+---@field params DashAttackParams|AreaExplosionParams Parâmetros específicos para a configuração da habilidade.
 
 -- Tipagem para dados de animação de Boss
 ---@class AnimationGrid
@@ -49,7 +49,8 @@ local default_boss_grids = {
     taunt = { frameWidth = 192, frameHeight = 192, numAnimationFrames = 15 },
     idle = { frameWidth = 192, frameHeight = 192, numAnimationFrames = 15 },
     death_die1 = { frameWidth = 192, frameHeight = 192, numAnimationFrames = 15 },
-    death_die2 = { frameWidth = 192, frameHeight = 192, numAnimationFrames = 15 }
+    death_die2 = { frameWidth = 192, frameHeight = 192, numAnimationFrames = 15 },
+    attack = { frameWidth = 192, frameHeight = 192, numAnimationFrames = 15 }
 }
 
 local default_boss_angles = { 0, 45, 90, 135, 180, 225, 270, 315 }
@@ -62,11 +63,11 @@ local bosses = {
         name = "O Imortal Apodrecido",
 
         -- Stats
-        maxHealth = 5000,
+        maxHealth = 10000,
         experienceValue = 1000,
         speed = 60,
         size = Constants.ENEMY_SPRITE_SIZES.LARGE,
-        knockbackResistance = 0, -- Imune a knockback
+        knockbackResistance = Constants.KNOCKBACK_RESISTANCE.IMMUNE, -- Imune a knockback
 
         assetPaths = {
             walk = "assets/bosses/zombie_monster_1/walk.png",
@@ -74,17 +75,19 @@ local bosses = {
             run = "assets/bosses/zombie_monster_1/run.png",
             idle = "assets/bosses/zombie_monster_1/idle.png",
             death_die1 = "assets/bosses/zombie_monster_1/die.png",
-            death_die2 = "assets/bosses/zombie_monster_1/die2.png"
+            death_die2 = "assets/bosses/zombie_monster_1/die2.png",
+            attack = "assets/bosses/zombie_monster_1/attack.png"
         },
         grids = default_boss_grids,
         angles = default_boss_angles,
         frameTimes = {
             walk = 0.06,  -- Segundos por frame
             run = 0.06,   -- Segundos por frame
-            taunt = 0.03, -- Segundos por frame
+            taunt = 0.1, -- Segundos por frame
             idle = 0.06,  -- Segundos por frame
             death_die1 = 0.12,
-            death_die2 = 0.12
+            death_die2 = 0.12,
+            attack = 0.08
         },
         instanceDefaults = {
             scale = 1.2,
@@ -95,18 +98,30 @@ local bosses = {
         dropTable = {},
 
         -- Habilidades
-        abilityCooldown = 3, -- Tempo mínimo entre o fim de uma habilidade e o início de outra
+        abilityCooldown = 1, -- Tempo mínimo entre o fim de uma habilidade e o início de outra
         abilities = {
             {
                 name = "DashAttack",
                 classPath = "src.entities.attacks.bosses.dash_attack", -- Caminho para a classe da habilidade
-                weight = 100,                                          -- Chance de seleção (de 1 a 100)
+                weight = 10,                                           -- Chance de seleção (de 1 a 100)
                 params = {
                     damage = 250,
                     telegraphDuration = 0.5, -- Duração da animação "taunt" e do aviso
                     dashSpeedMultiplier = 5, -- Multiplicador de velocidade durante o avanço
                     stunDuration = 1,        -- Duração do "stun" após o avanço
                     range = 500,             -- Alcance fixo do avanço
+                }
+            },
+            {
+                name = "AreaExplosionAttack",
+                classPath = "src.entities.attacks.bosses.area_explosion_attack",
+                weight = 80,
+                params = {
+                    damage = 400,
+                    range = 250,
+                    explosionRadius = 300,
+                    telegraphDuration = 2,
+                    stunDuration = 2
                 }
             }
         },

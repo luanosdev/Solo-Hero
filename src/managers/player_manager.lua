@@ -604,39 +604,6 @@ function PlayerManager:isAlive()
     return self.state and self.state.isAlive -- <<< ADICIONADO: Verifica se state existe
 end
 
----@deprecated use PlayerManager:receiveDamage instead
-function PlayerManager:takeDamage(amount, source)
-    if not self.state or not self.state.isAlive then return end
-
-
-    -- 1. Calcula os stats finais para obter a defesa e calcular a redução
-    local finalStats = self:getCurrentFinalStats()
-    local finalDefense = finalStats.defense
-
-    -- 2. Calcula a redução de dano usando a defesa final
-    local K = Constants and Constants.DEFENSE_DAMAGE_REDUCTION_K
-    local finalDamageReduction = finalDefense / (finalDefense + K)
-    finalDamageReduction = math.min(Constants and Constants.MAX_DAMAGE_REDUCTION, finalDamageReduction)
-
-    -- 3. Chama PlayerState:takeDamage passando a redução calculada
-    local damageTaken = self.state:takeDamage(amount, finalDamageReduction)
-
-    if damageTaken > 0 then
-        self.lastDamageTime = self.gameTime
-        self.lastRegenTime = 0
-        self.accumulatedRegen = 0
-
-        if self.floatingTextManager then
-            self.floatingTextManager:addPlayerDamageText(self.player.position, "-" .. damageTaken, self.player)
-        end
-    end
-
-    if not self.state.isAlive then
-        print("Player Morreu!")
-        -- TODO: Lógica de morte
-    end
-end
-
 ---Funções de experiência e level
 function PlayerManager:addExperience(amount)
     if not self.state then return end
