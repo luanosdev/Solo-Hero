@@ -3,7 +3,7 @@
 -- como os tiles do chão, decorações, e outras propriedades.
 
 local map_data = {
-    name = "Floresta",
+    name = "Plains",
 
     -- Definições para a camada do chão (ground)
     ground = {
@@ -103,27 +103,23 @@ local map_data = {
                             { name = "W", path = "assets/tilesets/forest/tiles/Flora A7_W.png" },
                             { name = "N", path = "assets/tilesets/forest/tiles/Flora A7_N.png" },
                         }
-                    }
-                }
-            },
-            -- Layer 3: Árvores aleatórias.
-            {
-                id = "tree_layer",
-                placement = "random",
-                density = 0.01, -- Chance de 5% de uma árvore aparecer em qualquer tile.
-                types = {
+                    },
                     {
-                        id = "tree_type_1",
-                        affectedByWind = true, -- As copas podem balançar
+                        id = "bush_type_4",
+                        affectedByWind = true,
                         variants = {
-                            { name = "E", path = "assets/tilesets/forest/tiles/Tree A9_E.png" },
-                            { name = "N", path = "assets/tilesets/forest/tiles/Tree A9_N.png" },
-                            { name = "S", path = "assets/tilesets/forest/tiles/Tree A9_S.png" },
-                            { name = "W", path = "assets/tilesets/forest/tiles/Tree A9_W.png" },
+                            { name = "E", path = "assets/tilesets/forest/tiles/Flora A1_E.png" },
+                            { name = "S", path = "assets/tilesets/forest/tiles/Flora A1_S.png" },
+                            { name = "W", path = "assets/tilesets/forest/tiles/Flora A1_W.png" },
+                            { name = "N", path = "assets/tilesets/forest/tiles/Flora A1_N.png" },
+                            { name = "E", path = "assets/tilesets/forest/tiles/Flora A2_E.png" },
+                            { name = "S", path = "assets/tilesets/forest/tiles/Flora A2_S.png" },
+                            { name = "W", path = "assets/tilesets/forest/tiles/Flora A2_W.png" },
+                            { name = "N", path = "assets/tilesets/forest/tiles/Flora A2_N.png" },
                         }
                     }
                 }
-            }
+            },
         }
     }
 

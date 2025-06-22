@@ -163,7 +163,11 @@ function GameplayScene:load(args)
         end
     end
 
-    self.mapManager = ProceduralMapManager:new("florest", AssetManager)
+    local mapName = self.currentPortalData.map
+    if not mapName then
+        error("GameplayScene:load  O portal " .. self.portalId .. " não define um 'map'.")
+    end
+    self.mapManager = ProceduralMapManager:new(mapName, AssetManager)
     self.renderPipeline:setMapManager(self.mapManager) -- Configura no RenderPipeline
     Logger.debug("GameplayScene", "ProceduralMapManager instanciado e configurado no RenderPipeline.")
 
