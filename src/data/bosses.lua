@@ -82,10 +82,10 @@ local bosses = {
         grids = default_boss_grids,
         angles = default_boss_angles,
         frameTimes = {
-            walk = 0.06,  -- Segundos por frame
-            run = 0.06,   -- Segundos por frame
+            walk = 0.06, -- Segundos por frame
+            run = 0.06,  -- Segundos por frame
             taunt = 0.1, -- Segundos por frame
-            idle = 0.06,  -- Segundos por frame
+            idle = 0.06, -- Segundos por frame
             death_die1 = 0.12,
             death_die2 = 0.12,
             attack = 0.08
@@ -106,11 +106,14 @@ local bosses = {
                 classPath = "src.entities.attacks.bosses.dash_attack", -- Caminho para a classe da habilidade
                 weight = 10,                                           -- Chance de seleção (de 1 a 100)
                 params = {
-                    damage = 250,
+                    damageMultiplier = 2,
                     telegraphDuration = 0.5, -- Duração da animação "taunt" e do aviso
                     dashSpeedMultiplier = 5, -- Multiplicador de velocidade durante o avanço
                     stunDuration = 1,        -- Duração do "stun" após o avanço
-                    range = 500,             -- Alcance fixo do avanço
+                    range = 500,
+                    followUpChances = { 0.7, 0.6, 0.2, 0.1 },
+                    followUpRangeIncrease = 1.2,
+                    followUpStunIncrease = 0.5
                 }
             },
             {
@@ -118,12 +121,12 @@ local bosses = {
                 classPath = "src.entities.attacks.bosses.area_explosion_attack",
                 weight = 80,
                 params = {
-                    damageMultiplier = 1.5,
+                    damageMultiplier = 1.25,
                     range = 250,
                     explosionRadius = 300,
                     telegraphDuration = 2,
                     stunDuration = 2,
-                    followUpChances = { 0.8, 0.5 },
+                    followUpChances = { 0.5, 0.3, 0.1, 0.05 },
                     followUpRadiusIncrease = 1.2,
                     followUpStunIncrease = 0.5
                 }

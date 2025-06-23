@@ -8,16 +8,22 @@ local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 ---@field dashSpeedMultiplier number Multiplicador de velocidade durante o avanço.
 ---@field stunDuration number Duração do "stun" após o avanço.
 ---@field range number Alcance fixo do avanço.
----@field damage number Dano da habilidade.
+---@field damageMultiplier number Multiplicador de dano baseado no dano do boss.
+---@field followUpChances table Array de chances para cada follow-up.
+---@field followUpRangeIncrease number Multiplicador do aumento do alcance.
+---@field followUpStunIncrease number Segundos a adicionar ao stun por follow-up.
 
 ---@class DashAttack
 ---@field boss BaseBoss
 ---@field params DashAttackParams
+---@field originalParams DashAttackParams
 ---@field state string
 ---@field timer number
 ---@field targetPosition table
 ---@field dashVector table
 ---@field isDone boolean
+---@field followUpCount number
+---@field hitPlayer boolean
 local DashAttack = {}
 DashAttack.__index = DashAttack
 
@@ -37,13 +43,18 @@ function DashAttack:new(boss, params)
     local self = setmetatable({}, DashAttack)
 
     self.boss = boss
-    self.params = params
+    self.originalParams = params
+    self.params = {}
+    for k, v in pairs(params) do
+        self.params[k] = v
+    end
+
     self.state = STATE.TELEGRAPH
     self.timer = 0
-
-    -- Alvo inicial
     self.targetPosition = nil
     self.dashVector = nil
+    self.followUpCount = 0
+    self.hitPlayer = false
 
     return self
 end
@@ -53,12 +64,23 @@ end
 function DashAttack:start(playerManager)
     self.timer = 0
     self.state = STATE.TELEGRAPH
-    self.boss.isImmobile = true -- Impede o movimento normal do boss
+    self.boss.isImmobile = true
+    self.followUpCount = 0
+    self.hitPlayer = false
+
+    -- Reseta os parâmetros para os valores originais no início de uma nova sequência.
+    self.params.range = self.originalParams.range
+    self.params.stunDuration = self.originalParams.stunDuration
 
     -- Toca a animação de "taunt"
     AnimatedSpritesheet.setMovementType(self.boss.sprite, "taunt", self.boss.unitType)
 
     -- Calcula a direção para o jogador para determinar o vetor do dash
+    self:calculateDashVector(playerManager)
+end
+
+--- Calcula o vetor do dash e a posição alvo.
+function DashAttack:calculateDashVector(playerManager)
     local playerPos = playerManager:getCollisionPosition().position
     local dx = playerPos.x - self.boss.position.x
     local dy = playerPos.y - self.boss.position.y
@@ -69,8 +91,8 @@ function DashAttack:start(playerManager)
         self.dashVector = { x = 1, y = 0 } -- Caso o boss esteja sobre o jogador, avança para a direita
     end
 
-    -- Calcula a posição final do dash com base no alcance fixo
-    local dashRange = self.params.range or 500 -- Usa o parâmetro ou um fallback
+    -- Calcula a posição final do dash com base no alcance
+    local dashRange = self.params.range
     self.targetPosition = {
         x = self.boss.position.x + self.dashVector.x * dashRange,
         y = self.boss.position.y + self.dashVector.y * dashRange
@@ -114,18 +136,64 @@ function DashAttack:updateDash(dt, playerManager)
     self.boss.position.y = self.boss.position.y + self.dashVector.y * speed * dt
 
     -- Verifica colisão com o jogador
-    -- Temporariamente aumenta o dano do boss para o dano da habilidade
-    local baseBossDamage = self.boss.damage
-    self.boss.damage = self.params.damage
-    self.boss:checkPlayerCollision(dt, playerManager) -- Reutilizando a colisão padrão
-    self.boss.damage = baseBossDamage
+    if not self.hitPlayer then
+        if self.boss:checkPlayerCollision(dt, playerManager, true) then -- Passa `true` para evitar dano duplicado
+            self.hitPlayer = true
+            local calculatedDamage = self.boss.damage * self.params.damageMultiplier
+            local damageSource = {
+                name = self.boss.name,
+                isBoss = true,
+                isMVP = false,
+                unitType = self.boss.unitType
+            }
+            playerManager:receiveDamage(calculatedDamage, damageSource)
+        end
+    end
 
     -- Verifica se chegou perto o suficiente do alvo para parar
     local dx = self.targetPosition.x - self.boss.position.x
     local dy = self.targetPosition.y - self.boss.position.y
     if dx * self.dashVector.x + dy * self.dashVector.y <= 0 then
-        self:startStun()
+        self:decideNextAction(playerManager)
     end
+end
+
+--- Decide a próxima ação: follow-up ou stun.
+--- @param playerManager PlayerManager
+function DashAttack:decideNextAction(playerManager)
+    local chances = self.params.followUpChances or {}
+    local maxFollowUps = #chances
+
+    if self.followUpCount < maxFollowUps then
+        local chance = chances[self.followUpCount + 1]
+        if math.random() < chance then
+            self:startFollowUp(playerManager)
+            return
+        end
+    end
+
+    -- Se não houver follow-up, calcula o stun final e inicia o estado.
+    local stunIncrease = self.params.followUpStunIncrease or 1
+    self.params.stunDuration = self.originalParams.stunDuration + (self.followUpCount * stunIncrease)
+    self:startStun()
+end
+
+--- Inicia um ataque de follow-up.
+--- @param playerManager PlayerManager
+function DashAttack:startFollowUp(playerManager)
+    self.followUpCount = self.followUpCount + 1
+
+    -- Aumenta o alcance do ataque de forma cumulativa
+    local rangeMultiplier = self.params.followUpRangeIncrease or 1.2
+    self.params.range = self.params.range * rangeMultiplier
+
+    -- Reinicia o estado para um novo ciclo
+    self.timer = 0
+    self.state = STATE.TELEGRAPH
+    self.hitPlayer = false
+
+    AnimatedSpritesheet.setMovementType(self.boss.sprite, "taunt", self.boss.unitType)
+    self:calculateDashVector(playerManager)
 end
 
 --- Inicia a fase de stun.
