@@ -75,12 +75,16 @@ function ManagerRegistry:init(initConfigs)
     for _, name in ipairs(initOrder) do
         local managerData = self.managers[name]
         if managerData and managerData.instance.init then
-            Logger.debug("ManagerRegistry:init", string.format(" - Inicializando %s...", name))
+            Logger.debug("ManagerRegistry:init.start", string.format(" - Inicializando %s...", name))
             managerData.instance:init(initConfigs[name])
         elseif managerData then
-            Logger.debug("ManagerRegistry:init", string.format(" - Manager %s registrado, mas sem função init().", name))
+            Logger.debug("ManagerRegistry:init.noInit",
+                string.format(" - Manager %s registrado, mas sem função init().", name))
         else
-            Logger.warn("ManagerRegistry:init", string.format(" - AVISO: Manager %s na initOrder não está registrado!", name))
+            Logger.warn(
+                "ManagerRegistry:init.notFoundInInitOrder",
+                string.format(" - AVISO: Manager %s na initOrder não está registrado!", name)
+            )
         end
     end
 

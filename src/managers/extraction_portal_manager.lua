@@ -1,6 +1,7 @@
 local ExtractionPortal = require("src.entities.extraction_portal")
 local Culling = require("src.core.culling")
 local Camera = require("src.config.camera")
+local ManagerRegistry = require("src.managers.manager_registry")
 local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
 
 ---@class ExtractionPortalManager
@@ -85,10 +86,16 @@ function ExtractionPortalManager:update(dt)
 
             if portal.state == "activating" and HUDGameplayManager:isExtractionFinished() then
                 portal.state = "activated"
-                -- Trigger extraction
-                Logger.info("ExtractionPortalManager", "EXTRACTION COMPLETE!")
-                -- TODO: Implement scene change
                 HUDGameplayManager:stopExtractionTimer()
+
+                -- Inicia a nova sequência de extração
+                ---@type ExtractionSequenceManager
+                local sequenceManager = ManagerRegistry:get("extractionSequenceManager")
+                if sequenceManager then
+                    sequenceManager:start(portal)
+                else
+                    Logger.error("ExtractionPortalManager", "ExtractionSequenceManager não encontrado no registry!")
+                end
             end
         else
             if portal.state == "activating" then

@@ -250,6 +250,16 @@ function GameplayScene:createDropNearPlayer(dropId)
 end
 
 function GameplayScene:update(dt)
+    local extractionSequenceManager = ManagerRegistry:get("extractionSequenceManager")
+    if extractionSequenceManager then
+        extractionSequenceManager:update(dt)
+    end
+
+    -- Se a sequência de extração estiver ativa, bloqueia o resto
+    if extractionSequenceManager and extractionSequenceManager:getActive() then
+        return
+    end
+
     -- Se Game Over, GameOverManager lida com update e bloqueia o resto
     if self.gameOverManager and self.gameOverManager.isGameOverActive then
         self.gameOverManager:update(dt)
@@ -464,6 +474,7 @@ function GameplayScene:draw()
     local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager") ---@type ExperienceOrbManager
     local hudGameplayManager = ManagerRegistry:get("hudGameplayManager") ---@type HUDGameplayManager
     local extractionPortalManager = ManagerRegistry:get("extractionPortalManager") ---@type ExtractionPortalManager
+    local extractionSequenceManager = ManagerRegistry:get("extractionSequenceManager") ---@type ExtractionSequenceManager
 
     if playerMgr then
         playerMgr:collectRenderables(self.renderPipeline)
@@ -479,6 +490,9 @@ function GameplayScene:draw()
     end
     if extractionPortalManager then
         extractionPortalManager:collectRenderables(self.renderPipeline)
+    end
+    if extractionSequenceManager then
+        extractionSequenceManager:collectRenderables(self.renderPipeline)
     end
 
     Camera:attach()

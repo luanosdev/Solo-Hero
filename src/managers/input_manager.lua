@@ -6,9 +6,11 @@ local Camera = require("src.config.camera") -- Adicionado para conversão de coo
 -- Adiciona referências às UIs que podem interceptar input
 local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
-print("[InputManager Top Level] type(RuneChoiceModal) after require:", type(RuneChoiceModal)) -- DEBUG
 local InventoryScreen = require("src.ui.screens.inventory_screen")
-local ItemDetailsModal = require("src.ui._item_details_modal")                                 -- Adicionado require direto
+local ItemDetailsModal = require("src.ui._item_details_modal") -- Adicionado require direto
+
+InputManager.movementEnabled = true
+InputManager.actionsEnabled = true
 
 -- Estado das teclas
 InputManager.keys = {
@@ -66,7 +68,7 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
     end
 
     -- Se a UI está bloqueando, o jogador não pode se mover. Zera a velocidade e retorna.
-    if isUIBlockingInput then
+    if isUIBlockingInput or not self.movementEnabled then
         playerManager.player.velocity.x = 0
         playerManager.player.velocity.y = 0
         return
@@ -133,6 +135,9 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
     -- 4. Processa input do jogo (só executa se não pausado e nenhuma UI bloqueando)
     local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
 
+    -- Se as ações estão desabilitadas, não processa inputs de jogo
+    if not self.actionsEnabled then return false end
+
     -- Verifica se é uma tecla de movimento (atualiza estado interno)
     if key == "w" or key == "up" then
         self.keys.moveUp = true
@@ -184,6 +189,7 @@ function InputManager:mousepressed(x, y, button, isGamePaused)                  
 
     -- 3. Processa cliques do jogo
     local playerManager = ManagerRegistry:get("playerManager")
+    if not self.actionsEnabled then return false end
     if button == 1 then                        -- Botão esquerdo
         self.mouse.isLeftButtonDown = true     -- Define o estado 'segurado' como verdadeiro
         self.mouse.wasLeftButtonPressed = true -- Define o evento 'pressionado' como verdadeiro para este frame
@@ -230,6 +236,7 @@ function InputManager:keyreleased(key, isGamePaused) -- Recebe estado de pausa
 
     -- Processa liberação de teclas do jogo
     -- Verifica se é uma tecla de movimento
+    if not self.movementEnabled then return end
     if key == "w" or key == "up" then
         self.keys.moveUp = false
     elseif key == "s" or key == "down" then
@@ -268,6 +275,14 @@ end
 
 -- Atualiza a propriedade position para usar a função getMousePosition
 -- InputManager.mouse.position = InputManager.getMousePosition -- Remover/Comentar: pode causar confusão entre tela/mundo
+
+function InputManager:setMovementEnabled(enabled)
+    self.movementEnabled = enabled
+end
+
+function InputManager:setActionsEnabled(enabled)
+    self.actionsEnabled = enabled
+end
 
 -- Retorna a tabela do módulo para que possa ser usada com require
 return InputManager
