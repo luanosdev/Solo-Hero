@@ -42,8 +42,8 @@ ConeSlash.visual = {
     },
     attack = {
         segments = 20,
-        animationDuration = 0.15, -- Duração da animação em segundos
-        color = { 1, 1, 1, 0.8 }  -- Cor padrão ataque
+        animationDuration = 0.1, -- Duração da animação em segundos
+        color = { 1, 1, 1, 0.8 } -- Cor padrão ataque
     }
 }
 
@@ -225,14 +225,24 @@ function ConeSlash:executeAttackAndAnimate(finalStats, delay)
     delay = delay or 0
     local hitSomething = self:_executeSingleAttackLogic(finalStats)
     if self.area and self.area.range and self.area.range > 0 and self.area.halfWidth and self.area.halfWidth > 0 then
+        -- Captura um snapshot da área no momento do cast para esta instância de animação
+        local areaSnapshot = {
+            position = { x = self.area.position.x, y = self.area.position.y },
+            angle = self.area.angle,
+            range = self.area.range,
+            angleWidth = self.area.angleWidth,
+            halfWidth = self.area.halfWidth
+        }
+
         local attackAnimationInstance = {
             progress = 0,
-            delay = delay
+            delay = delay,
+            area = areaSnapshot -- Armazena a área específica para esta animação
         }
         table.insert(self.activeAttacks, attackAnimationInstance)
         Logger.debug("[ConeSlash:executeAttackAndAnimate]",
             string.format("Animation instance created. Range: %s, Angle: %s, Delay: %.2f",
-                tostring(self.area.range), tostring(self.area.angle), delay), true)
+                tostring(areaSnapshot.range), tostring(areaSnapshot.angle), delay), true)
     else
         Logger.warn("[ConeSlash:executeAttackAndAnimate]",
             "Área de mira inválida no momento do cast, animação não será criada para este golpe.")
@@ -293,7 +303,7 @@ function ConeSlash:draw()
     for i = 1, #self.activeAttacks do
         local attackInstance = self.activeAttacks[i]
         if attackInstance and (not attackInstance.delay or attackInstance.delay <= 0) then
-            self:drawConeFill(self.visual.attack.color, attackInstance.progress, self.area)
+            self:drawConeFill(self.visual.attack.color, attackInstance.progress, attackInstance.area)
         end
     end
 end
