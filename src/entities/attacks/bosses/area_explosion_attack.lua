@@ -8,17 +8,22 @@ local CameraEffects = require("src.utils.camera_effects")
 ---@field telegraphDuration number Duração do aviso antes da explosão.
 ---@field explosionRadius number Raio da explosão.
 ---@field stunDuration number Duração do "stun" após o ataque.
----@field damage number Dano da habilidade.
+---@field damageMultiplier number Multiplicador de dano baseado no dano do boss.
+---@field followUpChances table Array de chances para cada follow-up (ex: {0.8, 0.5}).
+---@field followUpRadiusIncrease number Multiplicador do aumento do raio (ex: 1.2 para 20%).
+---@field followUpStunIncrease number Segundos a adicionar ao stun por follow-up.
 
 ---@class AreaExplosionAttack
 ---@field boss BaseBoss
----@field params AreaExplosionParams
+---@field params AreaExplosionParams Cópia local dos parâmetros para modificação.
+---@field originalParams AreaExplosionParams Parâmetros originais e imutáveis.
 ---@field state string
 ---@field timer number
 ---@field cameraEffects CameraEffects
 ---@field playbackDirection number 1 para frente, -1 para trás
 ---@field damageApplied boolean
 ---@field attackFrameDelay number
+---@field followUpCount number Contador de follow-ups executados.
 local AreaExplosionAttack = {}
 AreaExplosionAttack.__index = AreaExplosionAttack
 
@@ -39,12 +44,19 @@ function AreaExplosionAttack:new(boss, params)
 
     self.cameraEffects = CameraEffects:new()
     self.boss = boss
-    self.params = params
+    -- Armazena os parâmetros originais e cria uma cópia para ser modificada durante a execução.
+    self.originalParams = params
+    self.params = {}
+    for k, v in pairs(params) do
+        self.params[k] = v
+    end
+
     self.state = STATE.TAUNT
     self.timer = 0
     self.playbackDirection = 1
     self.damageApplied = false
     self.attackFrameDelay = 0
+    self.followUpCount = 0
 
     return self
 end
@@ -53,9 +65,14 @@ end
 function AreaExplosionAttack:start()
     self.timer = 0
     self.state = STATE.TAUNT
-    self.boss.isImmobile = true -- Impede o movimento normal do boss
+    self.boss.isImmobile = true
     self.damageApplied = false
     self.playbackDirection = 1
+    self.followUpCount = 0
+
+    -- Reseta os parâmetros para os valores originais no início de uma nova sequência.
+    self.params.explosionRadius = self.originalParams.explosionRadius
+    self.params.stunDuration = self.originalParams.stunDuration
 
     -- Inicia a animação de "taunt" e reseta para o primeiro frame.
     AnimatedSpritesheet.setMovementType(self.boss.sprite, "taunt", self.boss.unitType, true)
@@ -135,7 +152,7 @@ function AreaExplosionAttack:updateAttack(dt, playerManager)
     local animConfig = AnimatedSpritesheet.configs[self.boss.unitType]
     local animAssets = AnimatedSpritesheet.assets[self.boss.unitType]
     if not animConfig or not animAssets or not animConfig.frameTimes.attack or not animAssets.maxFrames.attack then
-        self:startStun() -- Failsafe se a animação não existir
+        self:decideNextAction() -- Failsafe se a animação não existir
         return
     end
 
@@ -144,7 +161,7 @@ function AreaExplosionAttack:updateAttack(dt, playerManager)
     local attackDuration = attackFrameTime * attackMaxFrames
 
     if self.timer >= attackDuration then
-        self:startStun()
+        self:decideNextAction()
     end
 end
 
@@ -157,11 +174,55 @@ function AreaExplosionAttack:applyDamageAndEffects(playerManager)
     local distance = math.sqrt(dx * dx + dy * dy)
 
     if distance <= self.params.explosionRadius then
-        playerManager:receiveDamage(self.params.damage, "ability")
+        local calculatedDamage = self.boss.damage * self.params.damageMultiplier
+        local damageSource = {
+            name = self.boss.name,
+            isBoss = true,
+            isMVP = false,
+            unitType = self.boss.unitType
+        }
+        playerManager:receiveDamage(calculatedDamage, damageSource)
     end
 
     self.cameraEffects:shake(0.5, 10) -- Duração de 0.5s, magnitude de 10
     self.damageApplied = true
+end
+
+--- Decide se executa um follow-up ou entra em stun.
+function AreaExplosionAttack:decideNextAction()
+    local chances = self.params.followUpChances or {}
+    local maxFollowUps = #chances
+
+    if self.followUpCount < maxFollowUps then
+        local chance = chances[self.followUpCount + 1]
+        if math.random() < chance then
+            self:startFollowUp()
+            return -- Sai da função para iniciar o follow-up
+        end
+    end
+
+    -- Se não houver follow-up, calcula o stun final e inicia o estado.
+    local stunIncrease = self.params.followUpStunIncrease or 1
+    self.params.stunDuration = self.originalParams.stunDuration + (self.followUpCount * stunIncrease)
+    self:startStun()
+end
+
+--- Inicia um ataque de follow-up.
+function AreaExplosionAttack:startFollowUp()
+    self.followUpCount = self.followUpCount + 1
+
+    -- Aumenta o raio do ataque de forma cumulativa
+    local radiusMultiplier = self.params.followUpRadiusIncrease or 1.2
+    self.params.explosionRadius = self.params.explosionRadius * radiusMultiplier
+
+    -- Reinicia o estado para um novo ciclo de telegraph -> attack
+    self.timer = 0
+    self.state = STATE.TAUNT
+    self.damageApplied = false
+    self.playbackDirection = 1
+
+    -- A animação de taunt é reiniciada para o novo ciclo
+    AnimatedSpritesheet.setMovementType(self.boss.sprite, "taunt", self.boss.unitType, true)
 end
 
 --- Inicia a fase de stun.

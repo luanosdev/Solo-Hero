@@ -65,6 +65,7 @@ local bosses = {
         -- Stats
         maxHealth = 10000,
         experienceValue = 1000,
+        damage = 200,
         speed = 60,
         size = Constants.ENEMY_SPRITE_SIZES.LARGE,
         knockbackResistance = Constants.KNOCKBACK_RESISTANCE.IMMUNE, -- Imune a knockback
@@ -117,11 +118,14 @@ local bosses = {
                 classPath = "src.entities.attacks.bosses.area_explosion_attack",
                 weight = 80,
                 params = {
-                    damage = 400,
+                    damageMultiplier = 1.5,
                     range = 250,
                     explosionRadius = 300,
                     telegraphDuration = 2,
-                    stunDuration = 2
+                    stunDuration = 2,
+                    followUpChances = { 0.8, 0.5 },
+                    followUpRadiusIncrease = 1.2,
+                    followUpStunIncrease = 0.5
                 }
             }
         },
