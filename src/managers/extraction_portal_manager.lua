@@ -1,4 +1,5 @@
 local ExtractionPortal = require("src.entities.extraction_portal")
+local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
 
 ---@class ExtractionPortalManager
 ---@field portals table<ExtractionPortal>
@@ -68,24 +69,40 @@ function ExtractionPortalManager:update(dt)
     if not self.playerManager.player then return end
     local playerPos = self.playerManager.player.position
     local interactionRadius = 64 -- Same as portal radius, more or less
+    local isPlayerOnAnyPortal = false
 
     for _, portal in ipairs(self.portals) do
         local distToPlayer = math.sqrt((portal.position.x - playerPos.x) ^ 2 + (portal.position.y - playerPos.y) ^ 2)
 
         if distToPlayer <= interactionRadius then
-            portal:startActivation()
-            portal.activationTimer = portal.activationTimer + dt
-            if portal.activationTimer >= portal.activationDuration then
+            isPlayerOnAnyPortal = true
+            if portal.state == "idle" then
+                portal:startActivation()
+                HUDGameplayManager:startExtractionTimer(portal.activationDuration, "Extraindo...")
+            end
+
+            if portal.state == "activating" and HUDGameplayManager:isExtractionFinished() then
                 portal.state = "activated"
                 -- Trigger extraction
-                print("EXTRACTION COMPLETE!")
+                Logger.info("ExtractionPortalManager", "EXTRACTION COMPLETE!")
                 -- TODO: Implement scene change
+                HUDGameplayManager:stopExtractionTimer()
             end
         else
+            if portal.state == "activating" then
+                portal:stopActivation()
+                -- This will be handled by the general stop below
+            end
+        end
+        portal:update(dt)
+    end
+
+    if not isPlayerOnAnyPortal then
+        -- Stop the timer if the player moved away from ALL portals
+        HUDGameplayManager:stopExtractionTimer()
+        for _, portal in ipairs(self.portals) do
             portal:stopActivation()
         end
-
-        portal:update(dt)
     end
 end
 

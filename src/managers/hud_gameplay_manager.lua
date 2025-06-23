@@ -6,12 +6,14 @@ local Camera = require("src.config.camera")
 local ActiveSkillsDisplay = require("src.ui.components.active_skills_display")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
 local OffscreenIndicator = require("src.ui.components.offscreen_indicator")
+local ExtractionProgressBar = require("src.ui.components.extraction_progress_bar")
 
 ---@class HUDGameplayManager
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
 ---@field playerHPBar PlayerHPBar|nil Instância da barra de HP do jogador.
 ---@field skillsDisplay ActiveSkillsDisplay|nil Instância do display de cooldowns.
 ---@field portalIndicators table Armazena os indicadores de portal.
+---@field extractionProgressBar ExtractionProgressBar|nil Instância da barra de progresso de extração.
 ---@field lastPlayerLevel number Armazena o nível do jogador no frame anterior.
 ---@field lastPlayerXPInLevel number Armazena o XP do jogador DENTRO do nível no frame anterior.
 ---@field lastTotalPlayerXP number Armazena o XP TOTAL ACUMULADO do jogador no frame anterior.
@@ -26,6 +28,7 @@ local HUDGameplayManager = {
     playerHPBar = nil,
     skillsDisplay = nil,
     portalIndicators = {},
+    extractionProgressBar = nil,
     lastPlayerLevel = 0,
     lastPlayerXPInLevel = 0,
     lastTotalPlayerXP = 0,
@@ -134,6 +137,9 @@ function HUDGameplayManager:setupGameplay()
     -- Configuração do ActiveSkillsDisplay
     self.skillsDisplay = ActiveSkillsDisplay:new(playerManager, itemDataManager)
 
+    -- Configuração da Barra de Extração
+    self.extractionProgressBar = ExtractionProgressBar:new({ w = 400, h = 50 })
+
     -- Posicionamento dinâmico das barras
     local paddingFromScreenEdgeX = 20
     local paddingFromScreenEdgeBottom = 20
@@ -166,6 +172,31 @@ function HUDGameplayManager:setupGameplay()
     self.lastPlayerRank = initialRank
     self.playerHPBar:updateBaseInfo(initialName, initialRank, initialMaxHP)
     self.playerHPBar:setCurrentHP(initialHP)
+end
+
+--- Inicia a barra de progresso de extração.
+---@param duration number Duração em segundos.
+---@param text string Texto a ser exibido na barra.
+function HUDGameplayManager:startExtractionTimer(duration, text)
+    if self.extractionProgressBar then
+        self.extractionProgressBar:start(duration, text)
+    end
+end
+
+--- Para a barra de progresso de extração.
+function HUDGameplayManager:stopExtractionTimer()
+    if self.extractionProgressBar then
+        self.extractionProgressBar:stop()
+    end
+end
+
+--- Verifica se a barra de progresso de extração concluiu.
+---@return boolean
+function HUDGameplayManager:isExtractionFinished()
+    if self.extractionProgressBar then
+        return self.extractionProgressBar:isFinished()
+    end
+    return false
 end
 
 --- Atualiza todos os elementos da UI gerenciados.
@@ -277,6 +308,10 @@ function HUDGameplayManager:update(dt)
     self.playerHPBar:update(dt)
     self.skillsDisplay:update(dt)
     BossHealthBarManager:update(dt)
+
+    if self.extractionProgressBar then
+        self.extractionProgressBar:update(dt)
+    end
 end
 
 --- Desenha todos os elementos da UI gerenciados.
@@ -290,6 +325,10 @@ function HUDGameplayManager:draw(isPaused)
     self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
     self.skillsDisplay:draw()
     BossHealthBarManager:draw()
+
+    if self.extractionProgressBar then
+        self.extractionProgressBar:draw()
+    end
 
     if self.portalIndicators then
         for _, indicator in ipairs(self.portalIndicators) do
