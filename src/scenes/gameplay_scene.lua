@@ -132,14 +132,16 @@ function GameplayScene:load(args)
     local itemDataMgr = ManagerRegistry:get("itemDataManager")
     local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
     local hudGameplayManager = ManagerRegistry:get("hudGameplayManager")
+    local extractionPortalManager = ManagerRegistry:get("extractionPortalManager")
 
-    if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr or not experienceOrbMgr then
+    if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr or not experienceOrbMgr or not extractionPortalManager then
         local missing = {}
         if not playerMgr then table.insert(missing, "PlayerManager") end
         if not enemyMgr then table.insert(missing, "EnemyManager") end
         if not dropMgr then table.insert(missing, "DropManager") end
         if not itemDataMgr then table.insert(missing, "ItemDataManager") end
         if not experienceOrbMgr then table.insert(missing, "ExperienceOrbManager") end
+        if not extractionPortalManager then table.insert(missing, "ExtractionPortalManager") end
         Logger.error("GameplayScene",
             "ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers: " .. table.concat(missing, ", "))
     end
@@ -180,6 +182,8 @@ function GameplayScene:load(args)
     }
     enemyMgr:setupGameplay(enemyManagerConfig)
     hudGameplayManager:setupGameplay(self.hunterId)
+
+    extractionPortalManager:spawnPortals()
 
     self:_snapshotInitialItems()
 
@@ -250,6 +254,11 @@ function GameplayScene:update(dt)
     if self.gameOverManager and self.gameOverManager.isGameOverActive then
         self.gameOverManager:update(dt)
         return
+    end
+
+    local extractionPortalManager = ManagerRegistry:get("extractionPortalManager")
+    if extractionPortalManager then
+        extractionPortalManager:update(dt)
     end
 
     -- Atualiza a apresentação do boss se estiver ativa
@@ -454,6 +463,7 @@ function GameplayScene:draw()
     local dropMgr = ManagerRegistry:get("dropManager") ---@type DropManager
     local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager") ---@type ExperienceOrbManager
     local hudGameplayManager = ManagerRegistry:get("hudGameplayManager") ---@type HUDGameplayManager
+    local extractionPortalManager = ManagerRegistry:get("extractionPortalManager") ---@type ExtractionPortalManager
 
     if playerMgr then
         playerMgr:collectRenderables(self.renderPipeline)
@@ -466,6 +476,9 @@ function GameplayScene:draw()
     end
     if experienceOrbMgr then
         experienceOrbMgr:collectRenderables(self.renderPipeline)
+    end
+    if extractionPortalManager then
+        extractionPortalManager:collectRenderables(self.renderPipeline)
     end
 
     Camera:attach()

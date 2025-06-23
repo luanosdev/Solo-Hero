@@ -17,6 +17,7 @@ local FloatingTextManager = require("src.managers.floating_text_manager")
 local RuneManager = require("src.managers.rune_manager")
 local InventoryManager = require("src.managers.inventory_manager")
 local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
+local ExtractionPortalManager = require("src.managers.extraction_portal_manager")
 
 local Bootstrap = {}
 
@@ -94,6 +95,15 @@ function Bootstrap.initialize()
     print("  - Inicializando/Registrando HUDGameplayManager...")
     ManagerRegistry:register("hudGameplayManager", HUDGameplayManager, true)
     print("    > HUDGameplayManager registrado e inicializado.")
+
+    -- ExtractionPortalManager
+    print("  - Criando/Registrando ExtractionPortalManager...")
+    local extractionPortalManager = ExtractionPortalManager:new()
+    extractionPortalManager:init({
+        playerManager = playerMgr
+    })
+    ManagerRegistry:register("extractionPortalManager", extractionPortalManager, true)
+    print("    > ExtractionPortalManager registrado.")
 
     -- 3. Inicialização específica (setupGameplay) é feita na cena
 
