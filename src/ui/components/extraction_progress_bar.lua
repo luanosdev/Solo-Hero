@@ -12,6 +12,8 @@ local fonts = require("src.ui.fonts")
 ---@field font love.Font
 ---@field subFont love.Font
 ---@field colors { background: { r: number, g: number, b: number, a: number }, fill: { r: number, g: number, b: number, a: number }, border: { r: number, g: number, b: number, a: number }, text: { r: number, g: number, b: number, a: number }, timerText: { r: number, g: number, b: number, a: number }, progressBarBase: { r: number, g: number, b: number, a: number } }
+---@field padding { vertical: number, horizontal: number }
+---@field internalLayout { mainText: string, mainTextHeight: number, timerText: string, timerTextWidth: number, timerTextHeight: number, mainTextX: number, mainTextY: number, timerTextX: number, timerTextY: number, fillBarHeight: number, emptyBarHeight: number, progressBarY: number, progressBarX: number, progressBarW: number, totalHeight: number }
 local ExtractionProgressBar = {}
 ExtractionProgressBar.__index = ExtractionProgressBar
 
@@ -84,6 +86,8 @@ function ExtractionProgressBar:_updateLayout()
     layout.totalHeight = (layout.progressBarY - self.y) + layout.fillBarHeight + self.padding.vertical
 end
 
+---@param duration number
+---@param text? string
 function ExtractionProgressBar:start(duration, text)
     self.duration = duration
     self.text = text or "Extraindo..."

@@ -403,4 +403,12 @@ function HUDGameplayManager:destroy()
     end
 end
 
+function HUDGameplayManager:startItemCasting(duration, itemName)
+    self.extractionProgressBar:start(duration, "Usando " .. itemName)
+end
+
+function HUDGameplayManager:stopExtraction()
+    self.extractionProgressBar:stop()
+end
+
 return HUDGameplayManager

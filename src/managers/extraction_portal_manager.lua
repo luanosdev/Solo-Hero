@@ -16,15 +16,10 @@ function ExtractionPortalManager:new()
     return instance
 end
 
--- Inicializa o ExtractionPortalManager
----@param config { playerManager: PlayerManager } Tabela de configuração contendo o playerManager.
-function ExtractionPortalManager:init(config)
-    self.playerManager = config.playerManager
-end
-
 -- Spawna os portais
 function ExtractionPortalManager:spawnPortals()
-    local playerPos = self.playerManager.player.position
+    local playerManager = ManagerRegistry:get("playerManager")
+    local playerPos = playerManager.player.position
     local minPlayerDist = 1500 -- Minimum distance from player
     local maxPlayerDist = 3000 -- Maximum distance from player
     local minPortalDist = 1500 -- Minimum distance between portals
@@ -69,8 +64,8 @@ end
 -- Atualiza os portais
 ---@param dt number Delta time.
 function ExtractionPortalManager:update(dt)
-    if not self.playerManager.player then return end
-    local playerPos = self.playerManager.player.position
+    local playerManager = ManagerRegistry:get("playerManager")
+    local playerPos = playerManager.player.position
     local interactionRadius = 64 -- Same as portal radius, more or less
     local isPlayerOnAnyPortal = false
 
@@ -88,14 +83,15 @@ function ExtractionPortalManager:update(dt)
                 portal.state = "activated"
                 HUDGameplayManager:stopExtractionTimer()
 
-                -- Inicia a nova sequência de extração
-                ---@type ExtractionSequenceManager
-                local sequenceManager = ManagerRegistry:get("extractionSequenceManager")
-                if sequenceManager then
-                    sequenceManager:start(portal)
-                else
-                    Logger.error("ExtractionPortalManager", "ExtractionSequenceManager não encontrado no registry!")
-                end
+                -- Inicia a nova sequência de extração através do manager unificado
+                ---@type ExtractionManager
+                local extractionManager = ManagerRegistry:get("extractionManager")
+                extractionManager:startExtractionSequence({
+                    type = 'portal',
+                    source = portal,
+                    duration = 3.5, -- Duração total da sequência do portal
+                    details = { portalData = portal.portalData }
+                })
             end
         else
             if portal.state == "activating" then

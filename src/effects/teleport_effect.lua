@@ -18,9 +18,11 @@ local RenderPipeline = require("src.core.render_pipeline")
 local TeleportEffect = {}
 TeleportEffect.__index = TeleportEffect
 
-function TeleportEffect:new(x, y)
+---@param config { x: number, y: number }
+function TeleportEffect:new(config)
     local instance = setmetatable({}, TeleportEffect)
-    instance.position = { x = x, y = y }
+    local currentPortalHeight = 252
+    instance.position = { x = config.x, y = config.y - currentPortalHeight / 2 }
 
     local image = AssetManager:getImage("assets/effects/teleporter-effect.png")
     if not image then
