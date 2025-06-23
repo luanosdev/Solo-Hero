@@ -208,7 +208,6 @@ function GameplayScene:load(args)
         if LevelUpModal.visible then LevelUpModal.visible = false end
         if RuneChoiceModal.visible then RuneChoiceModal.visible = false end
         if ItemDetailsModal.isVisible then ItemDetailsModal.isVisible = false end
-        if self.isCasting then self:interruptCast("Morte do jogador") end
 
         -- Obtém a causa da morte (último inimigo que causou dano)
         local lastDamageSource = playerMgr.lastDamageSource
@@ -251,7 +250,6 @@ function GameplayScene:createDropNearPlayer(dropId)
 end
 
 function GameplayScene:update(dt)
-
     -- Se Game Over, GameOverManager lida com update e bloqueia o resto
     if self.gameOverManager and self.gameOverManager.isGameOverActive then
         self.gameOverManager:update(dt)
@@ -289,23 +287,13 @@ function GameplayScene:update(dt)
 
     local uiBlockingAllGameplay = LevelUpModal.visible or RuneChoiceModal.visible or ItemDetailsModal.isVisible
 
-    if self.isCasting then
-        if not uiBlockingAllGameplay then
-            self:updateCasting(dt)
-        end
-    end
-
-    ---@type ExtractionManager
-    local extractionManager = ManagerRegistry:get("extractionManager")
-    extractionManager:update(dt, uiBlockingAllGameplay)
-
-    self.isPaused = uiBlockingAllGameplay or (InventoryScreen.isVisible and not self.isCasting)
+    self.isPaused = uiBlockingAllGameplay or (InventoryScreen.isVisible)
 
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then
         if not (uiBlockingAllGameplay or InventoryScreen.isVisible or self.isPaused) then
             inputMgr:update(dt, false, false)
-        elseif uiBlockingAllGameplay or (InventoryScreen.isVisible and not self.isCasting) then
+        elseif uiBlockingAllGameplay or (InventoryScreen.isVisible) then
             inputMgr:update(dt, true, true)
         end
     else

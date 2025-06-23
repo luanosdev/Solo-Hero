@@ -57,17 +57,10 @@ function ExtractionManager:startExtractionSequence(config)
 end
 
 ---@param dt number
----@param uiBlockingAllGameplay boolean
-function ExtractionManager:update(dt, uiBlockingAllGameplay)
-    if uiBlockingAllGameplay then
-        return
-    end
-
+function ExtractionManager:update(dt)
     if self.isCasting then
         self:_updateCasting(dt)
-    end
-
-    if self.isSequencing then
+    elseif self.isSequencing then
         self:_updateSequence(dt)
     end
 end
