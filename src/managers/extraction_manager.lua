@@ -12,8 +12,9 @@ ExtractionManager.__index = ExtractionManager
 function ExtractionManager:new()
     local instance = setmetatable({}, ExtractionManager)
 
+    instance.portalData = {}
+
     -- Generic State
-    instance.isActive = false -- Is any extraction sequence or casting active?
     instance.timer = 0
     instance.config = {}
 
@@ -29,14 +30,13 @@ function ExtractionManager:new()
     return instance
 end
 
----@param config table { type: 'portal'|'item', source: any, duration: number, details?: any }
+---@param config { type: 'portal'|'item', source: any, duration: number, details?: any }
 function ExtractionManager:startExtractionSequence(config)
     if self.isSequencing then return end
     print("[ExtractionManager] Starting extraction sequence of type: " .. config.type)
 
     local playerManager = ManagerRegistry:get("playerManager")
     self.isSequencing = true
-    self.isActive = true -- A sequence is a form of activity
     self.config = config
     self.timer = 0
 
@@ -57,8 +57,11 @@ function ExtractionManager:startExtractionSequence(config)
 end
 
 ---@param dt number
-function ExtractionManager:update(dt)
-    if not self.isActive then return end
+---@param uiBlockingAllGameplay boolean
+function ExtractionManager:update(dt, uiBlockingAllGameplay)
+    if uiBlockingAllGameplay then
+        return
+    end
 
     if self.isCasting then
         self:_updateCasting(dt)
@@ -97,7 +100,6 @@ function ExtractionManager:_updateSequence(dt)
         local extractionType = self.config.details and self.config.details.extractionType or "all_items_instant"
         local summaryParams = self:_getExtractionSummaryArgs(extractionType)
 
-        self:reset()
         SceneManager.switchScene("extraction_summary_scene", summaryParams)
     end
 end
@@ -108,13 +110,13 @@ function ExtractionManager:collectRenderables(renderPipeline)
     self.teleportEffect:collectRenderables(renderPipeline)
 end
 
-function ExtractionManager:getActive()
-    return self.isActive
+function ExtractionManager:isPlayingExtrationSequence()
+    return self.isSequencing
 end
 
-function ExtractionManager:reset()
-    print("[ExtractionManager] Resetting state.")
-    self.isActive = false
+---@param portalData table
+function ExtractionManager:reset(portalData)
+    Logger.debug("ExtractionManager.reset", "Resetando estado do ExtractionManager.")
     self.isCasting = false
     self.isSequencing = false
     self.config = {}
@@ -122,8 +124,8 @@ function ExtractionManager:reset()
     self.teleportEffect = nil
     self.playerInitialPos = nil
     self.onCastCompleteCallback = nil
-
-    HUDGameplayManager:stopExtraction()
+    self.portalData = portalData
+    HUDGameplayManager:stopExtractionTimer()
 
     local inputManager = ManagerRegistry:get("inputManager")
     inputManager:setMovementEnabled(true)
@@ -141,7 +143,6 @@ function ExtractionManager:_getExtractionSummaryArgs(extractionType)
     print(string.format("[ExtractionManager] Getting summary args for extraction type: %s", extractionType))
     local playerManager = ManagerRegistry:get("playerManager")
     local inventoryManager = ManagerRegistry:get("inventoryManager")
-    local itemDataManager = ManagerRegistry:get("itemDataManager")
     local hunterManager = ManagerRegistry:get("hunterManager")
     local archetypeManager = ManagerRegistry:get("archetypeManager")
     local gameStatisticsManager = ManagerRegistry:get("gameStatisticsManager")
@@ -161,7 +162,7 @@ function ExtractionManager:_getExtractionSummaryArgs(extractionType)
         wasSuccess = true,
         hunterId = hunterId,
         hunterData = hunterManager:getHunterData(hunterId),
-        portalData = self.config.source and self.config.source.portalData or { name = "Extração por Item", rank = "S" },
+        portalData = self.portalData,
         extractedItems = backpackItemsToExtract,
         extractedEquipment = equipmentToExtract,
         finalStats = finalStatsForSummary,
@@ -188,7 +189,6 @@ function ExtractionManager:requestUseItem(itemInstance)
     inventoryManager:removeItemInstance(itemInstance.instanceId, 1)
 
     self.isCasting = true
-    self.isActive = true
     self.timer = 0
     self.config = {
         item = itemInstance,
@@ -198,14 +198,14 @@ function ExtractionManager:requestUseItem(itemInstance)
     }
 
     local itemName = baseData.name or "Item Desconhecido"
-    HUDGameplayManager:startItemCasting(self.config.duration, itemName)
+    self:showExtractionTimerProgress(useDetails.castTime, itemName)
 
     local playerManager = ManagerRegistry:get("playerManager")
     self.onCastCompleteCallback = function()
         self:startExtractionSequence({
             type = 'item',
             source = playerManager.player.position,
-            duration = 3.0, -- Standard duration for item teleport effect
+            duration = 3.5, -- Standard duration for item teleport effect
             details = useDetails
         })
     end
@@ -214,7 +214,6 @@ function ExtractionManager:requestUseItem(itemInstance)
         if self.onCastCompleteCallback then
             self.onCastCompleteCallback()
         end
-        self:reset()
     end
 
     return true
@@ -233,6 +232,15 @@ function ExtractionManager:_updateCasting(dt)
         self.isCasting = false
         self.timer = 0
     end
+end
+
+---@param duration number
+function ExtractionManager:showExtractionTimerProgress(duration, text)
+    HUDGameplayManager:startExtractionTimer(duration, text)
+end
+
+function ExtractionManager:stopExtractionTimer()
+    HUDGameplayManager:stopExtractionTimer()
 end
 
 return ExtractionManager

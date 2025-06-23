@@ -13,6 +13,7 @@ ExtractionPortalManager.__index = ExtractionPortalManager
 function ExtractionPortalManager:new()
     local instance = setmetatable({}, ExtractionPortalManager)
     instance.portals = {}
+    instance.wasPlayerOnPortalLastFrame = false
     return instance
 end
 
@@ -64,28 +65,30 @@ end
 -- Atualiza os portais
 ---@param dt number Delta time.
 function ExtractionPortalManager:update(dt)
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
+    ---@type ExtractionManager
+    local extractionManager = ManagerRegistry:get("extractionManager")
+
     local playerPos = playerManager.player.position
     local interactionRadius = 64 -- Same as portal radius, more or less
-    local isPlayerOnAnyPortal = false
+    local isPlayerOnAnyPortalThisFrame = false
 
     for _, portal in ipairs(self.portals) do
         local distToPlayer = math.sqrt((portal.position.x - playerPos.x) ^ 2 + (portal.position.y - playerPos.y) ^ 2)
 
         if distToPlayer <= interactionRadius then
-            isPlayerOnAnyPortal = true
+            isPlayerOnAnyPortalThisFrame = true
             if portal.state == "idle" then
                 portal:startActivation()
-                HUDGameplayManager:startExtractionTimer(portal.activationDuration, "Extraindo...")
+                extractionManager:showExtractionTimerProgress(portal.activationDuration, "Extraindo...")
             end
 
             if portal.state == "activating" and HUDGameplayManager:isExtractionFinished() then
                 portal.state = "activated"
-                HUDGameplayManager:stopExtractionTimer()
+                extractionManager:stopExtractionTimer()
 
                 -- Inicia a nova sequência de extração através do manager unificado
-                ---@type ExtractionManager
-                local extractionManager = ManagerRegistry:get("extractionManager")
                 extractionManager:startExtractionSequence({
                     type = 'portal',
                     source = portal,
@@ -93,22 +96,21 @@ function ExtractionPortalManager:update(dt)
                     details = { portalData = portal.portalData }
                 })
             end
-        else
-            if portal.state == "activating" then
-                portal:stopActivation()
-                -- This will be handled by the general stop below
-            end
         end
         portal:update(dt)
     end
 
-    if not isPlayerOnAnyPortal then
-        -- Stop the timer if the player moved away from ALL portals
+    -- Esta condição agora verifica corretamente se o jogador ACABOU de sair da área do portal.
+    if self.wasPlayerOnPortalLastFrame and not isPlayerOnAnyPortalThisFrame then
         HUDGameplayManager:stopExtractionTimer()
         for _, portal in ipairs(self.portals) do
+            -- Garante que todos os portais sejam resetados se o jogador sair da área.
             portal:stopActivation()
         end
     end
+
+    -- Atualiza o estado para o próximo frame.
+    self.wasPlayerOnPortalLastFrame = isPlayerOnAnyPortalThisFrame
 end
 
 -- Coleta os renderizáveis dos portais

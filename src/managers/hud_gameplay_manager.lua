@@ -178,16 +178,12 @@ end
 ---@param duration number Duração em segundos.
 ---@param text string Texto a ser exibido na barra.
 function HUDGameplayManager:startExtractionTimer(duration, text)
-    if self.extractionProgressBar then
-        self.extractionProgressBar:start(duration, text)
-    end
+    self.extractionProgressBar:start(duration, text)
 end
 
 --- Para a barra de progresso de extração.
 function HUDGameplayManager:stopExtractionTimer()
-    if self.extractionProgressBar then
-        self.extractionProgressBar:stop()
-    end
+    self.extractionProgressBar:stop()
 end
 
 --- Verifica se a barra de progresso de extração concluiu.
@@ -335,9 +331,7 @@ function HUDGameplayManager:draw(isPaused)
     self.skillsDisplay:draw()
     BossHealthBarManager:draw()
 
-    if self.extractionProgressBar then
-        self.extractionProgressBar:draw()
-    end
+    self.extractionProgressBar:draw()
 
     if self.portalIndicators then
         for _, indicator in ipairs(self.portalIndicators) do
@@ -401,14 +395,6 @@ function HUDGameplayManager:destroy()
     if BossHealthBarManager and BossHealthBarManager.destroy then
         BossHealthBarManager:destroy()
     end
-end
-
-function HUDGameplayManager:startItemCasting(duration, itemName)
-    self.extractionProgressBar:start(duration, "Usando " .. itemName)
-end
-
-function HUDGameplayManager:stopExtraction()
-    self.extractionProgressBar:stop()
 end
 
 return HUDGameplayManager

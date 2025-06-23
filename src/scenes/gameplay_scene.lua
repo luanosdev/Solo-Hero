@@ -11,7 +11,6 @@ local ItemDetailsModal = require("src.ui._item_details_modal")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Bootstrap = require("src.core.bootstrap")
 local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
-local colors = require("src.ui.colors")
 local AssetManager = require("src.managers.asset_manager")
 local portalDefinitions = require("src.data.portals.portal_definitions")
 local Constants = require("src.config.constants")
@@ -21,7 +20,6 @@ local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
 local GameOverManager = require("src.managers.game_over_manager")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
-local lume = require("src.libs.lume")
 local BossPresentationManager = require("src.managers.boss_presentation_manager")
 
 local GameplayScene = {}
@@ -116,13 +114,21 @@ function GameplayScene:load(args)
 
     Bootstrap.initialize()
 
+    ---@type EnemyManager
     local enemyMgr = ManagerRegistry:get("enemyManager")
+    ---@type DropManager
     local dropMgr = ManagerRegistry:get("dropManager")
+    ---@type PlayerManager
     local playerMgr = ManagerRegistry:get("playerManager")
+    ---@type ItemDataManager
     local itemDataMgr = ManagerRegistry:get("itemDataManager")
+    ---@type ExperienceOrbManager
     local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
+    ---@type HUDGameplayManager
     local hudGameplayManager = ManagerRegistry:get("hudGameplayManager")
+    ---@type ExtractionPortalManager
     local extractionPortalManager = ManagerRegistry:get("extractionPortalManager")
+    ---@type ExtractionManager
     local extractionManager = ManagerRegistry:get("extractionManager")
 
     if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr or not experienceOrbMgr or not extractionPortalManager then
@@ -164,7 +170,7 @@ function GameplayScene:load(args)
     self.renderPipeline:setMapManager(self.mapManager) -- Configura no RenderPipeline
     Logger.debug("GameplayScene", "ProceduralMapManager instanciado e configurado no RenderPipeline.")
 
-    playerMgr:setupGameplay(ManagerRegistry, self.hunterId, self.hudGameplayManager)
+    playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
     local enemyManagerConfig = {
         hordeConfig = self.hordeConfig,
         playerManager = playerMgr,
@@ -172,10 +178,10 @@ function GameplayScene:load(args)
         mapManager = self.mapManager
     }
     enemyMgr:setupGameplay(enemyManagerConfig)
-    hudGameplayManager:setupGameplay(self.hunterId)
+    hudGameplayManager:setupGameplay()
 
     -- Limpa o estado do ExtractionManager ao carregar a cena
-    extractionManager:reset()
+    extractionManager:reset(self.currentPortalData)
     extractionPortalManager:spawnPortals()
 
     self:_snapshotInitialItems()
@@ -187,7 +193,9 @@ function GameplayScene:load(args)
         "alternating_cone_strike_e_001",
         "flame_stream_e_001",
         "arrow_projectile_e_001",
-        "chain_lightning_e_001"
+        "chain_lightning_e_001",
+        "sequential_projectile_e_001",
+        "burst_projectile_e_001",
     }
     local randomWeaponId = rankEWeapons[math.random(#rankEWeapons)]
     self:createDropNearPlayer(randomWeaponId)
@@ -243,15 +251,6 @@ function GameplayScene:createDropNearPlayer(dropId)
 end
 
 function GameplayScene:update(dt)
-    local extractionManager = ManagerRegistry:get("extractionManager")
-    if extractionManager then
-        extractionManager:update(dt)
-    end
-
-    -- Se a sequência de extração estiver ativa, bloqueia o resto
-    if extractionManager and extractionManager:getActive() then
-        return
-    end
 
     -- Se Game Over, GameOverManager lida com update e bloqueia o resto
     if self.gameOverManager and self.gameOverManager.isGameOverActive then
@@ -295,6 +294,10 @@ function GameplayScene:update(dt)
             self:updateCasting(dt)
         end
     end
+
+    ---@type ExtractionManager
+    local extractionManager = ManagerRegistry:get("extractionManager")
+    extractionManager:update(dt, uiBlockingAllGameplay)
 
     self.isPaused = uiBlockingAllGameplay or (InventoryScreen.isVisible and not self.isCasting)
 
@@ -538,9 +541,7 @@ function GameplayScene:draw()
     --HUD:draw()
     ItemDetailsModalManager.draw()
 
-    if hudGameplayManager then
-        hudGameplayManager:draw(self.isPaused)
-    end
+    hudGameplayManager:draw(self.isPaused)
 
     -- Desenha a apresentação do boss por cima de tudo
     if self.bossPresentationManager then
@@ -548,7 +549,7 @@ function GameplayScene:draw()
     end
 
     -- Desenha informações de Debug (opcional)
-    if enemyMgr then
+    if enemyMgr and DEV then
         local enemies = enemyMgr:getEnemies()
         if enemies and #enemies > 0 then
             love.graphics.setColor(0, 0, 0, 0.7)
@@ -651,7 +652,7 @@ function GameplayScene:mousepressed(x, y, button, istouch, presses)
             self.inventoryDragState.targetGridId = nil; self.inventoryDragState.targetSlotCoords = nil; self.inventoryDragState.isDropValid = false;
             return
         elseif consumed and useItemData and useItemData.item then
-            -- DELEGA para o ExtractionManager
+            ---@type ExtractionManager
             local extractionManager = ManagerRegistry:get("extractionManager")
             if extractionManager then
                 extractionManager:requestUseItem(useItemData.item)
@@ -687,17 +688,7 @@ function GameplayScene:unload()
     if HUD.reset then HUD:reset() end
     local enemyMgr = ManagerRegistry:get("enemyManager"); if enemyMgr and enemyMgr.reset then enemyMgr:reset() end
 
-    -- if self.mapManager and self.mapManager.destroy then
-    --     self.mapManager:destroy()
-    --     self.mapManager = nil
-    --     Logger.debug("GameplayScene", "MapManager destruído.")
-    -- end
     self.mapManager = nil -- Apenas define como nil, o GC cuida do resto.
-
-    local extractionManager = ManagerRegistry:get("extractionManager")
-    if extractionManager and extractionManager.reset then
-        extractionManager:reset()
-    end
 
     if self.dropManager and self.dropManager.destroy then
         self.dropManager:destroy()
@@ -709,11 +700,6 @@ function GameplayScene:unload()
         self.experienceOrbManager:destroy()
         self.experienceOrbManager = nil
         Logger.debug("GameplayScene", "ExperienceOrbManager destruído.")
-    end
-
-    -- Reseta HUDGameplayManager se existir
-    if self.hudGameplayManager and self.hudGameplayManager.destroy then
-        self.hudGameplayManager:destroy()
     end
 
     if self.bossPresentationManager and self.bossPresentationManager.destroy then
