@@ -5,11 +5,13 @@ local ManagerRegistry = require("src.managers.manager_registry")
 local Camera = require("src.config.camera")
 local ActiveSkillsDisplay = require("src.ui.components.active_skills_display")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
+local OffscreenIndicator = require("src.ui.components.offscreen_indicator")
 
 ---@class HUDGameplayManager
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
 ---@field playerHPBar PlayerHPBar|nil Instância da barra de HP do jogador.
 ---@field skillsDisplay ActiveSkillsDisplay|nil Instância do display de cooldowns.
+---@field portalIndicators table Armazena os indicadores de portal.
 ---@field lastPlayerLevel number Armazena o nível do jogador no frame anterior.
 ---@field lastPlayerXPInLevel number Armazena o XP do jogador DENTRO do nível no frame anterior.
 ---@field lastTotalPlayerXP number Armazena o XP TOTAL ACUMULADO do jogador no frame anterior.
@@ -23,6 +25,7 @@ local HUDGameplayManager = {
     progressLevelBar = nil,
     playerHPBar = nil,
     skillsDisplay = nil,
+    portalIndicators = {},
     lastPlayerLevel = 0,
     lastPlayerXPInLevel = 0,
     lastTotalPlayerXP = 0,
@@ -178,6 +181,17 @@ function HUDGameplayManager:update(dt)
         return
     end
 
+    -- Update portal indicators
+    local extractionPortalManager = ManagerRegistry:tryGet("extractionPortalManager")
+    if extractionPortalManager then
+        self.portalIndicators = {} -- Reset and recreate, simpler for now
+        for i, portal in ipairs(extractionPortalManager.portals) do
+            local indicator = OffscreenIndicator:new({ targetId = i })
+            indicator:update(portal.position)
+            table.insert(self.portalIndicators, indicator)
+        end
+    end
+
     local screenWidth = love.graphics.getWidth() -- Necessário para reposicionamento
     local screenHeight = love.graphics.getHeight()
     local paddingFromScreenEdgeBottom = 20       -- Usado no construtor, manter consistência
@@ -276,6 +290,12 @@ function HUDGameplayManager:draw(isPaused)
     self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
     self.skillsDisplay:draw()
     BossHealthBarManager:draw()
+
+    if self.portalIndicators then
+        for _, indicator in ipairs(self.portalIndicators) do
+            indicator:draw()
+        end
+    end
 end
 
 --- Reseta o estado do manager (se necessário).

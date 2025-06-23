@@ -89,7 +89,7 @@ end
 function ExtractionPortal:collectRenderables(renderPipeline)
     local ySort = self.position.y
     local item = {
-        depth = RenderPipeline.DEPTH_ENTITIES,
+        depth = RenderPipeline.DEPTH_DROPS,
         type = "extraction_portal",
         sortY = ySort,
         drawFunction = function() self:draw() end
@@ -102,9 +102,7 @@ function ExtractionPortal:draw()
         self.image,
         self.quads[self.currentFrame],
         self.position.x - self.width / 2,
-        self.position.y - self.height / 5 / 2,
-        self.width,
-        self.height
+        self.position.y - self.height / 5 / 2
     )
 end
 
