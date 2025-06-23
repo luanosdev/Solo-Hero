@@ -1,5 +1,6 @@
 local AssetManager = require("src.managers.asset_manager")
 local RenderPipeline = require("src.core.render_pipeline")
+local TablePool = require("src.utils.table_pool")
 
 ---@class ExtractionPortal
 ---@field position { x: number, y: number }
@@ -88,12 +89,13 @@ end
 ---@param renderPipeline RenderPipeline
 function ExtractionPortal:collectRenderables(renderPipeline)
     local ySort = self.position.y
-    local item = {
-        depth = RenderPipeline.DEPTH_DROPS,
-        type = "extraction_portal",
-        sortY = ySort,
-        drawFunction = function() self:draw() end
-    }
+    local item = TablePool.get()
+
+    item.depth = RenderPipeline.DEPTH_DROPS
+    item.type = "extraction_portal"
+    item.sortY = ySort
+    item.drawFunction = function() self:draw() end
+
     renderPipeline:add(item)
 end
 

@@ -1,4 +1,6 @@
 local ExtractionPortal = require("src.entities.extraction_portal")
+local Culling = require("src.core.culling")
+local Camera = require("src.config.camera")
 local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
 
 ---@class ExtractionPortalManager
@@ -110,7 +112,9 @@ end
 ---@param renderPipeline RenderPipeline
 function ExtractionPortalManager:collectRenderables(renderPipeline)
     for _, portal in ipairs(self.portals) do
-        portal:collectRenderables(renderPipeline)
+        if Culling.isInView(portal, Camera.x, Camera.y, Camera.screenWidth, Camera.screenHeight, 100) then
+            portal:collectRenderables(renderPipeline)
+        end
     end
 end
 

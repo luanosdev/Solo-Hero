@@ -58,6 +58,7 @@ local PlayerManager = {
     player = nil, ---@type table
     -- Estado do player (será criado em setupGameplay)
     state = nil, ---@class PlayerState
+    isInvincible = false,
     -- Game Stats
     gameTime = 0,
     -- Tabela para guardar instâncias de habilidades de runas EQUIPADAS
@@ -123,6 +124,7 @@ function PlayerManager:new()
     -- Inicializa propriedades básicas com valores padrão/vazios
     instance.player = nil
     instance.state = nil
+    instance.isInvincible = false
     instance.gameTime = 0
     instance.activeRuneAbilities = {}
     instance.activeFloatingTexts = {}
@@ -1050,6 +1052,8 @@ function PlayerManager:receiveDamage(amount, source)
         return 0 -- Não pode tomar dano se não tem estado ou já está morto
     end
 
+    if self.isInvincible then return 0 end
+
     -- Atualiza a fonte do último dano
     if source then
         self.lastDamageSource = source
@@ -1291,6 +1295,23 @@ function PlayerManager:registerDamageDealt(amount, isCritical, source, isSuperCr
             abilityId = abilityId
         }
     )
+end
+
+function PlayerManager:setInvincible(isInvincible)
+    self.isInvincible = isInvincible
+end
+
+function PlayerManager:setPosition(newPosition)
+    if self.player and self.player.position then
+        self.player.position.x = newPosition.x
+        self.player.position.y = newPosition.y
+    end
+end
+
+function PlayerManager:setAlpha(alpha)
+    if self.player then
+        self.player.alpha = alpha
+    end
 end
 
 return PlayerManager

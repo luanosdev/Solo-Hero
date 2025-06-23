@@ -209,17 +209,26 @@ function HUDGameplayManager:update(dt)
         if self.progressLevelBar then self.progressLevelBar:update(dt) end
         if self.playerHPBar then self.playerHPBar:update(dt) end
         if self.skillsDisplay then self.skillsDisplay:update(dt) end
+        if self.extractionProgressBar then self.extractionProgressBar:update(dt) end
         return
     end
 
     -- Update portal indicators
     local extractionPortalManager = ManagerRegistry:tryGet("extractionPortalManager")
-    if extractionPortalManager then
-        self.portalIndicators = {} -- Reset and recreate, simpler for now
+    if extractionPortalManager and extractionPortalManager.portals then
+        -- Otimização: Cria os indicadores apenas uma vez
+        if #self.portalIndicators ~= #extractionPortalManager.portals then
+            self.portalIndicators = {} -- Limpa para recriar
+            for i, portal in ipairs(extractionPortalManager.portals) do
+                self.portalIndicators[i] = OffscreenIndicator:new({ targetId = i })
+            end
+        end
+
+        -- Atualiza os indicadores existentes
         for i, portal in ipairs(extractionPortalManager.portals) do
-            local indicator = OffscreenIndicator:new({ targetId = i })
-            indicator:update(portal.position)
-            table.insert(self.portalIndicators, indicator)
+            if self.portalIndicators[i] then
+                self.portalIndicators[i]:update(portal.position)
+            end
         end
     end
 
