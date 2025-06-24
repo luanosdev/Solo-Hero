@@ -10,7 +10,8 @@ local SpritePlayer = require('src.animations.sprite_player')
 ---@class DashController
 ---@field playerManager PlayerManager
 ---@field isDashing boolean
----@field dashCooldowns table
+---@field chargesUsed number
+---@field rechargeTimer number
 ---@field dashDirection table
 ---@field dashSpeed number
 ---@field dashTimer number
@@ -26,7 +27,8 @@ function DashController:new(playerManager)
 
     instance.playerManager = playerManager
     instance.isDashing = false
-    instance.dashCooldowns = {}
+    instance.chargesUsed = 0   -- Quantidade de cargas em cooldown
+    instance.rechargeTimer = 0 -- Timer para a carga ATUALMENTE recarregando
     instance.dashDirection = { x = 0, y = 0 }
     instance.dashSpeed = 0
     instance.dashTimer = 0
@@ -45,7 +47,7 @@ end
 ---Atualiza toda a lógica de dash, incluindo cooldowns e movimento.
 ---@param dt number Delta time.
 function DashController:update(dt)
-    self:updateDashCooldowns(dt)
+    self:updateRechargeQueue(dt)
     self:updateDashTrail(dt)
 
     if self.isDashing then
@@ -57,7 +59,8 @@ end
 function DashController:tryDash()
     Logger.debug("DashController.tryDash", "Tentando iniciar um dash.")
     local finalStats = self.playerManager:getCurrentFinalStats()
-    local availableCharges = math.floor(finalStats.dashCharges or 1) - #self.dashCooldowns
+    local totalCharges = math.floor(finalStats.dashCharges or 1)
+    local availableCharges = totalCharges - self.chargesUsed
 
     if not self.isDashing and availableCharges > 0 then
         self.isDashing = true
@@ -84,7 +87,7 @@ function DashController:tryDash()
             self.playerManager.player.animationPaused = true
         end
 
-        table.insert(self.dashCooldowns, finalStats.dashCooldown)
+        self.chargesUsed = self.chargesUsed + 1
     end
 end
 
@@ -113,13 +116,24 @@ function DashController:updateDashMovement(dt)
     end
 end
 
----Atualiza os cooldowns das cargas de dash.
+---Atualiza a fila de recarga do dash.
 ---@param dt number Delta time.
-function DashController:updateDashCooldowns(dt)
-    for i = #self.dashCooldowns, 1, -1 do
-        self.dashCooldowns[i] = self.dashCooldowns[i] - dt
-        if self.dashCooldowns[i] <= 0 then
-            table.remove(self.dashCooldowns, i)
+function DashController:updateRechargeQueue(dt)
+    -- Se temos cargas para recarregar
+    if self.chargesUsed > 0 then
+        -- Se nenhuma carga está recarregando no momento, inicia o timer
+        if self.rechargeTimer <= 0 then
+            local finalStats = self.playerManager:getCurrentFinalStats()
+            self.rechargeTimer = finalStats.dashCooldown
+        end
+
+        -- Decrementa o timer
+        self.rechargeTimer = self.rechargeTimer - dt
+
+        -- Se o timer zerou, uma carga foi recarregada
+        if self.rechargeTimer <= 0 then
+            self.chargesUsed = self.chargesUsed - 1
+            self.rechargeTimer = 0 -- Reseta para que a próxima carga comece no próximo frame (se houver)
         end
     end
 end
@@ -191,14 +205,25 @@ end
 function DashController:getDashStatus()
     local finalStats = self.playerManager:getCurrentFinalStats()
     local totalCharges = math.floor(finalStats.dashCharges or 1)
-    local availableCharges = totalCharges - #self.dashCooldowns
+    local availableCharges = totalCharges - self.chargesUsed
 
-    local maxCooldownTime = finalStats.dashCooldown
     local progresses = {}
-    if maxCooldownTime > 0 then
-        for _, remainingTime in ipairs(self.dashCooldowns) do
-            local progress = 1.0 - (remainingTime / maxCooldownTime)
+    local maxCooldownTime = finalStats.dashCooldown
+
+    if self.chargesUsed > 0 and maxCooldownTime > 0 then
+        -- 1. Adiciona o progresso da carga ATIVA
+        if self.rechargeTimer > 0 then
+            local progress = 1.0 - (self.rechargeTimer / maxCooldownTime)
             table.insert(progresses, math.max(0, math.min(1, progress)))
+        else
+            -- Se o timer é 0 mas ainda há cargas, significa que a próxima começa neste frame.
+            -- Mostramos como 0% para evitar um flash do ícone "cheio" por 1 frame.
+            table.insert(progresses, 0)
+        end
+
+        -- 2. Adiciona as cargas que estão na FILA (progresso 0%)
+        for i = 1, self.chargesUsed - 1 do
+            table.insert(progresses, 0)
         end
     end
 

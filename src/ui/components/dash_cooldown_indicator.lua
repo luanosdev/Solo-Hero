@@ -110,7 +110,7 @@ function DashCooldownIndicator:draw(playerScreenX, playerScreenY)
                 self.image,
                 quad,
                 offsetX,
-                playerScreenY + 40,
+                playerScreenY + 45,
                 0,
                 self.IMAGE_SCALE,
                 self.IMAGE_SCALE
