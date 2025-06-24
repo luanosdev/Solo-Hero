@@ -90,7 +90,7 @@ end
 --- @param searchCenter table Posição {x, y} do centro da busca.
 --- @param searchRadius number O raio do ataque.
 --- @param requestingEntity table A entidade que iniciou a busca (para evitar auto-colisão, opcional).
---- @return table Uma lista (do TablePool) de inimigos atingidos.
+--- @return BaseEnemy[] Uma lista (do TablePool) de inimigos atingidos.
 function CombatHelpers.findEnemiesInCircularArea(searchCenter, searchRadius, requestingEntity)
     local ManagerRegistry = require("src.managers.manager_registry")
     local TablePool = require("src.utils.table_pool")

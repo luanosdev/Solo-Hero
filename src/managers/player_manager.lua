@@ -14,6 +14,7 @@ local Colors = require("src.ui.colors")
 local RenderPipeline = require("src.core.render_pipeline")
 local TablePool = require("src.utils.table_pool")
 local DashController = require('src.controllers.dash_controller')
+local LevelUpEffectController = require('src.controllers.level_up_effect_controller')
 
 ---@class FinalStats
 ---@field health number Vida máxima final.
@@ -98,6 +99,7 @@ local PlayerManager = {
 
     -- "Mini-Managers" / Controladores
     dashController = nil, ---@type DashController
+    levelUpEffectController = nil, ---@type LevelUpEffectController
 
     -- Level Up Modal Management
     pendingLevelUps = 0, -- << NOVO: Contador para level ups pendentes
@@ -165,6 +167,7 @@ function PlayerManager:new()
     instance.levelUpAnimation = LevelUpAnimation:new() -- Cria a instância da animação aqui
 
     instance.dashController = nil
+    instance.levelUpEffectController = nil
 
     -- Carrega recursos do player sprite (pode ser feito uma vez globalmente também)
     SpritePlayer.load()
@@ -324,6 +327,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
     -- 7. Inicializa outros componentes que dependem do PlayerManager
     LevelUpModal:init(self, self.inputManager)
     self.dashController = DashController:new(self)
+    self.levelUpEffectController = LevelUpEffectController:new(self)
 
     print(string.format("[PlayerManager] Gameplay setup for hunter '%s' complete.", hunterData.name))
 
@@ -348,6 +352,11 @@ function PlayerManager:update(dt)
 
     -- Atualiza os cooldowns e rastros do dash (rodando sempre)
     self.dashController:update(dt)
+
+    -- Atualiza o controlador de efeitos de level up
+    if self.levelUpEffectController then
+        self.levelUpEffectController:update(dt)
+    end
 
     -- Gerenciamento do estado do botão esquerdo do mouse
     local currentLeftButtonState = self.inputManager.mouse.isLeftButtonDown
@@ -533,6 +542,11 @@ function PlayerManager:collectRenderables(renderPipeline)
         -- Adiciona o rastro do dash (desenhado por baixo do jogador)
         self.dashController:collectRenderables(renderPipeline, sortY)
 
+        -- Adiciona efeitos de level up se estiverem ativos
+        if self.levelUpEffectController then
+            self.levelUpEffectController:collectRenderables(renderPipeline)
+        end
+
         -- Adiciona o jogador principal
         local renderableItem = TablePool.get()
         renderableItem.type = "player"
@@ -674,13 +688,28 @@ function PlayerManager:addExperience(amount)
             self:addFloatingText("LEVEL UP!", props)
         end
 
-        self:tryShowLevelUpModal()
+        -- Dispara o efeito visual de level up com knockback
+        if self.levelUpEffectController then
+            self.levelUpEffectController:triggerLevelUpEffect(function()
+                -- Callback chamado quando o efeito terminar - tenta mostrar o modal
+                self:tryShowLevelUpModal()
+            end)
+        else
+            -- Fallback se o controller não existir
+            self:tryShowLevelUpModal()
+        end
     end
 end
 
 --- Tenta mostrar o modal de level up se houver níveis pendentes e o modal não estiver visível.
+--- Agora verifica se há efeitos de level up ativos antes de mostrar o modal.
 function PlayerManager:tryShowLevelUpModal()
     if self.pendingLevelUps > 0 and LevelUpModal and not LevelUpModal.visible then
+        -- Verifica se o efeito de level up está ativo; se estiver, não mostra o modal ainda
+        if self.levelUpEffectController and self.levelUpEffectController:isEffectActive() then
+            return -- Aguarda o efeito terminar
+        end
+
         self.pendingLevelUps = self.pendingLevelUps - 1
         LevelUpModal:show()
         print(string.format("[PlayerManager] Showing Level Up Modal. Pending levels: %d", self.pendingLevelUps))
