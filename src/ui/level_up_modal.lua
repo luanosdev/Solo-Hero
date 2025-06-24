@@ -11,6 +11,7 @@ local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
 ---@field inputManager InputManager|nil
 ---@field hoveredOption number|nil
 ---@field choiceDelay number
+---@field onCloseCallback function|nil
 local LevelUpModal = {
     visible = false,
     options = {},                  -- Agora vai armazenar as definições completas dos bônus de LevelUpBonusesData
@@ -22,6 +23,7 @@ local LevelUpModal = {
     choiceDelay = 1.0,             -- Segundos de delay antes de poder escolher
     currentChoiceDelayTimer = 0.0, -- Timer regressivo para o delay
     canChoose = false,             -- Flag que permite a escolha após o delay
+    onCloseCallback = nil,         -- Callback chamado quando o modal é fechado
 }
 
 --- Inicializa o LevelUpModal.
@@ -34,12 +36,13 @@ function LevelUpModal:init(playerManager, inputManager)
         inputManager and "OK" or "NULO")
 end
 
-function LevelUpModal:show()
+function LevelUpModal:show(onCloseCallback)
     self.visible = true
     self.selectedOption = nil                       -- Reseta a opção selecionada por teclado
     self.hoveredOption = nil                        -- Reseta a opção com hover do mouse
     self.currentChoiceDelayTimer = self.choiceDelay -- Inicia o timer de delay
     self.canChoose = false                          -- Desabilita a escolha inicialmente
+    self.onCloseCallback = onCloseCallback          -- Armazena o callback de fechamento
     self:generateOptions()                          -- Gera as opções de bônus
     print(string.format("[LevelUpModal:show] Modal aberto. Delay de %.1fs iniciado.", self.choiceDelay))
 end
@@ -47,6 +50,16 @@ end
 function LevelUpModal:hide()
     self.visible = false
     love.graphics.setFont(fonts.main) -- Reseta a fonte para o padrão do jogo
+
+    -- Chama o callback de fechamento se existir
+    if self.onCloseCallback then
+        Logger.debug(
+            "level_up_modal.hide.callback",
+            "[LevelUpModal:hide] Chamando callback de fechamento"
+        )
+        self.onCloseCallback()
+        self.onCloseCallback = nil
+    end
 end
 
 function LevelUpModal:generateOptions()

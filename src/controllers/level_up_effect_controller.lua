@@ -12,6 +12,10 @@ local TablePool = require("src.utils.table_pool")
 ---@field levelUpEffect LevelUpEffect|nil
 ---@field knockbackApplied boolean
 ---@field onCompleteCallback function|nil
+---@field levelUpQueue table
+---@field currentState string
+---@field waitTimer number
+---@field waitDuration number
 local LevelUpEffectController = {}
 LevelUpEffectController.__index = LevelUpEffectController
 
@@ -27,28 +31,71 @@ function LevelUpEffectController:new(playerManager)
     instance.knockbackApplied = false
     instance.onCompleteCallback = nil
 
+    -- Sistema de filas
+    instance.levelUpQueue = {}
+    instance.currentState = "idle" -- idle, effect_playing, modal_shown, waiting
+    instance.waitTimer = 0
+    instance.waitDuration = 0.5
+
+    Logger.debug(
+        "level_up_effect_controller.new.queue_init",
+        "[LevelUpEffectController:new] Sistema de filas inicializado com delay de 0.5s"
+    )
+
     return instance
 end
 
---- Inicia o efeito de level up.
+--- Adiciona um level up à fila ou inicia imediatamente se não há fila.
 ---@param onCompleteCallback function|nil Callback chamado quando o efeito terminar
 function LevelUpEffectController:triggerLevelUpEffect(onCompleteCallback)
-    if self.isActive then
-        Logger.warn(
-            "level_up_effect_controller.trigger.already_active",
-            "[LevelUpEffectController:triggerLevelUpEffect] Efeito já está ativo, ignorando novo trigger"
+    -- Adiciona à fila
+    table.insert(self.levelUpQueue, {
+        callback = onCompleteCallback
+    })
+
+    Logger.info(
+        "level_up_effect_controller.queue.add",
+        string.format("[LevelUpEffectController:triggerLevelUpEffect] Level up adicionado à fila. Total: %d",
+            #self.levelUpQueue)
+    )
+
+    -- Se não está processando, inicia a sequência
+    if self.currentState == "idle" then
+        self:processNextLevelUp()
+    end
+end
+
+--- Processa o próximo level up da fila.
+function LevelUpEffectController:processNextLevelUp()
+    if #self.levelUpQueue == 0 then
+        self.currentState = "idle"
+        Logger.debug(
+            "level_up_effect_controller.queue.empty",
+            "[LevelUpEffectController:processNextLevelUp] Fila vazia, retornando ao estado idle"
         )
         return
     end
 
+    if self.currentState ~= "idle" then
+        Logger.warn(
+            "level_up_effect_controller.queue.busy",
+            "[LevelUpEffectController:processNextLevelUp] Controlador ocupado, aguardando"
+        )
+        return
+    end
+
+    local levelUpData = table.remove(self.levelUpQueue, 1)
+    self.onCompleteCallback = levelUpData.callback
+    self.currentState = "effect_playing"
+
     Logger.info(
-        "level_up_effect_controller.trigger.start",
-        "[LevelUpEffectController:triggerLevelUpEffect] Iniciando efeito de level up"
+        "level_up_effect_controller.queue.process",
+        string.format("[LevelUpEffectController:processNextLevelUp] Processando level up. Restantes: %d",
+            #self.levelUpQueue)
     )
 
     self.isActive = true
     self.knockbackApplied = false
-    self.onCompleteCallback = onCompleteCallback
 
     -- Cria o efeito visual
     if self.playerManager.player and self.playerManager.player.position then
@@ -127,6 +174,17 @@ end
 --- Atualiza o controller.
 ---@param dt number
 function LevelUpEffectController:update(dt)
+    -- Atualiza o timer de espera
+    if self.currentState == "waiting" then
+        self.waitTimer = self.waitTimer + dt
+        if self.waitTimer >= self.waitDuration then
+            self.waitTimer = 0
+            self.currentState = "idle"
+            self:processNextLevelUp()
+        end
+        return
+    end
+
     if not self.isActive then
         return
     end
@@ -155,12 +213,54 @@ function LevelUpEffectController:finishEffect()
     self.isActive = false
     self.levelUpEffect = nil
     self.knockbackApplied = false
+    self.currentState = "modal_shown"
 
-    -- Chama o callback se existir
+    -- Chama o callback se existir (mostra o modal) mas NÃO continua automaticamente
     if self.onCompleteCallback then
-        self.onCompleteCallback()
+        Logger.debug(
+            "level_up_effect_controller.modal.show",
+            "[LevelUpEffectController:finishEffect] Mostrando modal e aguardando fechamento"
+        )
+
+        -- Passa uma função para ser chamada quando o modal for fechado
+        local originalCallback = self.onCompleteCallback
         self.onCompleteCallback = nil
+
+        if not originalCallback then
+            error("LevelUpEffectController:finishEffect - Callback não definido")
+        end
+
+        -- Chama o callback original passando uma função de continuação
+        originalCallback(function()
+            self:onModalClosed()
+        end)
+    else
+        -- Se não há callback, vai direto para o próximo
+        self.currentState = "idle"
+        self:processNextLevelUp()
     end
+end
+
+--- Chamado quando o modal é fechado para continuar a sequência.
+function LevelUpEffectController:onModalClosed()
+    Logger.debug(
+        "level_up_effect_controller.modal.closed",
+        "[LevelUpEffectController:onModalClosed] Modal fechado, iniciando espera"
+    )
+
+    self:startWaitPeriod()
+end
+
+--- Inicia o período de espera após mostrar o modal.
+function LevelUpEffectController:startWaitPeriod()
+    self.currentState = "waiting"
+    self.waitTimer = 0
+
+    Logger.debug(
+        "level_up_effect_controller.wait.start",
+        string.format("[LevelUpEffectController:startWaitPeriod] Iniciando espera de %.1fs antes do próximo efeito",
+            self.waitDuration)
+    )
 end
 
 --- Coleta renderáveis para o pipeline de renderização.
@@ -175,6 +275,35 @@ end
 ---@return boolean
 function LevelUpEffectController:isEffectActive()
     return self.isActive
+end
+
+--- Verifica se há level ups na fila.
+---@return boolean
+function LevelUpEffectController:hasQueuedLevelUps()
+    return #self.levelUpQueue > 0
+end
+
+--- Obtém o número de level ups na fila.
+---@return number
+function LevelUpEffectController:getQueueSize()
+    return #self.levelUpQueue
+end
+
+--- Obtém o estado atual do controller.
+---@return string
+function LevelUpEffectController:getCurrentState()
+    return self.currentState
+end
+
+--- Força o processamento do próximo level up (para debug/testes).
+function LevelUpEffectController:forceNextLevelUp()
+    if self.currentState == "waiting" then
+        self.waitTimer = self.waitDuration
+        Logger.debug(
+            "level_up_effect_controller.force.next",
+            "[LevelUpEffectController:forceNextLevelUp] Forçando próximo level up"
+        )
+    end
 end
 
 return LevelUpEffectController

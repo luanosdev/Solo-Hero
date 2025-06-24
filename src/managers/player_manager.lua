@@ -347,9 +347,6 @@ function PlayerManager:update(dt)
 
     self.gameTime = self.gameTime + dt
 
-    -- Tenta mostrar o modal de level up se houver pendências e o modal não estiver visível
-    self:tryShowLevelUpModal()
-
     -- Atualiza os cooldowns e rastros do dash (rodando sempre)
     self.dashController:update(dt)
 
@@ -396,15 +393,6 @@ function PlayerManager:update(dt)
 
     -- Atualiza o tempo de jogo
     self.gameTime = self.gameTime + dt
-
-    -- Atualiza a animação de level up se estiver ativa
-    if self.isLevelingUp then
-        self.levelUpAnimation:update(dt, self.player.position.x, self.player.position.y)
-        if self.levelUpAnimation.isComplete then
-            self.isLevelingUp = false
-            LevelUpModal:show()
-        end
-    end
 
     -- Define a posição do alvo e calcula o ângulo UMA VEZ
     local targetPosition = self:getTargetPosition()
@@ -690,9 +678,9 @@ function PlayerManager:addExperience(amount)
 
         -- Dispara o efeito visual de level up com knockback
         if self.levelUpEffectController then
-            self.levelUpEffectController:triggerLevelUpEffect(function()
-                -- Callback chamado quando o efeito terminar - tenta mostrar o modal
-                self:tryShowLevelUpModal()
+            self.levelUpEffectController:triggerLevelUpEffect(function(onModalClosedCallback)
+                -- Callback chamado quando o efeito terminar - mostra o modal
+                self:showLevelUpModalWithCallback(onModalClosedCallback)
             end)
         else
             -- Fallback se o controller não existir
@@ -716,6 +704,28 @@ function PlayerManager:tryShowLevelUpModal()
         -- Pausa o jogo ou reduz a velocidade enquanto o modal está aberto
         -- Exemplo: self.uiManager:setGamePaused(true, "level_up")
         -- OU Gameloop.timeScale = 0.1
+    end
+end
+
+--- Mostra o modal de level up com callback de fechamento para o sistema de filas.
+function PlayerManager:showLevelUpModalWithCallback(onModalClosedCallback)
+    if self.pendingLevelUps > 0 and LevelUpModal and not LevelUpModal.visible then
+        self.pendingLevelUps = self.pendingLevelUps - 1
+        LevelUpModal:show(onModalClosedCallback)
+        Logger.info(
+            "player_manager.modal.show_with_callback",
+            string.format("[PlayerManager:showLevelUpModalWithCallback] Modal mostrado. Níveis restantes: %d",
+                self.pendingLevelUps)
+        )
+    else
+        -- Se não há níveis pendentes ou modal já está visível, chama o callback imediatamente
+        if onModalClosedCallback then
+            Logger.debug(
+                "player_manager.modal.skip",
+                "[PlayerManager:showLevelUpModalWithCallback] Nenhum modal para mostrar, chamando callback imediatamente"
+            )
+            onModalClosedCallback()
+        end
     end
 end
 
