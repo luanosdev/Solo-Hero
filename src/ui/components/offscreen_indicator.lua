@@ -1,5 +1,6 @@
 local AssetManager = require("src.managers.asset_manager")
 local Camera = require("src.config.camera")
+local Fonts = require("src.ui.fonts")
 
 ---@class OffscreenIndicator
 ---@field targetId string
@@ -14,6 +15,7 @@ local Camera = require("src.config.camera")
 ---@field screenY number
 ---@field rotation number
 ---@field padding number
+---@field distance number
 local OffscreenIndicator = {}
 OffscreenIndicator.__index = OffscreenIndicator
 
@@ -38,12 +40,18 @@ function OffscreenIndicator:new(config)
     instance.screenY = 0
     instance.rotation = 0
     instance.padding = 50 -- Distance from the edge of the screen
+    instance.distance = 0
 
     return instance
 end
 
 ---@param targetWorldPos { x: number, y: number }
-function OffscreenIndicator:update(targetWorldPos)
+---@param playerWorldPos { x: number, y: number }
+function OffscreenIndicator:update(targetWorldPos, playerWorldPos)
+    local dx = targetWorldPos.x - playerWorldPos.x
+    local dy = targetWorldPos.y - playerWorldPos.y
+    self.distance = math.sqrt(dx * dx + dy * dy)
+
     local screenX, screenY = Camera:worldToScreen(targetWorldPos.x, targetWorldPos.y)
     local screenW = love.graphics.getWidth()
     local screenH = love.graphics.getHeight()
@@ -101,6 +109,14 @@ function OffscreenIndicator:draw()
         self.ox,
         self.oy
     )
+
+    love.graphics.setColor(1, 1, 1, 1)
+    local font = Fonts.main_small
+    love.graphics.setFont(font)
+    local distanceText = string.format("%dm", self.distance / 32)
+    local textWidth = font:getWidth(distanceText)
+    local textHeight = font:getHeight()
+    love.graphics.print(distanceText, self.screenX - textWidth / 2, self.screenY - textHeight / 2)
 end
 
 return OffscreenIndicator

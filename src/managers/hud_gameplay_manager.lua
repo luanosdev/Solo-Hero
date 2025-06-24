@@ -230,7 +230,7 @@ function HUDGameplayManager:update(dt)
         -- Atualiza os indicadores existentes
         for i, portal in ipairs(extractionPortalManager.portals) do
             if self.portalIndicators[i] then
-                self.portalIndicators[i]:update(portal.position)
+                self.portalIndicators[i]:update(portal.position, playerManager.player.position)
             end
         end
     end
