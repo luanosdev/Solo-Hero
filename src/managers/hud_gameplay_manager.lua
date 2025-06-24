@@ -346,14 +346,6 @@ function HUDGameplayManager:update(dt)
     if self.potionDisplay and playerManager.potionController then
         local readyFlasks, totalFlasks, flasksInfo = playerManager:getPotionStatus()
         self.potionDisplay:update(dt, readyFlasks, totalFlasks, flasksInfo)
-
-        -- Reposiciona se necessário (quando barras mudam de tamanho/posição)
-        if needsHpBarReposition then
-            self.potionDisplay:setPosition(
-                self.potionDisplay.x, -- Mantém X atual
-                self.progressLevelBar.y - spacingBetweenBars - self.potionDisplay.height
-            )
-        end
     end
 
     if self.extractionProgressBar then
