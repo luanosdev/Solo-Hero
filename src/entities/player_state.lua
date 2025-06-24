@@ -44,54 +44,69 @@ local PlayerState = {
     cooldownReduction = 1.0,   -- Multiplicador (1.0 = sem redução)
     healthRegenCooldown = 1.0, -- Segundos entre ticks de regen? (Padrão 1)
 
+    -- Atributos de Dash
+    dashCharges = 0,  -- Quantidade de cargas de dash
+    dashCooldown = 0, -- Tempo em segundos para recuperar uma carga
+    dashDistance = 0, -- Distância em pixels que o dash percorre
+    dashDuration = 0, -- Duração do dash em segundos
+
     -- Bônus por nível (em porcentagem ou valor base, dependendo do stat)
     levelBonus = {
-        health = 0,             -- %
-        damageMultiplier = 0,   -- % (RENOMEADO)
-        defense = 0,            -- %
-        moveSpeed = 0,          -- %
-        attackSpeed = 0,        -- %
-        critChance = 0,         -- %
-        critDamage = 0,         -- % (Multiplicador adicional, ex: 20 significa +20% no multiplicador total)
-        healthRegen = 0,        -- %
-        multiAttackChance = 0,  -- %
-        strength = 0,           -- NOVO: Bônus percentual de Força por nível
-        -- Adicionar outros bônus de level se aplicável (luck, area, etc.)? Por enquanto não.
-        expBonus = 0,           -- %
-        healingBonus = 0,       -- %
-        pickupRadius = 0,       -- %
-        healthRegenDelay = 0,   -- % (Redução?)
-        range = 0,              -- % (Aditivo ao bônus percentual total)
-        luck = 0,               -- %
-        attackArea = 0,         -- % (Aditivo ao bônus percentual total)
-        healthPerTick = 0,      -- %
-        cooldownReduction = 0,  -- %
-        healthRegenCooldown = 0 -- % (Redução?)
+        health = 0,              -- %
+        damageMultiplier = 0,    -- %
+        defense = 0,             -- %
+        moveSpeed = 0,           -- %
+        attackSpeed = 0,         -- %
+        critChance = 0,          -- %
+        critDamage = 0,          -- % (Multiplicador adicional, ex: 20 significa +20% no multiplicador total)
+        healthRegen = 0,         -- %
+        multiAttackChance = 0,   -- %
+        strength = 0,            -- Bônus percentual de Força por nível
+        expBonus = 0,            -- %
+        healingBonus = 0,        -- %
+        pickupRadius = 0,        -- %
+        healthRegenDelay = 0,    -- % (Redução?)
+        range = 0,               -- % (Aditivo ao bônus percentual total)
+        luck = 0,                -- %
+        attackArea = 0,          -- % (Aditivo ao bônus percentual total)
+        healthPerTick = 0,       -- %
+        cooldownReduction = 0,   -- %
+        healthRegenCooldown = 0, -- % (Redução?)
+        -- Dash
+        dashCharges = 0,         -- Fixo
+        dashCooldown = 0,        -- %
+        dashDistance = 0,        -- %
+        dashDuration = 0         -- %
     },
 
     -- Bônus fixos (aditivos ou percentuais fixos, dependendo do stat)
     fixedBonus = {
-        health = 0,             -- Aditivo
-        damageMultiplier = 0,   -- Percentual fixo (ex: 0.1 = +10%) (RENOMEADO)
-        defense = 0,            -- Aditivo
-        moveSpeed = 0,          -- Aditivo
-        attackSpeed = 0,        -- Percentual fixo (ex: 0.2 = +20%)
-        critChance = 0,         -- Percentual fixo (ex: 0.05 = +5%)
-        critDamage = 0,         -- Percentual fixo (ex: 0.25 = +25% no multiplicador total)
-        healthRegen = 0,        -- Aditivo (HP/s)
-        multiAttackChance = 0,  -- Percentual fixo (ex: 0.1 = +10%)
-        strength = 0,           -- NOVO: Bônus fixo de Força
+        health = 0,              -- Aditivo
+        damageMultiplier = 0,    -- Percentual fixo (ex: 0.1 = +10%) (RENOMEADO)
+        defense = 0,             -- Aditivo
+        moveSpeed = 0,           -- Aditivo
+        attackSpeed = 0,         -- Percentual fixo (ex: 0.2 = +20%)
+        critChance = 0,          -- Percentual fixo (ex: 0.05 = +5%)
+        critDamage = 0,          -- Percentual fixo (ex: 0.25 = +25% no multiplicador total)
+        healthRegen = 0,         -- Aditivo (HP/s)
+        multiAttackChance = 0,   -- Percentual fixo (ex: 0.1 = +10%)
+        strength = 0,            -- NOVO: Bônus fixo de Força
         -- Adicionar outros bônus fixos se aplicável
-        expBonus = 0,           -- Percentual fixo
-        healingBonus = 0,       -- Percentual fixo
-        pickupRadius = 0,       -- Aditivo (Pixels)
-        healthRegenDelay = 0,   -- Aditivo (Segundos - redução?)
-        range = 0,              -- Percentual fixo (ex: 0.2 = +20%)
-        luck = 0,               -- Percentual fixo? Aditivo? (Assumindo percentual fixo)
-        attackArea = 0,         -- Percentual fixo (ex: 0.15 = +15%)
-        healthPerTick = 0,      -- Aditivo (HP por tick)
-        cooldownReduction = 0,  -- Percentual fixo
-        healthRegenCooldown = 0 -- Aditivo (Segundos - redução?)
+        expBonus = 0,            -- Percentual fixo
+        healingBonus = 0,        -- Percentual fixo
+        pickupRadius = 0,        -- Aditivo (Pixels)
+        healthRegenDelay = 0,    -- Aditivo (Segundos - redução?)
+        range = 0,               -- Percentual fixo (ex: 0.2 = +20%)
+        luck = 0,                -- Percentual fixo? Aditivo? (Assumindo percentual fixo)
+        attackArea = 0,          -- Percentual fixo (ex: 0.15 = +15%)
+        healthPerTick = 0,       -- Aditivo (HP por tick)
+        cooldownReduction = 0,   -- Percentual fixo
+        healthRegenCooldown = 0, -- Aditivo (Segundos - redução?)
+        -- Dash
+        dashCharges = 0,         -- Aditivo
+        dashCooldown = 0,        -- Aditivo (para redução de tempo)
+        dashDistance = 0,        -- Aditivo
+        dashDuration = 0         -- Aditivo
     },
 
     -- Modificadores de status (ex: buffs/debuffs temporários)
@@ -122,6 +137,12 @@ function PlayerState:init(baseStats)
     self.runeSlots = baseStats.runeSlots or PlayerState.runeSlots
     self.luck = baseStats.luck or PlayerState.luck
     self.strength = baseStats.strength or PlayerState.strength -- NOVO: Inicializa strength
+
+    -- NOVO: Inicializa Atributos de Dash
+    self.dashCharges = baseStats.dashCharges or PlayerState.dashCharges
+    self.dashCooldown = baseStats.dashCooldown or PlayerState.dashCooldown
+    self.dashDistance = baseStats.dashDistance or PlayerState.dashDistance
+    self.dashDuration = baseStats.dashDuration or PlayerState.dashDuration
 
     -- <<< CORREÇÃO: Armazena equippedItems e archetypeIds de baseStats >>>
     self.equippedItems = baseStats.equippedItems or {}
@@ -302,7 +323,6 @@ function PlayerState:addExperience(amount, finalExpBonus)
 
     return levelsGained
 end
-
 
 --- Retorna todos os bônus de level up aprendidos (ID do bônus -> nível aprendido)
 ---@return table<string, number>

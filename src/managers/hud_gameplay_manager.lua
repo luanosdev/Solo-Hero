@@ -344,11 +344,11 @@ function HUDGameplayManager:draw(isPaused)
     self.progressLevelBar:draw()
     self.playerHPBar:draw()
     self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
-    self.skillsDisplay:draw()
+    self.skillsDisplay:draw(isPaused)
     BossHealthBarManager:draw()
 
     -- Desenha o indicador de dash
-    self.dashIndicator:draw(playerScreenX, playerScreenY)
+    self.dashIndicator:draw(playerScreenX, playerScreenY, isPaused)
 
     self.extractionProgressBar:draw()
 

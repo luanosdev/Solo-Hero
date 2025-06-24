@@ -302,8 +302,9 @@ function ActiveSkillsDisplay:_findSkillById(id)
 end
 
 --- Desenha os ícones de habilidade.
-function ActiveSkillsDisplay:draw()
-    if #self.skills == 0 then return end
+---@param isPaused boolean Se o jogo está pausado.
+function ActiveSkillsDisplay:draw(isPaused)
+    if #self.skills == 0 or isPaused then return end
 
     -- Recalcula o layout apenas se necessário, otimizando o desenho
     if self.layoutNeedsUpdate then

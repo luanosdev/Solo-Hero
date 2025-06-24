@@ -93,8 +93,9 @@ end
 ---Desenha o indicador na tela, posicionado abaixo do jogador.
 ---@param playerScreenX number Posição X do jogador na tela.
 ---@param playerScreenY number Posição Y do jogador na tela.
-function DashCooldownIndicator:draw(playerScreenX, playerScreenY)
-    if not self.shouldDraw or #self.chargeFrames == 0 then return end
+---@param isPaused boolean Se o jogo está pausado.
+function DashCooldownIndicator:draw(playerScreenX, playerScreenY, isPaused)
+    if not self.shouldDraw or #self.chargeFrames == 0 or isPaused then return end
 
     -- Calcula a largura total de todos os indicadores para centralizar o grupo
     local totalWidth = #self.chargeFrames * (self.frameWidth * self.IMAGE_SCALE)

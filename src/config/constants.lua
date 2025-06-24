@@ -57,10 +57,10 @@ Constants.HUNTER_DEFAULT_STATS = {
     luck = 1.0,                -- Multiplier (1.0 = 100% luck)
     strength = 1.0,            -- Multiplier (1.0 = 100% strength)
     -- Atributos de Dash
-    dashCharges = 2,           -- Quantidade de cargas de dash
-    dashCooldown = 5.0,        -- Tempo em segundos para recuperar uma carga
-    dashDistance = 150,        -- Distância em pixels que o dash percorre
-    dashDuration = 0.2,        -- Duração do dash em segundos
+    dashCharges = 1,           -- Quantidade de cargas de dash
+    dashCooldown = 8.0,        -- Tempo em segundos para recuperar uma carga
+    dashDistance = 100,        -- Distância em pixels que o dash percorre
+    dashDuration = 0.1,        -- Duração do dash em segundos
 }
 
 Constants.ENEMY_SPRITE_SIZES = {
