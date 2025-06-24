@@ -10,6 +10,7 @@ local Colors = require("src.ui.colors")
 local Fonts = require("src.ui.fonts")
 local Constants = require("src.config.constants")
 local SpawnController = require("src.controllers.spawn_controller")
+local Logger = require("src.libs.logger")
 
 ---@class EnemyManager
 ---@field enemies table<number, BaseEnemy>
@@ -95,7 +96,9 @@ function EnemyManager:update(dt)
     self.gameTimer = self.gameTimer + dt
 
     -- Atualiza o controller de spawn
-    self.spawnController:update(dt)
+    if self.spawnController then
+        self.spawnController:update(dt)
+    end
 
     -- Atualiza o DamageNumberManager
     DamageNumberManager:update(dt)
@@ -113,6 +116,23 @@ function EnemyManager:update(dt)
 
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
+
+        -- Lógica de reposicionamento para Boss/MVP
+        if enemy and enemy.isAlive and (enemy.isBoss or enemy.isMVP) then
+            if self.playerManager and self.playerManager.player then
+                local playerPos = self.playerManager.player.position
+                local dx = enemy.position.x - playerPos.x
+                local dy = enemy.position.y - playerPos.y
+                local distance = math.sqrt(dx * dx + dy * dy)
+                local repositionDistance = 1500 -- Distância em pixels para acionar o teleporte
+
+                if distance > repositionDistance then
+                    Logger.info("[EnemyManager]",
+                        string.format("Reposicionando inimigo especial (ID: %d) por estar muito distante.", enemy.id))
+                    self:repositionBossOrMvp(enemy)
+                end
+            end
+        end
 
         -- Lógica de Despawn Inteligente (antes do update do inimigo)
         if enemy and enemy.isAlive and not enemy.isBoss and not enemy.isMVP then
@@ -424,6 +444,7 @@ function EnemyManager:returnEnemyToPool(enemy)
 end
 
 -- Função para transformar um inimigo em MVP
+---@param enemy BaseEnemy
 function EnemyManager:transformToMVP(enemy)
     if not enemy or not enemy.isAlive then return end
 
@@ -432,7 +453,8 @@ function EnemyManager:transformToMVP(enemy)
     enemy.maxHealth = enemy.maxHealth * 30
     enemy.radius = enemy.radius * 1.2
     enemy.knockbackResistance = Constants.KNOCKBACK_RESISTANCE.IMMUNE
-    enemy.sprite.scale = enemy.sprite.scale * 1.2 -- Assumindo que a escala está no sprite
+    enemy.sprite.scale = enemy.sprite.scale * 1.2
+    enemy.speed = enemy.speed * 1.5
 
     -- 2. Seleção de Título
     local mapRank = self.spawnController.worldConfig.mapRank or "E"
@@ -681,6 +703,70 @@ function EnemyManager:drawMvpBar(enemy, x, y)
     love.graphics.rectangle("line", barX, barY, barWidth, barHeight)
 
     love.graphics.setColor(1, 1, 1, 1)
+end
+
+--- Reposiciona um boss ou MVP que está muito longe do jogador.
+--- A nova posição é calculada na direção em que o jogador está se movendo.
+---@param enemy BaseEnemy O inimigo a ser reposicionado.
+function EnemyManager:repositionBossOrMvp(enemy)
+    local camX, camY, camWidth, camHeight = Camera:getViewPort()
+    local player = self.playerManager.player
+    if not player then return end
+    local playerVel = player.velocity
+
+    -- Buffer para garantir que o inimigo seja reposicionado fora da tela
+    local buffer = 150
+
+    -- Zonas de reposicionamento ao redor da câmera
+    local spawnZones = {
+        top = { x = camX - buffer, y = camY - buffer, width = camWidth + buffer * 2, height = buffer },
+        bottom = { x = camX - buffer, y = camY + camHeight, width = camWidth + buffer * 2, height = buffer },
+        left = { x = camX - buffer, y = camY, width = buffer, height = camHeight },
+        right = { x = camX + camWidth, y = camY, width = buffer, height = camHeight }
+    }
+
+    local weights = { top = 1, bottom = 1, left = 1, right = 1 }
+    local isMoving = playerVel and (playerVel.x ~= 0 or playerVel.y ~= 0)
+
+    if isMoving then
+        local movementBias = 4 -- Aumenta a probabilidade de reposicionar na direção do movimento
+
+        -- Aumenta o peso na direção do movimento do jogador.
+        if playerVel.y < -0.1 then weights.top = weights.top + movementBias end      -- Movendo para cima, reposiciona para cima
+        if playerVel.y > 0.1 then weights.bottom = weights.bottom + movementBias end -- Movendo para baixo, reposiciona para baixo
+        if playerVel.x < -0.1 then weights.left = weights.left + movementBias end    -- Movendo para esquerda, reposiciona para esquerda
+        if playerVel.x > 0.1 then weights.right = weights.right + movementBias end   -- Movendo para direita, reposiciona para direita
+    end
+
+    -- Seleciona a zona com base nos pesos
+    local totalWeight = weights.top + weights.bottom + weights.left + weights.right
+    local randomVal = math.random() * totalWeight
+    local selectedZoneKey
+
+    if randomVal <= weights.top then
+        selectedZoneKey = "top"
+    elseif randomVal <= weights.top + weights.bottom then
+        selectedZoneKey = "bottom"
+    elseif randomVal <= weights.top + weights.bottom + weights.left then
+        selectedZoneKey = "left"
+    else
+        selectedZoneKey = "right"
+    end
+
+    local selectedZone = spawnZones[selectedZoneKey]
+
+    -- Gera uma posição aleatória dentro da zona selecionada
+    local newX = math.random(selectedZone.x, selectedZone.x + selectedZone.width)
+    local newY = math.random(selectedZone.y, selectedZone.y + selectedZone.height)
+
+    -- Atualiza a posição do inimigo
+    enemy.position.x = newX
+    enemy.position.y = newY
+
+    -- Importante: Atualiza a posição no spatial grid para que as colisões funcionem corretamente
+    if self.spatialGrid then
+        self.spatialGrid:updateEntityInGrid(enemy)
+    end
 end
 
 return EnemyManager
