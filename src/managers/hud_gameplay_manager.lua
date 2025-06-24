@@ -7,6 +7,7 @@ local ActiveSkillsDisplay = require("src.ui.components.active_skills_display")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
 local OffscreenIndicator = require("src.ui.components.offscreen_indicator")
 local ExtractionProgressBar = require("src.ui.components.extraction_progress_bar")
+local DashCooldownIndicator = require("src.ui.components.dash_cooldown_indicator")
 
 ---@class HUDGameplayManager
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
@@ -14,6 +15,7 @@ local ExtractionProgressBar = require("src.ui.components.extraction_progress_bar
 ---@field skillsDisplay ActiveSkillsDisplay|nil Instância do display de cooldowns.
 ---@field portalIndicators table Armazena os indicadores de portal.
 ---@field extractionProgressBar ExtractionProgressBar|nil Instância da barra de progresso de extração.
+---@field dashIndicator DashCooldownIndicator|nil Instância do indicador de cooldown de dash.
 ---@field lastPlayerLevel number Armazena o nível do jogador no frame anterior.
 ---@field lastPlayerXPInLevel number Armazena o XP do jogador DENTRO do nível no frame anterior.
 ---@field lastTotalPlayerXP number Armazena o XP TOTAL ACUMULADO do jogador no frame anterior.
@@ -29,6 +31,7 @@ local HUDGameplayManager = {
     skillsDisplay = nil,
     portalIndicators = {},
     extractionProgressBar = nil,
+    dashIndicator = nil,
     lastPlayerLevel = 0,
     lastPlayerXPInLevel = 0,
     lastTotalPlayerXP = 0,
@@ -140,6 +143,9 @@ function HUDGameplayManager:setupGameplay()
     -- Configuração da Barra de Extração
     self.extractionProgressBar = ExtractionProgressBar:new({ w = 400, h = 50 })
 
+    -- ADICIONADO: Configuração do Indicador de Dash
+    self.dashIndicator = DashCooldownIndicator:new()
+
     -- Posicionamento dinâmico das barras
     local paddingFromScreenEdgeX = 20
     local paddingFromScreenEdgeBottom = 20
@@ -206,6 +212,7 @@ function HUDGameplayManager:update(dt)
         if self.playerHPBar then self.playerHPBar:update(dt) end
         if self.skillsDisplay then self.skillsDisplay:update(dt) end
         if self.extractionProgressBar then self.extractionProgressBar:update(dt) end
+        self.dashIndicator:update(0, 0, 0)
         return
     end
 
@@ -314,6 +321,12 @@ function HUDGameplayManager:update(dt)
     self.skillsDisplay:update(dt)
     BossHealthBarManager:update(dt)
 
+    -- Atualização do Indicador de Dash
+    if self.dashIndicator and playerManager.dashController then
+        local available, total, progress = playerManager.dashController:getDashStatus()
+        self.dashIndicator:update(available, total, progress)
+    end
+
     if self.extractionProgressBar then
         self.extractionProgressBar:update(dt)
     end
@@ -322,14 +335,20 @@ end
 --- Desenha todos os elementos da UI gerenciados.
 ---@param isPaused boolean Se o jogo está pausado.
 function HUDGameplayManager:draw(isPaused)
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
-    local playerScreenX, playerScreenY = Camera:worldToScreen(playerManager.player.position.x,
-        playerManager.player.position.y)
+    local playerScreenX, playerScreenY = Camera:worldToScreen(
+        playerManager.player.position.x,
+        playerManager.player.position.y
+    )
     self.progressLevelBar:draw()
     self.playerHPBar:draw()
     self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
     self.skillsDisplay:draw()
     BossHealthBarManager:draw()
+
+    -- Desenha o indicador de dash
+    self.dashIndicator:draw(playerScreenX, playerScreenY)
 
     self.extractionProgressBar:draw()
 

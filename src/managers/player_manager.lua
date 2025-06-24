@@ -13,6 +13,7 @@ local FloatingText = require("src.entities.floating_text")
 local Colors = require("src.ui.colors")
 local RenderPipeline = require("src.core.render_pipeline")
 local TablePool = require("src.utils.table_pool")
+local DashController = require('src.controllers.dash_controller')
 
 ---@class FinalStats
 ---@field health number Vida máxima final.
@@ -34,6 +35,10 @@ local TablePool = require("src.utils.table_pool")
 ---@field runeSlots number Quantidade final de slots de runa.
 ---@field luck number Sorte final (multiplicador).
 ---@field weaponDamage number Dano final da arma (calculado).
+---@field dashCharges number Cargas de dash.
+---@field dashCooldown number Cooldown para recarregar uma carga de dash.
+---@field dashDistance number Distância do dash.
+---@field dashDuration number Duração do dash.
 ---@field _baseWeaponDamage number Dano base da arma (antes de multiplicadores).
 ---@field _playerDamageMultiplier number Multiplicador de dano total do jogador.
 ---@field _levelBonus table<string, number>|nil Bônus de atributos ganhos por level up (formato: {statKey = value}).
@@ -91,6 +96,9 @@ local PlayerManager = {
     isLevelingUp = false,
     levelUpAnimation = nil,
 
+    -- "Mini-Managers" / Controladores
+    dashController = nil, ---@type DashController
+
     -- Level Up Modal Management
     pendingLevelUps = 0, -- << NOVO: Contador para level ups pendentes
 
@@ -139,12 +147,24 @@ function PlayerManager:new()
     instance.radius = 25
     instance.lastMouseX = 0
     instance.lastMouseY = 0
+
+    -- Estado do Dash
+    instance.isDashing = false
+    instance.dashCooldowns = {}
+    instance.dashDirection = { x = 0, y = 0 }
+    instance.dashSpeed = 0
+    instance.dashTimer = 0
+    instance.dashTrail = {}
+    instance.dashTrailTimer = 0
+
     instance.originalAutoAttackState = false
     instance.originalAutoAimState = false
     instance.previousLeftButtonState = false
     instance.equippedWeapon = nil ---@class BaseWeapon
     instance.isLevelingUp = false
     instance.levelUpAnimation = LevelUpAnimation:new() -- Cria a instância da animação aqui
+
+    instance.dashController = nil
 
     -- Carrega recursos do player sprite (pode ser feito uma vez globalmente também)
     SpritePlayer.load()
@@ -303,6 +323,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
 
     -- 7. Inicializa outros componentes que dependem do PlayerManager
     LevelUpModal:init(self, self.inputManager)
+    self.dashController = DashController:new(self)
 
     print(string.format("[PlayerManager] Gameplay setup for hunter '%s' complete.", hunterData.name))
 
@@ -323,7 +344,10 @@ function PlayerManager:update(dt)
     self.gameTime = self.gameTime + dt
 
     -- Tenta mostrar o modal de level up se houver pendências e o modal não estiver visível
-    self:tryShowLevelUpModal() -- << NOVO: Chamada para gerenciar a fila de modais
+    self:tryShowLevelUpModal()
+
+    -- Atualiza os cooldowns e rastros do dash (rodando sempre)
+    self.dashController:update(dt)
 
     -- Gerenciamento do estado do botão esquerdo do mouse
     local currentLeftButtonState = self.inputManager.mouse.isLeftButtonDown
@@ -401,16 +425,21 @@ function PlayerManager:update(dt)
     -- Atualiza o auto attack, passando o ângulo calculado
     self:updateAutoAttack(currentAngle)
 
-    -- Atualiza o sprite do player passando a posição do alvo
-    -- TODO: SpritePlayer.update deve retornar a distância percorrida para o registro de estatísticas.
-    local distanceMoved = SpritePlayer.update(self.player, dt, targetPosition)
-    if distanceMoved and distanceMoved > 0 and self.gameStatisticsManager then
-        -- A unidade de distância aqui depende da implementação em SpritePlayer.
-        -- Supondo que a velocidade seja em "unidades por segundo", a distância estará correta.
-        -- A conversão para metros é feita no GameStatisticsManager.
-        -- Ex: se speed é pixels/sec, e 1 metro = 50 pixels, a conversão deve ser feita lá
-        -- ou aqui, dividindo por um fator (ex: 50).
-        self.gameStatisticsManager:registerMovement(distanceMoved)
+    -- Lógica de movimento: Dash ou Normal
+    if not self.dashController:isOnDash() then
+        -- Atualiza o sprite do player (movimento normal)
+        -- A animação não deve ser atualizada se estiver pausada pelo dash.
+        if self.player and (not self.player.animationPaused) then
+            local distanceMoved = SpritePlayer.update(self.player, dt, targetPosition)
+            if distanceMoved and distanceMoved > 0 and self.gameStatisticsManager then
+                -- A unidade de distância aqui depende da implementação em SpritePlayer.
+                -- Supondo que a velocidade seja em "unidades por segundo", a distância estará correta.
+                -- A conversão para metros é feita no GameStatisticsManager.
+                -- Ex: se speed é pixels/sec, e 1 metro = 50 pixels, a conversão deve ser feita lá
+                -- ou aqui, dividindo por um fator (ex: 50).
+                self.gameStatisticsManager:registerMovement(distanceMoved)
+            end
+        end
     end
 
     -- Atualiza a câmera
@@ -500,6 +529,9 @@ function PlayerManager:collectRenderables(renderPipeline)
 
         local isoY_ref_top = (worldX_eq + worldY_eq) * (Constants.TILE_HEIGHT / 2)
         local sortY = isoY_ref_top + Constants.TILE_HEIGHT
+
+        -- Adiciona o rastro do dash (desenhado por baixo do jogador)
+        self.dashController:collectRenderables(renderPipeline, sortY)
 
         -- Adiciona o jogador principal
         local renderableItem = TablePool.get()
@@ -716,29 +748,6 @@ function PlayerManager:getCollisionPosition()
         },
         radius = self.radius
     }
-end
-
--- NOTE: Funções equipWeapon e switchWeapon mantidas mas podem precisar de revisão/remoção
-
--- Adiciona ao final da função love.keypressed (MANTER por enquanto, mas switchWeapon pode não funcionar)
-function PlayerManager:keypressed(key)
-    -- Teclas numéricas para trocar armas (PODE NÃO FUNCIONAR MAIS)
-    if key >= "1" and key <= "9" then
-        -- local index = tonumber(key)
-        -- self:switchWeapon(index) -- Chamada removida/comentada pois depende de availableWeapons
-        print("AVISO: Troca de arma via teclas numéricas desabilitada temporariamente.")
-    end
-
-    -- Tecla de teste para subir de nível (F1)
-    if key == "f1" then
-        if self.state then -- Garante que o estado existe
-            print("[DEBUG] Adicionando XP para forçar level up...")
-            local xpNeeded = self.state.experienceToNextLevel - self.state.experience
-            self:addExperience(math.max(1, xpNeeded))
-        else
-            print("[DEBUG] ERRO: Não é possível adicionar XP, PlayerState não inicializado.")
-        end
-    end
 end
 
 -- Adiciona um item ao inventário do jogador.
@@ -1299,19 +1308,6 @@ end
 
 function PlayerManager:setInvincible(isInvincible)
     self.isInvincible = isInvincible
-end
-
-function PlayerManager:setPosition(newPosition)
-    if self.player and self.player.position then
-        self.player.position.x = newPosition.x
-        self.player.position.y = newPosition.y
-    end
-end
-
-function PlayerManager:setAlpha(alpha)
-    if self.player then
-        self.player.alpha = alpha
-    end
 end
 
 return PlayerManager

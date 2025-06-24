@@ -191,6 +191,16 @@ ArchetypesData.Archetypes = {
             { stat = "expBonus",     type = "percentage", value = 100 }
         }
     },
+    evasivo = {
+        id = "evasivo",
+        name = "Evasivo",
+        rank = "C",
+        description = "Recarrega o dash mais rápido e se move com mais agilidade.",
+        modifiers = {
+            { stat = "dashCooldown", type = "percentage", value = -15 }, -- Reduz o cooldown em 15%
+            { stat = "moveSpeed",    type = "percentage", value = 10 }
+        }
+    },
     -- Rank B
     executioner = {
         id = "executioner",
@@ -199,7 +209,8 @@ ArchetypesData.Archetypes = {
         description = "Chance crítica massiva ao custo de defesa.",
         modifiers = {
             { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.30 },
-            { stat = "defense",    type = "percentage",                   value = -10 }
+            { stat = "defense",    type = "percentage",                   value = -10 },
+            { stat = "attackArea", type = "percentage",                   value = 30 }
         }
     },
     atirador_elite = {
@@ -220,6 +231,16 @@ ArchetypesData.Archetypes = {
         modifiers = {
             { stat = "healthPerTick", type = "fixed",      value = 2 },
             { stat = "health",        type = "percentage", value = -10 }
+        }
+    },
+    ariete = {
+        id = "ariete",
+        name = "Aríete",
+        rank = "B",
+        description = "Avança uma distância muito maior, mas o dash demora mais para recarregar.",
+        modifiers = {
+            { stat = "dashDistance", type = "percentage", value = 100 },
+            { stat = "dashCooldown", type = "percentage", value = 25 } -- Aumenta o cooldown em 25%
         }
     },
     -- Rank A

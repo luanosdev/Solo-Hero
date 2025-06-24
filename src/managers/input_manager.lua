@@ -163,6 +163,7 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
         if key == "x" then playerManager:toggleAbilityAutoAttack() end
         if key == "z" then playerManager:toggleAutoAim() end
         if key == "v" then playerManager:toggleAttackPreview() end
+        if key == "space" then playerManager.dashController:tryDash() end
     end
 
     return false -- Indica que o input não foi exclusivamente tratado por um modal/inventário
@@ -188,6 +189,7 @@ function InputManager:mousepressed(x, y, button, isGamePaused)                  
     if isGamePaused or isUIBlockingInput then return false end
 
     -- 3. Processa cliques do jogo
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
     if not self.actionsEnabled then return false end
     if button == 1 then                        -- Botão esquerdo
@@ -215,6 +217,7 @@ function InputManager:mousereleased(x, y, button, isGamePaused) -- Recebe estado
     if isGamePaused or isUIBlockingInput then return false end
 
     -- 3. Processa liberação de clique do jogo
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
     if button == 1 then                     -- Botão esquerdo
         self.mouse.isLeftButtonDown = false -- Define o estado 'segurado' como falso
@@ -282,6 +285,24 @@ end
 
 function InputManager:setActionsEnabled(enabled)
     self.actionsEnabled = enabled
+end
+
+--- Retorna um vetor de movimento normalizado com base nas teclas pressionadas.
+---@return {x: number, y: number} vector O vetor de movimento.
+function InputManager:getMovementVector()
+    local moveX, moveY = 0, 0
+    if self.keys.moveUp then moveY = moveY - 1 end
+    if self.keys.moveDown then moveY = moveY + 1 end
+    if self.keys.moveLeft then moveX = moveX - 1 end
+    if self.keys.moveRight then moveX = moveX + 1 end
+
+    -- Normaliza o vetor de movimento para evitar velocidade maior na diagonal
+    if moveX ~= 0 or moveY ~= 0 then
+        local length = math.sqrt(moveX * moveX + moveY * moveY)
+        return { x = moveX / length, y = moveY / length }
+    end
+
+    return { x = 0, y = 0 }
 end
 
 -- Retorna a tabela do módulo para que possa ser usada com require

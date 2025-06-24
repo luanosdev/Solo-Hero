@@ -126,7 +126,6 @@ function ExtractionManager:reset(portalData)
 
     local playerManager = ManagerRegistry:get("playerManager")
     playerManager:setInvincible(false)
-    playerManager:setAlpha(1)
 end
 
 --- Logic moved from GameplayScene
@@ -198,7 +197,7 @@ function ExtractionManager:requestUseItem(itemInstance)
         self:startExtractionSequence({
             type = 'item',
             source = playerManager.player.position,
-            duration = 3.5, -- Standard duration for item teleport effect
+            duration = 2.5, -- Standard duration for item teleport effect
             details = useDetails
         })
     end

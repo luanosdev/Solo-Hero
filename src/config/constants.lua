@@ -56,6 +56,11 @@ Constants.HUNTER_DEFAULT_STATS = {
     runeSlots = 3,             -- Number of rune slots
     luck = 1.0,                -- Multiplier (1.0 = 100% luck)
     strength = 1.0,            -- Multiplier (1.0 = 100% strength)
+    -- Atributos de Dash
+    dashCharges = 2,           -- Quantidade de cargas de dash
+    dashCooldown = 5.0,        -- Tempo em segundos para recuperar uma carga
+    dashDistance = 150,        -- Distância em pixels que o dash percorre
+    dashDuration = 0.2,        -- Duração do dash em segundos
 }
 
 Constants.ENEMY_SPRITE_SIZES = {

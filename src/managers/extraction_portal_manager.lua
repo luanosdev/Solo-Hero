@@ -92,7 +92,7 @@ function ExtractionPortalManager:update(dt)
                 extractionManager:startExtractionSequence({
                     type = 'portal',
                     source = portal,
-                    duration = 3.5, -- Duração total da sequência do portal
+                    duration = 2.5, -- Duração total da sequência do portal
                     details = { portalData = portal.portalData }
                 })
             end

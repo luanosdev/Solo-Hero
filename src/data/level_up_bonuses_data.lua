@@ -105,7 +105,7 @@ LevelUpBonusesData.Bonuses = {
         max_level = 5,
         modifiers_per_level = {
             { stat = "strength", type = "fixed", value = 5 },
-            { stat = "defense", type = "fixed", value = 5}
+            { stat = "defense",  type = "fixed", value = 5 }
         },
         tags = { "ofensivo", "forca", "dano", "combo" }
     },
@@ -367,6 +367,66 @@ LevelUpBonusesData.Bonuses = {
         },
         tags = { "utilidade", "alcance", "dano", "combo" }
     },
+
+    -- Bônus de Ataque Múltiplo
+    multi_attack_chance_1 = {
+        id = "multi_attack_chance_1",
+        name = "Golpes Ecoantes",
+        description_template = "Aumenta a Chance de Ataque Múltiplo em 10%.",
+        icon = "MA+",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "multiAttackChance", type = "fixed_percentage_as_fraction", value = 0.10 }
+        },
+        tags = { "ofensivo", "multi_ataque", "chance" }
+    },
+    multi_attack_frenzy_1 = {
+        id = "multi_attack_frenzy_1",
+        name = "Frenesi de Golpes",
+        description_template = "Aumenta a Chance de Ataque Múltiplo em 10%, mas reduz a Chance de Crítico em 5%.",
+        icon = "MA!",
+        max_level = 5,
+        modifiers_per_level = {
+            { stat = "multiAttackChance", type = "fixed_percentage_as_fraction", value = 0.10 },
+            { stat = "critChance",        type = "fixed_percentage_as_fraction", value = -0.05 }
+        },
+        tags = { "ofensivo", "multi_ataque", "chance", "risco", "negativo" }
+    },
+
+    -- Bônus de Dash
+    dash_cooldown_reduction_1 = {
+        id = "dash_cooldown_reduction_1",
+        name = "Passo Rápido",
+        description_template = "Reduz a Recarga do Dash em 8%.",
+        icon = "DSH-",
+        max_level = 5,
+        modifiers_per_level = {
+            { stat = "dashCooldown", type = "percentage", value = -8 }
+        },
+        tags = { "mobilidade", "dash", "cooldown" }
+    },
+    dash_distance_increase_1 = {
+        id = "dash_distance_increase_1",
+        name = "Salto Longo",
+        description_template = "Aumenta a Distância do Dash em 15%.",
+        icon = "DSH+",
+        max_level = 5,
+        modifiers_per_level = {
+            { stat = "dashDistance", type = "percentage", value = 15 }
+        },
+        tags = { "mobilidade", "dash", "distancia" }
+    },
+    dash_extra_charge_1 = {
+        id = "dash_extra_charge_1",
+        name = "Carga Extra",
+        description_template = "Adiciona +1 Carga de Dash.",
+        icon = "DSH*",
+        max_level = 2, -- Máximo de 2 cargas extras por este bônus
+        modifiers_per_level = {
+            { stat = "dashCharges", type = "fixed", value = 1 }
+        },
+        tags = { "mobilidade", "dash", "cargas" }
+    }
 }
 
 
