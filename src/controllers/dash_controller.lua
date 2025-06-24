@@ -187,33 +187,22 @@ end
 --- Retorna o estado atual do cooldown do dash.
 ---@return number availableCharges O número de cargas prontas.
 ---@return number totalCharges O número total de cargas.
----@return number progress O progresso (0-1) da recarga da próxima carga.
+---@return table cooldownProgresses Uma tabela com o progresso (0-1) de cada carga em recarga.
 function DashController:getDashStatus()
     local finalStats = self.playerManager:getCurrentFinalStats()
     local totalCharges = math.floor(finalStats.dashCharges or 1)
-    local chargesInCooldown = #self.dashCooldowns
-    local availableCharges = totalCharges - chargesInCooldown
+    local availableCharges = totalCharges - #self.dashCooldowns
 
-    if availableCharges > 0 then
-        return availableCharges, totalCharges, 1.0 -- Pelo menos uma carga pronta. Progresso é 1.
-    end
-
-    if chargesInCooldown == 0 then
-        -- Sem cargas disponíveis e sem cargas recarregando (pode acontecer se totalCharges for 0)
-        return 0, totalCharges, 1.0
-    end
-
-    -- Encontra o cooldown que terminará primeiro (o que tem menos tempo restante)
     local maxCooldownTime = finalStats.dashCooldown
-    local firstCooldownToEnd = maxCooldownTime
-    for _, cooldown in ipairs(self.dashCooldowns) do
-        if cooldown < firstCooldownToEnd then
-            firstCooldownToEnd = cooldown
+    local progresses = {}
+    if maxCooldownTime > 0 then
+        for _, remainingTime in ipairs(self.dashCooldowns) do
+            local progress = 1.0 - (remainingTime / maxCooldownTime)
+            table.insert(progresses, math.max(0, math.min(1, progress)))
         end
     end
 
-    local progress = 1.0 - (firstCooldownToEnd / maxCooldownTime)
-    return 0, totalCharges, progress
+    return availableCharges, totalCharges, progresses
 end
 
 return DashController
