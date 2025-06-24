@@ -21,9 +21,9 @@ end
 function ExtractionPortalManager:spawnPortals()
     local playerManager = ManagerRegistry:get("playerManager")
     local playerPos = playerManager.player.position
-    local minPlayerDist = 1500 -- Minimum distance from player
-    local maxPlayerDist = 3000 -- Maximum distance from player
-    local minPortalDist = 1500 -- Minimum distance between portals
+    local minPlayerDist = 10000 -- Minimum distance from player
+    local maxPlayerDist = 15000 -- Maximum distance from player
+    local minPortalDist = 10000 -- Minimum distance between portals
     local numPortals = 2
     local attempts = 50        -- Max attempts to find a valid position
 
