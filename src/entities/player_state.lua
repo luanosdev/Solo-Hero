@@ -50,6 +50,11 @@ local PlayerState = {
     dashDistance = 0, -- Distância em pixels que o dash percorre
     dashDuration = 0, -- Duração do dash em segundos
 
+    -- Atributos do Sistema de Poções
+    potionFlasks = 1,      -- Quantidade de frascos de poção disponíveis
+    potionHealAmount = 50, -- Quantidade de HP restaurada por poção
+    potionFillRate = 1.0,  -- Multiplicador da velocidade de preenchimento dos frascos
+
     -- Bônus por nível (em porcentagem ou valor base, dependendo do stat)
     levelBonus = {
         health = 0,              -- %
@@ -76,7 +81,11 @@ local PlayerState = {
         dashCharges = 0,         -- Fixo
         dashCooldown = 0,        -- %
         dashDistance = 0,        -- %
-        dashDuration = 0         -- %
+        dashDuration = 0,        -- %
+        -- Poções
+        potionFlasks = 0,        -- Fixo
+        potionHealAmount = 0,    -- %
+        potionFillRate = 0       -- %
     },
 
     -- Bônus fixos (aditivos ou percentuais fixos, dependendo do stat)
@@ -106,7 +115,11 @@ local PlayerState = {
         dashCharges = 0,         -- Aditivo
         dashCooldown = 0,        -- Aditivo (para redução de tempo)
         dashDistance = 0,        -- Aditivo
-        dashDuration = 0         -- Aditivo
+        dashDuration = 0,        -- Aditivo
+        -- Poções
+        potionFlasks = 0,        -- Aditivo
+        potionHealAmount = 0,    -- Aditivo
+        potionFillRate = 0       -- Percentual fixo (ex: 0.25 = +25%)
     },
 
     -- Modificadores de status (ex: buffs/debuffs temporários)
@@ -143,6 +156,11 @@ function PlayerState:init(baseStats)
     self.dashCooldown = baseStats.dashCooldown or PlayerState.dashCooldown
     self.dashDistance = baseStats.dashDistance or PlayerState.dashDistance
     self.dashDuration = baseStats.dashDuration or PlayerState.dashDuration
+
+    -- Inicializa Atributos do Sistema de Poções
+    self.potionFlasks = baseStats.potionFlasks or PlayerState.potionFlasks
+    self.potionHealAmount = baseStats.potionHealAmount or PlayerState.potionHealAmount
+    self.potionFillRate = baseStats.potionFillRate or PlayerState.potionFillRate
 
     -- <<< CORREÇÃO: Armazena equippedItems e archetypeIds de baseStats >>>
     self.equippedItems = baseStats.equippedItems or {}
