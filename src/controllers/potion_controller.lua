@@ -90,7 +90,7 @@ function PotionController:update(dt)
     -- Preenchimento baseado em tempo
     local timeProgress = Constants.POTION_SYSTEM.TIME_FILL_RATE * self.currentFillRate * dt
 
-    -- Preenche frascos que não estão prontos
+    -- Preenche o primeiro frasco que não está pronto (sistema de fila)
     for i = 1, self.totalFlasks do
         if self.flasks[i] and not self.flasks[i].isReady then
             self.flasks[i].progress = self.flasks[i].progress + timeProgress
@@ -103,6 +103,7 @@ function PotionController:update(dt)
                     string.format("[PotionController:update] Frasco %d está pronto para uso", i)
                 )
             end
+            break -- Só preenche um frasco por vez (fila)
         end
     end
 end
@@ -132,7 +133,7 @@ end
 --- Tenta usar uma poção
 ---@return boolean hasUsedPotion true se uma poção foi usada com sucesso
 function PotionController:usePotion()
-    -- Procura o primeiro frasco pronto para uso
+    -- Usa o primeiro frasco pronto na fila
     for i = 1, self.totalFlasks do
         if self.flasks[i] and self.flasks[i].isReady then
             local finalStats = self.playerManager:getCurrentFinalStats()
@@ -164,9 +165,13 @@ function PotionController:usePotion()
                 TablePool.release(props)
             end
 
-            -- Esvazia o frasco
-            self.flasks[i].progress = 0.0
-            self.flasks[i].isReady = false
+            -- Remove o frasco usado e reorganiza a fila
+            table.remove(self.flasks, i)
+            -- Adiciona um novo frasco vazio no final
+            table.insert(self.flasks, {
+                progress = 0.0,
+                isReady = false
+            })
 
             Logger.info(
                 "potion_controller.use",

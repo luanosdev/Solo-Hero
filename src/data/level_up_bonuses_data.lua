@@ -426,6 +426,89 @@ LevelUpBonusesData.Bonuses = {
             { stat = "dashCharges", type = "fixed", value = 1 }
         },
         tags = { "mobilidade", "dash", "cargas" }
+    },
+
+    -- Bônus do Sistema de Poções
+    potion_capacity_1 = {
+        id = "potion_capacity_1",
+        name = "Capacidade Expandida",
+        description_template = "Adiciona +1 Frasco de Poção.",
+        icon = "POT+",
+        max_level = 3, -- Máximo de 3 frascos extras
+        modifiers_per_level = {
+            { stat = "potionFlasks", type = "fixed", value = 1 }
+        },
+        tags = { "defensivo", "pocoes", "capacidade" }
+    },
+    potion_potency_1_fixed = {
+        id = "potion_potency_1_fixed",
+        name = "Poções Concentradas",
+        description_template = "Aumenta a cura das poções em +15 HP.",
+        icon = "POT*",
+        max_level = 8,
+        modifiers_per_level = {
+            { stat = "potionHealAmount", type = "fixed", value = 15 }
+        },
+        tags = { "defensivo", "pocoes", "cura", "fixo" }
+    },
+    potion_speed_1 = {
+        id = "potion_speed_1",
+        name = "Destilação Rápida",
+        description_template = "Frascos enchem 25% mais rápido.",
+        icon = "POT>",
+        max_level = 8,
+        modifiers_per_level = {
+            { stat = "potionFillRate", type = "fixed_percentage_as_fraction", value = 0.25 }
+        },
+        tags = { "defensivo", "pocoes", "velocidade" }
+    },
+    potion_combo_1 = {
+        id = "potion_combo_1",
+        name = "Mestre Alquimista",
+        description_template = "Poções curam 15% mais e enchem 15% mais rápido.",
+        icon = "POT&",
+        max_level = 5,
+        modifiers_per_level = {
+            { stat = "potionHealAmount", type = "percentage",                   value = 15 },
+            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 0.15 }
+        },
+        tags = { "defensivo", "pocoes", "cura", "velocidade", "combo" }
+    },
+    potion_healing_synergy_1 = {
+        id = "potion_healing_synergy_1",
+        name = "Sinergia Curativa",
+        description_template = "Poções curam 10% mais e aumenta Bônus de Cura em 8%.",
+        icon = "POT+",
+        max_level = 6,
+        modifiers_per_level = {
+            { stat = "potionHealAmount", type = "percentage", value = 10 },
+            { stat = "healingBonus",     type = "percentage", value = 8 }
+        },
+        tags = { "defensivo", "pocoes", "cura", "healing_bonus", "combo" }
+    },
+    potion_risk_reward_1 = {
+        id = "potion_risk_reward_1",
+        name = "Elixir Instável",
+        description_template = "Poções curam 40% mais, mas frascos enchem 20% mais devagar.",
+        icon = "POT!",
+        max_level = 4,
+        modifiers_per_level = {
+            { stat = "potionHealAmount", type = "percentage",                   value = 40 },
+            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = -0.20 }
+        },
+        tags = { "defensivo", "pocoes", "cura", "velocidade", "risco", "negativo" }
+    },
+    potion_quantity_over_quality_1 = {
+        id = "potion_quantity_over_quality_1",
+        name = "Quantidade sobre Qualidade",
+        description_template = "Ganha +1 Frasco, mas cada poção cura 25% menos.",
+        icon = "POT#",
+        max_level = 2,
+        modifiers_per_level = {
+            { stat = "potionFlasks",     type = "fixed",      value = 1 },
+            { stat = "potionHealAmount", type = "percentage", value = -25 }
+        },
+        tags = { "defensivo", "pocoes", "capacidade", "cura", "risco", "negativo" }
     }
 }
 

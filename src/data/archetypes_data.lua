@@ -50,6 +50,15 @@ ArchetypesData.Archetypes = {
             { stat = "moveSpeed", type = "fixed", value = 20 }
         }
     },
+    alchemist_novice = {
+        id = "alchemist_novice",
+        name = "Alquimista Novato",
+        rank = "E",
+        description = "Conhecimento básico em poções, frascos enchem um pouco mais rápido.",
+        modifiers = {
+            { stat = "potionFillRate", type = "fixed_percentage_as_fraction", value = 0.1 } -- +10% velocidade preenchimento
+        }
+    },
     vigorous = {
         id = "vigorous",
         name = "Vigoroso",
@@ -86,6 +95,16 @@ ArchetypesData.Archetypes = {
             { stat = "strength", type = "fixed", value = 3 }
         }
     },
+    poison_resistant = {
+        id = "poison_resistant",
+        name = "Resistente a Venenos",
+        rank = "E",
+        description = "Imune a toxinas, mas poções são menos eficazes devido à resistência natural.",
+        modifiers = {
+            { stat = "potionHealAmount", type = "percentage", value = -20 },
+            { stat = "defense",          type = "fixed",      value = 20 }
+        }
+    },
     -- Rank D
     frenetic = {
         id = "frenetic",
@@ -94,6 +113,16 @@ ArchetypesData.Archetypes = {
         description = "Ataca com mais frequência.",
         modifiers = {
             { stat = "attackSpeed", type = "fixed_percentage_as_fraction", value = 0.06 }
+        }
+    },
+    field_medic = {
+        id = "field_medic",
+        name = "Médico de Campo",
+        rank = "D",
+        description = "Especialista em primeiros socorros, poções curam mais e enchem mais rápido.",
+        modifiers = {
+            { stat = "potionHealAmount", type = "fixed",                        value = 15 },
+            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 0.15 }
         }
     },
     cautious = {
@@ -124,6 +153,16 @@ ArchetypesData.Archetypes = {
             { stat = "cooldownReduction", type = "percentage", value = 7 }
         }
     },
+    bottle_warrior = {
+        id = "bottle_warrior",
+        name = "Guerreiro das Garrafas",
+        rank = "D",
+        description = "Carrega mais frascos que o normal, mas cada um cura menos.",
+        modifiers = {
+            { stat = "potionFlasks",     type = "fixed",      value = 1 },
+            { stat = "potionHealAmount", type = "percentage", value = -15 }
+        }
+    },
     -- Rank C
     determined = {
         id = "determined",
@@ -132,6 +171,16 @@ ArchetypesData.Archetypes = {
         description = "Velocidade de ataque consistentemente maior.",
         modifiers = {
             { stat = "attackSpeed", type = "percentage", value = 12 }
+        }
+    },
+    alchemist_adept = {
+        id = "alchemist_adept",
+        name = "Alquimista Adepto",
+        rank = "C",
+        description = "Domínio intermediário em alquimia, ganha um frasco adicional e cura aprimorada.",
+        modifiers = {
+            { stat = "potionFlasks",     type = "fixed",      value = 1 },
+            { stat = "potionHealAmount", type = "percentage", value = 25 }
         }
     },
     predestined = {
@@ -213,6 +262,17 @@ ArchetypesData.Archetypes = {
             { stat = "attackArea", type = "percentage",                   value = 30 }
         }
     },
+    combat_pharmacist = {
+        id = "combat_pharmacist",
+        name = "Farmacêutico de Combate",
+        rank = "B",
+        description = "Especialista em química médica, frascos enchem muito mais rápido e curam significativamente mais.",
+        modifiers = {
+            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 0.5 }, -- +50% velocidade
+            { stat = "potionHealAmount", type = "fixed",                        value = 35 },
+            { stat = "healingBonus",     type = "percentage",                   value = 15 }
+        }
+    },
     atirador_elite = {
         id = "atirador_elite",
         name = "Atirador de Elite",
@@ -255,15 +315,15 @@ ArchetypesData.Archetypes = {
             { stat = "attackSpeed", type = "percentage",                   value = 10 }
         }
     },
-    berserker = {
-        id = "berserker",
-        name = "Berserker",
+    grand_alchemist = {
+        id = "grand_alchemist",
+        name = "Grande Alquimista",
         rank = "A",
-        description = "Velocidade de ataque e área de ataque aumentadas, mas menos defesa.",
+        description = "Mestre supremo da alquimia, ganha frascos extras e poções de qualidade superior.",
         modifiers = {
-            { stat = "attackSpeed", type = "percentage", value = 25 },
-            { stat = "attackArea",  type = "percentage", value = 20 },
-            { stat = "defense",     type = "percentage", value = -10 }
+            { stat = "potionFlasks",     type = "fixed",                        value = 2 },
+            { stat = "potionHealAmount", type = "percentage",                   value = 60 },
+            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 0.3 }
         }
     },
     mestre_das_runas = {
@@ -295,6 +355,18 @@ ArchetypesData.Archetypes = {
         description = "Vida drasticamente aumentada.",
         modifiers = {
             { stat = "health", type = "percentage", value = 60 }
+        }
+    },
+    elixir_master = {
+        id = "elixir_master",
+        name = "Mestre dos Elixires",
+        rank = "S",
+        description = "Transcendeu a alquimia comum, seus frascos são lendários e se regeneram quase instantaneamente.",
+        modifiers = {
+            { stat = "potionFlasks",     type = "fixed",                        value = 3 },
+            { stat = "potionHealAmount", type = "percentage",                   value = 100 },
+            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 1.0 }, -- +100% velocidade
+            { stat = "healingBonus",     type = "percentage",                   value = 50 }
         }
     },
     demon = {

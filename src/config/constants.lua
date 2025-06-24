@@ -136,11 +136,16 @@ Constants.HIT_COST = {
 
 -- Constantes do Sistema de Poções
 Constants.POTION_SYSTEM = {
-    BASE_FILL_TIME = 60.0,      -- Tempo base em segundos para encher um frasco completamente
-    ENEMY_KILL_PROGRESS = 0.01, -- Progresso por inimigo derrotado (8% por kill)
-    TIME_FILL_RATE = 0.02,      -- Progresso por segundo baseado em tempo (2% por segundo)
-    MIN_FILL_RATE = 0.5,        -- Taxa mínima de preenchimento (não pode ser menor que 50%)
-    MAX_FILL_RATE = 3.0,        -- Taxa máxima de preenchimento (não pode ser maior que 300%)
+    -- Tempo base em segundos para encher um frasco completamente
+    BASE_FILL_TIME = 60.0,
+    -- Progresso por inimigo derrotado (0.5% por kill)
+    ENEMY_KILL_PROGRESS = 0.005,
+    -- Progresso por segundo baseado em tempo (2% por segundo)
+    TIME_FILL_RATE = 0.02,
+    -- Taxa mínima de preenchimento (não pode ser menor que 50%)
+    MIN_FILL_RATE = 0.5,
+    -- Taxa máxima de preenchimento (não pode ser maior que 300%)
+    MAX_FILL_RATE = 3.0,
 }
 
 return Constants

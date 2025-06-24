@@ -23,8 +23,8 @@ local PotionFlasksDisplay = {}
 PotionFlasksDisplay.__index = PotionFlasksDisplay
 
 ---@class PotionFlasksDisplayConfig
----@field x number Posição X
----@field y number Posição Y
+---@field x? number Posição X
+---@field y? number Posição Y
 ---@field flaskWidth number Largura de cada frasco individual
 ---@field flaskHeight number Altura de cada frasco individual
 ---@field spacing number Espaçamento entre frascos
@@ -90,21 +90,12 @@ function PotionFlasksDisplay:draw(readyFlasks, totalFlasks, flasksInfo)
     love.graphics.push()
     love.graphics.translate(self.x, self.y)
 
-    -- Desenha cada frasco
+    -- Desenha cada frasco individualmente respeitando a fila
     for i = 1, totalFlasks do
         local flaskX = (i - 1) * (self.flaskWidth + self.spacing)
         local flaskInfo = flasksInfo[i] or { progress = 0, isReady = false }
 
-        self:drawSingleFlask(flaskX, 0, flaskInfo)
-    end
-
-    -- Desenha texto informativo (opcional)
-    if readyFlasks > 0 then
-        love.graphics.setFont(fonts.main_small)
-        love.graphics.setColor(Colors.potion.counter_text)
-        local text = string.format("%d/%d", readyFlasks, totalFlasks)
-        local textWidth = fonts.main_small:getWidth(text)
-        love.graphics.print(text, self.width / 2 - textWidth / 2, self.flaskHeight + 5)
+        self:drawSingleFlask(flaskX, 0, flaskInfo, i)
     end
 
     love.graphics.pop()
@@ -114,7 +105,8 @@ end
 ---@param x number Posição X do frasco
 ---@param y number Posição Y do frasco
 ---@param flaskInfo PotionFlask Informações do frasco
-function PotionFlasksDisplay:drawSingleFlask(x, y, flaskInfo)
+---@param flaskIndex number Índice do frasco (para animações individuais)
+function PotionFlasksDisplay:drawSingleFlask(x, y, flaskInfo, flaskIndex)
     local progress = flaskInfo.progress or 0
     local isReady = flaskInfo.isReady or false
 
@@ -188,33 +180,27 @@ function PotionFlasksDisplay:drawSingleFlask(x, y, flaskInfo)
         end
     end
 
-    -- Animação de bolhas para frascos prontos
+    -- Efeito de sombra animada para frascos prontos (intercala opacidade simulando brilho)
     if isReady then
-        local bubbleTime = self.animationTimer * 3
-        for bubbleIdx = 1, 2 do
-            local bubbleOffset = (bubbleIdx - 1) * 1.5
-            local bubbleY = y + self.flaskHeight - 15 + math.sin(bubbleTime + bubbleOffset) * 3
-            local bubbleX = x + self.flaskWidth / 2 + math.cos(bubbleTime + bubbleOffset) * 2
+        local glowTime = self.animationTimer * 2 + (flaskIndex - 1) * 0.3 -- Offset por frasco
+        local glowIntensity = (math.sin(glowTime) + 1) * 0.5              -- 0 a 1
 
-            if flashIntensity > 0 then
-                love.graphics.setColor(Colors.potion.bubble_ready_flash)
-            else
-                love.graphics.setColor(Colors.potion.bubble_ready)
-            end
-            love.graphics.circle("fill", bubbleX, bubbleY, 1.5)
+        -- Sombra interna com opacidade variável
+        local shadowOpacity = 0.3 + glowIntensity * 0.4
+        love.graphics.setColor(Colors.potion.liquid_ready_glow[1],
+            Colors.potion.liquid_ready_glow[2],
+            Colors.potion.liquid_ready_glow[3],
+            shadowOpacity)
+
+        -- Desenha sombra cobrindo toda a área do líquido
+        if progress > 0 then
+            local liquidHeight = (flaskBodyHeight - 4) * progress
+            local liquidY = flaskBodyY + flaskBodyHeight - liquidHeight - 2
+            love.graphics.rectangle("fill", flaskBodyX + 2, liquidY, flaskBodyWidth - 4, liquidHeight, 2, 2)
         end
     end
 
-    -- Porcentagem (apenas se não estiver pronto)
-    if not isReady and progress > 0.1 then
-        love.graphics.setFont(fonts.main_small)
-        love.graphics.setColor(Colors.potion.percentage_text)
-        local percentText = string.format("%d%%", math.floor(progress * 100))
-        local textWidth = fonts.main_small:getWidth(percentText)
-        love.graphics.print(percentText, x + (self.flaskWidth - textWidth) / 2, y + self.flaskHeight / 2 - 4)
-    end
-
-    -- Ícone de "pronto" quando disponível
+    -- Ícone de "pronto" quando disponível (sem porcentagem)
     if isReady then
         love.graphics.setFont(fonts.main_small)
         love.graphics.setColor(Colors.potion.ready_icon)

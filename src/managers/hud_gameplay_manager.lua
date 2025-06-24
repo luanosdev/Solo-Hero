@@ -94,7 +94,6 @@ function HUDGameplayManager:setupGameplay()
         fontRank = xpGainFont,
         fontHPValues = love.graphics.newFont(mainFont:getHeight() * 1.2),
         fontHPChange = mainFont,
-        padding = { vertical = 6, horizontal = 10 },
         colors = {
             name = { 220, 220, 230, 255 },
             rank = { 180, 180, 190, 255 },
@@ -127,7 +126,6 @@ function HUDGameplayManager:setupGameplay()
         xpForNextLevel = function(level_from_bar)
             return playerManager:getExperienceRequiredForLevel(level_from_bar)
         end,
-        padding = { vertical = 6, horizontal = 10 },
         colors = {
             levelText = { 210, 210, 220, 255 },
             levelNumber = { 130, 90, 255, 255 },
@@ -157,26 +155,26 @@ function HUDGameplayManager:setupGameplay()
     })
 
     -- Posicionamento dinâmico das barras
-    local paddingFromScreenEdgeX = 20
+    local paddingFromScreenEdgeX = 30
     local paddingFromScreenEdgeBottom = 20
     local spacingBetweenBars = 8
 
     self.playerHPBar:setWidth(hpBarConfig.w)
+    -- Posiciona o display de poções na parte inferior
+    self.potionDisplay:setPosition(
+        paddingFromScreenEdgeX + 10,
+        screenHeight - paddingFromScreenEdgeBottom - self.potionDisplay.height
+    )
+
     self.playerHPBar:setPosition(
         paddingFromScreenEdgeX,
-        screenHeight - paddingFromScreenEdgeBottom - self.playerHPBar.height
+        self.potionDisplay.y - spacingBetweenBars - self.playerHPBar.height
     )
 
     self.progressLevelBar:setWidth(xpBarConfig.w)
     self.progressLevelBar:setPosition(
         paddingFromScreenEdgeX,
         self.playerHPBar.y - spacingBetweenBars - self.progressLevelBar.height
-    )
-
-    -- Posiciona o display de poções acima da barra de XP
-    self.potionDisplay:setPosition(
-        paddingFromScreenEdgeX,
-        self.progressLevelBar.y - spacingBetweenBars - self.potionDisplay.height
     )
 
     -- Sincronização inicial dos valores rastreados para XP
@@ -228,7 +226,7 @@ function HUDGameplayManager:update(dt)
         if self.playerHPBar then self.playerHPBar:update(dt) end
         if self.skillsDisplay then self.skillsDisplay:update(dt) end
         if self.extractionProgressBar then self.extractionProgressBar:update(dt) end
-        self.dashIndicator:update(0, 0, 0)
+        self.dashIndicator:update(0, 0, {})
         if self.potionDisplay then self.potionDisplay:update(dt, 0, 0, {}) end
         return
     end
@@ -310,10 +308,10 @@ function HUDGameplayManager:update(dt)
     end
 
     if needsHpBarReposition then
-        -- Reposiciona HPBar primeiro para que sua altura seja finalizada
+        -- Reposiciona HPBar acima do display de poções
         self.playerHPBar:setPosition(
             self.playerHPBar.x, -- Mantem X atual
-            screenHeight - paddingFromScreenEdgeBottom - self.playerHPBar.height
+            self.potionDisplay.y - spacingBetweenBars - self.playerHPBar.height
         )
         -- Então reposiciona a ProgressLevelBar acima da HPBar
         self.progressLevelBar:setPosition(

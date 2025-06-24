@@ -191,10 +191,6 @@ local colors = {
         liquid_ready_glow = { 0.3, 0.9, 0.4, 0.4 },      -- Brilho verde sutil no topo
         liquid_ready_flash = { 0.4, 1.0, 0.5, 0.6 },     -- Verde brilhante para flash
 
-        -- Efeitos especiais
-        bubble_ready = { 0.7, 1.0, 0.8, 0.4 },        -- Bolhas verdes translúcidas
-        bubble_ready_flash = { 0.9, 1.0, 0.95, 0.6 }, -- Bolhas mais brilhantes no flash
-
         -- Texto
         counter_text = { 0.8, 0.85, 0.9, 1.0 },   -- Texto do contador (branco azulado)
         percentage_text = { 0.9, 0.9, 0.9, 1.0 }, -- Texto de porcentagem
