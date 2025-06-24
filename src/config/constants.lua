@@ -61,6 +61,10 @@ Constants.HUNTER_DEFAULT_STATS = {
     dashCooldown = 8.0,        -- Tempo em segundos para recuperar uma carga
     dashDistance = 100,        -- Distância em pixels que o dash percorre
     dashDuration = 0.1,        -- Duração do dash em segundos
+    -- Atributos de Poções
+    potionFlasks = 1,          -- Quantidade de frascos de poção
+    potionHealAmount = 50,     -- Vida recuperada por frasco
+    potionFillRate = 1.0,      -- Multiplicador da velocidade de preenchimento (1.0 = normal)
 }
 
 Constants.ENEMY_SPRITE_SIZES = {
@@ -128,6 +132,15 @@ Constants.HIT_COST = {
     BULLET = 0.4,
     ARROW = 0.8,
     FIRE_PARTICLE = 0.6,
+}
+
+-- Constantes do Sistema de Poções
+Constants.POTION_SYSTEM = {
+    BASE_FILL_TIME = 60.0,      -- Tempo base em segundos para encher um frasco completamente
+    ENEMY_KILL_PROGRESS = 0.01, -- Progresso por inimigo derrotado (8% por kill)
+    TIME_FILL_RATE = 0.02,      -- Progresso por segundo baseado em tempo (2% por segundo)
+    MIN_FILL_RATE = 0.5,        -- Taxa mínima de preenchimento (não pode ser menor que 50%)
+    MAX_FILL_RATE = 3.0,        -- Taxa máxima de preenchimento (não pode ser maior que 300%)
 }
 
 return Constants

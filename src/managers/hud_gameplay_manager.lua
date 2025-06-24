@@ -8,6 +8,7 @@ local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
 local OffscreenIndicator = require("src.ui.components.offscreen_indicator")
 local ExtractionProgressBar = require("src.ui.components.extraction_progress_bar")
 local DashCooldownIndicator = require("src.ui.components.dash_cooldown_indicator")
+local PotionFlasksDisplay = require("src.ui.components.potion_flasks_display")
 
 ---@class HUDGameplayManager
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
@@ -16,6 +17,7 @@ local DashCooldownIndicator = require("src.ui.components.dash_cooldown_indicator
 ---@field portalIndicators table Armazena os indicadores de portal.
 ---@field extractionProgressBar ExtractionProgressBar|nil Instância da barra de progresso de extração.
 ---@field dashIndicator DashCooldownIndicator|nil Instância do indicador de cooldown de dash.
+---@field potionDisplay PotionFlasksDisplay|nil Instância do display de frascos de poção.
 ---@field lastPlayerLevel number Armazena o nível do jogador no frame anterior.
 ---@field lastPlayerXPInLevel number Armazena o XP do jogador DENTRO do nível no frame anterior.
 ---@field lastTotalPlayerXP number Armazena o XP TOTAL ACUMULADO do jogador no frame anterior.
@@ -32,6 +34,7 @@ local HUDGameplayManager = {
     portalIndicators = {},
     extractionProgressBar = nil,
     dashIndicator = nil,
+    potionDisplay = nil,
     lastPlayerLevel = 0,
     lastPlayerXPInLevel = 0,
     lastTotalPlayerXP = 0,
@@ -146,6 +149,13 @@ function HUDGameplayManager:setupGameplay()
     -- ADICIONADO: Configuração do Indicador de Dash
     self.dashIndicator = DashCooldownIndicator:new()
 
+    -- Configuração do Display de Poções
+    self.potionDisplay = PotionFlasksDisplay:new({
+        flaskWidth = 28,
+        flaskHeight = 42,
+        spacing = 6
+    })
+
     -- Posicionamento dinâmico das barras
     local paddingFromScreenEdgeX = 20
     local paddingFromScreenEdgeBottom = 20
@@ -161,6 +171,12 @@ function HUDGameplayManager:setupGameplay()
     self.progressLevelBar:setPosition(
         paddingFromScreenEdgeX,
         self.playerHPBar.y - spacingBetweenBars - self.progressLevelBar.height
+    )
+
+    -- Posiciona o display de poções acima da barra de XP
+    self.potionDisplay:setPosition(
+        paddingFromScreenEdgeX,
+        self.progressLevelBar.y - spacingBetweenBars - self.potionDisplay.height
     )
 
     -- Sincronização inicial dos valores rastreados para XP
@@ -213,6 +229,7 @@ function HUDGameplayManager:update(dt)
         if self.skillsDisplay then self.skillsDisplay:update(dt) end
         if self.extractionProgressBar then self.extractionProgressBar:update(dt) end
         self.dashIndicator:update(0, 0, 0)
+        if self.potionDisplay then self.potionDisplay:update(dt, 0, 0, {}) end
         return
     end
 
@@ -327,6 +344,20 @@ function HUDGameplayManager:update(dt)
         self.dashIndicator:update(available, total, progress)
     end
 
+    -- Atualização do Display de Poções
+    if self.potionDisplay and playerManager.potionController then
+        local readyFlasks, totalFlasks, flasksInfo = playerManager:getPotionStatus()
+        self.potionDisplay:update(dt, readyFlasks, totalFlasks, flasksInfo)
+
+        -- Reposiciona se necessário (quando barras mudam de tamanho/posição)
+        if needsHpBarReposition then
+            self.potionDisplay:setPosition(
+                self.potionDisplay.x, -- Mantém X atual
+                self.progressLevelBar.y - spacingBetweenBars - self.potionDisplay.height
+            )
+        end
+    end
+
     if self.extractionProgressBar then
         self.extractionProgressBar:update(dt)
     end
@@ -349,6 +380,12 @@ function HUDGameplayManager:draw(isPaused)
 
     -- Desenha o indicador de dash
     self.dashIndicator:draw(playerScreenX, playerScreenY, isPaused)
+
+    -- Desenha o display de poções
+    if self.potionDisplay and playerManager.potionController then
+        local readyFlasks, totalFlasks, flasksInfo = playerManager:getPotionStatus()
+        self.potionDisplay:draw(readyFlasks, totalFlasks, flasksInfo)
+    end
 
     self.extractionProgressBar:draw()
 

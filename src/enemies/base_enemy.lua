@@ -398,6 +398,13 @@ function BaseEnemy:takeDamage(amount, isCritical, isSuperCritical)
             gameStatsManager:registerEnemyDefeated(self:getEnemyType())
         end
 
+        -- Registra a morte do inimigo para o sistema de poções
+        ---@type PlayerManager
+        local playerManager = ManagerRegistry:get("playerManager")
+        if playerManager and playerManager.onEnemyKilled then
+            playerManager:onEnemyKilled()
+        end
+
         self:startDeathAnimation()
         return true
     end

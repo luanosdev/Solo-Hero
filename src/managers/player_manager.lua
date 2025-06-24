@@ -15,60 +15,90 @@ local RenderPipeline = require("src.core.render_pipeline")
 local TablePool = require("src.utils.table_pool")
 local DashController = require('src.controllers.dash_controller')
 local LevelUpEffectController = require('src.controllers.level_up_effect_controller')
+local PotionController = require('src.controllers.potion_controller')
+local lume = require('src.libs.lume')
 
----@class FinalStats
----@field health number Vida máxima final.
----@field attackSpeed number Velocidade de ataque final (ataques por segundo).
----@field moveSpeed number Velocidade de movimento final.
----@field critChance number Chance de crítico final (fração, ex: 0.10 para 10%).
----@field critDamage number Dano crítico final (multiplicador, ex: 1.5 para 150%).
----@field multiAttackChance number Chance de ataque múltiplo final (fração).
----@field expBonus number Bônus de experiência final (multiplicador, ex: 1.0 para 100%).
----@field defense number Defesa final.
----@field healthRegenCooldown number Cooldown de regeneração de vida (segundos).
----@field healthPerTick number Regeneração de vida por tick/segundo final.
----@field healthRegenDelay number Atraso para iniciar a regeneração de vida após dano (segundos).
----@field cooldownReduction number Redução de cooldown final (multiplicador, ex: 1.0 para nenhuma redução).
----@field range number Alcance final (multiplicador).
----@field attackArea number Área de ataque final (multiplicador).
----@field pickupRadius number Raio de coleta final.
----@field healingBonus number Bônus de cura recebida final (multiplicador).
----@field runeSlots number Quantidade final de slots de runa.
----@field luck number Sorte final (multiplicador).
----@field weaponDamage number Dano final da arma (calculado).
----@field dashCharges number Cargas de dash.
----@field dashCooldown number Cooldown para recarregar uma carga de dash.
----@field dashDistance number Distância do dash.
----@field dashDuration number Duração do dash.
----@field _baseWeaponDamage number Dano base da arma (antes de multiplicadores).
----@field _playerDamageMultiplier number Multiplicador de dano total do jogador.
----@field _levelBonus table<string, number>|nil Bônus de atributos ganhos por level up (formato: {statKey = value}).
----@field _fixedBonus table<string, number>|nil Bônus fixos de atributos de outras fontes (formato: {statKey = value}).
----@field _learnedLevelUpBonuses table<string, any>|nil Detalhes dos bônus de level up aprendidos.
----@field equippedItems table<string, any>|nil Itens equipados (formato: {slotId = itemInstance}).
----@field archetypeIds table[]|nil IDs dos arquétipos ativos.
----@field strength number Força final.
+---@alias StatKey string Chave de stat para modificadores
+---@alias ItemSlotId string ID de slot de equipamento
+---@alias ArchetypeId string ID de arquétipo
 
--- Função auxiliar para contar elementos em qualquer tabela (inclusive dicionários)
-local function getTableSize(tbl)
-    local count = 0
-    for _ in pairs(tbl) do
-        count = count + 1
-    end
-    return count
-end
+---@class LevelBonus
+---@field [StatKey] number Bônus de stat por level up
+
+---@class FixedBonus
+---@field [StatKey] number Bônus fixo de stat
+
+---@class LearnedLevelUpBonus
+---@field [StatKey] any Detalhes dos bônus aprendidos
+
+---@class EquippedItem
+---@field itemBaseId string ID base do item
+---@field [string] any Outras propriedades do item
+
+---@class EquippedItems
+---@field [ItemSlotId] EquippedItem Itens equipados por slot
+
+---@class ArchetypeInfo
+---@field id ArchetypeId ID do arquétipo
+---@field [string] any Outras informações do arquétipo
+
+---@class FinalStats Estatísticas finais calculadas do hunter após todos os modificadores
+---@field health number Vida máxima final
+---@field attackSpeed number Velocidade de ataque final (ataques por segundo)
+---@field moveSpeed number Velocidade de movimento final
+---@field critChance number Chance de crítico final (fração, ex: 0.10 para 10%)
+---@field critDamage number Dano crítico final (multiplicador, ex: 1.5 para 150%)
+---@field multiAttackChance number Chance de ataque múltiplo final (fração)
+---@field expBonus number Bônus de experiência final (multiplicador, ex: 1.0 para 100%)
+---@field defense number Defesa final
+---@field healthRegenCooldown number Cooldown de regeneração de vida (segundos)
+---@field healthPerTick number Regeneração de vida por tick/segundo final
+---@field healthRegenDelay number Atraso para iniciar a regeneração de vida após dano (segundos)
+---@field cooldownReduction number Redução de cooldown final (multiplicador, ex: 1.0 para nenhuma redução)
+---@field range number Alcance final (multiplicador)
+---@field attackArea number Área de ataque final (multiplicador)
+---@field pickupRadius number Raio de coleta final
+---@field healingBonus number Bônus de cura recebida final (multiplicador)
+---@field runeSlots number Quantidade final de slots de runa
+---@field luck number Sorte final (multiplicador)
+---@field strength number Força final
+---@field weaponDamage number Dano final da arma (calculado)
+---@field dashCharges number Cargas de dash disponíveis
+---@field dashCooldown number Cooldown para recarregar uma carga de dash (segundos)
+---@field dashDistance number Distância do dash (pixels)
+---@field dashDuration number Duração do dash (segundos)
+---@field potionFlasks number Quantidade de frascos de poção disponíveis
+---@field potionHealAmount number Vida recuperada por frasco de poção
+---@field potionFillRate number Multiplicador da velocidade de preenchimento dos frascos
+---@field _baseWeaponDamage number Dano base da arma (antes de multiplicadores)
+---@field _playerDamageMultiplier number Multiplicador de dano total do jogador
+---@field _levelBonus LevelBonus|nil Bônus de atributos ganhos por level up
+---@field _fixedBonus FixedBonus|nil Bônus fixos de atributos de outras fontes
+---@field _learnedLevelUpBonuses LearnedLevelUpBonus|nil Detalhes dos bônus de level up aprendidos
+---@field equippedItems EquippedItems|nil Itens equipados por slot
+---@field archetypeIds ArchetypeInfo[]|nil Lista de arquétipos ativos
+
+---@class PlayerSprite
+---@field position Vector2D Posição do sprite do jogador
+---@field velocity Vector2D Velocidade atual do jogador
+---@field animationPaused boolean Se a animação está pausada
+---@field [string] any Outras propriedades do sprite
+
+---@class Vector2D
+---@field x number Coordenada X
+---@field y number Coordenada Y
 
 ---@class PlayerManager
 local PlayerManager = {
     -- Referência ao player sprite
-    player = nil, ---@type table
+    player = nil, ---@type PlayerSprite|nil
     -- Estado do player (será criado em setupGameplay)
-    state = nil, ---@class PlayerState
+    state = nil, ---@type PlayerState|nil
     isInvincible = false,
     -- Game Stats
     gameTime = 0,
     -- Tabela para guardar instâncias de habilidades de runas EQUIPADAS
-    activeRuneAbilities = {},
+    activeRuneAbilities = {}, ---@type table<ItemSlotId, any>
     -- Auto Attack
     autoAttack = false,
     autoAttackEnabled = false,
@@ -92,7 +122,7 @@ local PlayerManager = {
     previousLeftButtonState = false, -- Estado do botão esquerdo no frame anterior
 
     -- Weapons (equippedWeapon será definido em setupGameplay)
-    equippedWeapon = nil, ---@class BaseWeapon
+    equippedWeapon = nil, ---@type BaseWeapon|nil
     -- Level Up Animation
     isLevelingUp = false,
     levelUpAnimation = nil,
@@ -100,6 +130,7 @@ local PlayerManager = {
     -- "Mini-Managers" / Controladores
     dashController = nil, ---@type DashController
     levelUpEffectController = nil, ---@type LevelUpEffectController
+    potionController = nil, ---@type PotionController
 
     -- Level Up Modal Management
     pendingLevelUps = 0, -- << NOVO: Contador para level ups pendentes
@@ -113,14 +144,14 @@ local PlayerManager = {
     archetypeManager = nil, ---@type ArchetypeManager
     gameStatisticsManager = nil, ---@type GameStatisticsManager
 
-    currentHunterId = nil,
+    currentHunterId = nil, ---@type string|nil ID do caçador atual
 
-    finalStatsCache = nil,         -- Guarda a última tabela de stats calculada
-    statsNeedRecalculation = true, -- Flag para indicar se o cache precisa ser atualizado
+    finalStatsCache = nil, ---@type FinalStats|nil Guarda a última tabela de stats calculada
+    statsNeedRecalculation = true, ---@type boolean Flag para indicar se o cache precisa ser atualizado
 
-    activeFloatingTexts = {},
-    onPlayerDiedCallback = nil,
-    lastDamageSource = nil,
+    activeFloatingTexts = {}, ---@type any[] Lista de textos flutuantes ativos
+    onPlayerDiedCallback = nil, ---@type function|nil Callback chamado quando o jogador morre
+    lastDamageSource = nil, ---@type any|nil Última fonte de dano recebida
 }
 PlayerManager.__index = PlayerManager
 
@@ -150,15 +181,6 @@ function PlayerManager:new()
     instance.lastMouseX = 0
     instance.lastMouseY = 0
 
-    -- Estado do Dash
-    instance.isDashing = false
-    instance.dashCooldowns = {}
-    instance.dashDirection = { x = 0, y = 0 }
-    instance.dashSpeed = 0
-    instance.dashTimer = 0
-    instance.dashTrail = {}
-    instance.dashTrailTimer = 0
-
     instance.originalAutoAttackState = false
     instance.originalAutoAimState = false
     instance.previousLeftButtonState = false
@@ -168,6 +190,7 @@ function PlayerManager:new()
 
     instance.dashController = nil
     instance.levelUpEffectController = nil
+    instance.potionController = nil
 
     -- Carrega recursos do player sprite (pode ser feito uma vez globalmente também)
     SpritePlayer.load()
@@ -322,12 +345,13 @@ function PlayerManager:setupGameplay(registry, hunterId)
             end
         end
     end
-    print(string.format("  - Rune activation complete. %d active rune abilities.", getTableSize(self.activeRuneAbilities)))
+    print(string.format("  - Rune activation complete. %d active rune abilities.", #self.activeRuneAbilities))
 
     -- 7. Inicializa outros componentes que dependem do PlayerManager
     LevelUpModal:init(self, self.inputManager)
     self.dashController = DashController:new(self)
     self.levelUpEffectController = LevelUpEffectController:new(self)
+    self.potionController = PotionController:new(self)
 
     print(string.format("[PlayerManager] Gameplay setup for hunter '%s' complete.", hunterData.name))
 
@@ -353,6 +377,11 @@ function PlayerManager:update(dt)
     -- Atualiza o controlador de efeitos de level up
     if self.levelUpEffectController then
         self.levelUpEffectController:update(dt)
+    end
+
+    -- Atualiza o controlador de poções
+    if self.potionController then
+        self.potionController:update(dt)
     end
 
     -- Gerenciamento do estado do botão esquerdo do mouse
@@ -1347,6 +1376,42 @@ end
 
 function PlayerManager:setInvincible(isInvincible)
     self.isInvincible = isInvincible
+end
+
+--- Tenta usar uma poção de cura se disponível
+---@return boolean true se uma poção foi usada com sucesso
+function PlayerManager:usePotion()
+    if self.potionController then
+        return self.potionController:usePotion()
+    end
+    return false
+end
+
+--- Registra a eliminação de um inimigo para acelerar o preenchimento das poções
+function PlayerManager:onEnemyKilled()
+    if self.potionController then
+        self.potionController:onEnemyKilled()
+    end
+end
+
+--- Retorna o status dos frascos de poção
+---@return number readyFlasks Número de frascos prontos
+---@return number totalFlasks Número total de frascos
+---@return table flasksInfo Informações detalhadas de cada frasco
+function PlayerManager:getPotionStatus()
+    if self.potionController then
+        return self.potionController:getFlaskStatus()
+    end
+    return 0, 0, {}
+end
+
+--- Verifica se há pelo menos uma poção pronta para uso
+---@return boolean
+function PlayerManager:hasReadyPotion()
+    if self.potionController then
+        return self.potionController:hasReadyPotion()
+    end
+    return false
 end
 
 return PlayerManager

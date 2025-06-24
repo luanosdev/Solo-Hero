@@ -175,6 +175,31 @@ local colors = {
 
     tooltip_bg = { 0.1, 0.1, 0.15, 0.95 },
     tooltip_border = { 0.4, 0.45, 0.5, 0.8 },
+
+    -- Cores do Sistema de Poções (Temática Solo Leveling)
+    potion = {
+        -- Contorno do frasco
+        flask_border_empty = { 0.4, 0.4, 0.45, 1.0 },      -- Cinza quando vazio
+        flask_border_filling = { 0.5, 0.5, 0.55, 1.0 },    -- Cinza claro quando enchendo
+        flask_border_ready = { 0.2, 0.8, 0.3, 1.0 },       -- Verde Solo Leveling quando pronto
+        flask_border_ready_flash = { 0.4, 1.0, 0.5, 1.0 }, -- Verde brilhante para flash
+
+        -- Líquido da poção
+        liquid_healing = { 0.8, 0.2, 0.25, 0.7 },        -- Vermelho escuro para poção de cura
+        liquid_healing_bright = { 1.0, 0.3, 0.35, 0.8 }, -- Vermelho mais claro conforme enche
+        liquid_ready = { 0.15, 0.7, 0.25, 0.8 },         -- Verde escuro quando pronta
+        liquid_ready_glow = { 0.3, 0.9, 0.4, 0.4 },      -- Brilho verde sutil no topo
+        liquid_ready_flash = { 0.4, 1.0, 0.5, 0.6 },     -- Verde brilhante para flash
+
+        -- Efeitos especiais
+        bubble_ready = { 0.7, 1.0, 0.8, 0.4 },        -- Bolhas verdes translúcidas
+        bubble_ready_flash = { 0.9, 1.0, 0.95, 0.6 }, -- Bolhas mais brilhantes no flash
+
+        -- Texto
+        counter_text = { 0.8, 0.85, 0.9, 1.0 },   -- Texto do contador (branco azulado)
+        percentage_text = { 0.9, 0.9, 0.9, 1.0 }, -- Texto de porcentagem
+        ready_icon = { 0.95, 0.95, 0.95, 1.0 },   -- Ícone de pronto (checkmark)
+    },
 }
 
 -- Cores para Botões (NOVO SISTEMA DE VARIANTES)

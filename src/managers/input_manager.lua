@@ -164,6 +164,7 @@ function InputManager:keypressed(key, isGamePaused) -- Recebe o estado de pausa
         if key == "z" then playerManager:toggleAutoAim() end
         if key == "v" then playerManager:toggleAttackPreview() end
         if key == "space" then playerManager.dashController:tryDash() end
+        if key == "q" then playerManager:usePotion() end
     end
 
     return false -- Indica que o input não foi exclusivamente tratado por um modal/inventário
