@@ -92,16 +92,16 @@ local weapons = {
         maxStack = 1,
         damage = 300,
         cooldown = 1.6,
-        baseAreaEffectRadius = 80,
+        baseAreaEffectRadius = 30,
         attackClass = "circular_smash",
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.HIGH,
         knockbackForce = Constants.KNOCKBACK_FORCE.CIRCULAR_SMASH,
         modifiers = {
-            { stat = "moveSpeed",   type = "fixed",                        value = -15 },
+            { stat = "moveSpeed",   type = "percentage",                   value = -20 },
             { stat = "attackSpeed", type = "fixed_percentage_as_fraction", value = -0.2 },
-            { stat = "defense",     type = "fixed",                        value = 10 },
-            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = -0.3 },
+            { stat = "defense",     type = "fixed",                        value = 20 },
+            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.2 },
         }
     },
 

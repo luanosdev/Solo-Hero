@@ -710,8 +710,6 @@ end
 ---@param enemy BaseEnemy O inimigo a ser reposicionado.
 function EnemyManager:repositionBossOrMvp(enemy)
     local camX, camY, camWidth, camHeight = Camera:getViewPort()
-    local player = self.playerManager:getPlayerPosition()
-    if not player then return end
     local playerVel = self.playerManager:getPlayerVelocity()
 
     -- Buffer para garantir que o inimigo seja reposicionado fora da tela
