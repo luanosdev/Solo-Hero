@@ -98,8 +98,9 @@ function LevelUpEffectController:processNextLevelUp()
     self.knockbackApplied = false
 
     -- Cria o efeito visual
-    if self.playerManager.player and self.playerManager.player.position then
-        self.levelUpEffect = LevelUpEffect:new(self.playerManager.player.position)
+    local playerPosition = self.playerManager:getPlayerPosition()
+    if playerPosition then
+        self.levelUpEffect = LevelUpEffect:new(playerPosition)
     end
 
     -- Aplica o knockback imediatamente
@@ -108,13 +109,13 @@ end
 
 --- Aplica knockback em área baseado no pickupRadius do player.
 function LevelUpEffectController:applyLevelUpKnockback()
-    if self.knockbackApplied or not self.playerManager.player then
+    if self.knockbackApplied then
         return
     end
 
     local finalStats = self.playerManager:getCurrentFinalStats()
     local knockbackRadius = finalStats.pickupRadius
-    local playerPosition = self.playerManager.player.position
+    local playerPosition = self.playerManager:getPlayerPosition()
 
     Logger.debug(
         "level_up_effect_controller.knockback.radius",
@@ -128,7 +129,7 @@ function LevelUpEffectController:applyLevelUpKnockback()
     local enemiesInArea = CombatHelpers.findEnemiesInCircularArea(
         playerPosition,
         knockbackRadius,
-        self.playerManager.player
+        self.playerManager:getPlayerSprite()
     )
 
     if #enemiesInArea > 0 then

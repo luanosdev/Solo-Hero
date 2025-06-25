@@ -142,7 +142,7 @@ function LevelUpEffect:collectRenderables(renderPipeline)
     local baseItem = TablePool.get()
     baseItem.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI
     baseItem.type = "level_up_effect_base"
-    baseItem.sortY = self.position.y
+    baseItem.sortY = self.position.y + 999
     baseItem.drawFunction = function() self:drawBase() end
     renderPipeline:add(baseItem)
 
@@ -150,7 +150,7 @@ function LevelUpEffect:collectRenderables(renderPipeline)
     local overlayItem = TablePool.get()
     overlayItem.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI
     overlayItem.type = "level_up_effect_overlay"
-    overlayItem.sortY = self.position.y
+    overlayItem.sortY = self.position.y + 999
     overlayItem.drawFunction = function() self:drawOverlay() end
     renderPipeline:add(overlayItem)
 end
