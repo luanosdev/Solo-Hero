@@ -420,6 +420,16 @@ function PlayerManager:getPlayerPosition()
     return self.movementController.player.position
 end
 
+--- Retorna a velocidade atual do jogador
+---@return Vector2D
+function PlayerManager:getPlayerVelocity()
+    if self.movementController then
+        return self.movementController:getVelocity()
+    end
+    Logger.warn("player_manager.player_velocity", "MovementController não inicializado, retornando velocidade zero.")
+    return { x = 0, y = 0 }
+end
+
 -- Adiciona um item ao inventário do jogador.
 ---@param itemBaseId string ID do item base
 ---@param quantity number Quantidade de itens a adicionar

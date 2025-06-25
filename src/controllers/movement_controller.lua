@@ -293,4 +293,16 @@ function MovementController:isNearPosition(targetX, targetY, threshold)
     return distance <= threshold
 end
 
+--- Obtém a velocidade atual do jogador
+---@return Vector2D|nil
+function MovementController:getVelocity()
+    if self.player and self.player.velocity then
+        return {
+            x = self.player.velocity.x,
+            y = self.player.velocity.y
+        }
+    end
+    return { x = 0, y = 0 }
+end
+
 return MovementController
