@@ -134,7 +134,7 @@ function LevelUpEffect:collectRenderables(renderPipeline)
     local circleItem = TablePool.get()
     circleItem.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI
     circleItem.type = "level_up_effect_circle"
-    circleItem.sortY = self.position.y + 199 -- Draw below effects
+    circleItem.sortY = self.position.y
     circleItem.drawFunction = function() self:drawKnockbackCircle() end
     renderPipeline:add(circleItem)
 
@@ -142,7 +142,7 @@ function LevelUpEffect:collectRenderables(renderPipeline)
     local baseItem = TablePool.get()
     baseItem.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI
     baseItem.type = "level_up_effect_base"
-    baseItem.sortY = self.position.y + 800 -- Draw on top
+    baseItem.sortY = self.position.y
     baseItem.drawFunction = function() self:drawBase() end
     renderPipeline:add(baseItem)
 
@@ -150,7 +150,7 @@ function LevelUpEffect:collectRenderables(renderPipeline)
     local overlayItem = TablePool.get()
     overlayItem.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI
     overlayItem.type = "level_up_effect_overlay"
-    overlayItem.sortY = self.position.y + 801 -- Draw on top of base
+    overlayItem.sortY = self.position.y
     overlayItem.drawFunction = function() self:drawOverlay() end
     renderPipeline:add(overlayItem)
 end

@@ -233,7 +233,7 @@ function SpawnController:calculateSpawnPosition()
     local weights = { top = 1, bottom = 1, left = 1, right = 1 }
     local isMoving = playerVel and (playerVel.x ~= 0 or playerVel.y ~= 0)
 
-    if isMoving then
+    if isMoving and playerVel then
         local movementBias = 4
         if playerVel.y < -0.1 then weights.top = weights.top + movementBias end
         if playerVel.y > 0.1 then weights.bottom = weights.bottom + movementBias end

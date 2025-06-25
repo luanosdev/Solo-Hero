@@ -19,8 +19,14 @@ end
 
 -- Spawna os portais
 function ExtractionPortalManager:spawnPortals()
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
-    local playerPos = playerManager.player.position
+    ---@type HunterManager
+    local hunterManager = ManagerRegistry:get("hunterManager")
+    ---@type ItemDataManager
+    local itemDataManager = ManagerRegistry:get("itemDataManager")
+
+    local playerPos = playerManager:getPlayerPosition()
     local minPlayerDist = 10000 -- Minimum distance from player
     local maxPlayerDist = 15000 -- Maximum distance from player
     local minPortalDist = 10000 -- Minimum distance between portals
@@ -70,7 +76,7 @@ function ExtractionPortalManager:update(dt)
     ---@type ExtractionManager
     local extractionManager = ManagerRegistry:get("extractionManager")
 
-    local playerPos = playerManager.player.position
+    local playerPos = playerManager:getPlayerPosition()
     local interactionRadius = 64 -- Same as portal radius, more or less
     local isPlayerOnAnyPortalThisFrame = false
 

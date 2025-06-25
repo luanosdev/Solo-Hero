@@ -96,8 +96,8 @@ function BaseProjectileAttack:update(dt, angle)
     end
 
     -- Atualiza posição e ângulo
-    if self.playerManager and self.playerManager.player and self.playerManager.player.position then
-        self.currentPosition = self.playerManager.player.position
+    if self.playerManager then
+        self.currentPosition = self.playerManager:getPlayerPosition()
     else
         return -- Impede atualização se não há jogador
     end
@@ -184,7 +184,7 @@ function BaseProjectileAttack:_fireSingleProjectile(fireAngle)
     params.playerStrength = stats.strength
     params.playerManager = self.playerManager
     params.weaponInstance = self.weaponInstance
-    params.owner = self.playerManager.player
+    params.owner = self.playerManager:getPlayerSprite()
     params.hitCost = Constants.HIT_COST.BULLET
 
     if #self.pooledProjectiles > 0 then

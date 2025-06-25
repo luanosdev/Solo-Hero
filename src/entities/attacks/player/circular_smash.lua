@@ -4,7 +4,6 @@
 --- Refatorado para receber weaponInstance e buscar stats dinamicamente.
 ----------------------------------------------------------------------------
 
-local ManagerRegistry = require("src.managers.manager_registry")
 local TablePool = require("src.utils.table_pool")
 local CombatHelpers = require("src.utils.combat_helpers")
 
@@ -67,8 +66,8 @@ function CircularSmash:new(playerManager, weaponInstance)
     o.finalImpactDistance = o.baseAreaEffectRadius
     o.finalExplosionRadius = o.baseAreaEffectRadius
 
-    if o.playerManager.player then
-        o.currentPosition = o.playerManager.player.position -- Pega posição inicial para referência
+    if o.playerManager then
+        o.currentPosition = o.playerManager:getPlayerPosition() -- Pega posição inicial para referência
     else
         o.currentPosition = { x = 0, y = 0 }
     end
@@ -89,8 +88,8 @@ function CircularSmash:update(dt, angle)
 
     local finalStats = self.playerManager:getCurrentFinalStats()
 
-    if self.playerManager.player then
-        self.currentPosition = self.playerManager.player.position
+    if self.playerManager then
+        self.currentPosition = self.playerManager:getPlayerPosition()
     end
     self.currentAngle = angle
 
@@ -247,7 +246,7 @@ function CircularSmash:executeAttack(finalStats)
 
     -- Usa o helper para encontrar inimigos na área circular
     local enemiesHit = CombatHelpers.findEnemiesInCircularArea(self.targetPos, self.currentAttackRadius,
-        self.playerManager.player)
+        self.playerManager:getPlayerSprite())
 
     if #enemiesHit > 0 then
         -- print(string.format("  - Hit %d enemies.", #enemiesHit))

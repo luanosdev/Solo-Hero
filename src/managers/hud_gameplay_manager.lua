@@ -60,8 +60,11 @@ end
 --- Configura o HUDGameplayManager para o gameplay com base nos dados de um caçador específico.
 --- Chamado pela GameplayScene após a inicialização dos managers.
 function HUDGameplayManager:setupGameplay()
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
+    ---@type HunterManager
     local hunterManager = ManagerRegistry:get("hunterManager")
+    ---@type ItemDataManager
     local itemDataManager = ManagerRegistry:get("itemDataManager")
 
     BossHealthBarManager:init()
@@ -73,11 +76,11 @@ function HUDGameplayManager:setupGameplay()
     local xpGainFont = fonts.main_small
     local hunterData = hunterManager:getHunterData(playerManager.currentHunterId)
 
-    local initialPlayerState = playerManager.state
-    local initialLevel = initialPlayerState.level
-    local initialXP = initialPlayerState.experience
-    local initialHP = initialPlayerState.currentHealth
-    local initialMaxHP = initialPlayerState.maxHealth
+    
+    local initialLevel = playerManager.stateController:getCurrentLevel()
+    local initialXP = playerManager.stateController:getCurrentExperience()
+    local initialHP = playerManager.stateController.currentHealth
+    local initialMaxHP = playerManager.stateController.finalStatsCache.health
     local initialName = hunterData.name
     local initialRank = hunterData.finalRankId
 
@@ -124,7 +127,7 @@ function HUDGameplayManager:setupGameplay()
         initialLevel = initialLevel,
         initialXP = initialXP,
         xpForNextLevel = function(level_from_bar)
-            return playerManager:getExperienceRequiredForLevel(level_from_bar)
+            return playerManager.experienceController:getExperienceRequiredForLevel(level_from_bar)
         end,
         colors = {
             levelText = { 210, 210, 220, 255 },
@@ -180,7 +183,7 @@ function HUDGameplayManager:setupGameplay()
     -- Sincronização inicial dos valores rastreados para XP
     self.lastPlayerLevel = initialLevel
     self.lastPlayerXPInLevel = initialXP
-    local xpFunc = function(lvl) return playerManager:getExperienceRequiredForLevel(lvl) end
+    local xpFunc = function(lvl) return playerManager.experienceController:getExperienceRequiredForLevel(lvl) end
     self.lastTotalPlayerXP = calculateTotalXPForState(initialLevel, initialXP, xpFunc)
     -- Garante que a barra reflita o estado
     self.progressLevelBar:setLevel(initialLevel, initialXP)
@@ -218,10 +221,12 @@ end
 --- Atualiza todos os elementos da UI gerenciados.
 ---@param dt number Delta time.
 function HUDGameplayManager:update(dt)
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
+    ---@type HunterManager
     local hunterManager = ManagerRegistry:get("hunterManager")
 
-    if not playerManager or not playerManager.state or not hunterManager then
+    if not playerManager or not playerManager.stateController or not hunterManager then
         if self.progressLevelBar then self.progressLevelBar:update(dt) end
         if self.playerHPBar then self.playerHPBar:update(dt) end
         if self.skillsDisplay then self.skillsDisplay:update(dt) end
@@ -242,10 +247,11 @@ function HUDGameplayManager:update(dt)
             end
         end
 
+        local playerPos = playerManager:getPlayerPosition()
         -- Atualiza os indicadores existentes
         for i, portal in ipairs(extractionPortalManager.portals) do
             if self.portalIndicators[i] then
-                self.portalIndicators[i]:update(portal.position, playerManager.player.position)
+                self.portalIndicators[i]:update(portal.position, playerPos)
             end
         end
     end
@@ -256,11 +262,11 @@ function HUDGameplayManager:update(dt)
     local spacingBetweenBars = 8                 -- Usado no construtor, manter consistência
 
     -- Atualização da Barra de XP
-    if playerManager.getExperienceRequiredForLevel then
-        local currentLevel = playerManager.state.level or 1
-        local currentXPInLevel = playerManager.state.experience or 0
+    if playerManager.experienceController.getExperienceRequiredForLevel then
+        local currentLevel = playerManager.stateController:getCurrentLevel()
+        local currentXPInLevel = playerManager.stateController:getCurrentExperience()
         local currentTotalXP = calculateTotalXPForState(currentLevel, currentXPInLevel, function(lvl)
-            return playerManager:getExperienceRequiredForLevel(lvl)
+            return playerManager.experienceController:getExperienceRequiredForLevel(lvl)
         end)
         local xpGainedSinceLastFrame = currentTotalXP - self.lastTotalPlayerXP
 
@@ -277,14 +283,13 @@ function HUDGameplayManager:update(dt)
     self.progressLevelBar:update(dt)
 
     -- Atualização da Barra de HP
-    local pState = playerManager.state
     local currentHunterInfo = hunterManager:getHunterData(playerManager.currentHunterId)
     local finalStats = playerManager:getCurrentFinalStats()
 
     local newName = currentHunterInfo.name or self.lastPlayerName
     local newRank = currentHunterInfo.finalRankId or self.lastPlayerRank
     local newMaxHP = finalStats.health
-    local newCurrentHP = pState.currentHealth or self.lastPlayerHP
+    local newCurrentHP = playerManager.stateController.currentHealth or self.lastPlayerHP
 
     local needsHpBarReposition = false
     if newName ~= self.lastPlayerName or
@@ -358,9 +363,10 @@ end
 function HUDGameplayManager:draw(isPaused)
     ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
+    local playerPos = playerManager:getPlayerPosition()
     local playerScreenX, playerScreenY = Camera:worldToScreen(
-        playerManager.player.position.x,
-        playerManager.player.position.y
+        playerPos.x,
+        playerPos.y
     )
     self.progressLevelBar:draw()
     self.playerHPBar:draw()
@@ -391,12 +397,11 @@ function HUDGameplayManager:reset()
     local playerManager = ManagerRegistry:get("playerManager")
     local hunterManager = ManagerRegistry:get("hunterManager")
 
-    if playerManager and playerManager.state and hunterManager then
-        local pState = playerManager.state
+    if playerManager and playerManager.stateController and hunterManager then
         local hunterCurrentInfo = hunterManager:getHunterData(playerManager.currentHunterId)
 
-        local playerLevel = pState.level or 1
-        local playerXPInLevel = pState.experience or 0
+        local playerLevel = playerManager.stateController:getLevel()
+        local playerXPInLevel = playerManager.stateController:getExperience()
 
         if self.progressLevelBar and playerManager.getExperienceRequiredForLevel then
             self.progressLevelBar:setLevel(playerLevel, playerXPInLevel)
@@ -410,8 +415,8 @@ function HUDGameplayManager:reset()
             self.lastPlayerLevel = 1; self.lastPlayerXPInLevel = 0; self.lastTotalPlayerXP = 0
         end
 
-        local playerHP = pState.currentHealth or 100
-        local playerMaxHP = pState.maxHealth or 100
+        local playerHP = playerManager.stateController:getCurrentHealth()
+        local playerMaxHP = playerManager.stateController:getCurrentFinalStats().health
         local playerName = hunterCurrentInfo.name or "Jogador"
         local playerRank = hunterCurrentInfo.finalRankId or "N/A"
 

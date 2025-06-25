@@ -1,5 +1,7 @@
 -- Gerencia o carregamento e o acesso aos dados de configuração dos mapas.
 
+---@class MapManager
+---@field maps table<string, table> Cache para os dados dos mapas carregados
 local MapManager = {}
 MapManager.maps = {} -- Cache para os dados dos mapas carregados
 

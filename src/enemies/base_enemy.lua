@@ -342,7 +342,7 @@ end
 --- @param dt number Delta time.
 --- @param playerManager PlayerManager The player manager.
 function BaseEnemy:checkPlayerCollision(dt, playerManager)
-    if not playerManager.player or not playerManager.state.isAlive then return end
+    if not playerManager:isAlive() then return end
 
     self.lastDamageTime = self.lastDamageTime + dt
 
