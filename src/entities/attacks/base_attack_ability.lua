@@ -39,7 +39,7 @@ local MIN_ATTACK_SPEED = 0.01
 ---@field constants table
 
 --- Cria nova instância da classe base
----@generic W : BaseWeapon|CircularSmashWeapon|ConeWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon
+---@generic W : BaseWeapon|CircularSmashWeapon|ConeSlashWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon
 ---@param playerManager PlayerManager
 ---@param weaponInstance W
 ---@param config AttackConfig

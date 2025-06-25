@@ -147,7 +147,7 @@ function GameOverManager:start(portalData, deathCause)
 
     self.hunterId = playerManager:getCurrentHunterId()
     self.finalStats = playerManager:getCurrentFinalStats()
-    self.archetypeIds = playerManager.state.archetypeIds
+    self.archetypeIds = playerManager.stateController.archetypeIds
     self.gameplayStats = gameStatisticsManager:getRawStats()
     self.archetypeManagerInstance = archetypeManager
     self.extractedEquipment = playerManager:getCurrentEquipmentGameplay()
@@ -178,7 +178,7 @@ function GameOverManager:start(portalData, deathCause)
             deathTime = love.timer.getTime(),
             deathReason = self.message, -- Usa a mensagem aleatória
             deathCause = self.deathCause,
-            level = self.finalStats.level or 1,
+            level = playerManager.stateController:getCurrentLevel(),
             finalStats = self.finalStats,
             gameplayStats = self.gameplayStats
         }

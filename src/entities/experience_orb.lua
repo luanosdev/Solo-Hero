@@ -81,9 +81,10 @@ function ExperienceOrb:update(dt)
 
     local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
 
+    local playerPosition = playerManager:getPlayerPosition()
     -- Calcula a distância até o jogador
-    local dx = playerManager.player.position.x - self.position.x
-    local dy = playerManager.player.position.y - (self.position.y + levitationOffset)
+    local dx = playerPosition.x - self.position.x
+    local dy = playerPosition.y - (self.position.y + levitationOffset)
     local distance = math.sqrt(dx * dx + dy * dy)
 
     local currentFinalStats = playerManager:getCurrentFinalStats()
@@ -106,9 +107,9 @@ function ExperienceOrb:update(dt)
 
         -- Atualiza a posição com a animação
         self.position.x = self.initialPosition.x +
-            (playerManager.player.position.x - self.initialPosition.x) * easeOutQuad
+            (playerPosition.x - self.initialPosition.x) * easeOutQuad
         self.position.y = self.initialPosition.y +
-            (playerManager.player.position.y - self.initialPosition.y) * easeOutQuad
+            (playerPosition.y - self.initialPosition.y) * easeOutQuad
 
         -- Se a animação terminou
         if self.collectionProgress >= 1 then

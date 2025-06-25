@@ -14,3 +14,15 @@
 ---@field accessory string
 ---@field rune_1 string
 ---@field rune_2 string
+---@field rune_3 string
+---@field rune_4 string
+---@field rune_5 string
+---@field rune_6 string
+---@field rune_7 string
+---@field rune_8 string
+---@field rune_9 string
+---@field rune_10 string
+
+---@class ArchetypeId
+
+---@class StatKey

@@ -22,7 +22,7 @@ function MapManager:loadMap(mapName)
     local ok, mapData = pcall(require, path)
 
     if ok then
-        Logger:info("Mapa '" .. mapName .. "' carregado com sucesso.")
+        Logger.info("MapManager", "Mapa '" .. mapName .. "' carregado com sucesso.")
         self.maps[mapName] = mapData
         return mapData
     else

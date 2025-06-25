@@ -444,6 +444,7 @@ function PlayerStateController:getCurrentFinalStats()
     end
 
     -- 3. Calcula os Stats FINAIS aplicando bônus na ordem correta
+    ---@type FinalStats
     local calculatedStats = {}
     for statKey, baseValue in pairs(baseStats) do
         if statKey ~= "weaponDamage" then

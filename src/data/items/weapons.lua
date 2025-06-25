@@ -44,7 +44,7 @@
 ---@class CircularSmashWeapon : Weapon
 ---@field baseAreaEffectRadius number Raio base da área de efeito do ataque.
 
----@class ConeWeapon : Weapon
+---@class ConeSlashWeapon : Weapon
 ---@field range number Alcance base do cone de ataque.
 ---@field angle number Largura base do ângulo do cone de ataque (em radianos).
 
@@ -105,7 +105,7 @@ local weapons = {
         }
     },
 
-    ---@type ConeWeapon
+    ---@type ConeSlashWeapon
     cone_slash_e_001 = {
         id = "cone_slash_e_001",
         name = "Espada de Ferro",
@@ -120,9 +120,8 @@ local weapons = {
         maxStack = 1,
         damage = 200,
         cooldown = 0.9,
-        range = 180,
-        angle = math.rad(30),
-        baseAreaEffectRadius = 50,
+        range = 100,
+        angle = math.rad(10),
         attackClass = "cone_slash",
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.MEDIUM,
@@ -132,7 +131,7 @@ local weapons = {
         }
     },
 
-    ---@type ConeWeapon
+    ---@type ConeSlashWeapon
     alternating_cone_strike_e_001 = {
         id = "alternating_cone_strike_e_001",
         name = "Lâminas de Açougue",
