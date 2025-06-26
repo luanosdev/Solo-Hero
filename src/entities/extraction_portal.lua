@@ -46,10 +46,10 @@ function ExtractionPortal:new(x, y)
     end
 
     instance.animTimer = 0
-    instance.currentFrame = 1        -- Start with the "off" frame
-    instance.state = "idle"          -- can be 'idle', 'activating', 'activated'
+    instance.currentFrame = 1       -- Start with the "off" frame
+    instance.state = "idle"         -- can be 'idle', 'activating', 'activated'
     instance.activationTimer = 0
-    instance.activationDuration = 10 -- seconds
+    instance.activationDuration = 3 -- seconds
 
     return instance
 end

@@ -11,7 +11,7 @@ local originX = imgWidth / 2
 local originY = imgHeight / 2
 
 -- Calcula a escala base para que a altura (comprimento da flecha) seja ~60 pixels
-local baseDesiredLength = 60
+local baseDesiredLength = 30
 local baseScale = baseDesiredLength / imgHeight
 
 -- Define um raio de colisão base para a ponta da flecha.

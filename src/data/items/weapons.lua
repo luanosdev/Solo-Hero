@@ -213,7 +213,7 @@ local weapons = {
         damage = 200,
         cooldown = 0.9,
         range = 250,
-        angle = math.pi / 4,
+        angle = math.rad(6),
         -- Atributos específicos do Arco
         projectiles = 1,
         piercing = 2,
@@ -224,6 +224,12 @@ local weapons = {
         animationFolderPath = "bow_tier_1",
         knockbackPower = Constants.KNOCKBACK_POWER.LOW,
         knockbackForce = Constants.KNOCKBACK_FORCE.BOW,
+        modifiers = {
+            { stat = "moveSpeed",   type = "fixed",                        value = 5 },
+            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.1 },
+            { stat = "critDamage",  type = "fixed_percentage_as_fraction", value = 0.5 },
+            { stat = "multiAttack", type = "fixed_percentage_as_fraction", value = 0.3 },
+        }
     },
 
     ---@type ChainLightningWeapon
