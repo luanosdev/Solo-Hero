@@ -40,6 +40,7 @@ function RuneController:update(dt)
     -- Obtém os stats finais uma vez para passar para as habilidades
     local finalStats = self.playerManager:getCurrentFinalStats()
 
+    local playerPosition = self.playerManager:getPlayerPosition()
     -- Atualiza habilidades ativas das runas equipadas
     for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
         if abilityInstance and abilityInstance.update then
@@ -47,8 +48,8 @@ function RuneController:update(dt)
 
             -- Executa a runa automaticamente se o cooldown zerar
             if abilityInstance.cooldownRemaining and abilityInstance.cooldownRemaining <= 0 then
-                if abilityInstance.cast and self.playerManager.player and self.playerManager.player.position then
-                    abilityInstance:cast(self.playerManager.player.position.x, self.playerManager.player.position.y)
+                if abilityInstance.cast and playerPosition then
+                    abilityInstance:cast(playerPosition.x, playerPosition.y)
                 end
             end
         end
@@ -213,8 +214,9 @@ end
 ---@return boolean success True se a runa foi executada com sucesso
 function RuneController:forceExecuteRune(slotId)
     local abilityInstance = self.activeRuneAbilities[slotId]
-    if abilityInstance and abilityInstance.cast and self.playerManager.player and self.playerManager.player.position then
-        abilityInstance:cast(self.playerManager.player.position.x, self.playerManager.player.position.y)
+    local playerPosition = self.playerManager:getPlayerPosition()
+    if abilityInstance and abilityInstance.cast and playerPosition then
+        abilityInstance:cast(playerPosition.x, playerPosition.y)
         Logger.debug(
             "rune_controller.force_execute",
             string.format("[RuneController:forceExecuteRune] Runa no slot %s executada forçadamente", slotId)

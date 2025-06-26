@@ -21,10 +21,6 @@ end
 function ExtractionPortalManager:spawnPortals()
     ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
-    ---@type HunterManager
-    local hunterManager = ManagerRegistry:get("hunterManager")
-    ---@type ItemDataManager
-    local itemDataManager = ManagerRegistry:get("itemDataManager")
 
     local playerPos = playerManager:getPlayerPosition()
     local minPlayerDist = 10000 -- Minimum distance from player

@@ -114,15 +114,15 @@ function EnemyManager:update(dt)
 
     local margin = 300                                           -- Margem para culling de update (isOffScreen)
 
+    local playerPosition = self.playerManager:getPlayerPosition()
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
 
         -- Lógica de reposicionamento para Boss/MVP
         if enemy and enemy.isAlive and (enemy.isBoss or enemy.isMVP) then
-            if self.playerManager and self.playerManager.player then
-                local playerPos = self.playerManager.player.position
-                local dx = enemy.position.x - playerPos.x
-                local dy = enemy.position.y - playerPos.y
+            if self.playerManager then
+                local dx = enemy.position.x - playerPosition.x
+                local dy = enemy.position.y - playerPosition.y
                 local distance = math.sqrt(dx * dx + dy * dy)
                 local repositionDistance = 1500 -- Distância em pixels para acionar o teleporte
 
@@ -710,9 +710,7 @@ end
 ---@param enemy BaseEnemy O inimigo a ser reposicionado.
 function EnemyManager:repositionBossOrMvp(enemy)
     local camX, camY, camWidth, camHeight = Camera:getViewPort()
-    local player = self.playerManager.player
-    if not player then return end
-    local playerVel = player.velocity
+    local playerVel = self.playerManager:getPlayerVelocity()
 
     -- Buffer para garantir que o inimigo seja reposicionado fora da tela
     local buffer = 150

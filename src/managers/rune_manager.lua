@@ -17,8 +17,11 @@ local RuneManager = {
 ]]
 function RuneManager:init()
     self.activeRunes = {}
+    ---@type PlayerManager
     self.playerManager = ManagerRegistry:get("playerManager")
+    ---@type FloatingTextManager
     self.floatingTextManager = ManagerRegistry:get("floatingTextManager")
+    ---@type InputManager
     self.inputManager = ManagerRegistry:get("inputManager")
     RuneChoiceModal:init(self.playerManager, self.inputManager, self.floatingTextManager)
     print("RuneManager inicializado.")

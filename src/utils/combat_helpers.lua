@@ -6,6 +6,30 @@ local CombatHelpers = {
     ANGLE_TOLERANCE_MULTIPLIER = 0.15,
 }
 
+-- Cache para otimização de colisões
+local collisionCache = {}
+local lastCacheUpdateTime = 0
+local CACHE_DURATION = 0.033 -- Cache por ~2 frames (33ms)
+
+-- Pools especializados para diferentes tipos de busca
+local circularSearchPool = {}
+local coneSearchPool = {}
+local lineSearchPool = {}
+
+-- Constantes de otimização
+local PI = math.pi
+local PI_2 = PI * 2
+local HALF_PI = PI * 0.5
+
+--- Limpa cache se necessário (otimização)
+local function updateCache()
+    local currentTime = love.timer.getTime()
+    if currentTime - lastCacheUpdateTime > CACHE_DURATION then
+        collisionCache = {}
+        lastCacheUpdateTime = currentTime
+    end
+end
+
 --- Calcula o raio permissivo para um ataque com base no poder de knockback.
 --- @param enemy BaseEnemy O inimigo que sofrerá o ataque.
 --- @return number O raio permissivo.
@@ -281,6 +305,133 @@ function CombatHelpers.applyHitEffects(
             end
         end
     end
+end
+
+--- FUNÇÕES OTIMIZADAS ADICIONAIS PARA MÁXIMA PERFORMANCE ---
+
+--- Busca circular otimizada com cache
+---@param center Vector2D Centro da busca
+---@param radius number Raio da busca
+---@param requestingEntity table Entidade que faz a busca
+---@return BaseEnemy[] Lista de inimigos encontrados
+function CombatHelpers.findEnemiesInCircularAreaOptimized(center, radius, requestingEntity)
+    updateCache()
+
+    local cacheKey = string.format("circle_%.1f_%.1f_%.1f", center.x, center.y, radius)
+    local cached = collisionCache[cacheKey]
+    if cached then
+        return cached
+    end
+
+    local result = CombatHelpers.findEnemiesInCircularArea(center, radius, requestingEntity)
+    collisionCache[cacheKey] = result
+    return result
+end
+
+--- Busca em cone otimizada com pooling
+---@param coneArea table Área do cone
+---@param requestingEntity table Entidade que faz a busca
+---@return BaseEnemy[] Lista de inimigos encontrados
+function CombatHelpers.findEnemiesInConeAreaOptimized(coneArea, requestingEntity)
+    updateCache()
+
+    -- Usa pool específico para cones se disponível
+    if #coneSearchPool > 0 then
+        local pooledResult = table.remove(coneSearchPool)
+        -- Limpa resultado anterior
+        for i = #pooledResult, 1, -1 do
+            pooledResult[i] = nil
+        end
+
+        -- Executa busca real
+        local actualResult = CombatHelpers.findEnemiesInConeArea(coneArea, requestingEntity)
+
+        -- Copia para o resultado pooled
+        for i = 1, #actualResult do
+            pooledResult[i] = actualResult[i]
+        end
+
+        return pooledResult
+    else
+        return CombatHelpers.findEnemiesInConeArea(coneArea, requestingEntity)
+    end
+end
+
+--- Aplica efeitos em lote para melhor performance
+---@param attackInstances table[] Lista de ataques a serem processados
+---@param finalStats table Stats finais do jogador
+---@param playerManager PlayerManager Instância do PlayerManager
+---@param weaponInstance BaseWeapon Instância da arma
+function CombatHelpers.applyBatchHitEffects(attackInstances, finalStats, playerManager, weaponInstance)
+    local allKnockedBack = {}
+    local totalEnemiesHit = 0
+
+    for i = 1, #attackInstances do
+        local attack = attackInstances[i]
+        if attack.enemies and #attack.enemies > 0 then
+            totalEnemiesHit = totalEnemiesHit + #attack.enemies
+            CombatHelpers.applyHitEffects(
+                attack.enemies,
+                finalStats,
+                attack.knockbackData,
+                allKnockedBack,
+                playerManager,
+                weaponInstance
+            )
+        end
+    end
+
+    -- Registra estatísticas em lote
+    if playerManager and playerManager.gameStatisticsManager and totalEnemiesHit > 0 then
+        playerManager.gameStatisticsManager:registerEnemiesHit(totalEnemiesHit)
+    end
+end
+
+--- Calcula dano otimizado (evita recálculos de crítico)
+---@param baseDamage number Dano base
+---@param critChance number Chance de crítico (0-1)
+---@param critMultiplier number Multiplicador de crítico
+---@return number damage, boolean isCritical, boolean isSuperCritical
+function CombatHelpers.calculateOptimizedDamage(baseDamage, critChance, critMultiplier)
+    local isCritical = critChance and critChance > 0 and math.random() <= critChance
+    local isSuperCritical = false -- TODO: Implementar quando mechânica existir
+
+    local damage = baseDamage
+    if isSuperCritical then
+        damage = math.floor(baseDamage * (critMultiplier * 2))
+    elseif isCritical then
+        damage = math.floor(baseDamage * (critMultiplier or 1.5))
+    end
+
+    return damage, isCritical, isSuperCritical
+end
+
+--- Função de debug para monitor de performance
+---@return table info Informações de performance
+function CombatHelpers.getPerformanceInfo()
+    local cacheCount = 0
+    for _ in pairs(collisionCache) do
+        cacheCount = cacheCount + 1
+    end
+
+    return {
+        cacheEntries = cacheCount,
+        cacheAge = love.timer.getTime() - lastCacheUpdateTime,
+        poolSizes = {
+            circular = #circularSearchPool,
+            cone = #coneSearchPool,
+            line = #lineSearchPool
+        }
+    }
+end
+
+--- Limpa todos os pools e caches (para limpeza de memória)
+function CombatHelpers.cleanup()
+    collisionCache = {}
+    circularSearchPool = {}
+    coneSearchPool = {}
+    lineSearchPool = {}
+    lastCacheUpdateTime = 0
 end
 
 return CombatHelpers

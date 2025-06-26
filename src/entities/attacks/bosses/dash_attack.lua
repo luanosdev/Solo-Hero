@@ -137,7 +137,7 @@ function DashAttack:updateDash(dt, playerManager)
 
     -- Verifica colisão com o jogador
     if not self.hitPlayer then
-        if self.boss:checkPlayerCollision(dt, playerManager, true) then -- Passa `true` para evitar dano duplicado
+        if self.boss:checkPlayerCollisionOptimized(dt, playerManager) then -- Passa `true` para evitar dano duplicado
             self.hitPlayer = true
             local calculatedDamage = self.boss.damage * self.params.damageMultiplier
             local damageSource = {

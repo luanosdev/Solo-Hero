@@ -400,6 +400,7 @@ function HunterManager:equipItem(itemInstance, slotId)
     print(string.format("[HunterManager] Item %s (%s) equipped in slot %s for %s",
         tostring(itemInstance.instanceId), itemInstance.itemBaseId, slotId, self.activeHunterId))
 
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:tryGet("playerManager")
 
     if slotId == Constants.SLOT_IDS.WEAPON then
@@ -411,7 +412,7 @@ function HunterManager:equipItem(itemInstance, slotId)
         end
     elseif baseData and baseData.type == "rune" then
         if playerManager then
-            playerManager:activateRuneAbility(slotId, itemInstance)
+            playerManager.runeController:activateRuneAbility(slotId, itemInstance)
             print(string.format("  -> Notified PlayerManager to activate rune ability for slot %s.", slotId))
         else
             print(string.format("  -> WARNING: Could not get PlayerManager to activate rune for slot %s!", slotId))

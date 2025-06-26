@@ -44,7 +44,7 @@
 ---@class CircularSmashWeapon : Weapon
 ---@field baseAreaEffectRadius number Raio base da área de efeito do ataque.
 
----@class ConeWeapon : Weapon
+---@class ConeSlashWeapon : Weapon
 ---@field range number Alcance base do cone de ataque.
 ---@field angle number Largura base do ângulo do cone de ataque (em radianos).
 
@@ -92,20 +92,20 @@ local weapons = {
         maxStack = 1,
         damage = 300,
         cooldown = 1.6,
-        baseAreaEffectRadius = 80,
+        baseAreaEffectRadius = 30,
         attackClass = "circular_smash",
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.HIGH,
         knockbackForce = Constants.KNOCKBACK_FORCE.CIRCULAR_SMASH,
         modifiers = {
-            { stat = "moveSpeed",   type = "fixed",                        value = -15 },
+            { stat = "moveSpeed",   type = "percentage",                   value = -20 },
             { stat = "attackSpeed", type = "fixed_percentage_as_fraction", value = -0.2 },
-            { stat = "defense",     type = "fixed",                        value = 10 },
-            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = -0.3 },
+            { stat = "defense",     type = "fixed",                        value = 20 },
+            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.2 },
         }
     },
 
-    ---@type ConeWeapon
+    ---@type ConeSlashWeapon
     cone_slash_e_001 = {
         id = "cone_slash_e_001",
         name = "Espada de Ferro",
@@ -120,9 +120,8 @@ local weapons = {
         maxStack = 1,
         damage = 200,
         cooldown = 0.9,
-        range = 180,
+        range = 120,
         angle = math.rad(30),
-        baseAreaEffectRadius = 50,
         attackClass = "cone_slash",
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.MEDIUM,
@@ -132,7 +131,7 @@ local weapons = {
         }
     },
 
-    ---@type ConeWeapon
+    ---@type ConeSlashWeapon
     alternating_cone_strike_e_001 = {
         id = "alternating_cone_strike_e_001",
         name = "Lâminas de Açougue",

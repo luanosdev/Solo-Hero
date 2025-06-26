@@ -1,218 +1,178 @@
 ----------------------------------------------------------------------------
--- Alternating Cone Strike Ability
--- Um ataque em cone rápido que atinge alternadamente a metade esquerda ou direita.
--- Refatorado para receber weaponInstance e buscar stats dinamicamente.
--- OTIMIZADO: Cache de dados, redução de alocações e performance melhorada.
+-- Alternating Cone Strike V2 (Otimizado)
+-- Versão super otimizada usando a nova arquitetura BaseAttackAbility.
+-- Performance máxima com cache, pooling e sistemas unificados.
 ----------------------------------------------------------------------------
 
-local TablePool = require("src.utils.table_pool")
+local BaseAttackAbility = require("src.entities.attacks.base_attack_ability")
+local AttackAnimationSystem = require("src.utils.attack_animation_system")
+local MultiAttackCalculator = require("src.utils.multi_attack_calculator")
 local CombatHelpers = require("src.utils.combat_helpers")
 
---- @class AlternatingConeStrike
---- @field playerManager PlayerManager
---- @field weaponInstance BaseWeapon
---- @field cooldownRemaining number
---- @field activeAttacks table
---- @field hitLeftNext boolean
---- @field visual table
---- @field knockbackPower number
---- @field knockbackForce number
---- @field enemiesKnockedBackInThisCast table
---- @field area table
---- @field cachedStats table
---- @field cachedBaseData table
---- @field lastStatsUpdateTime number
---- @field playerPosition table
---- @field knockbackData { power: number, force: number, attackerPosition: Vector2D }
-local AlternatingConeStrike = {}
+---@class AlternatingConeStrikeVisualAttack
+---@field animationDuration number
+---@field segments number
+---@field color table
+
+---@class AlternatingConeStrike : BaseAttackAbility
+---@field hitLeftNext boolean Controla alternância dos lados
+---@field activeAnimations AnimationInstance[] Animações ativas
+---@field area table Área de efeito calculada
+---@field enemiesKnockedBackInThisCast table Controle de knockback
+local AlternatingConeStrike = setmetatable({}, { __index = BaseAttackAbility })
 AlternatingConeStrike.__index = AlternatingConeStrike
 
--- Configurações visuais PADRÃO
-AlternatingConeStrike.name = "Golpe Cônico Alternado"
-AlternatingConeStrike.description = "Golpeia rapidamente em metades alternadas de um cone."
-AlternatingConeStrike.damageType = "melee"
-AlternatingConeStrike.visual = {
-    preview = {
-        active = false,
-        lineLength = 50,
-        color = { 0.7, 0.7, 0.7, 0.2 }
+-- Configurações otimizadas da habilidade
+local CONFIG = {
+    name = "Golpe Cônico Alternado",
+    description = "Golpeia alternadamente metades de um cone.",
+    damageType = "melee",
+    attackType = "melee",
+    visual = {
+        preview = {
+            active = false,
+            lineLength = 50,
+            color = { 0.7, 0.7, 0.7, 0.2 }
+        },
+        attack = {
+            animationDuration = 0.1,
+            segments = 16,
+            color = { 0.8, 0.1, 0.8, 0.6 }
+        }
     },
-    attack = {
-        animationDuration = 0.1,
-        segments = 16,
-        color = { 0.8, 0.1, 0.8, 0.6 }
+    constants = {
+        DELAY_STEP = 0.2,
+        SHELL_WIDTH_RATIO = 0.18,
+        MIN_SHELL_WIDTH = 12
     }
 }
 
--- Cache de constantes para evitar recálculos
-local STATS_CACHE_TIME = 0.1 -- Atualiza cache de stats a cada 100ms
-local MIN_ATTACK_SPEED = 0.01
-local DELAY_STEP = 0.2
-local SHELL_WIDTH_RATIO = 0.18
-local MIN_SHELL_WIDTH = 12
-
+--- Cria nova instância otimizada
+---@param playerManager PlayerManager
+---@param weaponInstance BaseWeapon
+---@return AlternatingConeStrike
 function AlternatingConeStrike:new(playerManager, weaponInstance)
-    local o = setmetatable({}, self)
+    ---@type AlternatingConeStrike
+    local o = BaseAttackAbility.new(self, playerManager, weaponInstance, CONFIG)
+    setmetatable(o, self)
 
-    if not playerManager or not weaponInstance then
-        error("AlternatingConeStrike:new - playerManager e weaponInstance são obrigatórios.")
-    end
-
-    o.playerManager = playerManager
-    o.weaponInstance = weaponInstance
-
-    -- Cache de dados da arma (não muda durante o jogo)
-    o.cachedBaseData = o.weaponInstance:getBaseData()
-    if not o.cachedBaseData then
-        error("AlternatingConeStrike:new - BaseData não encontrado.")
-    end
-
-    o.knockbackPower = o.cachedBaseData.knockbackPower
-    o.knockbackForce = o.cachedBaseData.knockbackForce
-
-    -- Pre-aloca tabela de knockback para reutilização
-    o.knockbackData = {
-        power = o.knockbackPower,
-        force = o.knockbackForce,
-        attackerPosition = { x = 0, y = 0 } -- Será atualizado
-    }
-
-    o.cooldownRemaining = 0
-    o.activeAttacks = {}
+    -- Estado específico da habilidade
     o.hitLeftNext = true
+    o.activeAnimations = {}
+    o.enemiesKnockedBackInThisCast = {}
 
-    -- Cache de stats e posição
-    o.cachedStats = nil
-    o.lastStatsUpdateTime = 0
-    o.playerPosition = { x = 0, y = 0 } -- Reutiliza a mesma tabela
-
-    -- Cores da weaponInstance
-    o.visual.preview.color = weaponInstance.previewColor or o.visual.preview.color
-    o.visual.attack.color = weaponInstance.attackColor or o.visual.attack.color
-
-    -- Área de efeito
+    -- Área de efeito pré-alocada (reutilizada)
     o.area = {
-        position = o.playerPosition, -- Referencia direta
+        position = o.playerPosition, -- Referência direta
         angle = 0,
         range = 0,
         angleWidth = 0,
         halfWidth = 0
     }
 
-    -- Atualiza caches iniciais
-    o:updateCaches(0)
+    -- Cores da weaponInstance
+    if weaponInstance.previewColor then
+        o.visual.preview.color = weaponInstance.previewColor
+    end
+    if weaponInstance.attackColor then
+        o.visual.attack.color = weaponInstance.attackColor
+    end
 
     return o
 end
 
--- Atualiza caches de dados frequentemente acessados
----@param currentTime number Tempo atual
-function AlternatingConeStrike:updateCaches(currentTime)
-    -- Atualiza posição do jogador (sempre)
-    local newPos = self.playerManager:getPlayerPosition()
-    self.playerPosition.x = newPos.x
-    self.playerPosition.y = newPos.y
-    self.knockbackData.attackerPosition.x = newPos.x
-    self.knockbackData.attackerPosition.y = newPos.y
+--- Hook para atualização quando stats mudam (otimizado)
+function AlternatingConeStrike:onStatsUpdated()
+    -- Recalcula área apenas quando stats mudam
+    local baseData = self.cachedBaseData
+    local stats = self.cachedStats
 
-    -- Atualiza stats apenas se necessário (throttling)
-    if not self.cachedStats or (currentTime - self.lastStatsUpdateTime) > STATS_CACHE_TIME then
-        self.cachedStats = self.playerManager:getCurrentFinalStats()
-        self.lastStatsUpdateTime = currentTime
+    local newRange = baseData.range * stats.range
+    local newAngleWidth = baseData.angle * stats.attackArea
 
-        -- Recalcula área apenas quando stats mudam
-        local newRange = self.cachedBaseData.range * self.cachedStats.range
-        local newAngleWidth = self.cachedBaseData.angle * self.cachedStats.attackArea
-
-        if newRange ~= self.area.range or newAngleWidth ~= self.area.angleWidth then
-            self.area.range = newRange
-            self.area.angleWidth = newAngleWidth
-            self.area.halfWidth = newAngleWidth * 0.5
-        end
+    if newRange ~= self.area.range or newAngleWidth ~= self.area.angleWidth then
+        self.area.range = newRange
+        self.area.angleWidth = newAngleWidth
+        self.area.halfWidth = newAngleWidth * 0.5
     end
 end
 
+--- Update específico otimizado
 ---@param dt number Delta time
----@param angle number Ângulo atual da mira do jogador.
-function AlternatingConeStrike:update(dt, angle)
-    -- Atualiza cooldown
-    if self.cooldownRemaining > 0 then
-        self.cooldownRemaining = self.cooldownRemaining - dt
-    end
-
-    -- Atualiza caches de forma eficiente
-    self:updateCaches(love.timer.getTime())
-
-    -- Atualiza ângulo
+---@param angle number Ângulo atual
+function AlternatingConeStrike:updateSpecific(dt, angle)
+    -- Atualiza ângulo (sempre necessário)
     self.area.angle = angle
 
-    -- Atualiza animações de ataques ativos
-    local animationDuration = self.visual.attack.animationDuration
-    for i = #self.activeAttacks, 1, -1 do
-        local attackInstance = self.activeAttacks[i]
-        if attackInstance.delay > 0 then
-            attackInstance.delay = attackInstance.delay - dt
-        else
-            attackInstance.progress = attackInstance.progress + (dt / animationDuration)
-        end
-
-        if attackInstance.progress >= 1 then
-            table.remove(self.activeAttacks, i)
-        end
-    end
+    -- Atualiza animações usando sistema unificado
+    AttackAnimationSystem.updateBatch(self.activeAnimations, dt)
 end
 
----@return boolean success True se o ataque foi iniciado (mesmo que não acerte), False se estava em cooldown.
-function AlternatingConeStrike:cast(args)
-    -- Rastreia inimigos que já sofreram knockback
+--- Cast específico super otimizado
+---@param args table Argumentos do cast
+---@return boolean success
+function AlternatingConeStrike:castSpecific(args)
+    -- Rastreia inimigos com knockback neste cast
     self.enemiesKnockedBackInThisCast = {}
-
-    if self.cooldownRemaining > 0 then
-        return false
-    end
 
     local attackLeftThisCast = self.hitLeftNext
 
-    -- Garante que temos stats atualizados
-    if not self.cachedStats then
-        self.cachedStats = self.playerManager:getCurrentFinalStats()
-    end
+    -- Calcula multi-attacks usando calculadora unificada
+    local multiResult = MultiAttackCalculator.calculateBasic(
+        self.cachedStats.multiAttackChance,
+        love.timer.getTime() -- Frame number para cache
+    )
 
-    -- Aplica cooldown
-    local baseCooldown = self.cachedBaseData.cooldown or 1.0
-    local totalAttackSpeed = math.max(self.cachedStats.attackSpeed, MIN_ATTACK_SPEED)
-    self.cooldownRemaining = baseCooldown / totalAttackSpeed
+    -- Executa ataques com delays escalonados
+    local delays = MultiAttackCalculator.calculateAttackDelays(
+        multiResult.totalAttacks,
+        CONFIG.constants.DELAY_STEP
+    )
 
-    -- Calcula ataques extras
-    local multiAttackChance = self.cachedStats.multiAttackChance
-    local extraAttacks = math.floor(multiAttackChance)
-    local decimalChance = multiAttackChance - extraAttacks
-
-    local currentDelay = 0
     local currentHitIsLeft = attackLeftThisCast
+    local attackInstances = {} -- Para processamento em lote
 
-    -- Executa primeiro ataque
-    local success = self:executeAttack(currentHitIsLeft)
-    self:createAttackAnimationInstance(currentHitIsLeft, currentDelay)
-    currentDelay = currentDelay + DELAY_STEP
+    -- Executa todos os ataques
+    for i = 1, multiResult.totalAttacks do
+        local delay = delays[i]
 
-    -- Executa ataques extras
-    for i = 1, extraAttacks do
-        if success then
-            currentHitIsLeft = not currentHitIsLeft
-            success = self:executeAttack(currentHitIsLeft)
-            self:createAttackAnimationInstance(currentHitIsLeft, currentDelay)
-            currentDelay = currentDelay + DELAY_STEP
-        else
-            break
+        -- Executa ataque imediato (sem delay)
+        if delay == 0 then
+            local enemies = CombatHelpers.findEnemiesInConeHalfArea(
+                self.area,
+                currentHitIsLeft,
+                self.playerManager:getPlayerSprite()
+            )
+            if #enemies > 0 then
+                table.insert(attackInstances, {
+                    enemies = enemies,
+                    knockbackData = self.knockbackData
+                })
+            end
         end
+
+        -- Cria animação usando sistema unificado
+        local animationData = AttackAnimationSystem.createConeData(self.area, currentHitIsLeft)
+        local animation = AttackAnimationSystem.createInstance(
+            "alternating_cone",
+            CONFIG.visual.attack.animationDuration,
+            delay,
+            animationData
+        )
+        table.insert(self.activeAnimations, animation)
+
+        -- Alterna lado para próximo ataque
+        currentHitIsLeft = not currentHitIsLeft
     end
 
-    -- Chance decimal de ataque extra
-    if success and decimalChance > 0 and math.random() < decimalChance then
-        currentHitIsLeft = not currentHitIsLeft
-        self:executeAttack(currentHitIsLeft)
-        self:createAttackAnimationInstance(currentHitIsLeft, currentDelay)
+    -- Aplica efeitos em lote (mais eficiente)
+    if #attackInstances > 0 then
+        CombatHelpers.applyBatchHitEffects(
+            attackInstances,
+            self.cachedStats,
+            self.playerManager,
+            self.weaponInstance
+        )
     end
 
     -- Alterna estado para próximo cast
@@ -221,184 +181,154 @@ function AlternatingConeStrike:cast(args)
     return true
 end
 
--- Otimizado: remove parâmetro desnecessário e usa cache
----@param hitLeft boolean True para atacar a metade esquerda, False para a direita.
-function AlternatingConeStrike:executeAttack(hitLeft)
+--- Executa ataque otimizado usando helpers unificados
+---@param hitLeft boolean True para lado esquerdo
+---@return BaseEnemy[] enemies Lista de inimigos atingidos
+function AlternatingConeStrike:executeAttackOptimized(hitLeft)
     if not self.area.range or self.area.range <= 0 then
-        error("AlternatingConeStrike:executeAttack: Área de ataque inválida")
+        return {}
     end
 
-    local enemiesHit = CombatHelpers.findEnemiesInConeHalfArea(
+    -- Usa função otimizada com cache
+    local enemies = CombatHelpers.findEnemiesInConeHalfArea(
         self.area,
         hitLeft,
         self.playerManager:getPlayerSprite()
     )
 
-    if #enemiesHit > 0 then
-        -- Usa tabela pre-alocada de knockback
-        CombatHelpers.applyHitEffects(
-            enemiesHit,
-            self.cachedStats,
-            self.knockbackData,
-            self.enemiesKnockedBackInThisCast,
-            self.playerManager,
-            self.weaponInstance
-        )
-    end
-
-    TablePool.release(enemiesHit)
-    return true
+    return enemies
 end
 
--- Otimizado: evita recriação desnecessária de tabelas
----@param hitLeft boolean True para atacar a metade esquerda, False para a direita.
----@param delay number Delay para iniciar a animação.
-function AlternatingConeStrike:createAttackAnimationInstance(hitLeft, delay)
-    local attackAnimationInstance = {
-        progress = 0,
-        hitLeft = hitLeft,
-        delay = delay or 0,
-        -- Snapshot otimizado - só copia valores necessários
-        area = {
-            position = { x = self.area.position.x, y = self.area.position.y },
-            angle = self.area.angle,
-            range = self.area.range,
-            angleWidth = self.area.angleWidth,
-            halfWidth = self.area.halfWidth
-        }
-    }
-    table.insert(self.activeAttacks, attackAnimationInstance)
-end
-
---- Desenha os elementos visuais da habilidade.
+--- Desenho otimizado com menos chamadas
 function AlternatingConeStrike:draw()
     if not self.area then return end
 
-    -- Preview
+    -- Preview otimizado
     if self.visual.preview.active then
-        self:drawConeOutline(self.visual.preview.color)
+        self:drawConeOutlineOptimized()
     end
 
-    -- Animações de ataque
-    for i = 1, #self.activeAttacks do
-        local attackInstance = self.activeAttacks[i]
-        if attackInstance and attackInstance.delay <= 0 then
-            self:drawConeFill(
-                self.visual.attack.color,
-                attackInstance.progress,
-                attackInstance.area,
-                attackInstance.hitLeft
-            )
+    -- Animações ativas usando sistema unificado
+    for _, animation in ipairs(self.activeAnimations) do
+        if animation.delay <= 0 then
+            self:drawConeFillOptimized(animation)
         end
     end
 end
 
--- Otimizado: usa constantes e evita recálculos
----@param color table Cor RGBA a ser usada.
-function AlternatingConeStrike:drawConeOutline(color)
+--- Desenho de outline otimizado (menos allocations)
+function AlternatingConeStrike:drawConeOutlineOptimized()
     if not self.area.range or self.area.range <= 0 then return end
 
-    local segments = 32
-    love.graphics.setColor(color)
+    love.graphics.setColor(self.visual.preview.color)
 
     local cx, cy = self.area.position.x, self.area.position.y
     local range = self.area.range
-    local startAngle = self.area.angle - self.area.halfWidth
-    local endAngle = self.area.angle + self.area.halfWidth
+    local halfWidth = self.area.halfWidth
+    local startAngle = self.area.angle - halfWidth
+    local endAngle = self.area.angle + halfWidth
 
-    local vertices = {}
-    table.insert(vertices, cx)
-    table.insert(vertices, cy)
-
+    -- Desenho simplificado usando menos vértices
+    local segments = 16 -- Reduzido para melhor performance
     local angleStep = (endAngle - startAngle) / segments
+
+    -- Usa uma única chamada de line
+    local vertices = { cx, cy }
     for i = 0, segments do
         local angle = startAngle + angleStep * i
         table.insert(vertices, cx + range * math.cos(angle))
         table.insert(vertices, cy + range * math.sin(angle))
     end
-
     table.insert(vertices, cx)
     table.insert(vertices, cy)
 
-    if #vertices >= 4 then
-        love.graphics.line(unpack(vertices))
-    end
-
+    love.graphics.line(unpack(vertices))
     love.graphics.setColor(1, 1, 1, 1)
 end
 
--- Otimizado: cache de cálculos e constantes
----@param color table Cor RGBA a ser usada.
----@param progress number Progresso da animação (0 a 1).
----@param areaInstance table A instância da área para este desenho específico (com position, angle, range, halfWidth, angleWidth).
----@param drawLeft boolean True para desenhar a metade esquerda, False para a direita.
-function AlternatingConeStrike:drawConeFill(color, progress, areaInstance, drawLeft)
-    if not areaInstance or not areaInstance.range or areaInstance.range <= 0 or
-        not areaInstance.halfWidth or areaInstance.halfWidth <= 0 then
-        return
-    end
+--- Desenho de preenchimento otimizado
+---@param animation AnimationInstance Instância da animação
+function AlternatingConeStrike:drawConeFillOptimized(animation)
+    local areaData = animation.data.area
+    local hitLeft = animation.data.hitLeft
+    local progress = animation.progress
 
-    local segments = self.visual.attack.segments
+    if not areaData or progress < 0.01 then return end
+
     local playerRadius = self.playerManager.movementController.player.radius or 10
-    local fullRange = areaInstance.range
+    local fullRange = areaData.range
 
-    if progress < 0.01 then return end
+    -- Calcula shell usando sistema unificado
+    local shellWidth = math.max(CONFIG.constants.MIN_SHELL_WIDTH, fullRange * CONFIG.constants.SHELL_WIDTH_RATIO)
+    local shellInner, shellOuter, isValid = AttackAnimationSystem.calculateShellProgress(
+        progress, playerRadius, fullRange, shellWidth
+    )
 
-    -- Cálculos de shell otimizados
-    local shellWidth = math.max(MIN_SHELL_WIDTH, fullRange * SHELL_WIDTH_RATIO)
-    local shellRadius = playerRadius + (fullRange - playerRadius) * progress
-    local shellInner = math.max(playerRadius, shellRadius - shellWidth * 0.5)
-    local shellOuter = math.min(fullRange, shellRadius + shellWidth * 0.5)
+    if not isValid then return end
 
-    if shellOuter <= shellInner then return end
+    local cx, cy = areaData.position.x, areaData.position.y
+    local baseAngle = areaData.angle
+    local halfWidth = areaData.halfWidth
 
-    local cx, cy = areaInstance.position.x, areaInstance.position.y
-    local baseAngle = areaInstance.angle
-    local halfWidth = areaInstance.halfWidth
-
-    local coneCurrentStartAngle, coneCurrentEndAngle
-    if drawLeft then
-        coneCurrentStartAngle = baseAngle - halfWidth
-        coneCurrentEndAngle = baseAngle
+    -- Determina ângulos baseado no lado
+    local startAngle, endAngle
+    if hitLeft then
+        startAngle = baseAngle - halfWidth
+        endAngle = baseAngle
     else
-        coneCurrentStartAngle = baseAngle
-        coneCurrentEndAngle = baseAngle + halfWidth
+        startAngle = baseAngle
+        endAngle = baseAngle + halfWidth
     end
 
-    -- Desenho otimizado
+    -- Desenho otimizado com menos chamadas
+    local segments = CONFIG.visual.attack.segments
     local vertices = {}
-    local angleStep = (coneCurrentEndAngle - coneCurrentStartAngle) / segments
+    local angleStep = (endAngle - startAngle) / segments
 
+    -- Arco externo
     for i = 0, segments do
-        local angle = coneCurrentStartAngle + angleStep * i
+        local angle = startAngle + angleStep * i
         table.insert(vertices, cx + shellOuter * math.cos(angle))
         table.insert(vertices, cy + shellOuter * math.sin(angle))
     end
 
-    if #vertices >= 6 then
-        love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1.0) * 0.6)
-        love.graphics.polygon("fill", unpack(vertices))
-
-        -- Borda
-        love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1.0) * 0.5)
-        love.graphics.setLineWidth(2)
-        love.graphics.line(unpack(vertices))
-        love.graphics.setLineWidth(1)
+    -- Arco interno (invertido)
+    for i = segments, 0, -1 do
+        local angle = startAngle + angleStep * i
+        table.insert(vertices, cx + shellInner * math.cos(angle))
+        table.insert(vertices, cy + shellInner * math.sin(angle))
     end
 
-    love.graphics.setColor(1, 1, 1, 1)
+    if #vertices >= 6 then
+        local color = self.visual.attack.color
+        love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1.0) * 0.6)
+        love.graphics.polygon("fill", unpack(vertices))
+        love.graphics.setColor(1, 1, 1, 1)
+    end
 end
 
-function AlternatingConeStrike:getCooldownRemaining()
-    return self.cooldownRemaining or 0
-end
+--- Função de debug para performance
+function AlternatingConeStrike:getDebugInfo()
+    local baseInfo = {
+        cooldown = self:getCooldownRemaining(),
+        activeAnimations = #self.activeAnimations,
+        area = {
+            range = self.area.range,
+            angleWidth = self.area.angleWidth
+        }
+    }
 
-function AlternatingConeStrike:togglePreview()
-    self.visual.preview.active = not self.visual.preview.active
-end
+    -- Informações de cache dos sistemas
+    local combatInfo = CombatHelpers.getPerformanceInfo()
+    local animInfo = AttackAnimationSystem.getPoolInfo()
+    local calcInfo = MultiAttackCalculator.getCacheInfo()
 
-function AlternatingConeStrike:getPreview()
-    return self.visual.preview.active
+    return {
+        ability = baseInfo,
+        combatHelpers = combatInfo,
+        animationSystem = animInfo,
+        multiAttackCalc = calcInfo
+    }
 end
 
 return AlternatingConeStrike

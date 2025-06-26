@@ -29,10 +29,6 @@ local MovementController = require('src.controllers.movement_controller')
 ---@field animationPaused boolean Se a animação está pausada
 ---@field [string] any Outras propriedades do sprite
 
----@class Vector2D
----@field x number Coordenada X
----@field y number Coordenada Y
-
 ---@class PlayerManager
 local PlayerManager = {
     -- Referência ao player sprite
@@ -418,6 +414,12 @@ function PlayerManager:getPlayerPosition()
         return { x = 0, y = 0 }
     end
     return self.movementController.player.position
+end
+
+--- Retorna a velocidade atual do jogador
+---@return Vector2D
+function PlayerManager:getPlayerVelocity()
+    return self.movementController:getVelocity()
 end
 
 -- Adiciona um item ao inventário do jogador.
