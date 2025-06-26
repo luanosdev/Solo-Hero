@@ -32,7 +32,7 @@ mkdir %DIST_DIR%
 
 REM Copiar arquivos do projeto
 echo 📁 Copiando arquivos do projeto...
-xcopy /e /i /q src\* %BUILD_DIR%\ 2>nul
+xcopy /e /i /q src\* %BUILD_DIR%\src 2>nul
 xcopy /e /i /q assets\* %BUILD_DIR%\assets\ 2>nul
 copy *.lua %BUILD_DIR%\ >nul 2>nul
 
