@@ -29,6 +29,8 @@
 ---@field weaponClass string Classe da arma que a implementa (e.g., "generic_cone_slash").
 ---@field knockbackPower number Poder de iniciar o knockback (de Constants.KNOCKBACK_POWER).
 ---@field knockbackForce number Força do knockback (de Constants.KNOCKBACK_FORCE).
+---@field animationType? "melee"|"ranged" Tipo de animação da arma.
+---@field animationFolderPath? string Pasta dentro de assets/player/weapons/ onde estão os sprites da arma.
 ---@field previewColor? table Cor de visualização da arma.
 ---@field attackColor? table Cor de ataque da arma.
 ---@field sellValue? number Valor de venda da arma.
@@ -126,6 +128,8 @@ local weapons = {
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.MEDIUM,
         knockbackForce = Constants.KNOCKBACK_FORCE.SWORDS,
+        animationType = "melee",
+        animationFolderPath = "sword_tier_1",
         modifiers = {
             { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.1 },
         }

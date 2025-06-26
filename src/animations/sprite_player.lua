@@ -2,6 +2,7 @@
 ---@class SpritePlayer
 local SpritePlayer = {}
 local Colors = require("src.ui.colors")
+local Constants = require("src.config.constants")
 
 ---@class PlayerSpriteConfig
 ---@field position Vector2D Posição do jogador
@@ -16,27 +17,11 @@ SpritePlayer.defaultConfig = {
         x = 0,
         y = 0,
     },
-    scale = 1.2,
-    speed = 150,
+    scale = 1.5,
     -- Configurações de animação
     animation = {
         currentFrame = 1,
         timer = 0,
-        frameTime = {
-            walk = 0.05,
-            idle = 0.1,
-            attack_melee = 0.03,
-            attack_ranged = 0.03,
-            attack_run_melee = 0.03,
-            attack_run_ranged = 0.03,
-            die = 0.1,
-            idle2 = 0.1,
-            idle3 = 0.1,
-            idle4 = 0.1,
-            strafe_left = 0.05,
-            strafe_right = 0.05,
-            taunt = 0.08
-        },
         -- Mapeamento de direções (primeira linha é oeste, sentido horário)
         direction = 'E',
         state = 'idle',
@@ -60,7 +45,9 @@ SpritePlayer.defaultConfig = {
         wasMoving = false, -- Flag para detectar quando para de se mover
         currentIdleVariant = "idle",
         -- Sistema de animação reversa
-        isReversed = false -- Flag para executar frames em ordem reversa
+        isReversed = false,      -- Flag para executar frames em ordem reversa
+        -- Sistema de animação de ataque
+        attackAnimationTimer = 0 -- Timer para controlar duração de ataques
     },
     -- Aparência do jogador
     appearance = {
@@ -74,8 +61,10 @@ SpritePlayer.defaultConfig = {
             shoe = nil
         },
         weapon = {
-            type = nil, -- axe, sword, bow, etc.
-            sprite = nil
+            type = nil,         -- axe, sword, bow, etc.
+            sprite = nil,
+            folderPath = nil,   -- Pasta dos sprites da arma (ex: "sword_tier_1")
+            animationType = nil -- "melee" ou "ranged"
         }
     }
 }
@@ -91,7 +80,7 @@ SpritePlayer.resources = {
         leg = {},
         shoe = {}
     },
-    weapons = {} -- Sprites das armas por tipo
+    weapons = {} -- Sprites das armas por pasta
 }
 
 -- Quads para otimização de renderização
@@ -107,7 +96,7 @@ function SpritePlayer.load()
     -- Carrega sprites de equipamentos (se existirem)
     SpritePlayer._loadEquipmentSprites()
 
-    -- Carrega sprites de armas (se existirem)
+    -- Carrega sprites de armas
     SpritePlayer._loadWeaponSprites()
 
     Logger.info("sprite_player.load", "Sistema de renderização em camadas carregado com sucesso.")
@@ -157,25 +146,61 @@ function SpritePlayer._loadEquipmentSprites()
     end
 end
 
---- Carrega sprites de armas
+--- Carrega sprites de armas baseado nas pastas disponíveis
 function SpritePlayer._loadWeaponSprites()
-    local weaponTypes = {
-        "axe",
-        "sword",
-        "bow",
-        "dagger",
-        "staff",
-        "mace"
+    -- Lista de pastas de armas conhecidas para carregar
+    local weaponFolders = {
+        "sword_tier_1"
+        -- Adicione mais conforme necessário
     }
 
-    for _, weaponType in ipairs(weaponTypes) do
-        local weaponPath = "assets/player/weapons/" .. weaponType .. "/"
-        SpritePlayer.resources.weapons[weaponType] = {}
+    for _, folderName in ipairs(weaponFolders) do
+        SpritePlayer._loadWeaponFolder(folderName)
+    end
+end
 
-        -- Tenta carregar diferentes variações de cada arma
-        -- Por enquanto apenas registra a estrutura
-        Logger.debug("sprite_player.load_weapons",
-            string.format("Estrutura preparada para armas: %s", weaponType))
+--- Carrega todos os sprites de uma pasta de arma específica
+---@param folderName string Nome da pasta da arma
+function SpritePlayer._loadWeaponFolder(folderName)
+    local weaponPath = "assets/player/weapons/" .. folderName .. "/"
+
+    -- Lista de animações que devem sincronizar com o corpo
+    local animationStates = {
+        "attack_melee", "attack_ranged", "attack_run_melee", "attack_run_ranged",
+        "die", "idle", "idle2", "idle3", "idle4",
+        "strafe_left", "strafe_right", "taunt", "walk"
+    }
+
+    SpritePlayer.resources.weapons[folderName] = {}
+
+    for _, state in ipairs(animationStates) do
+        local filePath = weaponPath .. state .. ".png"
+        local success, sprite = pcall(function()
+            return love.graphics.newImage(filePath)
+        end)
+
+        if success and sprite then
+            SpritePlayer.resources.weapons[folderName][state] = sprite
+            SpritePlayer._createQuadsForWeaponSprite(folderName, state, sprite)
+            Logger.debug(
+                "sprite_player.load_weapon",
+                string.format("Carregado sprite da arma %s: %s", folderName, state)
+            )
+        end
+    end
+
+    if next(SpritePlayer.resources.weapons[folderName]) then
+        Logger.info(
+            "sprite_player.load_weapons",
+            string.format("Carregados sprites da arma: %s", folderName)
+        )
+    else
+        -- Remove entrada vazia se nenhum sprite foi carregado
+        SpritePlayer.resources.weapons[folderName] = nil
+        Logger.warn(
+            "sprite_player.load_weapons",
+            string.format("Nenhum sprite encontrado para: %s", folderName)
+        )
     end
 end
 
@@ -201,6 +226,39 @@ function SpritePlayer._createQuadsForSprite(stateName, sprite)
             local y = (row - 1) * frameHeight
 
             SpritePlayer.quads[stateName][direction][frame] = love.graphics.newQuad(
+                x, y, frameWidth, frameHeight, sprite:getDimensions()
+            )
+        end
+    end
+end
+
+--- Cria quads para sprites de armas (mesmo formato que corpo: 8 direções x 15 frames)
+---@param weaponFolder string Pasta da arma
+---@param stateName string Nome do estado da animação
+---@param sprite love.Image Sprite carregado da arma
+function SpritePlayer._createQuadsForWeaponSprite(weaponFolder, stateName, sprite)
+    if not SpritePlayer.quads[weaponFolder] then
+        SpritePlayer.quads[weaponFolder] = {}
+    end
+
+    if not SpritePlayer.quads[weaponFolder][stateName] then
+        SpritePlayer.quads[weaponFolder][stateName] = {}
+    end
+
+    local frameWidth = SpritePlayer.defaultConfig.animation.frameWidth
+    local frameHeight = SpritePlayer.defaultConfig.animation.frameHeight
+    local framesPerDirection = SpritePlayer.defaultConfig.animation.framesPerDirection
+
+    -- Para cada direção (8 linhas)
+    for direction, row in pairs(SpritePlayer.defaultConfig.animation.directions) do
+        SpritePlayer.quads[weaponFolder][stateName][direction] = {}
+
+        -- Para cada frame na direção (15 colunas)
+        for frame = 1, framesPerDirection do
+            local x = (frame - 1) * frameWidth
+            local y = (row - 1) * frameHeight
+
+            SpritePlayer.quads[weaponFolder][stateName][direction][frame] = love.graphics.newQuad(
                 x, y, frameWidth, frameHeight, sprite:getDimensions()
             )
         end
@@ -241,8 +299,68 @@ function SpritePlayer.getDirectionFromAngle(angle)
     end
 end
 
+--- Calcula os tempos de frame dinâmicos baseados na velocidade atual do jogador
+---@param currentSpeed number Velocidade atual do jogador
+---@return table Tabela com tempos de frame ajustados
+function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
+    local baseSpeed = Constants.HUNTER_DEFAULT_STATS.moveSpeed
+    local speedRatio = currentSpeed / baseSpeed
+
+    -- Tempos de frame base (quando velocidade = valor base)
+    local baseFrameTimes = {
+        walk = 0.05,
+        walk_backward = 0.05,
+        strafe_left = 0.05,
+        strafe_right = 0.05,
+        -- Estes não são afetados pela velocidade de movimento
+        idle = 0.1,
+        idle2 = 0.1,
+        idle3 = 0.1,
+        idle4 = 0.1,
+        attack_melee = 0.02,
+        attack_ranged = 0.02,
+        attack_run_melee = 0.02,
+        attack_run_ranged = 0.02,
+        die = 0.1,
+        taunt = 0.08
+    }
+
+    -- Calcula tempos ajustados para animações de movimento
+    local adjustedFrameTimes = {}
+    for state, baseTime in pairs(baseFrameTimes) do
+        if state == "walk" or state == "walk_backward" or
+            state == "strafe_left" or state == "strafe_right" then
+            -- Aplica a velocidade: mais rápido = frames mais rápidos
+            adjustedFrameTimes[state] = baseTime / speedRatio
+
+            -- Limita para evitar animações muito rápidas ou muito lentas
+            local minFrameTime = 0.02 -- Máximo 50 FPS na animação
+            local maxFrameTime = 0.15 -- Mínimo ~6.7 FPS na animação
+            adjustedFrameTimes[state] = math.max(minFrameTime, math.min(maxFrameTime, adjustedFrameTimes[state]))
+        else
+            -- Outras animações não são afetadas pela velocidade
+            adjustedFrameTimes[state] = baseTime
+        end
+    end
+
+    Logger.debug(
+        "sprite_player.dynamic_frame_times",
+        string.format(
+            "Velocidade: %.1f (ratio: %.2f) - Frame time walk: %.3f",
+            currentSpeed, speedRatio, adjustedFrameTimes.walk
+        )
+    )
+
+    return adjustedFrameTimes
+end
+
 --- Atualiza o estado da animação
-function SpritePlayer.update(config, dt, targetPosition)
+---@param config PlayerSpriteConfig Configuração do player
+---@param dt number Delta time
+---@param targetPosition Vector2D Posição alvo
+---@param currentSpeed number Velocidade atual do jogador (stats finais)
+---@return number|nil distanceMoved Distância movida neste frame
+function SpritePlayer.update(config, dt, targetPosition, currentSpeed)
     local dx, dy = 0, 0
     local isMoving = false
 
@@ -288,9 +406,9 @@ function SpritePlayer.update(config, dt, targetPosition)
         dy = dy / magnitude
     end
 
-    -- Calcula o deslocamento
-    local moveX = dx * config.speed * dt
-    local moveY = dy * config.speed * dt
+    -- Calcula o deslocamento usando a velocidade atual do jogador
+    local moveX = dx * currentSpeed * dt
+    local moveY = dy * currentSpeed * dt
 
     -- Atualiza a posição
     config.position.x = config.position.x + moveX
@@ -299,7 +417,25 @@ function SpritePlayer.update(config, dt, targetPosition)
     -- Define o estado da animação
     local newState
     if config.animation.isAttacking then
-        newState = isMoving and 'attack_run_melee' or 'attack_melee'
+        -- Atualiza timer de ataque
+        config.animation.attackAnimationTimer = config.animation.attackAnimationTimer + dt
+
+        -- Calcula duração real da animação baseada no frameTime atual
+        local dynamicFrameTimes = SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
+        local currentFrameTime = dynamicFrameTimes[config.animation.state] or 0.1
+        local animationDuration = config.animation.framesPerDirection * currentFrameTime
+
+        -- Para a animação quando completa um ciclo
+        if config.animation.attackAnimationTimer >= animationDuration then
+            SpritePlayer.stopAttackAnimation(config)
+        else
+            -- Determina estado de ataque baseado no tipo da arma e movimento
+            if config.appearance.weapon.animationType == "ranged" then
+                newState = isMoving and 'attack_run_ranged' or 'attack_ranged'
+            else
+                newState = isMoving and 'attack_run_melee' or 'attack_melee'
+            end
+        end
     else
         if not isMoving then
             -- Detecta se acabou de parar de se mover
@@ -343,8 +479,11 @@ function SpritePlayer.update(config, dt, targetPosition)
     -- Atualiza o timer da animação
     config.animation.timer = config.animation.timer + dt
 
+    -- Calcula tempos de frame dinâmicos baseados na velocidade atual
+    local dynamicFrameTimes = SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
+
     -- Obtém o tempo do frame para o estado atual
-    local frameTime = config.animation.frameTime[config.animation.state] or 0.1
+    local frameTime = dynamicFrameTimes[config.animation.state] or 0.1
 
     -- Avança o frame se o tempo passou
     if config.animation.timer >= frameTime then
@@ -477,7 +616,7 @@ function SpritePlayer._normalizeAngleDiff(angleDiff)
     return angleDiff
 end
 
---- Desenha o jogador com sistema de camadas
+--- Desenha o jogador com sistema de camadas sincronizadas
 function SpritePlayer.draw(config)
     local currentState = config.animation.state
     local currentDirection = config.animation.direction
@@ -520,17 +659,17 @@ function SpritePlayer.draw(config)
         -- Reseta cor para branco
         love.graphics.setColor(1, 1, 1, 1)
 
-        -- Desenha camadas de equipamentos (se existirem)
-        SpritePlayer._drawEquipmentLayers(config, currentState, currentDirection, currentFrame)
+        -- Desenha camadas de equipamentos (se existirem) - sempre sincronizadas
+        SpritePlayer._drawEquipmentLayers(config, spriteState, currentDirection, currentFrame)
 
-        -- Desenha camada de arma (se existir)
-        SpritePlayer._drawWeaponLayer(config, currentState, currentDirection, currentFrame)
+        -- Desenha camada de arma (se existir) - sempre sincronizada
+        SpritePlayer._drawWeaponLayer(config, spriteState, currentDirection, currentFrame)
     end
 
     love.graphics.pop()
 end
 
---- Desenha as camadas de equipamentos
+--- Desenha as camadas de equipamentos sempre sincronizadas com o corpo
 function SpritePlayer._drawEquipmentLayers(config, state, direction, frame)
     -- Por enquanto apenas a estrutura - implementação futura quando tivermos os sprites
     local equipmentOrder = { "leg", "shoe", "belt", "chest", "bag", "head" }
@@ -539,17 +678,51 @@ function SpritePlayer._drawEquipmentLayers(config, state, direction, frame)
         local equipmentId = config.appearance.equipment[equipType]
         if equipmentId and SpritePlayer.resources.equipment[equipType][equipmentId] then
             -- TODO: Implementar quando tivermos os sprites de equipamentos
+            -- Os equipamentos usarão o mesmo state, direction e frame do corpo
         end
     end
 end
 
---- Desenha a camada de arma
+--- Desenha a camada de arma sempre sincronizada com o corpo
 function SpritePlayer._drawWeaponLayer(config, state, direction, frame)
-    local weaponType = config.appearance.weapon.type
-    local weaponSprite = config.appearance.weapon.sprite
+    -- Só desenha arma se tiver uma equipada
+    if not config.appearance.weapon.folderPath then
+        return
+    end
 
-    if weaponType and weaponSprite and SpritePlayer.resources.weapons[weaponType] then
-        -- TODO: Implementar quando tivermos os sprites de armas
+    local weaponFolder = config.appearance.weapon.folderPath
+    local weaponSprites = SpritePlayer.resources.weapons[weaponFolder]
+
+    -- Verifica se temos sprites da arma carregados
+    if not weaponSprites or not weaponSprites[state] then
+        return
+    end
+
+    -- Verifica se o quad da arma existe para o estado atual
+    local weaponQuad = SpritePlayer.quads[weaponFolder] and
+        SpritePlayer.quads[weaponFolder][state] and
+        SpritePlayer.quads[weaponFolder][state][direction] and
+        SpritePlayer.quads[weaponFolder][state][direction][frame]
+
+    if weaponQuad then
+        -- Desenha a arma exatamente sincronizada com o corpo
+        love.graphics.draw(
+            weaponSprites[state],
+            weaponQuad,
+            -config.animation.frameWidth * config.scale / 2,
+            -config.animation.frameHeight * config.scale / 2,
+            0,
+            config.scale,
+            config.scale
+        )
+
+        Logger.debug(
+            "sprite_player.weapon_draw",
+            string.format(
+                "Desenhando arma sincronizada: %s/%s (frame %d, dir %s)",
+                weaponFolder, state, frame, direction
+            )
+        )
     end
 end
 
@@ -605,25 +778,51 @@ function SpritePlayer.newConfig(overrides)
     return config
 end
 
---- Inicia a animação de ataque
-function SpritePlayer.startAttackAnimation(config, attackType)
+--- Inicia a animação de ataque baseada no tipo da arma
+---@param config PlayerSpriteConfig Configuração do sprite do player
+---@param attackType string|nil Tipo de ataque (opcional, será detectado automaticamente se não fornecido)
+---@param isMoving boolean|nil Se o player está se movendo
+function SpritePlayer.startAttackAnimation(config, attackType, isMoving)
     if not config.animation.isAttacking then
         config.animation.isAttacking = true
         config.animation.currentFrame = 1
         config.animation.timer = 0
+        config.animation.attackAnimationTimer = 0 -- Reset timer de ataque
 
-        -- Determine o tipo de ataque baseado no parâmetro ou arma equipada
-        if attackType == "ranged" or (config.appearance.weapon.type == "bow") then
-            config.animation.state = 'attack_ranged'
+        -- Detecta tipo de animação baseado na arma equipada
+        local weaponAnimationType = config.appearance.weapon.animationType
+        local finalAttackType = attackType or weaponAnimationType or "melee"
+
+        -- Define estado de animação baseado no tipo da arma e movimento
+        if finalAttackType == "ranged" then
+            config.animation.state = isMoving and 'attack_run_ranged' or 'attack_ranged'
         else
-            config.animation.state = 'attack_melee'
+            config.animation.state = isMoving and 'attack_run_melee' or 'attack_melee'
         end
+
+        -- Calcula duração esperada da animação para debug
+        local frameTime = 0.02 -- Tempo atual dos frames de ataque
+        local expectedDuration = config.animation.framesPerDirection * frameTime
+
+        Logger.debug(
+            "sprite_player.attack_animation",
+            string.format(
+                "Iniciando animação de ataque: tipo=%s, estado=%s, movendo=%s, duração_esperada=%.2fs, arma_pasta=%s",
+                finalAttackType,
+                config.animation.state,
+                tostring(isMoving),
+                expectedDuration,
+                config.appearance.weapon.folderPath or "nenhuma"
+            )
+        )
     end
 end
 
 --- Para a animação de ataque
 function SpritePlayer.stopAttackAnimation(config)
     config.animation.isAttacking = false
+
+    Logger.debug("sprite_player.attack_animation_stop", "Animação de ataque finalizada")
 end
 
 --- Define a aparência do jogador
@@ -641,8 +840,8 @@ function SpritePlayer.setAppearance(config, appearance)
     end
 
     if appearance.weapon then
-        config.appearance.weapon.type = appearance.weapon.type
-        config.appearance.weapon.sprite = appearance.weapon.sprite
+        config.appearance.weapon.folderPath = appearance.weapon.folderPath
+        config.appearance.weapon.animationType = appearance.weapon.animationType
     end
 end
 

@@ -4,6 +4,7 @@
 -------------------------------------------------------------------------
 
 local Constants = require("src.config.constants")
+local SpritePlayer = require("src.animations.sprite_player")
 
 ---@class WeaponController
 ---@field playerManager PlayerManager Referência ao PlayerManager
@@ -97,6 +98,11 @@ function WeaponController:setActiveWeapon(weaponItemInstance)
                         string.format("[WeaponController:setActiveWeapon] Arma '%s' equipada com sucesso",
                             weaponItemInstance.itemBaseId)
                     )
+
+                    -- Atualiza aparência da arma no sprite
+                    if self.playerManager.movementController and self.playerManager.movementController.updateWeaponAppearance then
+                        self.playerManager.movementController:updateWeaponAppearance()
+                    end
                 else
                     error(string.format(
                         "[WeaponController:setActiveWeapon] - O método :equip não foi encontrado na classe da arma '%s'!",
@@ -275,6 +281,93 @@ function WeaponController:getWeaponStats()
     end
 
     return {}
+end
+
+--- Equipa uma arma
+---@param weaponData BaseWeapon|nil Dados da arma a ser equipada
+function WeaponController:equipWeapon(weaponData)
+    if not weaponData then
+        Logger.warn("weapon_controller.equip_weapon", "Tentativa de equipar arma inválida")
+        return false
+    end
+
+    self.equippedWeapon = weaponData
+
+    -- Atualiza aparência da arma diretamente no sprite do player
+    self:_updateWeaponAppearance()
+
+    local itemData = weaponData:getBaseData()
+    Logger.info(
+        "weapon_controller.equip_weapon",
+        string.format(
+            "Arma equipada: %s (tipo: %s, pasta: %s)",
+            itemData.name or itemData.id,
+            itemData.animationType or "melee",
+            itemData.animationFolderPath or "sword_tier_1"
+        )
+    )
+
+    return true
+end
+
+--- Remove a arma equipada
+function WeaponController:unequipWeapon()
+    if not self.equippedWeapon then
+        return false
+    end
+
+    local previousWeapon = self.equippedWeapon
+    self.equippedWeapon = nil
+
+    -- Remove aparência da arma do sprite do player
+    self:_updateWeaponAppearance()
+
+    Logger.info(
+        "weapon_controller.unequip_weapon",
+        string.format("Arma removida: %s", previousWeapon:getBaseData().name or previousWeapon:getBaseData().id)
+    )
+
+    return true
+end
+
+--- Atualiza a aparência da arma no sprite do player
+function WeaponController:_updateWeaponAppearance()
+    local movementController = self.playerManager.movementController
+    if not movementController or not movementController.player then
+        return
+    end
+
+
+    if self.equippedWeapon then
+        local itemData = self.equippedWeapon:getBaseData()
+
+        SpritePlayer.setAppearance(movementController.player, {
+            weapon = {
+                folderPath = itemData.animationFolderPath or "sword_tier_1",
+                animationType = itemData.animationType or "melee"
+            }
+        })
+
+        Logger.debug(
+            "weapon_controller.weapon_appearance",
+            string.format(
+                "Aparência da arma atualizada: %s -> %s (%s)",
+                itemData.id,
+                itemData.animationFolderPath or "sword_tier_1",
+                itemData.animationType or "melee"
+            )
+        )
+    else
+        -- Remove arma
+        SpritePlayer.setAppearance(movementController.player, {
+            weapon = {
+                folderPath = nil,
+                animationType = nil
+            }
+        })
+
+        Logger.debug("weapon_controller.weapon_appearance", "Arma removida da aparência")
+    end
 end
 
 return WeaponController

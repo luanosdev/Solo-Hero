@@ -4,6 +4,8 @@
 -- Centraliza cache, cooldown, multi-attack e lógica comum para máxima performance.
 ----------------------------------------------------------------------------
 
+local SpritePlayer = require("src.animations.sprite_player")
+
 ---@class BaseAttackAbilityVisual
 ---@field preview { active: boolean, lineLength: number, color: table }
 ---@field attack AlternatingConeStrikeVisualAttack|CircularSmashVisualAttack|ConeVisualAttack|FlameStreamVisualAttack|SpreadProjectileVisualAttack|SequentialProjectileVisualAttack|ChainLightningVisualAttack
@@ -14,7 +16,7 @@
 ---@field attackType string "melee"|"ranged"|"area"|"projectile"
 ---@field cooldownRemaining number
 ---@field cachedStats FinalStats
----@field cachedBaseData CircularSmashWeapon|ConeWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon
+---@field cachedBaseData CircularSmashWeapon|ConeSlashWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon
 ---@field lastStatsUpdateTime number
 ---@field playerPosition Vector2D
 ---@field knockbackData KnockbackData
@@ -159,8 +161,45 @@ function BaseAttackAbility:cast(args)
         self.cachedStats = self.playerManager:getCurrentFinalStats()
     end
 
+    -- Dispara animação de ataque no sprite do player
+    self:triggerPlayerAttackAnimation()
+
     self:applyCooldown()
     return self:castSpecific(args) -- Implementado pelas subclasses
+end
+
+--- Dispara animação de ataque do player se um PlayerManager existir
+function BaseAttackAbility:triggerPlayerAttackAnimation()
+    -- Verifica se o player está se movendo
+    local movementController = self.playerManager.movementController
+    local isMoving = false
+    if movementController then
+        local velocity = movementController:getVelocity()
+        isMoving = (math.abs(velocity.x) > 1 or math.abs(velocity.y) > 1)
+    end
+
+    -- Obtém dados da arma equipada
+    local weaponController = self.playerManager.weaponController
+    local equippedWeapon = weaponController and weaponController:getEquippedWeapon()
+    local animationType = "melee" -- padrão
+
+    if equippedWeapon then
+        animationType = equippedWeapon:getBaseData().animationType or "melee"
+    end
+
+    -- Dispara animação do sprite do player
+    local spriteConfig = movementController and movementController.player
+    if spriteConfig then
+        SpritePlayer.startAttackAnimation(spriteConfig, animationType, isMoving)
+
+        Logger.debug(
+            "base_attack_ability.trigger_animation",
+            string.format(
+                "Animação de ataque disparada: tipo=%s, movendo=%s",
+                animationType, tostring(isMoving)
+            )
+        )
+    end
 end
 
 -- Hooks abstratos (implementados pelas subclasses)

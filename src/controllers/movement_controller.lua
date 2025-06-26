@@ -5,6 +5,7 @@
 
 local SpritePlayer = require('src.animations.sprite_player')
 local Camera = require("src.config.camera")
+local Constants = require("src.config.constants")
 
 ---@class MovementController
 ---@field playerManager PlayerManager Referência ao PlayerManager
@@ -67,8 +68,8 @@ function MovementController:setupPlayerSprite(finalStats)
             shoe = nil
         },
         weapon = {
-            type = nil,
-            sprite = nil
+            folderPath = nil,
+            animationType = nil
         }
     }
 
@@ -78,8 +79,7 @@ function MovementController:setupPlayerSprite(finalStats)
             x = love.graphics.getWidth() / 2,
             y = love.graphics.getHeight() / 2
         },
-        scale = 1,
-        speed = finalSpeed,
+        scale = 1.4,
         appearance = appearance
     })
 
@@ -113,7 +113,11 @@ function MovementController:update(dt, targetPosition)
 
     -- Atualiza o sprite do player apenas se a animação não estiver pausada
     if not self.player.animationPaused then
-        local distanceMoved = SpritePlayer.update(self.player, dt, targetPosition)
+        -- Obtém a velocidade atual do jogador baseada nos stats finais
+        local finalStats = self.playerManager:getCurrentFinalStats()
+        local currentSpeed = finalStats and finalStats.moveSpeed or Constants.HUNTER_DEFAULT_STATS.moveSpeed
+
+        local distanceMoved = SpritePlayer.update(self.player, dt, targetPosition, currentSpeed)
 
         -- Registra movimento nas estatísticas se houve movimento
         if distanceMoved and distanceMoved > 0 and self.playerManager.gameStatisticsManager then
@@ -227,21 +231,6 @@ function MovementController:draw()
     end
 end
 
---- Atualiza a velocidade do sprite baseado nos stats atuais
-function MovementController:refreshSpeed()
-    if not self.player then return end
-
-    local finalStats = self.playerManager:getCurrentFinalStats()
-    if finalStats and finalStats.moveSpeed then
-        self.player.speed = finalStats.moveSpeed
-
-        Logger.debug(
-            "movement_controller.speed.refresh",
-            string.format("[MovementController:refreshSpeed] Velocidade atualizada para: %.2f", finalStats.moveSpeed)
-        )
-    end
-end
-
 --- Obtém informações de debug sobre movimento
 ---@return table
 function MovementController:getDebugInfo()
@@ -260,7 +249,6 @@ function MovementController:getDebugInfo()
             x = self.player.velocity.x,
             y = self.player.velocity.y
         } or nil
-        info.speed = self.player.speed
         info.scale = self.player.scale
     end
 
