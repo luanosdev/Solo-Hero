@@ -4,6 +4,7 @@
 ]]
 
 local RenderPipeline = require("src.core.render_pipeline")
+local AuraEffect = require("src.effects.aura_effect")
 
 local Aura = {}
 Aura.__index = Aura -- Para permitir que instâncias herdem métodos
@@ -89,9 +90,15 @@ function Aura:new(playerManager, runeItemData)
         particleSize = self.defaultShockwaveParticleSize
     }
 
-    print(string.format("Instância de Aura criada: Dmg/Tick=%d, Interval=%.2f, Radius=%.1f, Cor=[%.2f,%.2f,%.2f,%.2f]",
-        instance.damage_per_tick, instance.cooldown, instance.radius,
-        instance.color[1], instance.color[2], instance.color[3], instance.color[4] or 0.03))
+    -- Cria o efeito visual da aura
+    instance.visualEffect = AuraEffect:new(
+        { x = 0, y = 0 },             -- Posição será atualizada dinamicamente
+        {
+            radius = instance.radius, -- Passa o raio para calcular escala correta
+            rotationSpeed = 0.8
+        }
+    )
+
     return instance
 end
 
@@ -100,8 +107,23 @@ end
 --- @param enemies BaseEnemy[] Lista de inimigos.
 --- @param finalStats table Estatísticas finais do jogador.
 function Aura:update(dt, enemies, finalStats)
+    -- Atualiza posição do efeito visual
+    if self.playerManager and self.playerManager.player and self.playerManager.player.position then
+        self.visualEffect.position.x = self.playerManager.player.position.x
+        self.visualEffect.position.y = self.playerManager.player.position.y + 25
+    end
+
+    -- Atualiza o efeito visual
+    self.visualEffect:update(dt)
+
     if self.currentCooldown > 0 then
         self.currentCooldown = math.max(0, self.currentCooldown - dt)
+
+        -- Prepara o efeito visual conforme se aproxima do dano
+        local timeUntilDamage = self.currentCooldown
+        if timeUntilDamage <= 1.0 then -- Prepara nos últimos 1 segundo
+            self.visualEffect:prepareDamage(timeUntilDamage)
+        end
     end
 
     if self.shockwave.isActive then
@@ -116,6 +138,8 @@ function Aura:update(dt, enemies, finalStats)
             self.shockwave.isActive = false
             self.shockwave.currentRadius = 0
             self.shockwave.timer = 0
+            -- Retorna efeito visual ao normal depois do shockwave
+            self.visualEffect:resetToNormal()
         end
     end
 
@@ -125,6 +149,9 @@ function Aura:update(dt, enemies, finalStats)
             self.shockwave.isActive = true
             self.shockwave.currentRadius = 0
             self.shockwave.timer = 0
+
+            -- Triggera o pulso visual no momento do dano
+            self.visualEffect:triggerDamagePulse()
 
             self:applyAuraDamage(enemies)
             local cooldownReduction = finalStats.cooldownReduction
@@ -142,13 +169,13 @@ function Aura:draw()
         local playerX = self.playerManager.player.position.x
         local playerY = self.playerManager.player.position.y + 25
 
-        love.graphics.setColor(self.color[1], self.color[2], self.color[3], self.color[4] or 0.03) -- Usa cor da instância
-        love.graphics.circle("fill", playerX, playerY, self.radius)
+        -- Desenha o novo efeito visual da aura
+        self.visualEffect:draw()
 
         if self.shockwave.isActive then
             local previousLineWidth = love.graphics.getLineWidth()
 
-            love.graphics.setColor(self.color[1], self.color[2], self.color[3], self.shockwave.alpha) -- Usa cor base da aura para shockwave
+            love.graphics.setColor(1, 1, 1, self.shockwave.alpha) -- Usa cor base da aura para shockwave
             love.graphics.setLineWidth(self.shockwave.thickness)
             love.graphics.circle("line", playerX, playerY, self.shockwave.currentRadius)
 
@@ -168,6 +195,17 @@ function Aura:draw()
         end
     end
     love.graphics.setColor(1, 1, 1, 1)
+end
+
+--- Coleta renderizáveis para o render pipeline
+--- @param renderPipeline RenderPipeline
+function Aura:collectRenderables(renderPipeline)
+    if not self.playerManager or not self.playerManager.player or not self.playerManager.player.position then return end
+
+    if self.auraState.active then
+        -- Adiciona o efeito visual da aura ao pipeline
+        self.visualEffect:collectRenderables(renderPipeline)
+    end
 end
 
 -- O método cast pode não ser diretamente chamado pelo PlayerManager para auras passivas,
