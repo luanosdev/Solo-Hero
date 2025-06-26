@@ -350,7 +350,7 @@ end
 --- @return boolean, table|nil Returns true and the old item instance (if any), or false and nil.
 function HunterManager:equipItem(itemInstance, slotId)
     if not self.activeHunterId or not itemInstance or not slotId then
-        print("ERROR [HunterManager:equipItem]: Invalid arguments.")
+        error("ERROR [HunterManager:equipItem]: Invalid arguments.")
         return false, nil
     end
 
@@ -715,6 +715,129 @@ function HunterManager:getArchetypeIds(hunterId)
     end
     print(string.format("WARNING [getArchetypeIds]: Hunter %s not found.", hunterId))
     return nil
+end
+
+--- Move um item equipado de um slot para outro para um caçador específico.
+--- Usado para trocar itens entre slots de equipamento (ex: trocar runas de lugar).
+--- @param hunterId string O ID do caçador.
+--- @param sourceSlotId string O ID do slot de origem.
+--- @param targetSlotId string O ID do slot de destino.
+--- @return boolean True se a troca foi bem-sucedida, false caso contrário.
+function HunterManager:moveEquippedItem(hunterId, sourceSlotId, targetSlotId)
+    if not hunterId or not sourceSlotId or not targetSlotId then
+        error("ERROR [HunterManager:moveEquippedItem]: Argumentos inválidos.")
+    end
+
+    if sourceSlotId == targetSlotId then
+        Logger.warn(
+            "hunter_manager.move_equipped_item.equal_slots",
+            "[HunterManager:moveEquippedItem] Slots de origem e destino são iguais."
+        )
+        return true -- Considera sucesso pois não há trabalho a fazer
+    end
+
+    local hunterData = self.hunters[hunterId]
+    if not hunterData or not hunterData.equippedItems then
+        error(string.format("[HunterManager:moveEquippedItem] Caçador '%s' ou equipamentos não encontrados.", hunterId))
+    end
+
+    local sourceItem = hunterData.equippedItems[sourceSlotId]
+    local targetItem = hunterData.equippedItems[targetSlotId]
+
+    if not sourceItem then
+        Logger.warn(
+            "hunter_manager.move_equipped_item.no_source_item",
+            string.format(
+                "[HunterManager:moveEquippedItem] Nenhum item encontrado no slot de origem '%s'.",
+                sourceSlotId
+            )
+        )
+        return true
+    end
+
+    -- Validações de compatibilidade de tipos para o slot de destino
+    local sourceItemData = self.itemDataManager:getBaseItemData(sourceItem.itemBaseId)
+    if sourceItemData then
+        local expectedTargetType = "unknown"
+
+        if targetSlotId == "weapon" then expectedTargetType = "weapon" end
+        if targetSlotId == "helmet" then expectedTargetType = "helmet" end
+        if targetSlotId == "chest" then expectedTargetType = "chest" end
+        if targetSlotId == "gloves" then expectedTargetType = "gloves" end
+        if targetSlotId == "boots" then expectedTargetType = "boots" end
+        if targetSlotId == "legs" then expectedTargetType = "legs" end
+        if string.sub(targetSlotId, 1, 5) == "rune_" then expectedTargetType = "rune" end
+
+        if expectedTargetType ~= "unknown" and sourceItemData.type ~= expectedTargetType then
+            error(string.format(
+                "[HunterManager:moveEquippedItem] Item tipo '%s' incompatível com slot destino '%s' (espera '%s').",
+                sourceItemData.type, targetSlotId, expectedTargetType
+            ))
+        end
+    end
+
+    -- Se há item no destino, valida se pode ser movido para origem
+    if targetItem then
+        local targetItemData = self.itemDataManager:getBaseItemData(targetItem.itemBaseId)
+        if targetItemData then
+            local expectedSourceType = "unknown"
+
+            if sourceSlotId == "weapon" then expectedSourceType = "weapon" end
+            if sourceSlotId == "helmet" then expectedSourceType = "helmet" end
+            if sourceSlotId == "chest" then expectedSourceType = "chest" end
+            if sourceSlotId == "gloves" then expectedSourceType = "gloves" end
+            if sourceSlotId == "boots" then expectedSourceType = "boots" end
+            if sourceSlotId == "legs" then expectedSourceType = "legs" end
+            if string.sub(sourceSlotId, 1, 5) == "rune_" then expectedSourceType = "rune" end
+
+            if expectedSourceType ~= "unknown" and targetItemData.type ~= expectedSourceType then
+                error(string.format(
+                    "[HunterManager:moveEquippedItem] Item alvo tipo '%s' incompatível com slot origem '%s' (espera '%s').",
+                    targetItemData.type, sourceSlotId, expectedSourceType
+                ))
+            end
+        end
+    end
+
+    -- Realiza a troca
+    hunterData.equippedItems[sourceSlotId] = targetItem
+    hunterData.equippedItems[targetSlotId] = sourceItem
+
+    -- Salva o estado para garantir persistência
+    self:saveState()
+
+    -- Notifica PlayerManager das mudanças se for o caçador ativo
+    if hunterId == self.activeHunterId then
+        ---@type PlayerManager
+        local playerManager = ManagerRegistry:tryGet("playerManager")
+
+        if playerManager then
+            -- Para armas
+            if sourceSlotId == Constants.SLOT_IDS.WEAPON then
+                playerManager:setActiveWeapon(targetItem)
+            elseif targetSlotId == Constants.SLOT_IDS.WEAPON then
+                playerManager:setActiveWeapon(sourceItem)
+            end
+
+            -- Para runas
+            if string.sub(sourceSlotId, 1, 5) == "rune_" then
+                if targetItem then
+                    playerManager.runeController:updateRuneInSlot(sourceSlotId, targetItem)
+                else
+                    playerManager.runeController:updateRuneInSlot(sourceSlotId, nil)
+                end
+            end
+
+            if string.sub(targetSlotId, 1, 5) == "rune_" then
+                playerManager.runeController:updateRuneInSlot(targetSlotId, sourceItem)
+            end
+        else
+            Logger.warn("hunter_manager.move_equipped_item.player_manager_not_found",
+                "PlayerManager não encontrado para notificar mudanças!")
+        end
+    end
+
+    return true
 end
 
 return HunterManager

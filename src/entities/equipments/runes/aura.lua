@@ -46,11 +46,25 @@ function Aura:new(playerManager, runeItemData)
     instance.playerManager = playerManager
     instance.runeItemData = runeItemData
 
-    instance.name = runeItemData.name or "Aura de Dano (Instância)"
-    instance.damage_per_tick = runeItemData.damage or self.defaultDamagePerTick
-    instance.cooldown = runeItemData.tick_interval or self.defaultCooldown
-    instance.radius = runeItemData.radius or self.defaultRadius
-    instance.color = runeItemData.color or deepcopy(self.defaultColor) -- Copia para evitar modificação global
+    -- Obtém dados base da runa para configurações visuais
+    local runeBaseData = nil
+    if runeItemData.itemBaseId and playerManager.itemDataManager then
+        runeBaseData = playerManager.itemDataManager:getBaseItemData(runeItemData.itemBaseId)
+    end
+
+    if not runeBaseData then
+        error("Runa base não encontrada para " .. runeItemData.name)
+    end
+
+    instance.name = runeBaseData.name
+    instance.damage_per_tick = runeBaseData.damage or self.defaultDamagePerTick
+    instance.cooldown = runeBaseData.tick_interval or self.defaultCooldown
+    instance.radius = runeBaseData.radius or self.defaultRadius
+
+    -- Usa cor dos dados base se disponível, depois do runeItemData, e por último a cor padrão
+    local colorToUse = runeBaseData.color or self.defaultColor
+    instance.color = deepcopy(colorToUse) -- Copia para evitar modificação global
+
     instance.pulseDuration = runeItemData.pulseDuration or self.defaultPulseDuration
 
     instance.currentCooldown = instance.cooldown -- Começa no cooldown para não disparar imediatamente
@@ -75,8 +89,9 @@ function Aura:new(playerManager, runeItemData)
         particleSize = self.defaultShockwaveParticleSize
     }
 
-    print(string.format("Instância de Aura criada: Dmg/Tick=%d, Interval=%.2f, Radius=%.1f", instance.damage_per_tick,
-        instance.cooldown, instance.radius))
+    print(string.format("Instância de Aura criada: Dmg/Tick=%d, Interval=%.2f, Radius=%.1f, Cor=[%.2f,%.2f,%.2f,%.2f]",
+        instance.damage_per_tick, instance.cooldown, instance.radius,
+        instance.color[1], instance.color[2], instance.color[3], instance.color[4] or 0.03))
     return instance
 end
 

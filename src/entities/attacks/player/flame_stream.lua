@@ -53,11 +53,11 @@ local CONFIG = {
         }
     },
     constants = {
-        BASE_HIT_LOSS = 0.8,
-        PIERCING_REDUCTION_FACTOR = 0.01,
+        BASE_HIT_LOSS = 0.5,
+        PIERCING_REDUCTION_FACTOR = 0.1,
         MIN_HIT_LOSS = 0.2,
-        STRENGTH_LIFETIME_FACTOR = 0.01,
-        BASE_LIFETIME = 1.2
+        STRENGTH_LIFETIME_FACTOR = 0.1,
+        BASE_LIFETIME = 2
     }
 }
 

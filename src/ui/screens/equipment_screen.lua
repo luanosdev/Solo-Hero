@@ -501,7 +501,7 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
             if x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
                 droppedOnEquipmentSlot = true
                 targetEquipmentSlotId = slotId
-                print("EquipmentScreen: Mouse sobre slot de equipamento:", targetEquipmentSlotId)
+                print(string.format("EquipmentScreen: Mouse sobre slot de equipamento:\t%s", targetEquipmentSlotId))
                 break
             end
         end
@@ -509,23 +509,16 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
         if droppedOnEquipmentSlot then
             local itemToEquip = dragState.draggedItem
             if not itemToEquip then
-                print("ERRO (EquipmentScreen): draggedItem é nil ao tentar equipar!")
                 return true -- Consome o evento mesmo com erro para evitar processamento adicional
             end
-            print(string.format("DEBUG (EquipmentScreen): Tentando equipar item ID %s (%s) no slot %s",
-                itemToEquip.instanceId,
-                itemToEquip.itemBaseId, targetEquipmentSlotId))
 
             local baseData = self.itemDataManager:getBaseItemData(itemToEquip.itemBaseId)
             if not baseData then
-                print("ERRO (EquipmentScreen): baseData é nil para item", itemToEquip.itemBaseId)
-                return true
+                return true -- Drop inválido (sem base data)
             end
 
-            -- Verifica compatibilidade do item com o slot
-            local isCompatible = false
             local itemType = baseData.type
-            local targetType = "unknown" -- Para log
+            local isCompatible = false
 
             if targetEquipmentSlotId == SLOT_IDS.WEAPON then
                 targetType = "weapon"
@@ -552,60 +545,31 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                 -- <<< FIM: VERIFICAÇÃO PARA RUNAS (Dinâmica) >>>
             end
 
-            print(string.format(
-                "DEBUG (EquipmentScreen): Verificação de compatibilidade: slotId=%s (espera %s), itemType=%s, isCompatible=%s",
-                targetEquipmentSlotId, targetType, itemType, tostring(isCompatible)))
-
             if isCompatible then
-                ---@type LobbyStorageManager|LoadoutManager
-                local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
-                    self.loadoutManager
+                if dragState.sourceGridId == "equipment" then
+                    -- MOVIMENTAÇÃO ENTRE SLOTS DE EQUIPAMENTO - usar moveEquippedItem
+                    local activeHunterId = self.hunterManager:getActiveHunterId()
+                    if not activeHunterId then
+                        return true
+                    end
 
-                print("DEBUG (EquipmentScreen): Chamando hunterManager:equipItem...")
-                local equipped, oldItemInstance = self.hunterManager:equipItem(itemToEquip, targetEquipmentSlotId)
-                print(string.format(
-                    "DEBUG (EquipmentScreen): hunterManager:equipItem retornou: equipped=%s, oldItemInstance=%s",
-                    tostring(equipped), oldItemInstance and oldItemInstance.itemBaseId or "nil"))
+                    local success = self.hunterManager:moveEquippedItem(activeHunterId, dragState.sourceSlotId,
+                        targetEquipmentSlotId)
+                    return true -- Drop em equipamento tratado (sucesso ou falha)
+                else
+                    -- EQUIPAR NOVO ITEM DE STORAGE/LOADOUT
+                    ---@type LobbyStorageManager|LoadoutManager
+                    local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
+                        self.loadoutManager
 
-                if equipped then
-                    if dragState.sourceGridId == "equipment" then
-                        -- Origem era um slot de equipamento (SWAP)
-                        print(string.format("EquipmentScreen: Swap - Item %d movido para slot %s",
-                            itemToEquip.instanceId, targetEquipmentSlotId))
+                    local equipped, oldItemInstance = self.hunterManager:equipItem(itemToEquip, targetEquipmentSlotId)
 
-                        if oldItemInstance then
-                            -- Coloca o item antigo (que estava no slot destino) no slot de origem
-                            print(string.format(
-                                "EquipmentScreen: Swap - Colocando item antigo %d de volta no slot de origem %s",
-                                oldItemInstance.instanceId, dragState.sourceSlotId))
-                            -- Define diretamente para evitar chamadas aninhadas complexas de equipItem
-                            local activeHunterId = self.hunterManager:getActiveHunterId()
-                            if self.hunterManager.equippedItems[activeHunterId] then
-                                self.hunterManager.equippedItems[activeHunterId][dragState.sourceSlotId] =
-                                    oldItemInstance
-                                -- TODO: Poderia precisar recalcular stats aqui também
-                            else
-                                print(string.format(
-                                    "ERRO GRAVE (EquipmentScreen): Falha ao encontrar tabela de equipamento do caçador %s para swap! Item %d pode ter sido perdido.",
-                                    activeHunterId, oldItemInstance.instanceId))
-                            end
-                        else
-                            -- O slot de origem agora fica vazio, o que já foi feito implicitamente
-                            -- ao mover o itemToEquip com a chamada equipItem inicial.
-                            -- Apenas limpamos explicitamente por segurança?
-                            -- self.hunterManager.equippedItems[activeHunterId][dragState.sourceSlotId] = nil
-                            print(string.format(
-                                "EquipmentScreen: Swap - Slot de origem %s ficou vazio (não havia item no destino %s).",
-                                dragState.sourceSlotId, targetEquipmentSlotId))
-                        end
-                    else -- Origem era storage ou loadout (Equipar Normal)
-                        ---@type LobbyStorageManager|LoadoutManager
-                        local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
-                            self.loadoutManager
+                    if equipped then
+                        -- Origem era storage ou loadout (Equipar Normal)
                         local removed = sourceManager:removeItemInstance(itemToEquip.instanceId, itemToEquip.quantity)
                         if not removed then
                             print(string.format(
-                                "ERRO GRAVE (EquipmentScreen): Item %d equipado, mas falha ao remover da origem %s!",
+                                "ERRO GRAVE (EquipmentScreen): Item %s equipado, mas falha ao remover da origem %s!",
                                 itemToEquip.instanceId, dragState.sourceGridId))
                         else
                             print(string.format("EquipmentScreen: Item %s removido de %s após equipar.",
@@ -623,12 +587,12 @@ function EquipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                                     dragState.sourceGridId .. ")! Sem espaço? Item pode ter sido perdido.")
                             end
                         end
-                    end
 
-                    return true -- Drop em equipamento tratado com sucesso (seja swap ou equipar normal)
-                else
-                    print("EquipmentScreen: Falha ao equipar o item (hunterManager:equipItem retornou false).")
-                    return true -- Drop em equipamento tentado, mas falhou (consome evento)
+                        return true -- Drop em equipamento tratado com sucesso
+                    else
+                        print("EquipmentScreen: Falha ao equipar o item (hunterManager:equipItem retornou false).")
+                        return true -- Drop em equipamento tentado, mas falhou (consome evento)
+                    end
                 end
             else
                 print(string.format("EquipmentScreen: Item %s (%s) incompatível com o slot %s.", itemToEquip.itemBaseId,
