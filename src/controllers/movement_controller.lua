@@ -93,6 +93,11 @@ function MovementController:setupPlayerSprite(finalStats)
             appearance.skinTone
         )
     )
+
+    -- Atualiza aparência da arma se já houver uma equipada
+    if self.playerManager.weaponController then
+        self.playerManager.weaponController:_updateWeaponAppearance()
+    end
 end
 
 --- Atualiza o movimento do jogador

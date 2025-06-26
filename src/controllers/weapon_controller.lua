@@ -84,41 +84,31 @@ function WeaponController:setActiveWeapon(weaponItemInstance)
                 -- Armazena a INSTÂNCIA DA CLASSE
                 self.equippedWeapon = classInstance
 
-                -- Chama o método :equip da INSTÂNCIA DA CLASSE, passando os DADOS do item
-                if self.equippedWeapon.equip then
-                    Logger.debug(
-                        "weapon_controller.equip.call",
-                        string.format(
-                            "[WeaponController:setActiveWeapon] Chamando :equip na instância da classe da arma")
-                    )
-                    self.equippedWeapon:equip(self.playerManager, weaponItemInstance)
+                -- Equipa a arma na instância da classe
+                classInstance:equip(self.playerManager, weaponItemInstance)
 
-                    Logger.info(
-                        "weapon_controller.equip.success",
-                        string.format("[WeaponController:setActiveWeapon] Arma '%s' equipada com sucesso",
-                            weaponItemInstance.itemBaseId)
-                    )
+                -- Atualiza aparência da arma no sprite do player
+                self:_updateWeaponAppearance()
 
-                    -- Atualiza aparência da arma no sprite
-                    if self.playerManager.movementController and self.playerManager.movementController.updateWeaponAppearance then
-                        self.playerManager.movementController:updateWeaponAppearance()
-                    end
-                else
-                    error(string.format(
-                        "[WeaponController:setActiveWeapon] - O método :equip não foi encontrado na classe da arma '%s'!",
-                        weaponClassPath))
-                end
+                Logger.info(
+                    "weapon_controller.equip.success",
+                    string.format("[WeaponController:setActiveWeapon] Arma '%s' equipada com sucesso",
+                        classInstance.name or weaponItemInstance.itemBaseId)
+                )
             else
                 error(string.format(
-                    "[WeaponController:setActiveWeapon] - Falha ao criar a instância da CLASSE da arma '%s' usando :new().",
-                    weaponClassPath))
+                    "[WeaponController:setActiveWeapon] - Falha ao criar instância da classe da arma: %s",
+                    itemData.weaponClass))
             end
         else
             error(string.format(
-                "[WeaponController:setActiveWeapon] - Não foi possível carregar a classe da arma: %s. Detalhe: %s",
+                "[WeaponController:setActiveWeapon] - Falha ao carregar classe da arma: %s. Erro: %s",
                 weaponClassPath, tostring(WeaponClass)))
         end
     else
+        -- Limpa aparência da arma se não há arma equipada
+        self:_updateWeaponAppearance()
+
         Logger.info(
             "weapon_controller.unequip",
             "[WeaponController:setActiveWeapon] Nenhuma arma equipada (desequipando)"
@@ -337,7 +327,6 @@ function WeaponController:_updateWeaponAppearance()
         return
     end
 
-
     if self.equippedWeapon then
         local itemData = self.equippedWeapon:getBaseData()
 
@@ -347,16 +336,6 @@ function WeaponController:_updateWeaponAppearance()
                 animationType = itemData.animationType or "melee"
             }
         })
-
-        Logger.debug(
-            "weapon_controller.weapon_appearance",
-            string.format(
-                "Aparência da arma atualizada: %s -> %s (%s)",
-                itemData.id,
-                itemData.animationFolderPath or "sword_tier_1",
-                itemData.animationType or "melee"
-            )
-        )
     else
         -- Remove arma
         SpritePlayer.setAppearance(movementController.player, {
@@ -365,8 +344,6 @@ function WeaponController:_updateWeaponAppearance()
                 animationType = nil
             }
         })
-
-        Logger.debug("weapon_controller.weapon_appearance", "Arma removida da aparência")
     end
 end
 

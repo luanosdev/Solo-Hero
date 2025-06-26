@@ -36,6 +36,11 @@ xcopy /e /i /q src\* %BUILD_DIR%\ 2>nul
 xcopy /e /i /q assets\* %BUILD_DIR%\assets\ 2>nul
 copy *.lua %BUILD_DIR%\ >nul 2>nul
 
+REM Substituir DEV=true por DEV=false no conf.lua
+echo 🔧 Desativando modo DEV em conf.lua...
+
+powershell -Command "(Get-Content %BUILD_DIR%\conf.lua) -replace 'DEV\s*=\s*true', 'DEV = false' | Set-Content %BUILD_DIR%\conf.lua"
+
 REM Verificar se há arquivos para fazer o build
 if not exist %BUILD_DIR%\main.lua (
     echo ❌ Arquivo main.lua nao encontrado!
@@ -47,7 +52,7 @@ if not exist %BUILD_DIR%\main.lua (
 REM Criar arquivo .love
 echo 📦 Criando arquivo .love...
 cd %BUILD_DIR%
-7z a -tzip "..\%DIST_DIR%\%PROJECT_NAME%-%VERSION%.love" * -x!.git* -x!*.DS_Store*
+7z a -tzip "..\%DIST_DIR%\%PROJECT_NAME%-%VERSION%.love" .\*
 cd ..
 
 if not exist %DIST_DIR%\%PROJECT_NAME%-%VERSION%.love (

@@ -182,10 +182,6 @@ function SpritePlayer._loadWeaponFolder(folderName)
         if success and sprite then
             SpritePlayer.resources.weapons[folderName][state] = sprite
             SpritePlayer._createQuadsForWeaponSprite(folderName, state, sprite)
-            Logger.debug(
-                "sprite_player.load_weapon",
-                string.format("Carregado sprite da arma %s: %s", folderName, state)
-            )
         end
     end
 
@@ -342,14 +338,6 @@ function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
             adjustedFrameTimes[state] = baseTime
         end
     end
-
-    Logger.debug(
-        "sprite_player.dynamic_frame_times",
-        string.format(
-            "Velocidade: %.1f (ratio: %.2f) - Frame time walk: %.3f",
-            currentSpeed, speedRatio, adjustedFrameTimes.walk
-        )
-    )
 
     return adjustedFrameTimes
 end
@@ -704,26 +692,20 @@ function SpritePlayer._drawWeaponLayer(config, state, direction, frame)
         SpritePlayer.quads[weaponFolder][state][direction] and
         SpritePlayer.quads[weaponFolder][state][direction][frame]
 
-    if weaponQuad then
-        -- Desenha a arma exatamente sincronizada com o corpo
-        love.graphics.draw(
-            weaponSprites[state],
-            weaponQuad,
-            -config.animation.frameWidth * config.scale / 2,
-            -config.animation.frameHeight * config.scale / 2,
-            0,
-            config.scale,
-            config.scale
-        )
-
-        Logger.debug(
-            "sprite_player.weapon_draw",
-            string.format(
-                "Desenhando arma sincronizada: %s/%s (frame %d, dir %s)",
-                weaponFolder, state, frame, direction
-            )
-        )
+    if not weaponQuad then
+        return
     end
+
+    -- Desenha a arma exatamente sincronizada com o corpo
+    love.graphics.draw(
+        weaponSprites[state],
+        weaponQuad,
+        -config.animation.frameWidth * config.scale / 2,
+        -config.animation.frameHeight * config.scale / 2,
+        0,
+        config.scale,
+        config.scale
+    )
 end
 
 --- Cria uma nova configuração de jogador
@@ -799,30 +781,12 @@ function SpritePlayer.startAttackAnimation(config, attackType, isMoving)
         else
             config.animation.state = isMoving and 'attack_run_melee' or 'attack_melee'
         end
-
-        -- Calcula duração esperada da animação para debug
-        local frameTime = 0.02 -- Tempo atual dos frames de ataque
-        local expectedDuration = config.animation.framesPerDirection * frameTime
-
-        Logger.debug(
-            "sprite_player.attack_animation",
-            string.format(
-                "Iniciando animação de ataque: tipo=%s, estado=%s, movendo=%s, duração_esperada=%.2fs, arma_pasta=%s",
-                finalAttackType,
-                config.animation.state,
-                tostring(isMoving),
-                expectedDuration,
-                config.appearance.weapon.folderPath or "nenhuma"
-            )
-        )
     end
 end
 
 --- Para a animação de ataque
 function SpritePlayer.stopAttackAnimation(config)
     config.animation.isAttacking = false
-
-    Logger.debug("sprite_player.attack_animation_stop", "Animação de ataque finalizada")
 end
 
 --- Define a aparência do jogador
