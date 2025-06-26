@@ -124,10 +124,21 @@ function ChainLightning:castSpecific(args)
     local excludedIDs = TablePool.getArray()
     local targetsHit = TablePool.getArray() -- Array simples ao invés de mapa
 
-    -- Primeiro alvo
-    table.insert(hitPositions, { x = firstTarget.position.x, y = firstTarget.position.y })
-    table.insert(targetsHit, firstTarget) -- Adiciona o inimigo diretamente
-    excludedIDs[firstTarget.id] = true
+    -- Primeiro alvo - com validação adicional
+    if firstTarget and firstTarget.position and firstTarget.id and firstTarget.isAlive then
+        table.insert(hitPositions, { x = firstTarget.position.x, y = firstTarget.position.y })
+        table.insert(targetsHit, firstTarget) -- Adiciona o inimigo diretamente
+        excludedIDs[firstTarget.id] = true
+    else
+        Logger.warn(
+            "chain_lightning.cast.invalid_first_target",
+            "[ChainLightning:castSpecific] Primeiro alvo encontrado é inválido"
+        )
+        self:createMissedChain(spawnPos)
+        TablePool.releaseArray(excludedIDs)
+        TablePool.releaseArray(targetsHit)
+        return true
+    end
 
     -- Aplica knockback no primeiro alvo
     if self.knockbackData.power > 0 then
@@ -153,7 +164,7 @@ function ChainLightning:castSpecific(args)
             excludedIDs
         )
 
-        if nextTarget then
+        if nextTarget and nextTarget.position and nextTarget.id and nextTarget.isAlive then
             table.insert(hitPositions, { x = nextTarget.position.x, y = nextTarget.position.y })
             table.insert(targetsHit, nextTarget) -- Adiciona o inimigo diretamente
             excludedIDs[nextTarget.id] = true
@@ -173,6 +184,13 @@ function ChainLightning:castSpecific(args)
 
             currentTarget = nextTarget
         else
+            -- Inválido ou não encontrado, para a cadeia
+            if nextTarget then
+                Logger.warn(
+                    "chain_lightning.cast.invalid_next_target",
+                    "[ChainLightning:castSpecific] Próximo alvo encontrado é inválido"
+                )
+            end
             break
         end
     end
@@ -216,9 +234,13 @@ function ChainLightning:findFirstTargetOptimized(spawnPos)
         self.playerManager:getPlayerSprite()
     )
 
-    -- Retorna o mais próximo
+    -- Retorna o mais próximo válido
     if #enemies > 0 then
-        return enemies[1] -- Já ordenado por distância
+        for _, enemy in ipairs(enemies) do
+            if enemy and enemy.id and enemy.isAlive then
+                return enemy -- Retorna o primeiro inimigo válido
+            end
+        end
     end
 
     return nil
@@ -243,7 +265,7 @@ function ChainLightning:findNextTargetOptimized(currentPos, jumpIndex, excludedI
 
     -- Filtra excluídos e retorna o mais próximo
     for _, enemy in ipairs(enemies) do
-        if not excludedIDs[enemy.id] then
+        if enemy and enemy.id and enemy.isAlive and not excludedIDs[enemy.id] then
             return enemy
         end
     end
@@ -255,7 +277,14 @@ end
 ---@param targetsHit BaseEnemy[] Array de alvos atingidos
 function ChainLightning:applyChainDamageOptimized(targetsHit)
     local function applyDamageToTarget(target)
-        if not target or not target.isAlive then return false end
+        -- Validação robusta: verifica se target é um objeto válido com as propriedades necessárias
+        if not target or type(target) ~= "table" or not target.isAlive or not target.takeDamage then
+            Logger.warn(
+                "chain_lightning.apply_damage.invalid_target",
+                string.format("[ChainLightning:applyDamageToTarget] Target inválido: %s", tostring(target))
+            )
+            return false
+        end
 
         local stats = self.cachedStats
 
@@ -291,9 +320,24 @@ function ChainLightning:applyChainDamageOptimized(targetsHit)
         return true
     end
 
-    -- Itera sobre o array de inimigos
-    for _, enemy in ipairs(targetsHit) do
-        applyDamageToTarget(enemy)
+    -- Itera sobre o array de inimigos com validação adicional
+    if not targetsHit or type(targetsHit) ~= "table" then
+        Logger.warn(
+            "chain_lightning.apply_damage.invalid_targets_array",
+            "[ChainLightning:applyChainDamageOptimized] Array de alvos inválido"
+        )
+        return
+    end
+
+    for i, enemy in ipairs(targetsHit) do
+        if enemy then -- Validação básica antes de chamar applyDamageToTarget
+            applyDamageToTarget(enemy)
+        else
+            Logger.warn(
+                "chain_lightning.apply_damage.null_enemy",
+                string.format("[ChainLightning:applyChainDamageOptimized] Inimigo nulo encontrado no índice %d", i)
+            )
+        end
     end
 end
 
