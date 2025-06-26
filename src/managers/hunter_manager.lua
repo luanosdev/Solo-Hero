@@ -563,6 +563,7 @@ function HunterManager:saveState()
             baseRankId = hunterData.baseRankId,
             finalRankId = hunterData.finalRankId,
             archetypeIds = hunterData.archetypeIds,
+            skinTone = hunterData.skinTone,
             equippedItems = {}
         }
         if hunterData.equippedItems then
@@ -571,7 +572,7 @@ function HunterManager:saveState()
                     serializableHunters[hunterId].equippedItems[slotId] = {
                         instanceId = itemInstance.instanceId,
                         itemBaseId = itemInstance.itemBaseId,
-                        quantity = itemInstance.quantity or 1
+                        quantity = itemInstance.quantity or 1,
                     }
                 else
                     serializableHunters[hunterId].equippedItems[slotId] = nil
@@ -626,6 +627,7 @@ function HunterManager:loadState()
             baseRankId = savedHunterData.baseRankId or "E",
             finalRankId = savedHunterData.finalRankId or savedHunterData.baseRankId or "E",
             archetypeIds = savedHunterData.archetypeIds or {},
+            skinTone = savedHunterData.skinTone or "medium",
             equippedItems = {}
         }
 
@@ -644,6 +646,7 @@ function HunterManager:loadState()
                         maxStack = baseData.maxStack or (baseData.stackable and 99) or 1,
                         name = baseData.name,
                         icon = baseData.icon,
+                        modifiers = baseData.modifiers or {},
                         rarity = baseData.rarity or 'E'
                     }
                 else
@@ -691,6 +694,7 @@ function HunterManager:recruitHunter(candidateData)
         baseRankId = candidateData.baseRankId or "E",
         finalRankId = candidateData.finalRankId or "E",
         archetypeIds = candidateData.archetypeIds,
+        skinTone = candidateData.skinTone or "medium",
     }
 
     self.hunters[hunterId] = newHunterData

@@ -9,6 +9,8 @@ RecruitmentManager.__index = RecruitmentManager
 local Constants = require("src.config.constants")
 local ArchetypesData = require("src.data.archetypes_data")
 local NamesData = require("src.data.names")
+local Colors = require("src.ui.colors")
+local TablePool = require("src.utils.table_pool")
 
 --- Helper function for weighted random selection from a table.
 --- Input table format: { { weight = w1, data = d1 }, { weight = w2, data = d2 }, ... }
@@ -266,11 +268,23 @@ function RecruitmentManager:generateHunterCandidates(count)
         end
 
         candidate.finalStats = self:_calculateStatsForCandidate(candidate.archetypeIds)
+
+        -- Adiciona cor de pele aleatória
+        local skinToneKeys = TablePool.getArray()
+        for skinKey, _ in pairs(Colors.skinTones) do
+            table.insert(skinToneKeys, skinKey)
+        end
+        candidate.skinTone = skinToneKeys[love.math.random(#skinToneKeys)]
+
         table.insert(candidates, candidate)
-        print(string.format("  > Candidate %d: Name=%s, Rank=%s, Archetypes=[%s] (%d total)", i, candidate.name,
-            candidate.finalRankId, table.concat(candidate.archetypeIds, ", "), #candidate.archetypeIds))
+        print(string.format("  > Candidate %d: Name=%s, Rank=%s, SkinTone=%s, Archetypes=[%s] (%d total)",
+            i, candidate.name, candidate.finalRankId, candidate.skinTone,
+            table.concat(candidate.archetypeIds, ", "), #candidate.archetypeIds))
         Logger.debug("[RecruitmentManager] Generated Candidate Data:", Logger.dumpTable(candidate, 2))
+
+        TablePool.releaseArray(skinToneKeys)
     end
+
     return candidates
 end
 

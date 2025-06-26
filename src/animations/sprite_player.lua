@@ -1,193 +1,208 @@
--- Módulo de jogador animado usando sprite sheet
+-- Sistema de Player Animado com Renderização em Camadas
+---@class SpritePlayer
 local SpritePlayer = {}
+local Colors = require("src.ui.colors")
+
+---@class PlayerSpriteConfig
+---@field position Vector2D Posição do jogador
+---@field scale number Fator de escala
+---@field speed number Velocidade de movimento
+---@field animation table Configurações de animação
+---@field appearance table Aparência do jogador (cor de pele, equipamentos, etc.)
 
 -- Configuração padrão
 SpritePlayer.defaultConfig = {
     position = {
-        x = 0,   -- Posição X
-        y = 0,   -- Posição Y
+        x = 0,
+        y = 0,
     },
-    scale = 1,   -- Fator de escala
-    speed = 150, -- Velocidade de movimento
+    scale = 1,
+    speed = 150,
     -- Configurações de animação
     animation = {
-        currentFrame = 1,         -- Frame atual
+        currentFrame = 1,
         timer = 0,
-        frameTime = {             -- Tempo entre frames para cada estado
-            walk = 0.05,          -- Walk mais rápido
-            idle = 0.1,           -- Idle mais lento
-            attack = 0.03,        -- Attack mais rápido ainda
-            attack_walk = 0.03    -- Attack andando
+        frameTime = {
+            walk = 0.05,
+            idle = 0.1,
+            attack_melee = 0.03,
+            attack_ranged = 0.03,
+            attack_run_melee = 0.03,
+            attack_run_ranged = 0.03,
+            die = 0.1,
+            idle2 = 0.1,
+            idle3 = 0.1,
+            idle4 = 0.1,
+            strafe_left = 0.05,
+            strafe_right = 0.05,
+            taunt = 0.08
         },
-        direction = 'E',          -- Direção atual (baseada no mouse)
-        state = 'idle',           -- Estado atual (idle, walk, attack ou attack_walk)
-        isMovingBackward = false, -- Indicador de movimento para trás
-        isAttacking = false,      -- Indicador de ataque
-        -- Configurações do sprite sheet
-        frameWidth = 128,         -- Largura de cada frame
-        frameHeight = 128,        -- Altura de cada frame
-        frames = {
-            walk = {
-                E = { row = 1, frames = 15 },  -- Direita
-                NE = { row = 2, frames = 15 }, -- Direita-Cima
-                N = { row = 3, frames = 15 },  -- Cima
-                NW = { row = 4, frames = 15 }, -- Esquerda-Cima
-                W = { row = 5, frames = 15 },  -- Esquerda
-                SW = { row = 6, frames = 15 }, -- Esquerda-Baixo
-                S = { row = 7, frames = 15 },  -- Baixo
-                SE = { row = 8, frames = 15 }  -- Direita-Baixo
-            },
-            idle = {
-                E = { row = 1, frames = 15 },  -- Direita
-                NE = { row = 2, frames = 15 }, -- Direita-Cima
-                N = { row = 3, frames = 15 },  -- Cima
-                NW = { row = 4, frames = 15 }, -- Esquerda-Cima
-                W = { row = 5, frames = 15 },  -- Esquerda
-                SW = { row = 6, frames = 15 }, -- Esquerda-Baixo
-                S = { row = 7, frames = 15 },  -- Baixo
-                SE = { row = 8, frames = 15 }  -- Direita-Baixo
-            },
-            attack = {
-                E = { row = 1, frames = 15 },  -- Direita
-                NE = { row = 2, frames = 15 }, -- Direita-Cima
-                N = { row = 3, frames = 15 },  -- Cima
-                NW = { row = 4, frames = 15 }, -- Esquerda-Cima
-                W = { row = 5, frames = 15 },  -- Esquerda
-                SW = { row = 6, frames = 15 }, -- Esquerda-Baixo
-                S = { row = 7, frames = 15 },  -- Baixo
-                SE = { row = 8, frames = 15 }  -- Direita-Baixo
-            },
-            attack_walk = {
-                E = { row = 1, frames = 15 },  -- Direita
-                NE = { row = 2, frames = 15 }, -- Direita-Cima
-                N = { row = 3, frames = 15 },  -- Cima
-                NW = { row = 4, frames = 15 }, -- Esquerda-Cima
-                W = { row = 5, frames = 15 },  -- Esquerda
-                SW = { row = 6, frames = 15 }, -- Esquerda-Baixo
-                S = { row = 7, frames = 15 },  -- Baixo
-                SE = { row = 8, frames = 15 }  -- Direita-Baixo
-            }
+        -- Mapeamento de direções (primeira linha é oeste, sentido horário)
+        direction = 'E',
+        state = 'idle',
+        isMovingBackward = false,
+        isAttacking = false,
+        frameWidth = 128,
+        frameHeight = 128,
+        -- Definição das 8 direções conforme sprite sheets
+        directions = {
+            E = 1,  -- Este (primeira linha - direita, 0°)
+            SE = 2, -- Sudeste (45°)
+            S = 3,  -- Sul (90°)
+            SW = 4, -- Sudoeste (135°)
+            W = 5,  -- Oeste (180°)
+            NW = 6, -- Noroeste (225°)
+            N = 7,  -- Norte (270°)
+            NE = 8  -- Nordeste (315°)
+        },
+        framesPerDirection = 15
+    },
+    -- Aparência do jogador
+    appearance = {
+        skinTone = "medium", -- Cor de pele padrão
+        equipment = {
+            bag = nil,
+            belt = nil,
+            chest = nil,
+            head = nil,
+            leg = nil,
+            shoe = nil
+        },
+        weapon = {
+            type = nil, -- axe, sword, bow, etc.
+            sprite = nil
         }
     }
 }
 
--- Carrega os recursos
+-- Armazenamento de recursos carregados
+SpritePlayer.resources = {
+    body = {}, -- Sprites do corpo
+    equipment = {
+        bag = {},
+        belt = {},
+        chest = {},
+        head = {},
+        leg = {},
+        shoe = {}
+    },
+    weapons = {} -- Sprites das armas por tipo
+}
+
+-- Quads para otimização de renderização
+SpritePlayer.quads = {}
+
+--- Carrega todos os recursos do sistema de camadas
 function SpritePlayer.load()
-    -- Carrega os sprite sheets
-    SpritePlayer.spriteSheets = {}
-    SpritePlayer.quads = {
-        walk = {},
-        idle = {},
-        attack = {},
-        attack_walk = {}
+    Logger.info("sprite_player.load", "Carregando sistema de renderização em camadas...")
+
+    -- Carrega sprites do corpo
+    SpritePlayer._loadBodySprites()
+
+    -- Carrega sprites de equipamentos (se existirem)
+    SpritePlayer._loadEquipmentSprites()
+
+    -- Carrega sprites de armas (se existirem)
+    SpritePlayer._loadWeaponSprites()
+
+    Logger.info("sprite_player.load", "Sistema de renderização em camadas carregado com sucesso.")
+end
+
+--- Carrega todos os sprites do corpo
+function SpritePlayer._loadBodySprites()
+    local bodyPath = "assets/player/body/"
+    local states = {
+        "attack_melee", "attack_ranged", "attack_run_melee", "attack_run_ranged",
+        "die", "idle", "idle2", "idle3", "idle4",
+        "strafe_left", "strafe_right", "taunt", "walk"
     }
 
-    -- Carrega sprite sheet de caminhada
-    local success, walkSheet = pcall(function()
-        return love.graphics.newImage("assets/characters/warrior/walk.png")
-    end)
+    for _, state in ipairs(states) do
+        local filePath = bodyPath .. state .. ".png"
+        local success, sprite = pcall(function()
+            return love.graphics.newImage(filePath)
+        end)
 
-    if success then
-        SpritePlayer.spriteSheets.walk = walkSheet
-        -- Cria os quads para cada frame de animação de caminhada
-        for direction, info in pairs(SpritePlayer.defaultConfig.animation.frames.walk) do
-            SpritePlayer.quads.walk[direction] = {}
-            for frame = 1, info.frames do
-                local x = (frame - 1) * SpritePlayer.defaultConfig.animation.frameWidth
-                local y = (info.row - 1) * SpritePlayer.defaultConfig.animation.frameHeight
-
-                SpritePlayer.quads.walk[direction][frame] = love.graphics.newQuad(
-                    x, y,
-                    SpritePlayer.defaultConfig.animation.frameWidth,
-                    SpritePlayer.defaultConfig.animation.frameHeight,
-                    walkSheet:getDimensions()
-                )
-            end
+        if success and sprite then
+            SpritePlayer.resources.body[state] = sprite
+            SpritePlayer._createQuadsForSprite(state, sprite)
+            Logger.debug("sprite_player.load_body",
+                string.format("Carregado sprite do corpo: %s", state))
+        else
+            Logger.warn("sprite_player.load_body",
+                string.format("Não foi possível carregar sprite: %s", filePath))
         end
-    else
-        print("Erro ao carregar sprite sheet de caminhada:", walkSheet)
-    end
-
-    -- Carrega sprite sheet de idle
-    local success, idleSheet = pcall(function()
-        return love.graphics.newImage("assets/characters/warrior/idle.png")
-    end)
-
-    if success then
-        SpritePlayer.spriteSheets.idle = idleSheet
-        -- Cria os quads para cada frame de animação idle
-        for direction, info in pairs(SpritePlayer.defaultConfig.animation.frames.idle) do
-            SpritePlayer.quads.idle[direction] = {}
-            for frame = 1, info.frames do
-                local x = (frame - 1) * SpritePlayer.defaultConfig.animation.frameWidth
-                local y = (info.row - 1) * SpritePlayer.defaultConfig.animation.frameHeight
-
-                SpritePlayer.quads.idle[direction][frame] = love.graphics.newQuad(
-                    x, y,
-                    SpritePlayer.defaultConfig.animation.frameWidth,
-                    SpritePlayer.defaultConfig.animation.frameHeight,
-                    idleSheet:getDimensions()
-                )
-            end
-        end
-    else
-        print("Erro ao carregar sprite sheet de idle:", idleSheet)
-    end
-
-    -- Carrega sprite sheet de ataque
-    local success, attackSheet = pcall(function()
-        return love.graphics.newImage("assets/characters/warrior/attack.png")
-    end)
-
-    if success then
-        SpritePlayer.spriteSheets.attack = attackSheet
-        -- Cria os quads para cada frame de animação de ataque
-        for direction, info in pairs(SpritePlayer.defaultConfig.animation.frames.attack) do
-            SpritePlayer.quads.attack[direction] = {}
-            for frame = 1, info.frames do
-                local x = (frame - 1) * SpritePlayer.defaultConfig.animation.frameWidth
-                local y = (info.row - 1) * SpritePlayer.defaultConfig.animation.frameHeight
-
-                SpritePlayer.quads.attack[direction][frame] = love.graphics.newQuad(
-                    x, y,
-                    SpritePlayer.defaultConfig.animation.frameWidth,
-                    SpritePlayer.defaultConfig.animation.frameHeight,
-                    attackSheet:getDimensions()
-                )
-            end
-        end
-    else
-        print("Erro ao carregar sprite sheet de ataque:", attackSheet)
-    end
-
-    -- Carrega sprite sheet de ataque andando
-    local success, attackWalkSheet = pcall(function()
-        return love.graphics.newImage("assets/characters/warrior/attack_walk.png")
-    end)
-
-    if success then
-        SpritePlayer.spriteSheets.attack_walk = attackWalkSheet
-        -- Cria os quads para cada frame de animação de ataque andando
-        for direction, info in pairs(SpritePlayer.defaultConfig.animation.frames.attack_walk) do
-            SpritePlayer.quads.attack_walk[direction] = {}
-            for frame = 1, info.frames do
-                local x = (frame - 1) * SpritePlayer.defaultConfig.animation.frameWidth
-                local y = (info.row - 1) * SpritePlayer.defaultConfig.animation.frameHeight
-
-                SpritePlayer.quads.attack_walk[direction][frame] = love.graphics.newQuad(
-                    x, y,
-                    SpritePlayer.defaultConfig.animation.frameWidth,
-                    SpritePlayer.defaultConfig.animation.frameHeight,
-                    attackWalkSheet:getDimensions()
-                )
-            end
-        end
-    else
-        print("Erro ao carregar sprite sheet de ataque andando:", attackWalkSheet)
     end
 end
 
--- Função auxiliar para determinar direção baseada no ângulo
+--- Carrega sprites de equipamentos
+function SpritePlayer._loadEquipmentSprites()
+    local equipmentTypes = { "bag", "belt", "chest", "head", "leg", "shoe" }
+
+    for _, equipType in ipairs(equipmentTypes) do
+        local equipPath = "assets/player/" .. equipType .. "/"
+        SpritePlayer.resources.equipment[equipType] = {}
+
+        -- Tenta carregar diferentes variações de cada equipamento
+        -- Por enquanto apenas registra a estrutura
+        Logger.debug(
+            "sprite_player.load_equipment",
+            string.format("Estrutura preparada para equipamentos: %s", equipType)
+        )
+    end
+end
+
+--- Carrega sprites de armas
+function SpritePlayer._loadWeaponSprites()
+    local weaponTypes = {
+        "axe",
+        "sword",
+        "bow",
+        "dagger",
+        "staff",
+        "mace"
+    }
+
+    for _, weaponType in ipairs(weaponTypes) do
+        local weaponPath = "assets/player/weapons/" .. weaponType .. "/"
+        SpritePlayer.resources.weapons[weaponType] = {}
+
+        -- Tenta carregar diferentes variações de cada arma
+        -- Por enquanto apenas registra a estrutura
+        Logger.debug("sprite_player.load_weapons",
+            string.format("Estrutura preparada para armas: %s", weaponType))
+    end
+end
+
+--- Cria quads para um sprite (8 direções x 15 frames cada)
+---@param stateName string Nome do estado da animação
+---@param sprite love.Image Sprite carregado
+function SpritePlayer._createQuadsForSprite(stateName, sprite)
+    if not SpritePlayer.quads[stateName] then
+        SpritePlayer.quads[stateName] = {}
+    end
+
+    local frameWidth = SpritePlayer.defaultConfig.animation.frameWidth
+    local frameHeight = SpritePlayer.defaultConfig.animation.frameHeight
+    local framesPerDirection = SpritePlayer.defaultConfig.animation.framesPerDirection
+
+    -- Para cada direção (8 linhas)
+    for direction, row in pairs(SpritePlayer.defaultConfig.animation.directions) do
+        SpritePlayer.quads[stateName][direction] = {}
+
+        -- Para cada frame na direção (15 colunas)
+        for frame = 1, framesPerDirection do
+            local x = (frame - 1) * frameWidth
+            local y = (row - 1) * frameHeight
+
+            SpritePlayer.quads[stateName][direction][frame] = love.graphics.newQuad(
+                x, y, frameWidth, frameHeight, sprite:getDimensions()
+            )
+        end
+    end
+end
+
+--- Função auxiliar para determinar direção baseada no ângulo
 function SpritePlayer.getDirectionFromAngle(angle)
     -- Normaliza o ângulo para 0 a 2pi
     angle = angle % (2 * math.pi)
@@ -198,41 +213,33 @@ function SpritePlayer.getDirectionFromAngle(angle)
     -- Converte radianos para graus (0-360)
     local degrees = math.deg(angle)
 
-    -- Define as fatias para 8 direções
-    local slice = 360 / 8 -- 45 graus por fatia
+    -- Define as fatias para 8 direções (45 graus cada)
+    local slice = 45
 
+    -- Sistema de coordenadas de tela: 0° = direita, 90° = baixo, 180° = esquerda, 270° = cima
     if degrees >= (slice * 7.5) or degrees < (slice * 0.5) then
-        return "E"
+        return "E"  -- Este (0° - direita)
     elseif degrees >= (slice * 0.5) and degrees < (slice * 1.5) then
-        return "NE"
+        return "SE" -- Sudeste (45°)
     elseif degrees >= (slice * 1.5) and degrees < (slice * 2.5) then
-        return "N"
+        return "S"  -- Sul (90° - baixo)
     elseif degrees >= (slice * 2.5) and degrees < (slice * 3.5) then
-        return "NW"
+        return "SW" -- Sudoeste (135°)
     elseif degrees >= (slice * 3.5) and degrees < (slice * 4.5) then
-        return "W"
+        return "W"  -- Oeste (180° - esquerda)
     elseif degrees >= (slice * 4.5) and degrees < (slice * 5.5) then
-        return "SW"
+        return "NW" -- Noroeste (225°)
     elseif degrees >= (slice * 5.5) and degrees < (slice * 6.5) then
-        return "S"
-    else -- degrees >= (slice * 6.5) and degrees < (slice * 7.5)
-        return "SE"
+        return "N"  -- Norte (270° - cima)
+    else            -- degrees >= (slice * 6.5) and degrees < (slice * 7.5)
+        return "NE" -- Nordeste (315°)
     end
 end
 
--- Função auxiliar para calcular diferença entre ângulos
-function SpritePlayer.getAngleDifference(angle1, angle2)
-    local diff = (angle1 - angle2) % 360
-    if diff > 180 then
-        diff = diff - 360
-    end
-    return math.abs(diff)
-end
-
--- Atualiza o estado da animação
+--- Atualiza o estado da animação
 function SpritePlayer.update(config, dt, targetPosition)
     local dx, dy = 0, 0
-    local isMoving = false -- Flag para indicar se houve input de movimento
+    local isMoving = false
 
     -- Processa entrada de movimento
     if love.keyboard.isDown('w') or love.keyboard.isDown('up') then
@@ -252,7 +259,7 @@ function SpritePlayer.update(config, dt, targetPosition)
         isMoving = isMoving or (dx ~= 0) -- Atualiza flag se houve mudança
     end
 
-    -- <<< INÍCIO: Lógica de Direção com Histerese >>>
+    -- Lógica de direção com histerese
     local currentDirection = config.animation.direction
     local targetDx = targetPosition.x - config.position.x
     local targetDy = targetPosition.y - config.position.y
@@ -262,37 +269,14 @@ function SpritePlayer.update(config, dt, targetPosition)
         local targetAngle = math.atan2(targetDy, targetDx)
         local newDirection = SpritePlayer.getDirectionFromAngle(targetAngle)
 
-        -- Lógica de Histerese: Só muda de direção se a nova for diferente
-        -- E se o ângulo estiver um pouco além da fronteira.
         if newDirection ~= currentDirection then
-            local angleDegrees = math.deg(targetAngle)
-            if angleDegrees < 0 then angleDegrees = angleDegrees + 360 end
-
-            local threshold = 10 -- Graus de tolerância para mudar
-            local lowerBound, upperBound = SpritePlayer.getAngleBoundsForDirection(newDirection, threshold)
-
-            -- Verifica se o ângulo está dentro dos limites da NOVA direção (com tolerância)
-            local changeDirection = false
-            if lowerBound > upperBound then -- Caso que cruza 0/360 graus (Direção E)
-                if angleDegrees >= lowerBound or angleDegrees < upperBound then
-                    changeDirection = true
-                end
-            else -- Caso normal
-                if angleDegrees >= lowerBound and angleDegrees < upperBound then
-                    changeDirection = true
-                end
-            end
-
-            if changeDirection then
-                config.animation.direction = newDirection
-                -- Reinicia animação ao mudar de direção para evitar frames estranhos
-                config.animation.currentFrame = 1
-                config.animation.timer = 0
-            end
+            config.animation.direction = newDirection
+            config.animation.currentFrame = 1
+            config.animation.timer = 0
         end
     end
 
-    -- Normaliza o vetor de movimento se necessário (para movimento diagonal)
+    -- Normaliza o vetor de movimento se necessário
     local magnitude = math.sqrt(dx * dx + dy * dy)
     if magnitude > 0 then
         dx = dx / magnitude
@@ -307,16 +291,10 @@ function SpritePlayer.update(config, dt, targetPosition)
     config.position.x = config.position.x + moveX
     config.position.y = config.position.y + moveY
 
-    -- Calcula a distância percorrida
-    local distanceMoved = 0
-    if isMoving then
-        distanceMoved = math.sqrt(moveX * moveX + moveY * moveY)
-    end
-
     -- Define o estado da animação
     local newState
     if config.animation.isAttacking then
-        newState = isMoving and 'attack_walk' or 'attack'
+        newState = isMoving and 'attack_run_melee' or 'attack_melee'
     else
         newState = isMoving and 'walk' or 'idle'
     end
@@ -337,93 +315,88 @@ function SpritePlayer.update(config, dt, targetPosition)
     -- Avança o frame se o tempo passou
     if config.animation.timer >= frameTime then
         config.animation.timer = config.animation.timer - frameTime
-        local animInfo = config.animation.frames[config.animation.state][config.animation.direction]
-        config.animation.currentFrame = (config.animation.currentFrame % animInfo.frames) + 1
+        local maxFrames = config.animation.framesPerDirection
+        config.animation.currentFrame = (config.animation.currentFrame % maxFrames) + 1
     end
 
-    return distanceMoved
+    return math.sqrt(moveX * moveX + moveY * moveY)
 end
 
---[[ Função Auxiliar para Histerese: Retorna os limites de ângulo (em graus) para uma direção, COM TOLERÂNCIA ]]
-function SpritePlayer.getAngleBoundsForDirection(direction, threshold)
-    local slice = 45 -- 360 / 8
-    local centerAngle
-
-    if direction == "E" then
-        centerAngle = 0
-    elseif direction == "NE" then
-        centerAngle = slice * 1
-    elseif direction == "N" then
-        centerAngle = slice * 2
-    elseif direction == "NW" then
-        centerAngle = slice * 3
-    elseif direction == "W" then
-        centerAngle = slice * 4
-    elseif direction == "SW" then
-        centerAngle = slice * 5
-    elseif direction == "S" then
-        centerAngle = slice * 6
-    elseif direction == "SE" then
-        centerAngle = slice * 7
-    else
-        centerAngle = 0 -- Fallback
-    end
-
-    -- Calcula os limites exatos da fatia
-    local lowerExact = centerAngle - slice / 2
-    local upperExact = centerAngle + slice / 2
-
-    -- Aplica a tolerância (threshold) para "apertar" os limites
-    local lowerBound = (lowerExact + threshold) % 360
-    local upperBound = (upperExact - threshold) % 360
-
-    -- Ajusta para ângulos negativos que podem surgir do modulo
-    if lowerBound < 0 then lowerBound = lowerBound + 360 end
-    if upperBound < 0 then upperBound = upperBound + 360 end
-
-    -- Garante que upperBound seja "maior" que lowerBound, mesmo cruzando 0/360
-    -- Ex: Para E (centro 0), limites exatos -22.5 a 22.5.
-    -- Com threshold 10: limites com tolerância ficam -12.5 a 12.5.
-    -- Em graus 0-360: lowerBound=347.5, upperBound=12.5
-    -- Neste caso específico, a verificação precisa ser OR (>= lower OU < upper)
-
-    return lowerBound, upperBound
-end
-
--- Desenha o jogador animado
+--- Desenha o jogador com sistema de camadas
 function SpritePlayer.draw(config)
-    -- Verifica se o sprite sheet atual existe
     local currentState = config.animation.state
-    if not SpritePlayer.spriteSheets[currentState] then return end
+    local currentDirection = config.animation.direction
+    local currentFrame = config.animation.currentFrame
+
+    -- Verifica se o sprite do corpo existe
+    if not SpritePlayer.resources.body[currentState] then
+        return
+    end
 
     love.graphics.push()
     love.graphics.translate(config.position.x, config.position.y)
 
     -- Obtém o quad atual
-    local currentQuad = SpritePlayer.quads[currentState][config.animation.direction][config.animation.currentFrame]
+    local bodyQuad = SpritePlayer.quads[currentState] and
+        SpritePlayer.quads[currentState][currentDirection] and
+        SpritePlayer.quads[currentState][currentDirection][currentFrame]
 
-    if currentQuad then
-        -- Reseta cor para branco
-        love.graphics.setColor(1, 1, 1, 1)
+    if bodyQuad then
+        -- Desenha a camada do corpo com cor de pele
+        local skinColor = Colors.skinTones[config.appearance.skinTone] or Colors.skinTones.medium
+        love.graphics.setColor(skinColor)
 
-        -- Desenha o frame atual
         love.graphics.draw(
-            SpritePlayer.spriteSheets[currentState],
-            currentQuad,
+            SpritePlayer.resources.body[currentState],
+            bodyQuad,
             -config.animation.frameWidth * config.scale / 2,
             -config.animation.frameHeight * config.scale / 2,
             0,
             config.scale,
             config.scale
         )
+
+        -- Reseta cor para branco
+        love.graphics.setColor(1, 1, 1, 1)
+
+        -- Desenha camadas de equipamentos (se existirem)
+        SpritePlayer._drawEquipmentLayers(config, currentState, currentDirection, currentFrame)
+
+        -- Desenha camada de arma (se existir)
+        SpritePlayer._drawWeaponLayer(config, currentState, currentDirection, currentFrame)
     end
 
     love.graphics.pop()
 end
 
--- Cria uma nova configuração de jogador
+--- Desenha as camadas de equipamentos
+function SpritePlayer._drawEquipmentLayers(config, state, direction, frame)
+    -- Por enquanto apenas a estrutura - implementação futura quando tivermos os sprites
+    local equipmentOrder = { "leg", "shoe", "belt", "chest", "bag", "head" }
+
+    for _, equipType in ipairs(equipmentOrder) do
+        local equipmentId = config.appearance.equipment[equipType]
+        if equipmentId and SpritePlayer.resources.equipment[equipType][equipmentId] then
+            -- TODO: Implementar quando tivermos os sprites de equipamentos
+        end
+    end
+end
+
+--- Desenha a camada de arma
+function SpritePlayer._drawWeaponLayer(config, state, direction, frame)
+    local weaponType = config.appearance.weapon.type
+    local weaponSprite = config.appearance.weapon.sprite
+
+    if weaponType and weaponSprite and SpritePlayer.resources.weapons[weaponType] then
+        -- TODO: Implementar quando tivermos os sprites de armas
+    end
+end
+
+--- Cria uma nova configuração de jogador
 function SpritePlayer.newConfig(overrides)
     local config = {}
+
+    -- Deep copy da configuração padrão
     for k, v in pairs(SpritePlayer.defaultConfig) do
         if type(v) == "table" then
             config[k] = {}
@@ -431,7 +404,14 @@ function SpritePlayer.newConfig(overrides)
                 if type(v2) == "table" then
                     config[k][k2] = {}
                     for k3, v3 in pairs(v2) do
-                        config[k][k2][k3] = v3
+                        if type(v3) == "table" then
+                            config[k][k2][k3] = {}
+                            for k4, v4 in pairs(v3) do
+                                config[k][k2][k3][k4] = v4
+                            end
+                        else
+                            config[k][k2][k3] = v3
+                        end
                     end
                 else
                     config[k][k2] = v2
@@ -442,11 +422,18 @@ function SpritePlayer.newConfig(overrides)
         end
     end
 
+    -- Aplica overrides se fornecidos
     if overrides then
         for k, v in pairs(overrides) do
-            if type(v) == "table" then
+            if type(v) == "table" and config[k] and type(config[k]) == "table" then
                 for k2, v2 in pairs(v) do
-                    config[k][k2] = v2
+                    if type(v2) == "table" and config[k][k2] and type(config[k][k2]) == "table" then
+                        for k3, v3 in pairs(v2) do
+                            config[k][k2][k3] = v3
+                        end
+                    else
+                        config[k][k2] = v2
+                    end
                 end
             else
                 config[k] = v
@@ -457,13 +444,44 @@ function SpritePlayer.newConfig(overrides)
     return config
 end
 
--- Inicia a animação de ataque
-function SpritePlayer.startAttackAnimation(config)
+--- Inicia a animação de ataque
+function SpritePlayer.startAttackAnimation(config, attackType)
     if not config.animation.isAttacking then
         config.animation.isAttacking = true
         config.animation.currentFrame = 1
-        config.animation.state = 'attack'
         config.animation.timer = 0
+
+        -- Determine o tipo de ataque baseado no parâmetro ou arma equipada
+        if attackType == "ranged" or (config.appearance.weapon.type == "bow") then
+            config.animation.state = 'attack_ranged'
+        else
+            config.animation.state = 'attack_melee'
+        end
+    end
+end
+
+--- Para a animação de ataque
+function SpritePlayer.stopAttackAnimation(config)
+    config.animation.isAttacking = false
+end
+
+--- Define a aparência do jogador
+function SpritePlayer.setAppearance(config, appearance)
+    if appearance.skinTone then
+        config.appearance.skinTone = appearance.skinTone
+    end
+
+    if appearance.equipment then
+        for equipType, equipId in pairs(appearance.equipment) do
+            if config.appearance.equipment[equipType] ~= nil then
+                config.appearance.equipment[equipType] = equipId
+            end
+        end
+    end
+
+    if appearance.weapon then
+        config.appearance.weapon.type = appearance.weapon.type
+        config.appearance.weapon.sprite = appearance.weapon.sprite
     end
 end
 

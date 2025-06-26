@@ -48,6 +48,30 @@ function MovementController:setupPlayerSprite(finalStats)
         string.format("[MovementController:setupPlayerSprite] Velocidade final do sprite: %.2f", finalSpeed)
     )
 
+    -- Obtém dados do caçador atual para configurar aparência
+    local hunterId = self.playerManager:getCurrentHunterId()
+    local hunterData = nil
+    if hunterId and self.playerManager.hunterManager then
+        hunterData = self.playerManager.hunterManager.hunters[hunterId]
+    end
+
+    -- Configura aparência baseada nos dados do caçador
+    local appearance = {
+        skinTone = (hunterData and hunterData.skinTone) or "medium",
+        equipment = {
+            bag = nil,
+            belt = nil,
+            chest = nil,
+            head = nil,
+            leg = nil,
+            shoe = nil
+        },
+        weapon = {
+            type = nil,
+            sprite = nil
+        }
+    }
+
     -- Cria a instância do sprite do jogador
     self.player = SpritePlayer.newConfig({
         position = {
@@ -55,7 +79,8 @@ function MovementController:setupPlayerSprite(finalStats)
             y = love.graphics.getHeight() / 2
         },
         scale = 1,
-        speed = finalSpeed
+        speed = finalSpeed,
+        appearance = appearance
     })
 
     -- Inicializa vetor de velocidade
@@ -63,7 +88,10 @@ function MovementController:setupPlayerSprite(finalStats)
 
     Logger.info(
         "movement_controller.setup.success",
-        string.format("[MovementController:setupPlayerSprite] Sprite criado. Tipo: %s", type(self.player))
+        string.format(
+            "[MovementController:setupPlayerSprite] Sprite criado com skinTone: %s",
+            appearance.skinTone
+        )
     )
 end
 

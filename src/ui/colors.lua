@@ -196,6 +196,20 @@ local colors = {
         percentage_text = { 0.9, 0.9, 0.9, 1.0 }, -- Texto de porcentagem
         ready_icon = { 0.95, 0.95, 0.95, 1.0 },   -- Ícone de pronto (checkmark)
     },
+
+    -- Cores de Pele para Sistema de Player em Camadas
+    skinTones = {
+        pale = { 0.96, 0.87, 0.82, 1.0 },         -- Tom muito claro
+        light = { 0.94, 0.84, 0.76, 1.0 },        -- Tom claro
+        medium_light = { 0.87, 0.72, 0.56, 1.0 }, -- Tom médio claro
+        medium = { 0.80, 0.65, 0.48, 1.0 },       -- Tom médio
+        medium_dark = { 0.67, 0.49, 0.35, 1.0 },  -- Tom médio escuro
+        dark = { 0.54, 0.36, 0.25, 1.0 },         -- Tom escuro
+        very_dark = { 0.45, 0.28, 0.19, 1.0 },    -- Tom muito escuro
+        olive = { 0.75, 0.68, 0.52, 1.0 },        -- Tom oliva
+        warm = { 0.89, 0.75, 0.60, 1.0 },         -- Tom quente
+        cool = { 0.85, 0.78, 0.72, 1.0 },         -- Tom frio
+    },
 }
 
 -- Cores para Botões (NOVO SISTEMA DE VARIANTES)
