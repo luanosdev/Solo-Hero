@@ -78,8 +78,9 @@ function HealthController:updateHealthRecovery(dt)
                     end
 
                     -- Adiciona texto flutuante
-                    if self.playerManager.player and self.playerManager.player.position then
-                        local props = TablePool.get()
+                    local playerPosition = self.playerManager:getPlayerPosition()
+                    if playerPosition then
+                        local props = TablePool.getGeneric()
                         props.textColor = Colors.heal
                         props.scale = 1.1
                         props.velocityY = -30
@@ -87,7 +88,7 @@ function HealthController:updateHealthRecovery(dt)
                         props.baseOffsetY = -40
                         props.baseOffsetX = 0
                         self.playerManager:addFloatingText("+" .. healedAmount .. " HP", props)
-                        TablePool.release(props)
+                        TablePool.releaseGeneric(props)
                     end
                 end
             end
@@ -131,7 +132,7 @@ function HealthController:receiveDamage(amount, source)
         self.accumulatedRegen = 0
 
         -- Adiciona texto flutuante de dano
-        local props = TablePool.get()
+        local props = TablePool.getGeneric()
         props.textColor = Colors.damage_player
         props.scale = 1.1
         props.velocityY = -45
@@ -140,7 +141,7 @@ function HealthController:receiveDamage(amount, source)
         props.baseOffsetY = -40
         props.baseOffsetX = 0
         self.playerManager:addFloatingText("-" .. tostring(damageTaken), props)
-        TablePool.release(props)
+        TablePool.releaseGeneric(props)
 
         Logger.debug(
             "health_controller.damage.taken",
@@ -167,8 +168,8 @@ function HealthController:handlePlayerDeath()
     )
 
     -- Para o movimento do jogador
-    if self.playerManager.player and self.playerManager.player.stopMovement then
-        self.playerManager.player:stopMovement()
+    if self.playerManager.movementController then
+        self.playerManager.movementController:stopMovement()
         Logger.debug("health_controller.death.movement_stopped", "Movimento do jogador parado devido à morte.")
     end
 
