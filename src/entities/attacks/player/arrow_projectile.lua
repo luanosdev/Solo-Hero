@@ -99,8 +99,8 @@ function ArrowProjectile:update(dt, angle)
         self.cooldownRemaining = self.cooldownRemaining - dt
     end
 
-    if self.playerManager and self.playerManager.player and self.playerManager.player.position then
-        self.currentPosition = self.playerManager.player.position
+    if self.playerManager then
+        self.currentPosition = self.playerManager:getPlayerPosition()
     else
         -- Não dar erro fatal, mas logar e talvez impedir disparos se a posição não for conhecida
         -- print("AVISO [ArrowProjectile:update]: Posição do jogador não disponível.")
@@ -240,7 +240,7 @@ function ArrowProjectile:cast(args)
         params.playerStrength = finalStats.strength
         params.playerManager = self.playerManager
         params.weaponInstance = self.weaponInstance
-        params.owner = self.playerManager.player
+        params.owner = self.playerManager:getPlayerSprite()
         params.hitCost = Constants.HIT_COST.ARROW
 
         if #self.pooledArrows > 0 then

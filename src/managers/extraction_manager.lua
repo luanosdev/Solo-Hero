@@ -67,12 +67,13 @@ end
 
 ---@param dt number
 function ExtractionManager:_updateSequence(dt)
+    ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
     self.timer = self.timer + dt
 
     if self.teleportEffect then
         if self.config.type == 'item' then
-            local playerPos = playerManager.player.position
+            local playerPos = playerManager:getPlayerPosition()
             self.teleportEffect.position.x = playerPos.x
             self.teleportEffect.position.y = playerPos.y
         end
@@ -85,7 +86,7 @@ function ExtractionManager:_updateSequence(dt)
             local t = math.min(self.timer / moveDuration, 1.0)
             local newX = lume.lerp(self.playerInitialPos.x, self.config.source.position.x, t)
             local newY = lume.lerp(self.playerInitialPos.y, self.config.source.position.y, t)
-            playerManager:setPosition({ x = newX, y = newY })
+            playerManager.movementController:setPosition(newX, newY)
         end
     end
 

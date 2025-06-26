@@ -7,6 +7,26 @@ local FireParticle = require("src.entities.projectiles.fire_particle")
 local ManagerRegistry = require("src.managers.manager_registry") -- Adicionado
 
 ---@class FlameStream
+---@field playerManager PlayerManager
+---@field weaponInstance BaseWeapon
+---@field cooldownRemaining number
+---@field activeParticles FireParticle[]
+---@field baseDamage number
+---@field baseCooldown number
+---@field baseRange number
+---@field baseAngleWidth number
+---@field baseLifetime number
+---@field baseParticleScale number
+---@field knockbackPower number
+---@field knockbackForce number
+---@field visual table
+---@field currentPosition Vector2D
+---@field currentAngle number
+---@field currentRange number
+---@field currentAngleWidth number
+---@field currentAreaMultiplier number
+---@field currentPiercing number
+---@field currentLifetime number
 local FlameStream = {}
 FlameStream.__index = FlameStream -- Necessário para métodos de instância
 FlameStream.name = "Fluxo de Fogo"
@@ -95,10 +115,10 @@ function FlameStream:update(dt, angle)
     end
 
     -- Atualiza valores dinâmicos baseados no estado atual do jogador e da arma
-    if not self.playerManager or not self.playerManager.player or not self.playerManager.player.position then
+    if not self.playerManager then
         error("[FlameStream:update] ERRO: Posição do jogador não disponível.")
     end
-    self.currentPosition = self.playerManager.player.position
+    self.currentPosition = self.playerManager:getPlayerPosition()
     self.currentAngle = angle -- Ângulo da mira
 
     local finalStats = self.playerManager:getCurrentFinalStats()
@@ -111,7 +131,6 @@ function FlameStream:update(dt, angle)
     local calculatedAngleWidth = self.baseAngleWidth and finalStats.attackArea and
         (self.baseAngleWidth * finalStats.attackArea)
     local calculatedAreaMultiplier = finalStats.attackArea or 1.0 -- Multiplicador de área
-    local calculatedPiercing = finalStats.piercing or 0           -- Pontos de Piercing
     local calculatedStrength = finalStats.strength or 0           -- Pontos de Força
 
     if calculatedRange == nil or calculatedRange <= 0 then
@@ -133,7 +152,6 @@ function FlameStream:update(dt, angle)
     end
 
     self.currentAreaMultiplier = calculatedAreaMultiplier -- Atualiza o multiplicador de área
-    self.currentPiercing = calculatedPiercing             -- Atualiza o piercing
 
     -- Lifetime calculation based on range and speed, and now strength
     if not self.visual.attack.particleSpeed or self.visual.attack.particleSpeed <= 0 then

@@ -137,7 +137,8 @@ end
 ---@param target BaseEnemy O alvo que recebeu o dano.
 ---@param amount number A quantidade de dano.
 ---@param isCritical boolean Se o dano foi crítico.
-function DamageNumberManager:show(target, amount, isCritical)
+---@param isSuperCritical? boolean Se o dano foi super crítico.
+function DamageNumberManager:show(target, amount, isCritical, isSuperCritical)
     if not self.isInitialized then
         print("AVISO: DamageNumberManager:show chamado antes da inicialização.")
         return

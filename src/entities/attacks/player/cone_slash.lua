@@ -77,9 +77,8 @@ function ConeSlash:new(playerManager, weaponInstance)
         angleWidth = 0, -- Será atualizado
         halfWidth = 0   -- Será atualizado (calculado a partir de angleWidth)
     }
-    if o.playerManager.player then
-        o.area.position.x = o.playerManager.player.position.x
-        o.area.position.y = o.playerManager.player.position.y
+    if o.playerManager then
+        o.area.position = o.playerManager:getPlayerPosition()
     else
         Logger.warn("ConeSlash:new", "  - WARN: Player sprite not yet available for initial position.")
     end
@@ -98,8 +97,8 @@ function ConeSlash:update(dt, angle)
     end
 
     -- Atualiza posição e ângulo do cone
-    if self.area and self.playerManager.player then
-        self.area.position = self.playerManager.player.position
+    if self.area and self.playerManager then
+        self.area.position = self.playerManager:getPlayerPosition()
         self.area.angle = angle -- Ângulo central da mira
 
         -- Obtém os stats finais do jogador UMA VEZ
@@ -263,7 +262,7 @@ function ConeSlash:_executeSingleAttackLogic(finalStats)
     end
 
     -- Usa o helper para encontrar inimigos na área de cone
-    local enemiesHit = CombatHelpers.findEnemiesInConeArea(self.area, self.playerManager.player)
+    local enemiesHit = CombatHelpers.findEnemiesInConeArea(self.area, self.playerManager:getPlayerSprite())
     local enemiesHitCount = #enemiesHit
 
     if enemiesHitCount > 0 then
@@ -362,7 +361,7 @@ function ConeSlash:drawConeFill(color, progress, areaInstance)
     end
 
     local segments = self.visual.attack.segments or 20
-    local playerRadius = (self.playerManager.player and self.playerManager.player.radius or 10)
+    local playerRadius = self.playerManager:getPlayerSprite().radius
     local fullRange = areaInstance.range
     if not fullRange or fullRange <= 0 then return end
 

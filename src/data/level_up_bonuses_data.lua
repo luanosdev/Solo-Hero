@@ -512,20 +512,19 @@ LevelUpBonusesData.Bonuses = {
     }
 }
 
-
--- Função auxiliar para aplicar modificadores ao PlayerState
--- Pode ser chamada pelo LevelUpModal após o jogador escolher uma opção.
--- playerState: Instância do estado do jogador (playerManager.state)
--- bonusId: O ID do bônus de LevelUpBonusesData.Bonuses que foi escolhido
-function LevelUpBonusesData.ApplyBonus(playerState, bonusId)
+--- Função auxiliar para aplicar modificadores ao PlayerStateController
+--- Pode ser chamada pelo LevelUpModal após o jogador escolher uma opção.
+---@param stateController PlayerStateController Instância do controlador de estado do jogador
+---@param bonusId string O ID do bônus de LevelUpBonusesData.Bonuses que foi escolhido
+function LevelUpBonusesData.ApplyBonus(stateController, bonusId)
     local bonusData = LevelUpBonusesData.Bonuses[bonusId]
     if not bonusData then
         print("ERRO [LevelUpBonusesData.ApplyBonus]: Bônus com ID '" .. tostring(bonusId) .. "' não encontrado.")
         return
     end
 
-    if not playerState or not playerState.addAttributeBonus then
-        print("ERRO [LevelUpBonusesData.ApplyBonus]: playerState inválido ou não possui addAttributeBonus.")
+    if not stateController or not stateController.addAttributeBonus then
+        print("ERRO [LevelUpBonusesData.ApplyBonus]: stateController inválido ou não possui addAttributeBonus.")
         return
     end
 
@@ -540,15 +539,15 @@ function LevelUpBonusesData.ApplyBonus(playerState, bonusId)
             tostring(value)))
 
         if type == "fixed" then
-            playerState:addAttributeBonus(stat, 0, value)
+            stateController:addAttributeBonus(stat, 0, value)
         elseif type == "percentage" then
-            -- Este 'percentage' vai para playerState.levelBonus[stat]
-            -- E PlayerState.levelBonus espera um valor como 5 para 5%
-            playerState:addAttributeBonus(stat, value, 0)
+            -- Este 'percentage' vai para stateController.levelBonus[stat]
+            -- E levelBonus espera um valor como 5 para 5%
+            stateController:addAttributeBonus(stat, value, 0)
         elseif type == "fixed_percentage_as_fraction" then
-            -- Este 'fixed' vai para playerState.fixedBonus[stat]
-            -- E PlayerState.fixedBonus para stats como critChance espera uma fração (ex: 0.01 para 1%)
-            playerState:addAttributeBonus(stat, 0, value)
+            -- Este 'fixed' vai para stateController.fixedBonus[stat]
+            -- E fixedBonus para stats como critChance espera uma fração (ex: 0.01 para 1%)
+            stateController:addAttributeBonus(stat, 0, value)
         else
             print("AVISO [LevelUpBonusesData.ApplyBonus]: Tipo de modificador desconhecido ('" ..
                 tostring(type) .. "') para o stat '" .. tostring(stat) .. "'.")

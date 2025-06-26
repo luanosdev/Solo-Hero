@@ -66,12 +66,12 @@ function LevelUpModal:generateOptions()
     self.options = {}
     local availableBonuses = {}
 
-    if not self.playerManager or not self.playerManager.state or not self.playerManager.state.learnedLevelUpBonuses then
+    if not self.playerManager or not self.playerManager.stateController or not self.playerManager.stateController:getLearnedLevelUpBonuses() then
         error(
-            "ERRO [LevelUpModal:generateOptions]: PlayerManager, PlayerState ou learnedLevelUpBonuses não está pronto.")
+            "ERRO [LevelUpModal:generateOptions]: PlayerManager, PlayerStateController ou learnedLevelUpBonuses não está pronto.")
     end
 
-    local learned = self.playerManager.state.learnedLevelUpBonuses
+    local learned = self.playerManager.stateController:getLearnedLevelUpBonuses()
 
     for bonusId, bonusData in pairs(LevelUpBonusesData.Bonuses) do
         local currentLevel = learned[bonusId] or 0
@@ -162,24 +162,23 @@ function LevelUpModal:getOptionAtPosition(x, y)
 end
 
 function LevelUpModal:applyUpgrade(optionData)
-    if not self.playerManager or not self.playerManager.state then
-        error("ERRO [LevelUpModal:applyUpgrade]: PlayerManager ou PlayerState não está pronto.")
+    if not self.playerManager or not self.playerManager.stateController then
+        error("ERRO [LevelUpModal:applyUpgrade]: PlayerManager ou PlayerStateController não está pronto.")
     end
     if not optionData or not optionData.id then
         error("ERRO [LevelUpModal:applyUpgrade]: optionData inválido ou sem ID.")
     end
 
-    LevelUpBonusesData.ApplyBonus(self.playerManager.state, optionData.id)
+    LevelUpBonusesData.ApplyBonus(self.playerManager.stateController, optionData.id)
 
     local bonusId = optionData.id
-    local learnedBonuses = self.playerManager.state.learnedLevelUpBonuses
+    local learnedBonuses = self.playerManager.stateController:getLearnedLevelUpBonuses()
     learnedBonuses[bonusId] = (learnedBonuses[bonusId] or 0) + 1
     self.playerManager:invalidateStatsCache()
 
     -- Registra a escolha para as estatísticas
     local gameStatsManager = self.playerManager.gameStatisticsManager
     if gameStatsManager then
-        local currentLevel = self.playerManager.state.level
         local choiceText = optionData.name or "Melhoria Desconhecida"
         gameStatsManager:registerLevelUpChoice(learnedBonuses[bonusId], choiceText)
     end

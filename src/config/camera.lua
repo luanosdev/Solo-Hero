@@ -37,6 +37,8 @@ function Camera:init()
     self.screenHeight = love.graphics.getHeight()
 end
 
+---@param position Vector2D
+---@param dt number
 function Camera:follow(position, dt)
     -- Calcula a posição alvo (centro da tela)
     local targetX = position.x - (self.screenWidth / self.scale / 2)

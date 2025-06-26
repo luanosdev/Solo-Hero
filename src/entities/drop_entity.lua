@@ -97,8 +97,9 @@ function DropEntity:update(dt, playerManager)
         self.animation:update(dt)
     end
 
-    local dx = playerManager.player.position.x - self.position.x
-    local dy = playerManager.player.position.y - self.position.y
+    local playerPos = playerManager:getPlayerPosition()
+    local dx = playerPos.x - self.position.x
+    local dy = playerPos.y - self.position.y
     local distance = math.sqrt(dx * dx + dy * dy)
 
     local currentFinalStats = playerManager:getCurrentFinalStats()
@@ -116,9 +117,9 @@ function DropEntity:update(dt, playerManager)
         local easeOutQuad = 1 - (1 - t) * (1 - t)
 
         self.position.x = self.initialPosition.x +
-            (playerManager.player.position.x - self.initialPosition.x) * easeOutQuad
+            (playerPos.x - self.initialPosition.x) * easeOutQuad
         self.position.y = self.initialPosition.y +
-            (playerManager.player.position.y - self.initialPosition.y) * easeOutQuad
+            (playerPos.y - self.initialPosition.y) * easeOutQuad
 
         if self.collectionProgress >= 1 then
             self.collected = true
@@ -299,7 +300,7 @@ function DropEntity:draw()
 
         -- 3. Desenha o Item Base (Efeito esfera)
         if self.animation then
-            self.animation:draw(0, 0, self.config.rarity)
+            self.animation:draw(0, 0, self.config.rank)
         else
             love.graphics.setColor(r, g, b, 1 * globalPulse)
             love.graphics.circle("fill", 0, 0, radius)

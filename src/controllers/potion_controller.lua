@@ -137,15 +137,9 @@ function PotionController:usePotion()
     for i = 1, self.totalFlasks do
         if self.flasks[i] and self.flasks[i].isReady then
             local finalStats = self.playerManager:getCurrentFinalStats()
-            local healAmount = finalStats.potionHealAmount or 50
-            local healingBonusMultiplier = finalStats.healingBonus or 1.0
 
             -- Aplica a cura
-            local actualHealAmount = self.playerManager.state:heal(
-                healAmount,
-                finalStats.health,
-                healingBonusMultiplier
-            )
+            local actualHealAmount = self.playerManager.stateController:heal(finalStats.potionHealAmount)
 
             -- Registra estatísticas
             if self.playerManager.gameStatisticsManager then

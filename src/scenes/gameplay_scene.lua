@@ -210,7 +210,7 @@ function GameplayScene:load(args)
         if ItemDetailsModal.isVisible then ItemDetailsModal.isVisible = false end
 
         -- Obtém a causa da morte (último inimigo que causou dano)
-        local lastDamageSource = playerMgr.lastDamageSource
+        local lastDamageSource = playerMgr.healthController:getLastDamageSource()
         local deathCause = "Desconhecido"
         if lastDamageSource then
             if lastDamageSource.isBoss then
@@ -225,7 +225,7 @@ function GameplayScene:load(args)
         self.gameOverManager:start(self.currentPortalData, deathCause)
     end)
 
-    local playerInitialPos = playerMgr.player.position
+    local playerInitialPos = playerMgr:getPlayerPosition()
     if playerInitialPos then
         local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)
         local initialCamY = playerInitialPos.y - (Camera.screenHeight / 2)
@@ -242,7 +242,7 @@ function GameplayScene:createDropNearPlayer(dropId)
     local dropMgr = ManagerRegistry:get("dropManager")
     local itemDataMgr = ManagerRegistry:get("itemDataManager")
 
-    local playerPos = playerMgr.player.position;
+    local playerPos = playerMgr:getPlayerPosition()
     if itemDataMgr:getBaseItemData(dropId) then
         dropMgr:createDrop({ type = "item", itemId = dropId, quantity = 1 },
             { x = playerPos.x + 250, y = playerPos.y })
@@ -256,7 +256,13 @@ function GameplayScene:update(dt)
         return
     end
 
+    ---@type PlayerManager
+    local playerMgr = ManagerRegistry:get("playerManager")
+    ---@type EnemyManager
+    local enemyMgr = ManagerRegistry:get("enemyManager")
+    ---@type ExtractionPortalManager
     local extractionPortalManager = ManagerRegistry:get("extractionPortalManager")
+
     if extractionPortalManager then
         extractionPortalManager:update(dt)
     end
@@ -267,8 +273,6 @@ function GameplayScene:update(dt)
 
         -- Atualiza a animação do boss durante a apresentação
         if self.bossPresentationManager.boss then
-            local playerMgr = ManagerRegistry:get("playerManager")
-            local enemyMgr = ManagerRegistry:get("enemyManager")
             self.bossPresentationManager.boss:update(dt, playerMgr, enemyMgr)
             -- Força a atualização da barra de vida do boss
             BossHealthBarManager:update(dt)
@@ -308,8 +312,7 @@ function GameplayScene:update(dt)
 
         if self.mapManager then
             -- Passa a posição do jogador para o update do mapa procedural
-            local playerMgr = ManagerRegistry:get("playerManager")
-            local playerPosition = playerMgr and playerMgr.player and playerMgr.player.position
+            local playerPosition = playerMgr:getPlayerPosition()
             self.mapManager:update(dt, playerPosition)
         end
 

@@ -217,7 +217,7 @@ end
 --- Aplica dano e knockback a uma lista de inimigos.
 --- @param enemies table Lista de inimigos a serem atingidos.
 --- @param finalStats table Stats finais do jogador (para dano, crítico, força).
---- @param knockbackData table Dados do knockback {power, force, attackerPosition}.
+--- @param knockbackData {power: number, force: number, attackerPosition: Vector2D } Dados do knockback.
 --- @param enemiesKnockedBackInThisCast table Tabela para rastrear IDs de inimigos que já sofreram knockback.
 --- @param playerManager PlayerManager Instância do PlayerManager.
 --- @param weaponInstance BaseWeapon A instância da arma que desferiu o golpe.
