@@ -103,16 +103,36 @@ skinTones = {
 
 ## Estados de Animação Suportados
 
-- `idle` - Parado
-- `walk` - Caminhando
+- `idle` - Parado (base)
+- `idle2`, `idle3`, `idle4` - Variações de idle (automáticas)
+- `walk` - Caminhando normal (movimento alinhado com direção)
+- `strafe_left` - Movimento lateral para esquerda (mantém direção do olhar)
+- `strafe_right` - Movimento lateral para direita (mantém direção do olhar)
 - `attack_melee` - Ataque corpo a corpo (parado)
 - `attack_ranged` - Ataque à distância (parado)
 - `attack_run_melee` - Ataque corpo a corpo (andando)
 - `attack_run_ranged` - Ataque à distância (andando)
 - `die` - Morte
-- `idle2`, `idle3`, `idle4` - Variações de idle
-- `strafe_left`, `strafe_right` - Movimento lateral
 - `taunt` - Provocação
+
+### Sistema de Idle Aleatório
+
+O sistema escolhe automaticamente uma animação idle aleatória toda vez que o personagem para:
+
+- **Trigger**: Ativado quando o personagem para de se mover
+- **Variações**: `idle`, `idle2`, `idle3`, `idle4`
+- **Inteligente**: Não repete a mesma animação consecutivamente
+- **Verificação**: Só usa sprites que existem no diretório
+- **Persistente**: Mantém a mesma idle enquanto estiver parado
+
+### Sistema de Strafe
+
+O sistema detecta automaticamente quando o movimento é lateral em relação à direção que o personagem está olhando:
+
+- **Threshold**: 30° de tolerância
+- **Strafe Right**: Movimento 90° à direita da direção do olhar
+- **Strafe Left**: Movimento 90° à esquerda da direção do olhar
+- **Walk Normal**: Qualquer movimento fora do threshold de strafe
 
 ## Configuração de Aparência
 
@@ -147,6 +167,25 @@ Para animação de ataque
 
 ### SpritePlayer.draw(config)
 Renderiza todas as camadas em ordem
+
+### SpritePlayer.forceIdleChange(config)
+Força uma nova escolha de idle na próxima vez que o personagem parar
+
+## Exemplo de Uso - Sistema de Idle
+
+```lua
+-- O sistema funciona automaticamente:
+-- 1. Personagem se move (WASD)
+-- 2. Personagem para -> escolhe idle aleatório (idle2, idle3, idle4)
+-- 3. Mantém essa idle enquanto parado
+-- 4. Se mover novamente e parar -> nova idle aleatória
+
+-- Forçar nova escolha na próxima parada
+SpritePlayer.forceIdleChange(playerConfig)
+
+-- Sistema automático durante update
+SpritePlayer.update(playerConfig, dt, targetPosition)
+```
 
 ## Expansões Futuras
 

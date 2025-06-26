@@ -16,7 +16,7 @@ SpritePlayer.defaultConfig = {
         x = 0,
         y = 0,
     },
-    scale = 1,
+    scale = 1.2,
     speed = 150,
     -- Configurações de animação
     animation = {
@@ -55,7 +55,12 @@ SpritePlayer.defaultConfig = {
             N = 7,  -- Norte (270°)
             NE = 8  -- Nordeste (315°)
         },
-        framesPerDirection = 15
+        framesPerDirection = 15,
+        -- Sistema de idle aleatório
+        wasMoving = false, -- Flag para detectar quando para de se mover
+        currentIdleVariant = "idle",
+        -- Sistema de animação reversa
+        isReversed = false -- Flag para executar frames em ordem reversa
     },
     -- Aparência do jogador
     appearance = {
@@ -296,14 +301,43 @@ function SpritePlayer.update(config, dt, targetPosition)
     if config.animation.isAttacking then
         newState = isMoving and 'attack_run_melee' or 'attack_melee'
     else
-        newState = isMoving and 'walk' or 'idle'
+        if not isMoving then
+            -- Detecta se acabou de parar de se mover
+            if config.animation.wasMoving then
+                -- Escolhe uma nova animação idle aleatória
+                config.animation.currentIdleVariant = SpritePlayer._chooseRandomIdle(config.animation.currentIdleVariant)
+                config.animation.wasMoving = false
+
+                -- Reinicia a animação para a nova variante
+                config.animation.currentFrame = 1
+                config.animation.timer = 0
+            end
+
+            newState = config.animation.currentIdleVariant
+        else
+            -- Marca que estava se movendo
+            config.animation.wasMoving = true
+
+            -- Determina o tipo de movimento
+            local movementState = SpritePlayer._getMovementState(dx, dy, config.animation.direction)
+            newState = movementState
+        end
     end
 
     -- Reseta a animação se o estado mudou
     if newState ~= config.animation.state then
         config.animation.state = newState
-        config.animation.currentFrame = 1
         config.animation.timer = 0
+
+        -- Configura se a animação deve ser executada em reverso
+        config.animation.isReversed = (newState == 'walk_backward')
+
+        -- Define o frame inicial baseado na direção da animação
+        if config.animation.isReversed then
+            config.animation.currentFrame = config.animation.framesPerDirection -- Começa do último frame
+        else
+            config.animation.currentFrame = 1                                   -- Começa do primeiro frame
+        end
     end
 
     -- Atualiza o timer da animação
@@ -316,10 +350,131 @@ function SpritePlayer.update(config, dt, targetPosition)
     if config.animation.timer >= frameTime then
         config.animation.timer = config.animation.timer - frameTime
         local maxFrames = config.animation.framesPerDirection
-        config.animation.currentFrame = (config.animation.currentFrame % maxFrames) + 1
+
+        if config.animation.isReversed then
+            -- Animação reversa: vai de maxFrames para 1
+            config.animation.currentFrame = config.animation.currentFrame - 1
+            if config.animation.currentFrame < 1 then
+                config.animation.currentFrame = maxFrames
+            end
+        else
+            -- Animação normal: vai de 1 para maxFrames
+            config.animation.currentFrame = (config.animation.currentFrame % maxFrames) + 1
+        end
     end
 
     return math.sqrt(moveX * moveX + moveY * moveY)
+end
+
+--- Escolhe uma nova animação idle aleatória diferente da atual
+---@param currentIdleVariant string Variante de idle atual
+---@return string Nova variante de idle escolhida
+function SpritePlayer._chooseRandomIdle(currentIdleVariant)
+    -- Lista de todas as variações de idle disponíveis
+    local idleVariants = { "idle", "idle2", "idle3", "idle4" }
+
+    -- Filtra para não repetir a mesma animação e só incluir sprites que existem
+    local availableVariants = {}
+    for _, variant in ipairs(idleVariants) do
+        if variant ~= currentIdleVariant and SpritePlayer.resources.body[variant] then
+            table.insert(availableVariants, variant)
+        end
+    end
+
+    -- Se não houver outras variantes disponíveis, mantém a atual
+    if #availableVariants == 0 then
+        Logger.debug("sprite_player.idle_choice",
+            string.format("Nenhuma variante disponível, mantendo %s", currentIdleVariant))
+        return currentIdleVariant
+    end
+
+    -- Escolhe aleatoriamente uma das variantes disponíveis
+    local randomIndex = love.math.random(1, #availableVariants)
+    local newVariant = availableVariants[randomIndex]
+
+    Logger.debug("sprite_player.idle_choice",
+        string.format("Personagem parou: mudando de %s para %s", currentIdleVariant, newVariant))
+
+    return newVariant
+end
+
+--- Determina o tipo de movimento baseado na direção do movimento vs direção do olhar
+---@param dx number Componente X do movimento normalizado
+---@param dy number Componente Y do movimento normalizado
+---@param facingDirection string Direção que o personagem está olhando
+---@return string Estado de movimento apropriado
+function SpritePlayer._getMovementState(dx, dy, facingDirection)
+    -- Se não há movimento, retorna walk padrão (não deveria chegar aqui)
+    if dx == 0 and dy == 0 then
+        return 'walk'
+    end
+
+    -- Calcula o ângulo do movimento
+    local movementAngle = math.atan2(dy, dx)
+
+    -- Obtém o ângulo da direção que o personagem está olhando
+    local facingAngle = SpritePlayer._getAngleFromDirection(facingDirection)
+
+    -- Calcula a diferença angular entre movimento e direção que olha
+    local angleDiff = SpritePlayer._normalizeAngleDiff(movementAngle - facingAngle)
+
+    -- Define thresholds
+    local strafeThreshold = math.pi / 6   -- 30 graus para strafe
+    local backwardThreshold = math.pi / 4 -- 45 graus para movimento de costas
+
+    -- Verifica movimento de costas (aproximadamente 180° oposto)
+    local backwardAngle = math.pi -- 180 graus
+    if math.abs(math.abs(angleDiff) - backwardAngle) < backwardThreshold then
+        Logger.debug("sprite_player.movement_detection",
+            string.format("Movimento de costas detectado - angleDiff: %.2f°, threshold: %.2f°",
+                math.deg(math.abs(angleDiff)), math.deg(backwardThreshold)))
+        return 'walk_backward'
+    end
+
+    -- Verifica strafe para a direita (90 graus à direita)
+    local rightStrafeAngle = math.pi / 2
+    if math.abs(angleDiff - rightStrafeAngle) < strafeThreshold then
+        return 'strafe_right'
+    end
+
+    -- Verifica strafe para a esquerda (90 graus à esquerda)
+    local leftStrafeAngle = -math.pi / 2
+    if math.abs(angleDiff - leftStrafeAngle) < strafeThreshold then
+        return 'strafe_left'
+    end
+
+    -- Movimento normal (para frente ou diagonal não específico)
+    return 'walk'
+end
+
+--- Converte direção em ângulo
+---@param direction string Direção (E, SE, S, SW, W, NW, N, NE)
+---@return number Ângulo em radianos
+function SpritePlayer._getAngleFromDirection(direction)
+    local angleMap = {
+        E = 0,                -- 0°
+        SE = math.pi / 4,     -- 45°
+        S = math.pi / 2,      -- 90°
+        SW = 3 * math.pi / 4, -- 135°
+        W = math.pi,          -- 180°
+        NW = 5 * math.pi / 4, -- 225°
+        N = 3 * math.pi / 2,  -- 270°
+        NE = 7 * math.pi / 4  -- 315°
+    }
+    return angleMap[direction] or 0
+end
+
+--- Normaliza diferença angular para -π a π
+---@param angleDiff number Diferença angular em radianos
+---@return number Diferença normalizada
+function SpritePlayer._normalizeAngleDiff(angleDiff)
+    while angleDiff > math.pi do
+        angleDiff = angleDiff - 2 * math.pi
+    end
+    while angleDiff < -math.pi do
+        angleDiff = angleDiff + 2 * math.pi
+    end
+    return angleDiff
 end
 
 --- Desenha o jogador com sistema de camadas
@@ -328,8 +483,14 @@ function SpritePlayer.draw(config)
     local currentDirection = config.animation.direction
     local currentFrame = config.animation.currentFrame
 
+    -- Para walk_backward, usa o sprite walk normal
+    local spriteState = currentState
+    if currentState == 'walk_backward' then
+        spriteState = 'walk'
+    end
+
     -- Verifica se o sprite do corpo existe
-    if not SpritePlayer.resources.body[currentState] then
+    if not SpritePlayer.resources.body[spriteState] then
         return
     end
 
@@ -337,9 +498,9 @@ function SpritePlayer.draw(config)
     love.graphics.translate(config.position.x, config.position.y)
 
     -- Obtém o quad atual
-    local bodyQuad = SpritePlayer.quads[currentState] and
-        SpritePlayer.quads[currentState][currentDirection] and
-        SpritePlayer.quads[currentState][currentDirection][currentFrame]
+    local bodyQuad = SpritePlayer.quads[spriteState] and
+        SpritePlayer.quads[spriteState][currentDirection] and
+        SpritePlayer.quads[spriteState][currentDirection][currentFrame]
 
     if bodyQuad then
         -- Desenha a camada do corpo com cor de pele
@@ -347,7 +508,7 @@ function SpritePlayer.draw(config)
         love.graphics.setColor(skinColor)
 
         love.graphics.draw(
-            SpritePlayer.resources.body[currentState],
+            SpritePlayer.resources.body[spriteState],
             bodyQuad,
             -config.animation.frameWidth * config.scale / 2,
             -config.animation.frameHeight * config.scale / 2,
@@ -483,6 +644,13 @@ function SpritePlayer.setAppearance(config, appearance)
         config.appearance.weapon.type = appearance.weapon.type
         config.appearance.weapon.sprite = appearance.weapon.sprite
     end
+end
+
+--- Força uma nova escolha de idle na próxima vez que o personagem parar
+---@param config PlayerSpriteConfig Configuração do sprite do player
+function SpritePlayer.forceIdleChange(config)
+    config.animation.wasMoving = true
+    Logger.debug("sprite_player.force_idle_change", "Forçando nova escolha de idle na próxima parada")
 end
 
 return SpritePlayer
