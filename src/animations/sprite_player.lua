@@ -86,9 +86,24 @@ SpritePlayer.resources = {
 -- Quads para otimização de renderização
 SpritePlayer.quads = {}
 
+-- Lista de animações conhecidas
+SpritePlayer.knownAnimationStates = {
+    "attack_melee", "attack_ranged", "attack_run_melee", "attack_run_ranged",
+    "die", "idle", "idle2", "idle3", "idle4",
+    "strafe_left", "strafe_right", "taunt", "walk"
+}
+
+-- Pastas de armas conhecidas
+SpritePlayer.knownWeaponFolders = {
+    "sword_tier_1",
+    "bow_tier_1",
+    "hammer_tier_1"
+}
+
+
 --- Carrega todos os recursos do sistema de camadas
 function SpritePlayer.load()
-    Logger.info("sprite_player.load", "Carregando sistema de renderização em camadas...")
+    Logger.info("sprite_player.load", "[SpritePlayer:load] Carregando sistema de renderização em camadas...")
 
     -- Carrega sprites do corpo
     SpritePlayer._loadBodySprites()
@@ -99,17 +114,13 @@ function SpritePlayer.load()
     -- Carrega sprites de armas
     SpritePlayer._loadWeaponSprites()
 
-    Logger.info("sprite_player.load", "Sistema de renderização em camadas carregado com sucesso.")
+    Logger.info("sprite_player.load", "[SpritePlayer:load] Sistema de renderização em camadas carregado com sucesso.")
 end
 
 --- Carrega todos os sprites do corpo
 function SpritePlayer._loadBodySprites()
     local bodyPath = "assets/player/body/"
-    local states = {
-        "attack_melee", "attack_ranged", "attack_run_melee", "attack_run_ranged",
-        "die", "idle", "idle2", "idle3", "idle4",
-        "strafe_left", "strafe_right", "taunt", "walk"
-    }
+    local states = SpritePlayer.knownAnimationStates
 
     for _, state in ipairs(states) do
         local filePath = bodyPath .. state .. ".png"
@@ -121,10 +132,10 @@ function SpritePlayer._loadBodySprites()
             SpritePlayer.resources.body[state] = sprite
             SpritePlayer._createQuadsForSprite(state, sprite)
             Logger.debug("sprite_player.load_body",
-                string.format("Carregado sprite do corpo: %s", state))
+                string.format("[SpritePlayer:_loadBodySprites] Carregado sprite do corpo: %s", state))
         else
             Logger.warn("sprite_player.load_body",
-                string.format("Não foi possível carregar sprite: %s", filePath))
+                string.format("[SpritePlayer:_loadBodySprites] Não foi possível carregar sprite: %s", filePath))
         end
     end
 end
@@ -141,7 +152,7 @@ function SpritePlayer._loadEquipmentSprites()
         -- Por enquanto apenas registra a estrutura
         Logger.debug(
             "sprite_player.load_equipment",
-            string.format("Estrutura preparada para equipamentos: %s", equipType)
+            string.format("[SpritePlayer:_loadEquipmentSprites] Estrutura preparada para equipamentos: %s", equipType)
         )
     end
 end
@@ -149,10 +160,7 @@ end
 --- Carrega sprites de armas baseado nas pastas disponíveis
 function SpritePlayer._loadWeaponSprites()
     -- Lista de pastas de armas conhecidas para carregar
-    local weaponFolders = {
-        "sword_tier_1"
-        -- Adicione mais conforme necessário
-    }
+    local weaponFolders = SpritePlayer.knownWeaponFolders
 
     for _, folderName in ipairs(weaponFolders) do
         SpritePlayer._loadWeaponFolder(folderName)
@@ -165,11 +173,7 @@ function SpritePlayer._loadWeaponFolder(folderName)
     local weaponPath = "assets/player/weapons/" .. folderName .. "/"
 
     -- Lista de animações que devem sincronizar com o corpo
-    local animationStates = {
-        "attack_melee", "attack_ranged", "attack_run_melee", "attack_run_ranged",
-        "die", "idle", "idle2", "idle3", "idle4",
-        "strafe_left", "strafe_right", "taunt", "walk"
-    }
+    local animationStates = SpritePlayer.knownAnimationStates
 
     SpritePlayer.resources.weapons[folderName] = {}
 
@@ -188,14 +192,14 @@ function SpritePlayer._loadWeaponFolder(folderName)
     if next(SpritePlayer.resources.weapons[folderName]) then
         Logger.info(
             "sprite_player.load_weapons",
-            string.format("Carregados sprites da arma: %s", folderName)
+            string.format("[SpritePlayer:_loadWeaponFolder] Carregados sprites da arma: %s", folderName)
         )
     else
         -- Remove entrada vazia se nenhum sprite foi carregado
         SpritePlayer.resources.weapons[folderName] = nil
         Logger.warn(
             "sprite_player.load_weapons",
-            string.format("Nenhum sprite encontrado para: %s", folderName)
+            string.format("[SpritePlayer:_loadWeaponFolder] Nenhum sprite encontrado para: %s", folderName)
         )
     end
 end
@@ -510,8 +514,13 @@ function SpritePlayer._chooseRandomIdle(currentIdleVariant)
 
     -- Se não houver outras variantes disponíveis, mantém a atual
     if #availableVariants == 0 then
-        Logger.debug("sprite_player.idle_choice",
-            string.format("Nenhuma variante disponível, mantendo %s", currentIdleVariant))
+        Logger.debug(
+            "sprite_player.idle_choice",
+            string.format(
+                "[SpritePlayer:_chooseRandomIdle] Nenhuma variante disponível, mantendo %s",
+                currentIdleVariant
+            )
+        )
         return currentIdleVariant
     end
 
@@ -519,8 +528,13 @@ function SpritePlayer._chooseRandomIdle(currentIdleVariant)
     local randomIndex = love.math.random(1, #availableVariants)
     local newVariant = availableVariants[randomIndex]
 
-    Logger.debug("sprite_player.idle_choice",
-        string.format("Personagem parou: mudando de %s para %s", currentIdleVariant, newVariant))
+    Logger.debug(
+        "sprite_player.idle_choice",
+        string.format(
+            "[SpritePlayer:_chooseRandomIdle] Personagem parou: mudando de %s para %s",
+            currentIdleVariant, newVariant
+        )
+    )
 
     return newVariant
 end
@@ -552,9 +566,14 @@ function SpritePlayer._getMovementState(dx, dy, facingDirection)
     -- Verifica movimento de costas (aproximadamente 180° oposto)
     local backwardAngle = math.pi -- 180 graus
     if math.abs(math.abs(angleDiff) - backwardAngle) < backwardThreshold then
-        Logger.debug("sprite_player.movement_detection",
-            string.format("Movimento de costas detectado - angleDiff: %.2f°, threshold: %.2f°",
-                math.deg(math.abs(angleDiff)), math.deg(backwardThreshold)))
+        Logger.debug(
+            "sprite_player.movement_detection",
+            string.format(
+                "[SpritePlayer:_getMovementState] Movimento de costas detectado - angleDiff: %.2f°, threshold: %.2f°",
+                math.deg(math.abs(angleDiff)), math.deg(backwardThreshold)
+            )
+        )
+
         return 'walk_backward'
     end
 
@@ -813,7 +832,10 @@ end
 ---@param config PlayerSpriteConfig Configuração do sprite do player
 function SpritePlayer.forceIdleChange(config)
     config.animation.wasMoving = true
-    Logger.debug("sprite_player.force_idle_change", "Forçando nova escolha de idle na próxima parada")
+    Logger.debug(
+        "sprite_player.force_idle_change",
+        string.format("[SpritePlayer:forceIdleChange] Forçando nova escolha de idle na próxima parada: %s",
+            config.animation.state))
 end
 
 return SpritePlayer

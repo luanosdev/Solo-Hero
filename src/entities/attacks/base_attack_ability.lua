@@ -5,6 +5,7 @@
 ----------------------------------------------------------------------------
 
 local SpritePlayer = require("src.animations.sprite_player")
+local Colors = require("src.ui.colors")
 
 ---@class BaseAttackAbilityVisual
 ---@field preview { active: boolean, lineLength: number, color: table }
@@ -223,6 +224,24 @@ function BaseAttackAbility:draw()
     -- Implementado pelas subclasses
 end
 
+function BaseAttackAbility:drawPreviewOptimized()
+    if not self.playerPosition then return end
+
+    local maxLineLength = 300
+    local spawnPos = self:calculateSpawnPosition(self.currentAngle)
+
+    love.graphics.setColor(Colors.white)
+
+    local cx, cy = spawnPos.x, spawnPos.y
+
+    -- Linha central
+    local endX = cx + math.cos(self.currentAngle) * maxLineLength
+    local endY = cy + math.sin(self.currentAngle) * maxLineLength
+    love.graphics.setLineWidth(2)
+    love.graphics.line(cx, cy, endX, endY)
+    love.graphics.setLineWidth(1)
+end
+
 -- Utilitários comuns
 function BaseAttackAbility:getCooldownRemaining()
     return self.cooldownRemaining or 0
@@ -236,6 +255,28 @@ end
 
 function BaseAttackAbility:getPreview()
     return self.visual.preview and self.visual.preview.active or false
+end
+
+--- Calcula posição de spawn do ataque, considerando raio do player + offset
+---@param angle number Ângulo do ataque
+---@return Vector2D spawnPosition
+function BaseAttackAbility:calculateSpawnPosition(angle)
+    local offset = 10
+
+    -- Obtém raio do player do movementController
+    local playerRadius = 15 -- Valor padrão
+    if self.playerManager.movementController then
+        playerRadius = self.playerManager.movementController.radius
+    end
+
+    -- Calcula distância total do centro do player
+    local spawnDistance = playerRadius + offset
+
+    -- Calcula posição de spawn
+    local spawnX = self.playerPosition.x + math.cos(angle) * spawnDistance
+    local spawnY = self.playerPosition.y + math.sin(angle) * spawnDistance
+
+    return { x = spawnX, y = spawnY }
 end
 
 return BaseAttackAbility

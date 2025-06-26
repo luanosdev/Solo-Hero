@@ -16,7 +16,6 @@ local lastCacheFrame = 0
 ---@field extraAttacks number Ataques extras inteiros
 ---@field decimalChance number Chance de ataque extra decimal (0-1)
 ---@field hasDecimalExtra boolean Se foi sorteado o ataque extra decimal
----@field progressiveMultipliers number[] Multiplicadores progressivos para cada ataque extra
 
 --- Calcula multi-attack básico (para a maioria das habilidades)
 ---@param multiAttackChance number Chance de multi-attack dos stats

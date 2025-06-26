@@ -1,5 +1,3 @@
-local Constants = require("src.config.constants")
-
 ---@class CombatHelpers
 local CombatHelpers = {
     HIT_TOLERANCE_MULTIPLIER = 1.2,
@@ -120,7 +118,7 @@ function CombatHelpers.findEnemiesInCircularArea(searchCenter, searchRadius, req
     local TablePool = require("src.utils.table_pool")
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager.spatialGrid
-    local enemiesHit = TablePool.get()
+    local enemiesHit = TablePool.getArray()
 
     if not searchRadius or searchRadius <= 0 then
         return enemiesHit
@@ -143,7 +141,7 @@ function CombatHelpers.findEnemiesInCircularArea(searchCenter, searchRadius, req
         end
     end
 
-    TablePool.release(nearbyEnemies)
+    TablePool.releaseArray(nearbyEnemies)
     return enemiesHit
 end
 
@@ -156,7 +154,7 @@ function CombatHelpers.findEnemiesInConeArea(coneArea, requestingEntity)
     local TablePool = require("src.utils.table_pool")
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager.spatialGrid
-    local enemiesHit = TablePool.get()
+    local enemiesHit = TablePool.getArray()
 
     if not coneArea or not coneArea.range or coneArea.range <= 0 or not coneArea.halfWidth or coneArea.halfWidth <= 0 then
         return enemiesHit
@@ -186,7 +184,7 @@ function CombatHelpers.findEnemiesInConeArea(coneArea, requestingEntity)
         end
     end
 
-    TablePool.release(nearbyEnemies)
+    TablePool.releaseArray(nearbyEnemies)
     return enemiesHit
 end
 
@@ -200,7 +198,7 @@ function CombatHelpers.findEnemiesInConeHalfArea(coneArea, checkLeft, requesting
     local TablePool = require("src.utils.table_pool")
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager.spatialGrid
-    local enemiesHit = TablePool.get()
+    local enemiesHit = TablePool.getArray()
 
     if not coneArea or not coneArea.range or coneArea.range <= 0 or not coneArea.halfWidth or coneArea.halfWidth <= 0 then
         return enemiesHit
@@ -234,7 +232,98 @@ function CombatHelpers.findEnemiesInConeHalfArea(coneArea, checkLeft, requesting
         end
     end
 
-    TablePool.release(nearbyEnemies)
+    TablePool.releaseArray(nearbyEnemies)
+    return enemiesHit
+end
+
+--- Encontra inimigos em uma área de linha (útil para projéteis, raios, etc), considerando o raio dos inimigos.
+--- @param lineArea table A área da linha {startPosition, endPosition, width}.
+--- @param requestingEntity table A entidade que iniciou a busca.
+--- @return table Uma lista (do TablePool) de inimigos atingidos.
+function CombatHelpers.findEnemiesInLineArea(lineArea, requestingEntity)
+    local ManagerRegistry = require("src.managers.manager_registry")
+    local TablePool = require("src.utils.table_pool")
+    local enemyManager = ManagerRegistry:get("enemyManager")
+    local spatialGrid = enemyManager.spatialGrid
+    local enemiesHit = TablePool.getArray()
+
+    if not lineArea or not lineArea.startPosition or not lineArea.endPosition or not lineArea.width or lineArea.width <= 0 then
+        return enemiesHit
+    end
+
+    local startPos = lineArea.startPosition
+    local endPos = lineArea.endPosition
+    local lineWidth = lineArea.width
+
+    -- Calcula o comprimento da linha e a direção
+    local dx = endPos.x - startPos.x
+    local dy = endPos.y - startPos.y
+    local lineLength = math.sqrt(dx * dx + dy * dy)
+
+    if lineLength <= 0 then
+        return enemiesHit
+    end
+
+    -- Vetor unitário da direção da linha
+    local dirX = dx / lineLength
+    local dirY = dy / lineLength
+
+    -- Vetor perpendicular para cálculo da largura
+    local perpX = -dirY
+    local perpY = dirX
+
+    -- Busca inimigos em área expandida ao redor da linha
+    local centerX = (startPos.x + endPos.x) * 0.5
+    local centerY = (startPos.y + endPos.y) * 0.5
+    local searchRadius = math.max(lineLength * 0.5, lineWidth) + 100 -- Buffer adicional
+
+    local nearbyEnemies = spatialGrid:getNearbyEntities(centerX, centerY, searchRadius, requestingEntity)
+
+    for i = 1, #nearbyEnemies do
+        local enemy = nearbyEnemies[i]
+        if enemy and enemy.isAlive then
+            local enemyX = enemy.position.x
+            local enemyY = enemy.position.y
+
+            -- Calcula a projeção do inimigo na linha
+            local toEnemyX = enemyX - startPos.x
+            local toEnemyY = enemyY - startPos.y
+
+            -- Projeção escalar na direção da linha
+            local projectionScalar = toEnemyX * dirX + toEnemyY * dirY
+
+            -- Verifica se a projeção está dentro dos limites da linha
+            if projectionScalar >= 0 and projectionScalar <= lineLength then
+                -- Calcula o ponto mais próximo na linha
+                local closestX = startPos.x + projectionScalar * dirX
+                local closestY = startPos.y + projectionScalar * dirY
+
+                -- Calcula a distância perpendicular à linha
+                local perpDistX = enemyX - closestX
+                local perpDistY = enemyY - closestY
+                local perpDistance = math.sqrt(perpDistX * perpDistX + perpDistY * perpDistY)
+
+                -- Verifica se está dentro da largura da linha (considerando raio do inimigo)
+                local combinedWidth = lineWidth * 0.5 + CombatHelpers.getPermissiveRadius(enemy)
+                if perpDistance <= combinedWidth then
+                    table.insert(enemiesHit, enemy)
+                end
+            else
+                -- Verifica distância das extremidades da linha se não está na projeção
+                local distToStart = math.sqrt((enemyX - startPos.x) ^ 2 + (enemyY - startPos.y) ^ 2)
+                local distToEnd = math.sqrt((enemyX - endPos.x) ^ 2 + (enemyY - endPos.y) ^ 2)
+                local minDistToEnds = math.min(distToStart, distToEnd)
+
+                -- Se está perto de uma das extremidades, considera como hit
+                local combinedRadius = lineWidth * 0.5 + CombatHelpers.getPermissiveRadius(enemy)
+                if minDistToEnds <= combinedRadius then
+                    table.insert(enemiesHit, enemy)
+                end
+            end
+        end
+    end
+
+    TablePool.releaseArray(nearbyEnemies)
     return enemiesHit
 end
 
@@ -266,20 +355,16 @@ function CombatHelpers.applyHitEffects(
     for i = 1, #enemies do
         local enemy = enemies[i]
         if enemy and enemy.isAlive then
-            -- Aplica Dano
-            local isCritical = finalStats.critChance and (math.random() <= finalStats.critChance)
-            -- TODO: Adicionar lógica para Super Critical quando a mecânica existir
-            local isSuperCritical = false -- Placeholder
-            local damageToApply = totalDamage
+            -- Aplica Dano com nova mecânica de Super Crítico
+            local critChance = finalStats.critChance
+            local critBonus = finalStats.critDamage - 1 -- Converte multiplicador para bônus
 
-            if isSuperCritical then
-                -- TODO: Usar multiplicador de Super Crítico quando existir
-                damageToApply = totalDamage and finalStats.critDamage and
-                    math.floor(totalDamage * (finalStats.critDamage * 2)) or totalDamage
-            elseif isCritical then
-                damageToApply = totalDamage and finalStats.critDamage and math.floor(totalDamage * finalStats.critDamage) or
-                    totalDamage
-            end
+            local damageToApply, isCritical, isSuperCritical, critStacks = CombatHelpers.calculateSuperCriticalDamage(
+                totalDamage,
+                critChance,
+                critBonus
+            )
+
             enemy:takeDamage(damageToApply, isCritical, isSuperCritical)
 
             -- Registra o dano causado para as estatísticas
@@ -357,6 +442,35 @@ function CombatHelpers.findEnemiesInConeAreaOptimized(coneArea, requestingEntity
     end
 end
 
+--- Busca em linha otimizada com pooling
+---@param lineArea table Área da linha {startPosition, endPosition, width}
+---@param requestingEntity table Entidade que faz a busca
+---@return BaseEnemy[] Lista de inimigos encontrados
+function CombatHelpers.findEnemiesInLineAreaOptimized(lineArea, requestingEntity)
+    updateCache()
+
+    -- Usa pool específico para linhas se disponível
+    if #lineSearchPool > 0 then
+        local pooledResult = table.remove(lineSearchPool)
+        -- Limpa resultado anterior
+        for i = #pooledResult, 1, -1 do
+            pooledResult[i] = nil
+        end
+
+        -- Executa busca real
+        local actualResult = CombatHelpers.findEnemiesInLineArea(lineArea, requestingEntity)
+
+        -- Copia para o resultado pooled
+        for i = 1, #actualResult do
+            pooledResult[i] = actualResult[i]
+        end
+
+        return pooledResult
+    else
+        return CombatHelpers.findEnemiesInLineArea(lineArea, requestingEntity)
+    end
+end
+
 --- Aplica efeitos em lote para melhor performance
 ---@param attackInstances table[] Lista de ataques a serem processados
 ---@param finalStats table Stats finais do jogador
@@ -387,22 +501,53 @@ function CombatHelpers.applyBatchHitEffects(attackInstances, finalStats, playerM
     end
 end
 
---- Calcula dano otimizado (evita recálculos de crítico)
+--- Calcula dano com mecânica de Super Crítico
+--- Sistema: Final Damage = Base Damage × (1 + Crit Bonus × Crit Stacks)
+---@param baseDamage number Dano base
+---@param critChance number Chance de crítico (ex: 3.10 = 310%)
+---@param critBonus number Bônus de crítico por stack (ex: 2.20 = 220%)
+---@return number damage, boolean isCritical, boolean isSuperCritical, number critStacks
+function CombatHelpers.calculateSuperCriticalDamage(baseDamage, critChance, critBonus)
+    if not critChance or critChance <= 0 then
+        return baseDamage, false, false, 0
+    end
+
+    -- Calcula Crit Stacks baseado na Crit Chance
+    local critStacks = math.floor(critChance)
+    local decimalChance = critChance - critStacks
+
+    -- Verifica se ganha stack adicional (decimal chance)
+    if decimalChance > 0 and math.random() < decimalChance then
+        critStacks = critStacks + 1
+    end
+
+    -- Determina se houve crítico
+    local isCritical = critStacks > 0
+    local isSuperCritical = critStacks > 1
+
+    -- Calcula dano final: Final Damage = Base Damage × (1 + Crit Bonus × Crit Stacks)
+    local finalDamage = baseDamage
+    if isCritical then
+        local critMultiplier = 1 + (critBonus * critStacks)
+        finalDamage = math.floor(baseDamage * critMultiplier)
+    end
+
+    return finalDamage, isCritical, isSuperCritical, critStacks
+end
+
+--- Calcula dano otimizado (compatibilidade - DEPRECATED)
 ---@param baseDamage number Dano base
 ---@param critChance number Chance de crítico (0-1)
 ---@param critMultiplier number Multiplicador de crítico
 ---@return number damage, boolean isCritical, boolean isSuperCritical
 function CombatHelpers.calculateOptimizedDamage(baseDamage, critChance, critMultiplier)
-    local isCritical = critChance and critChance > 0 and math.random() <= critChance
-    local isSuperCritical = false -- TODO: Implementar quando mechânica existir
-
-    local damage = baseDamage
-    if isSuperCritical then
-        damage = math.floor(baseDamage * (critMultiplier * 2))
-    elseif isCritical then
-        damage = math.floor(baseDamage * (critMultiplier or 1.5))
-    end
-
+    -- Converte para nova mecânica de Super Crítico
+    local critBonus = critMultiplier - 1 -- Converte multiplicador para bônus
+    local damage, isCritical, isSuperCritical = CombatHelpers.calculateSuperCriticalDamage(
+        baseDamage,
+        critChance,
+        critBonus
+    )
     return damage, isCritical, isSuperCritical
 end
 

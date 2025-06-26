@@ -7,6 +7,7 @@ local RenderPipeline = require("src.core.render_pipeline")
 ---@field target BaseEnemy
 ---@field amount_str string
 ---@field isCritical boolean
+---@field isSuperCritical boolean
 ---@field position { x: number, y: number }
 ---@field timer number
 ---@field alpha number
@@ -15,6 +16,7 @@ local RenderPipeline = require("src.core.render_pipeline")
 ---@field active boolean
 ---@field offset { x: number, y: number }
 ---@field initialY number
+---@field pulseTimer number
 local DamageNumberAnimation = {}
 DamageNumberAnimation.__index = DamageNumberAnimation
 
@@ -22,12 +24,24 @@ DamageNumberAnimation.__index = DamageNumberAnimation
 DamageNumberAnimation.STAY_DURATION = 0.5
 DamageNumberAnimation.ANIMATION_DURATION = 0.7
 DamageNumberAnimation.MOVE_UP_DISTANCE = 50
+DamageNumberAnimation.SUPER_CRITICAL_MOVE_UP_DISTANCE = 70
+
+-- Escalas
 DamageNumberAnimation.INITIAL_SCALE_NORMAL = 0.4
 DamageNumberAnimation.INITIAL_SCALE_CRITICAL = 0.8
+DamageNumberAnimation.INITIAL_SCALE_SUPER_CRITICAL = 1.2
 DamageNumberAnimation.END_SCALE_NORMAL = 0.8
 DamageNumberAnimation.END_SCALE_CRITICAL = 1.2
-DamageNumberAnimation.CRITICAL_COLOR = { 255, 200, 0, 255 } -- Laranja/Dourado para crítico
-DamageNumberAnimation.NORMAL_COLOR = { 255, 255, 255, 255 } -- Branco para normal
+DamageNumberAnimation.END_SCALE_SUPER_CRITICAL = 1.6
+
+-- Cores
+DamageNumberAnimation.NORMAL_COLOR = { 255, 255, 255, 255 }        -- Branco para normal
+DamageNumberAnimation.CRITICAL_COLOR = { 255, 200, 0, 255 }        -- Laranja/Dourado para crítico
+DamageNumberAnimation.SUPER_CRITICAL_COLOR = { 255, 50, 150, 255 } -- Rosa/Magenta para super crítico
+
+-- Configurações de efeitos especiais
+DamageNumberAnimation.PULSE_FREQUENCY = 8   -- Frequência do pulso para super crítico
+DamageNumberAnimation.PULSE_INTENSITY = 0.3 -- Intensidade do pulso
 
 --- Cria uma nova instância de DamageNumberAnimation.
 function DamageNumberAnimation:new()
@@ -39,17 +53,34 @@ end
 ---@param target BaseEnemy O alvo que recebeu o dano.
 ---@param amount number A quantidade de dano.
 ---@param isCritical boolean Se o dano foi crítico.
-function DamageNumberAnimation:init(target, amount, isCritical)
+---@param isSuperCritical boolean? Se o dano foi super crítico.
+function DamageNumberAnimation:init(target, amount, isCritical, isSuperCritical)
     self.target = target
     self.amount_str = tostring(math.floor(amount))
     self.isCritical = isCritical
+    self.isSuperCritical = isSuperCritical or false
     self.position = { x = target.position.x, y = target.position.y - 40 }
     self.timer = 0
+    self.pulseTimer = 0
     self.alpha = 255 -- Usando 0-255 para consistência com cores
-    self.scale = isCritical and self.INITIAL_SCALE_CRITICAL or self.INITIAL_SCALE_NORMAL
-    self.color = isCritical and self.CRITICAL_COLOR or self.NORMAL_COLOR
     self.phase = "stay"
     self.active = true
+
+    -- Configurações baseadas no tipo de dano
+    if self.isSuperCritical then
+        self.scale = self.INITIAL_SCALE_SUPER_CRITICAL
+        self.color = self.SUPER_CRITICAL_COLOR
+        self.moveUpDistance = self.SUPER_CRITICAL_MOVE_UP_DISTANCE
+    elseif self.isCritical then
+        self.scale = self.INITIAL_SCALE_CRITICAL
+        self.color = self.CRITICAL_COLOR
+        self.moveUpDistance = self.MOVE_UP_DISTANCE
+    else
+        self.scale = self.INITIAL_SCALE_NORMAL
+        self.color = self.NORMAL_COLOR
+        self.moveUpDistance = self.MOVE_UP_DISTANCE
+    end
+
     -- Adiciona um pequeno desvio para que os números não se sobreponham perfeitamente
     self.offset = { x = (math.random() - 0.5) * 30, y = (math.random() - 0.5) * 15 }
     self.position.x = self.position.x + self.offset.x
@@ -64,6 +95,11 @@ function DamageNumberAnimation:update(dt)
 
     self.timer = self.timer + dt
 
+    -- Atualiza timer de pulso para super críticos
+    if self.isSuperCritical then
+        self.pulseTimer = self.pulseTimer + dt
+    end
+
     if self.phase == "stay" then
         if self.timer >= self.STAY_DURATION then
             self.phase = "animate"
@@ -73,11 +109,30 @@ function DamageNumberAnimation:update(dt)
 
     if self.phase == "animate" then
         local progress = math.min(1, self.timer / self.ANIMATION_DURATION)
-        local startScale = self.isCritical and self.INITIAL_SCALE_CRITICAL or self.INITIAL_SCALE_NORMAL
-        local endScale = self.isCritical and self.END_SCALE_NORMAL or self.END_SCALE_NORMAL
+
+        -- Calcula escala baseada no tipo de dano
+        local startScale, endScale
+        if self.isSuperCritical then
+            startScale = self.INITIAL_SCALE_SUPER_CRITICAL
+            endScale = self.END_SCALE_SUPER_CRITICAL
+        elseif self.isCritical then
+            startScale = self.INITIAL_SCALE_CRITICAL
+            endScale = self.END_SCALE_CRITICAL
+        else
+            startScale = self.INITIAL_SCALE_NORMAL
+            endScale = self.END_SCALE_NORMAL
+        end
+
         self.scale = startScale + (endScale - startScale) * progress
+
+        -- Adiciona efeito de pulso para super críticos
+        if self.isSuperCritical then
+            local pulseOffset = math.sin(self.pulseTimer * self.PULSE_FREQUENCY) * self.PULSE_INTENSITY
+            self.scale = self.scale + (self.scale * pulseOffset)
+        end
+
         self.alpha = 255 * (1.0 - progress)
-        self.position.y = self.initialY - (self.MOVE_UP_DISTANCE * progress)
+        self.position.y = self.initialY - (self.moveUpDistance * progress)
 
         if progress >= 1 then
             self.active = false
@@ -151,7 +206,7 @@ function DamageNumberManager:show(target, amount, isCritical, isSuperCritical)
         anim = DamageNumberAnimation:new()
     end
 
-    anim:init(target, amount, isCritical)
+    anim:init(target, amount, isCritical, isSuperCritical)
     table.insert(self.activeAnimations, anim)
 end
 

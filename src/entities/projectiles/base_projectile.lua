@@ -66,6 +66,7 @@ function BaseProjectile:reset(params)
     self.speed = params.speed
     self.damage = params.damage
     self.isCritical = params.isCritical
+    self.isSuperCritical = params.isSuperCritical
     self.spatialGrid = params.spatialGrid
     self.color = params.color or { 1, 1, 1, 1 }
 
@@ -236,13 +237,12 @@ end
 --- Aplica dano ao inimigo e registra as estatísticas.
 ---@param enemy BaseEnemy
 function BaseProjectile:_applyDamage(enemy)
-    local isSuperCritical = false -- TODO: Implementar super-crítico
-    enemy:takeDamage(self.damage, self.isCritical, isSuperCritical)
+    enemy:takeDamage(self.damage, self.isCritical, self.isSuperCritical)
 
     -- Registra o dano para as estatísticas do jogo
     if self.playerManager and self.weaponInstance then
         local source = { weaponId = self.weaponInstance.itemBaseId }
-        self.playerManager:registerDamageDealt(self.damage, self.isCritical, source, isSuperCritical)
+        self.playerManager:registerDamageDealt(self.damage, self.isCritical, source, self.isSuperCritical)
     end
 end
 

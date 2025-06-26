@@ -105,9 +105,12 @@ end
 function CircularSmash:castSpecific(args)
     local angle = args and args.angle or self.currentAngle
 
-    -- Calcula posição do impacto
-    self.targetPos.x = self.playerPosition.x + math.cos(angle) * self.impactDistance
-    self.targetPos.y = self.playerPosition.y + math.sin(angle) * self.impactDistance
+    -- Calcula posição do impacto usando spawn position com offset adicional baseado na distância de impacto
+    local baseSpawnPos = self:calculateSpawnPosition(angle)
+    local impactOffset = self.impactDistance - 20 -- Offset adicional além do spawn base
+
+    self.targetPos.x = baseSpawnPos.x + math.cos(angle) * impactOffset
+    self.targetPos.y = baseSpawnPos.y + math.sin(angle) * impactOffset
 
     -- Inicia animação
     self.isAttacking = true
@@ -193,8 +196,11 @@ end
 
 --- Desenho de preview otimizado
 function CircularSmash:drawPreviewOptimized()
-    local previewX = self.playerPosition.x + math.cos(self.currentAngle) * self.impactDistance
-    local previewY = self.playerPosition.y + math.sin(self.currentAngle) * self.impactDistance
+    local baseSpawnPos = self:calculateSpawnPosition(self.currentAngle)
+    local impactOffset = self.impactDistance - 20
+
+    local previewX = baseSpawnPos.x + math.cos(self.currentAngle) * impactOffset
+    local previewY = baseSpawnPos.y + math.sin(self.currentAngle) * impactOffset
 
     love.graphics.setColor(self.visual.preview.color)
     love.graphics.circle("line", previewX, previewY, self.explosionRadius, 32)

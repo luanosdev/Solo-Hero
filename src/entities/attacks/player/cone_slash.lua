@@ -61,7 +61,7 @@ function ConeSlash:new(playerManager, weaponInstance)
 
     -- Área de efeito pré-alocada (reutilizada)
     o.area = {
-        position = o.playerPosition, -- Referência direta
+        position = { x = 0, y = 0 }, -- Será atualizada com spawn offset
         angle = 0,
         range = 0,
         angleWidth = 0,
@@ -101,6 +101,11 @@ end
 function ConeSlash:updateSpecific(dt, angle)
     -- Atualiza ângulo (sempre necessário)
     self.area.angle = angle
+
+    -- Atualiza posição de spawn com offset do raio do player
+    local spawnPos = self:calculateSpawnPosition(angle)
+    self.area.position.x = spawnPos.x
+    self.area.position.y = spawnPos.y
 
     -- Atualiza animações usando sistema unificado
     AttackAnimationSystem.updateBatch(self.activeAnimations, dt)
