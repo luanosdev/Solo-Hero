@@ -396,9 +396,9 @@ function ExtractionSummaryScene:keypressed(key, scancode, isrepeat)
         -- Passa os mesmos args para a lobby_scene, pois eles já contêm
         -- extractedItems, extractedEquipment, hunterId.
         -- A lobby_scene já está preparada para lidar com eles.
-        local lobbyArgs = shallowcopy(self.args)        -- Cria cópia rasa para não modificar original
+        local lobbyArgs = shallowcopy(self.args)       -- Cria cópia rasa para não modificar original
         lobbyArgs.extractionSuccessful = self.reputationDetails and self.reputationDetails.wasSuccess or false
-        lobbyArgs.startTab = Constants.TabIds.EQUIPMENT -- Ou outro tab se preferir
+        lobbyArgs.startTab = Constants.TabIds.SHOPPING -- Redireciona para o shopping após extração
         -- Remove dados que são apenas para esta cena de sumário
         lobbyArgs.portalName = nil
         lobbyArgs.portalRank = nil
@@ -410,7 +410,7 @@ function ExtractionSummaryScene:keypressed(key, scancode, isrepeat)
 
         SceneManager.switchScene("lobby_scene", lobbyArgs)
     else
-        SceneManager.switchScene("lobby_scene", { extractionSuccessful = false })
+        SceneManager.switchScene("lobby_scene", { extractionSuccessful = false, startTab = Constants.TabIds.SHOPPING })
     end
 end
 

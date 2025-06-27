@@ -12,6 +12,7 @@ local PortalScreen = require("src.ui.screens.portal_screen")
 local AgencyScreen = require("src.ui.screens.agency_screen")
 local LobbyNavbar = require("src.ui.components.lobby_navbar")
 local ShopManager = require("src.managers.shop_manager")
+local PatrimonyManager = require("src.managers.patrimony_manager")
 
 local TabIds = Constants.TabIds
 
@@ -25,6 +26,7 @@ local TabIds = Constants.TabIds
 ---@field agencyManager AgencyManager
 ---@field portalManager LobbyPortalManager
 ---@field shopManager ShopManager
+---@field patrimonyManager PatrimonyManager
 ---@field itemDataManager ItemDataManager
 ---@field lobbyStorageManager LobbyStorageManager
 ---@field loadoutManager LoadoutManager
@@ -46,6 +48,7 @@ LobbyScene.shoppingScreen = nil ---@type ShoppingScreen|nil Instância da tela d
 LobbyScene.portalScreen = nil ---@type PortalScreen|nil Instância da tela de portal
 LobbyScene.agencyScreen = nil ---@type AgencyScreen|nil Instância da tela da Agência
 LobbyScene.shopManager = nil ---@type ShopManager|nil Instância do gerenciador da loja
+LobbyScene.patrimonyManager = nil ---@type PatrimonyManager|nil Instância do gerenciador de patrimônio
 LobbyScene.reputationManager = nil ---@type ReputationManager|nil Instância do gerenciador de reputação
 LobbyScene.navbar = nil ---@type LobbyNavbar|nil Instância da navbar do lobby
 
@@ -128,7 +131,11 @@ function LobbyScene:load(args)
     LobbyScene.portalManager = LobbyPortalManager:new()
 
     -- Inicializa o ShopManager
-    LobbyScene.shopManager = ShopManager:new(self.itemDataManager)
+    LobbyScene.shopManager = ShopManager:new(self.itemDataManager, self.patrimonyManager)
+
+    -- Inicializa o PatrimonyManager
+    LobbyScene.patrimonyManager = PatrimonyManager:new()
+    LobbyScene.patrimonyManager:initialize()
 
     -- Validação básica se os managers foram carregados corretamente em main.lua
     if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager or not self.reputationManager then
@@ -255,7 +262,7 @@ function LobbyScene:load(args)
         self.loadoutManager, self.agencyManager)
 
     -- Inicializa a navbar
-    self.navbar = LobbyNavbar:new(self.hunterManager, self.agencyManager, self.reputationManager)
+    self.navbar = LobbyNavbar:new(self.hunterManager, self.agencyManager, self.reputationManager, self.patrimonyManager)
 
 
     -- Reseta estado de zoom/seleção
@@ -559,11 +566,12 @@ function LobbyScene:draw()
                 local availableHeight = screenH - navbarHeight - tabSettings.height
                 self.storageGridArea, self.loadoutGridArea, self.shopArea = self.shoppingScreen:draw(
                     screenW,
-                    availableHeight + navbarHeight,
+                    screenH,
                     tabSettings,
                     dragState,
                     mx,
-                    my - navbarHeight
+                    my,
+                    navbarHeight
                 )
             elseif activeTab.id == TabIds.AGENCY then
                 if self.agencyScreen then
@@ -855,6 +863,28 @@ function LobbyScene:keypressed(key, scancode, isrepeat)
 
     if activeTab and activeTab.id == TabIds.AGENCY then
         self.agencyScreen:handleKeyPress(key)
+    end
+
+    -- Comandos de debug para o sistema de patrimônio
+    if key == "f1" then
+        -- F1: Adiciona 1000 de ouro
+        if self.patrimonyManager then
+            self.patrimonyManager:addGold(1000, "debug_f1")
+            print("[DEBUG] Adicionado 1000 de ouro")
+        end
+    elseif key == "f2" then
+        -- F2: Remove 500 de ouro
+        if self.patrimonyManager then
+            self.patrimonyManager:removeGold(500, "debug_f2")
+            print("[DEBUG] Removido 500 de ouro")
+        end
+    elseif key == "f3" then
+        -- F3: Mostra patrimônio atual
+        if self.patrimonyManager then
+            local currentGold = self.patrimonyManager:getCurrentGold()
+            local formattedGold = self.patrimonyManager:formatGold()
+            print("[DEBUG] Patrimônio atual: " .. currentGold .. " (" .. formattedGold .. ")")
+        end
     end
 
     -- TODO: Adicionar delegação para outras telas/abas se necessário

@@ -1,5 +1,6 @@
 -- Módulo genérico para salvar e carregar dados do jogo usando love.filesystem.
 
+---@class PersistenceManager
 local PersistenceManager = {}
 
 --[[---------------------------------------------------------------------------

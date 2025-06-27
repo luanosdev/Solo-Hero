@@ -33,10 +33,10 @@
 ---@field animationFolderPath? string Pasta dentro de assets/player/weapons/ onde estão os sprites da arma.
 ---@field previewColor? table Cor de visualização da arma.
 ---@field attackColor? table Cor de ataque da arma.
----@field sellValue? number Valor de venda da arma.
 ---@field criticalChance? number Chance de acerto crítico base.
 ---@field criticalMultiplier? number Multiplicador de dano em acerto crítico.
 ---@field modifiers? HunterModifier[] Lista de modificadores de atributos do caçador.
+---@field value number Valor da arma.
 
 ---@class HunterModifier
 ---@field stat string O atributo do caçador a ser modificado (e.g., "moveSpeed", "health").
@@ -54,7 +54,6 @@
 ---@field range number Alcance base do fluxo de chamas.
 ---@field angle number Largura base do ângulo do cone de dispersão (em radianos).
 ---@field projectileClass string Classe do projétil de partícula de fogo.
----@field baseLifetime number Tempo de vida base da partícula em segundos.
 ---@field particleScale number Escala base da partícula.
 ---@field piercing number Pontos de perfuração inerentes da arma.
 
@@ -94,7 +93,7 @@ local weapons = {
         maxStack = 1,
         damage = 300,
         cooldown = 1.6,
-        baseAreaEffectRadius = 30,
+        baseAreaEffectRadius = 80,
         attackClass = "circular_smash",
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.HIGH,
@@ -106,7 +105,8 @@ local weapons = {
             { stat = "attackSpeed", type = "fixed_percentage_as_fraction", value = -0.2 },
             { stat = "defense",     type = "fixed",                        value = 20 },
             { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.2 },
-        }
+        },
+        value = 200,
     },
 
     ---@type ConeSlashWeapon
@@ -134,7 +134,8 @@ local weapons = {
         animationFolderPath = "sword_tier_1",
         modifiers = {
             { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.1 },
-        }
+        },
+        value = 200,
     },
 
     ---@type ConeSlashWeapon
@@ -162,7 +163,8 @@ local weapons = {
             { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.2 },
             { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.5 },
             { stat = "moveSpeed",  type = "fixed",                        value = 10 },
-        }
+        },
+        value = 100,
     },
 
     ---@type FlameStreamWeapon
@@ -186,7 +188,6 @@ local weapons = {
         weaponClass = "base_weapon",
         projectileClass = "fire_particle",
         -- Atributos específicos do Lança-Chamas
-        baseLifetime = 1.0,                              -- Tempo de vida base da partícula em segundos
         particleScale = 0.8,                             -- Escala base da partícula
         piercing = 5,                                    -- Pontos de perfuração inerentes da arma
         knockbackPower = Constants.KNOCKBACK_POWER.NONE, -- Sem knockback por partícula, pois é contínuo (mas projéteis individuais podem ter)
@@ -194,7 +195,8 @@ local weapons = {
         modifiers = {
             { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.1 },
             { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.5 },
-        }
+        },
+        value = 200,
     },
 
     ---@type SpreadProjectileWeapon
@@ -229,7 +231,8 @@ local weapons = {
             { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.1 },
             { stat = "critDamage",  type = "fixed_percentage_as_fraction", value = 0.5 },
             { stat = "multiAttack", type = "fixed_percentage_as_fraction", value = 0.3 },
-        }
+        },
+        value = 200,
     },
 
     ---@type ChainLightningWeapon
@@ -246,7 +249,7 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 150,
-        cooldown = 1.1,
+        cooldown = 0.5,
         range = 100,
         -- Atributos específicos da Bobina
         chainCount = 3,
@@ -255,6 +258,7 @@ local weapons = {
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.NONE,
         knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
+        value = 100,
     },
     ---@type SpreadProjectileWeapon
     burst_projectile_e_001 = {
@@ -281,6 +285,7 @@ local weapons = {
         weaponClass = "base_weapon", -- Usa a implementação genérica de BaseWeapon
         knockbackPower = Constants.KNOCKBACK_POWER.MEDIUM,
         knockbackForce = Constants.KNOCKBACK_FORCE.HAMMER,
+        value = 150,
     },
     ---@type SequentialProjectileWeapon
     sequential_projectile_e_001 = {
@@ -299,7 +304,7 @@ local weapons = {
         cooldown = 1.0, -- Tempo de espera entre as rajadas
         range = 250,
         -- Atributos específicos
-        projectiles = 4, -- 4 projéteis por rajada
+        projectiles = 5, -- 4 projéteis por rajada
         cadence = 0.08,  -- Tempo entre os disparos da mesma rajada
         piercing = 1,
         attackClass = "sequential_projectile",
@@ -307,6 +312,7 @@ local weapons = {
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.LOW,
         knockbackForce = Constants.KNOCKBACK_FORCE.BOW,
+        value = 100,
     },
 
     ---@type CircularSmashWeapon
@@ -329,8 +335,9 @@ local weapons = {
         weaponClass = "generic_circular_smash",
         knockbackPower = Constants.KNOCKBACK_POWER.HIGH,   -- Alto poder de iniciar knockback
         knockbackForce = Constants.KNOCKBACK_FORCE.HAMMER, -- Força de knockback alta
+        value = 400,
     },
-    ---@type ConeWeapon
+    ---@type ConeSlashWeapon
     wooden_sword = {
         id = "wooden_sword",
         name = "Espada de Madeira",
@@ -351,8 +358,9 @@ local weapons = {
         weaponClass = "generic_cone_slash",
         knockbackPower = Constants.KNOCKBACK_POWER.LOW,    -- Poder de knockback baixo
         knockbackForce = Constants.KNOCKBACK_FORCE.SWORDS, -- Força de knockback baixa
+        value = 200,
     },
-    ---@type ConeWeapon
+    ---@type ConeSlashWeapon
     iron_sword = {
         id = "iron_sword",
         name = "Espada de Ferro",
@@ -373,8 +381,9 @@ local weapons = {
         weaponClass = "generic_cone_slash",
         knockbackPower = Constants.KNOCKBACK_POWER.MEDIUM, -- Poder de knockback médio
         knockbackForce = Constants.KNOCKBACK_FORCE.SWORDS, -- Força de knockback média
+        value = 800,
     },
-    ---@type ConeWeapon
+    ---@type ConeSlashWeapon
     dual_daggers = {
         id = "dual_daggers",
         name = "Adagas Gêmeas",
@@ -395,8 +404,9 @@ local weapons = {
         weaponClass = "generic_alternating_cone_strike",
         knockbackPower = Constants.KNOCKBACK_POWER.LOW,          -- Baixo, mas rápido
         knockbackForce = Constants.KNOCKBACK_FORCE.DUAL_DAGGERS, -- Força baixa
+        value = 1500,
     },
-    ---@type ConeWeapon
+    ---@type ConeSlashWeapon
     dual_noctilara_daggers = {
         id = "dual_noctilara_daggers",
         name = "Adagas Noctilara Gêmeas",
@@ -409,7 +419,7 @@ local weapons = {
         gridHeight = 2,
         stackable = false,
         maxStack = 1,
-        sellValue = 500,
+        value = 500,
         -- Stats de combate (exemplo)
         damage = 45,
         cooldown = 0.4,           -- Tempo entre ataques (mais rápido)
@@ -453,6 +463,7 @@ local weapons = {
         piercing = 5,                                    -- Pontos de perfuração inerentes da arma
         knockbackPower = Constants.KNOCKBACK_POWER.NONE, -- Sem knockback por partícula, pois é contínuo (mas projéteis individuais podem ter)
         knockbackForce = Constants.KNOCKBACK_FORCE.NONE, -- Força zero para este tipo de arma base, mas partículas podem ter
+        value = 10000,
     },
     ---@type SpreadProjectileWeapon
     bow = {
@@ -478,6 +489,7 @@ local weapons = {
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.LOW, -- Knockback leve por flecha
         knockbackForce = Constants.KNOCKBACK_FORCE.BOW, -- Força de knockback leve
+        value = 1000,
     },
     ---@type ChainLightningWeapon
     chain_laser = {
@@ -501,6 +513,7 @@ local weapons = {
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.NONE,        -- Leve knockback no primeiro hit
         knockbackForce = Constants.KNOCKBACK_FORCE.CHAIN_LASER, -- Força leve
+        value = 1000,
     },
 }
 

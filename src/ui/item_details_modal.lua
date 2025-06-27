@@ -311,6 +311,30 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
         currentYInternal = currentYInternal + LINE_HEIGHT_SMALL
     end
 
+    -- Adiciona o preço de venda na parte inferior
+    if baseItemData.value and baseItemData.value > 0 then
+        -- Adiciona um espaçador antes do preço de venda
+        table.insert(tooltipLines, { type = "spacer", height = SECTION_SPACING })
+        currentYInternal = currentYInternal + SECTION_SPACING
+
+        -- Calcula o preço de venda (baseado na quantidade do item)
+        local quantity = item.quantity or 1
+        local sellPrice = baseItemData.value * quantity
+        local formattedPrice = Formatters.formatCompactNumber(sellPrice)
+
+        -- Adiciona o preço de venda com estilo de patrimônio
+        table.insert(tooltipLines, {
+            text = "Valor: R$ " .. formattedPrice,
+            font = fonts.main_small,
+            color = colors.text_gold,
+            alignment = "center",
+            height = (fonts.main_small):getHeight() + SECTION_SPACING / 2,
+            isSellPrice = true -- Marcador especial para aplicar sombra
+        })
+        currentYInternal = currentYInternal + (fonts.main_small):getHeight() +
+            SECTION_SPACING / 2
+    end
+
     -- Calcular altura total e largura máxima real
     local totalHeight = PADDING
     local maxLineWidth = 0
@@ -325,8 +349,8 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
 
     for lineIdx = #tooltipLines, 1, -1 do -- Itera para encontrar linhas que não são da seção principal ou nome
         local lineInfo = tooltipLines[lineIdx]
-        if not lineInfo.is_main_section_text and lineInfo.text and lineInfo.font and (lineInfo.alignment ~= "center" or lineIdx == 1) then
-            -- Linhas que não são da seção principal ou não são o título
+        if not lineInfo.is_main_section_text and lineInfo.text and lineInfo.font and (lineInfo.alignment ~= "center" or lineIdx == 1 or lineInfo.isSellPrice) then
+            -- Linhas que não são da seção principal ou não são o título (inclui preço de venda centralizado)
             if lineInfo.type ~= "description_marker_start" and lineInfo.type ~= "description_marker_end" and lineInfo.type ~= "multi-part" then
                 totalHeight = totalHeight + lineInfo.height
             end

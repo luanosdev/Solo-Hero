@@ -7,6 +7,7 @@ local elements = require("src.ui.ui_elements")
 ---@field hunterManager HunterManager
 ---@field agencyManager AgencyManager
 ---@field reputationManager ReputationManager
+---@field patrimonyManager PatrimonyManager|nil
 local LobbyNavbar = {}
 LobbyNavbar.__index = LobbyNavbar
 
@@ -19,12 +20,14 @@ local SECTION_SPACING = 40
 ---@param hunterManager HunterManager
 ---@param agencyManager AgencyManager
 ---@param reputationManager ReputationManager
+---@param patrimonyManager PatrimonyManager|nil
 ---@return LobbyNavbar
-function LobbyNavbar:new(hunterManager, agencyManager, reputationManager)
+function LobbyNavbar:new(hunterManager, agencyManager, reputationManager, patrimonyManager)
     local instance = setmetatable({}, LobbyNavbar)
     instance.hunterManager = hunterManager
     instance.agencyManager = agencyManager
     instance.reputationManager = reputationManager
+    instance.patrimonyManager = patrimonyManager
     return instance
 end
 
@@ -193,16 +196,29 @@ end
 ---@param value number
 ---@param color table
 local function drawResourceCard(x, y, w, h, label, icon, value, color)
-    -- Label centralizado na parte de cima
-    love.graphics.setFont(fonts.main_small or fonts.main)
-    love.graphics.setColor(color)
-    love.graphics.printf(label, x, y + 3, w, "center")
+    local labelFont = fonts.main_small or fonts.main
+    local valueFont = fonts.resource_value or fonts.main
 
-    -- Ícone e valor na parte de baixo
-    love.graphics.setFont(fonts.resource_value or fonts.main)
+    local labelHeight = labelFont:getHeight()
+    local valueHeight = valueFont:getHeight()
+    local totalContentHeight = labelHeight + valueHeight + 5 -- 5px de espaçamento entre label e valor
+
+    -- Calcula posições para centralizar verticalmente o conteúdo total
+    local contentStartY = y + (h - totalContentHeight) / 2
+
+    -- Label centralizado
+    love.graphics.setFont(labelFont)
+    love.graphics.setColor(color)
+    love.graphics.printf(label, x, contentStartY, w, "center")
+
+    -- Ícone e valor centralizados abaixo do label
+    love.graphics.setFont(valueFont)
     local valueText = icon .. " " .. elements.formatNumber(value)
-    -- usa o drawTextWithShadow e centraliza o texto
-    drawTextWithShadow(valueText, x + (w / 2) - 20, y + h - 30, color, color, 1)
+    local valueTextWidth = valueFont:getWidth(valueText)
+    local valueX = x + (w - valueTextWidth) / 2
+    local valueY = contentStartY + labelHeight + 5
+
+    drawTextWithShadow(valueText, valueX, valueY, color, { 0, 0, 0, 0.5 }, 1)
 end
 
 --- Desenha a seção de recursos (lado direito)
@@ -210,15 +226,15 @@ end
 ---@param y number
 ---@param sectionWidth number
 function LobbyNavbar:_drawResourceSection(x, y, sectionWidth)
-    -- TODO: Implementar sistema de moeda quando necessário
-    local patrimonio = 0 -- Placeholder
-    local tickets = 0    -- Placeholder
+    -- Obtém valores reais do patrimônio
+    local patrimony = self.patrimonyManager and self.patrimonyManager:getCurrentGold() or 0
+    local tickets = 0 -- TODO: Implementar sistema de tickets quando necessário
 
     local cardWidth = (sectionWidth - 10) / 2
     local cardHeight = NAVBAR_HEIGHT - 10
 
     -- Card do Patrimônio
-    drawResourceCard(x, y + 5, cardWidth, cardHeight, "PATRIMÔNIO", "$", patrimonio, colors.navbar_money)
+    drawResourceCard(x, y + 5, cardWidth, cardHeight, "PATRIMÔNIO", "R$ ", patrimony, colors.navbar_money)
 
     -- Card dos Tickets
     local ticketCardX = x + cardWidth + 10

@@ -1,6 +1,7 @@
 ---@class Fonts
 ---@field main_small love.Font
 ---@field main love.Font
+---@field main_bold love.Font
 ---@field main_large love.Font
 ---@field title love.Font
 ---@field title_large love.Font
@@ -25,6 +26,7 @@ function fonts.load()
 
     fonts.main_small = love.graphics.newFont(main_font_file, 14)
     fonts.main = love.graphics.newFont(main_font_file, 16)
+    fonts.main_bold = love.graphics.newFont(bold_font_file, 16) -- Versão bold do main
     fonts.main_large = love.graphics.newFont(main_font_file, 18)
     fonts.title = love.graphics.newFont(bold_font_file, 24)
     fonts.title_large = love.graphics.newFont(bold_font_file, 32)

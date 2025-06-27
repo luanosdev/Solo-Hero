@@ -23,6 +23,7 @@ local ShopColumn = require("src.ui.components.ShopColumn")
 ---@class ShopManager
 ---@field currentShop ShopData|nil Loja atual
 ---@field itemDataManager ItemDataManager|nil Referência ao gerenciador de itens
+---@field patrimonyManager PatrimonyManager|nil Referência ao gerenciador de patrimônio
 ---@field shopNames string[] Lista de nomes possíveis para lojas
 ---@field shopItemsPool table Pool de itens disponíveis para lojas
 local ShopManager = {}
@@ -44,24 +45,29 @@ ShopManager.shopNames = {
 
 --- Pool de itens disponíveis para as lojas com seus pesos
 ShopManager.shopItemsPool = {
-    -- Itens comuns (peso alto)
-    { itemId = "rotting_flesh",    weight = 100, minStock = 10, maxStock = 50 },
-    { itemId = "intact_brain",     weight = 80,  minStock = 5,  maxStock = 20 },
-    { itemId = "ruined_heart",     weight = 60,  minStock = 3,  maxStock = 15 },
-    { itemId = "bone_fragment",    weight = 120, minStock = 20, maxStock = 100 },
+    -- Armas (peso médio)
+    { itemId = "arrow_projectile_e_001",        weight = 30, minStock = 1, maxStock = 3 },
+    { itemId = "alternating_cone_strike_e_001", weight = 20, minStock = 1, maxStock = 2 },
+    { itemId = "cone_slash_e_001",              weight = 20, minStock = 1, maxStock = 2 },
+    { itemId = "circular_smash_e_001",          weight = 20, minStock = 1, maxStock = 2 },
+    { itemId = "flamethrower",                  weight = 20, minStock = 1, maxStock = 2 },
+    { itemId = "chain_laser",                   weight = 20, minStock = 1, maxStock = 2 },
+    { itemId = "hammer",                        weight = 20, minStock = 1, maxStock = 2 },
 
     -- Pedras de teleporte (peso baixo) - assumindo que existem
-    { itemId = "teleport_stone_a", weight = 15,  minStock = 1,  maxStock = 2 },
-    { itemId = "teleport_stone_b", weight = 10,  minStock = 1,  maxStock = 2 },
-    { itemId = "teleport_stone_c", weight = 5,   minStock = 1,  maxStock = 1 },
+    { itemId = "teleport_stone_a",              weight = 15, minStock = 1, maxStock = 2 },
+    { itemId = "teleport_stone_b",              weight = 10, minStock = 1, maxStock = 2 },
+    { itemId = "teleport_stone_s",              weight = 5,  minStock = 1, maxStock = 1 },
 }
 
 --- Cria uma nova instância do ShopManager
 ---@param itemDataManager ItemDataManager|nil Referência ao gerenciador de itens
+---@param patrimonyManager PatrimonyManager|nil Referência ao gerenciador de patrimônio
 ---@return ShopManager
-function ShopManager:new(itemDataManager)
+function ShopManager:new(itemDataManager, patrimonyManager)
     local instance = setmetatable({}, ShopManager)
     instance.itemDataManager = itemDataManager
+    instance.patrimonyManager = patrimonyManager
     instance.currentShop = nil
     instance:loadState()
 
@@ -227,11 +233,28 @@ function ShopManager:purchaseItem(itemId, quantity)
         return false
     end
 
-    -- TODO: Verificar se o jogador tem dinheiro suficiente
+    -- Verifica se o jogador tem dinheiro suficiente
     local effectivePrice = targetItem.isOnSale and targetItem.salePrice or targetItem.price
     local totalCost = effectivePrice * quantity
 
-    -- Por enquanto, sempre permite a compra
+    if self.patrimonyManager then
+        if not self.patrimonyManager:hasEnoughGold(totalCost) then
+            Logger.warn(
+                "shop_manager.purchase_item.insufficient_funds",
+                "[ShopManager.purchaseItem] Fundos insuficientes para comprar " .. itemId ..
+                ". Custo: " .. totalCost .. ", Disponível: " .. self.patrimonyManager:getCurrentGold()
+            )
+            return false
+        end
+
+        -- Processa a compra
+        local purchased = self.patrimonyManager:purchaseItem(totalCost, itemId)
+        if not purchased then
+            return false
+        end
+    end
+
+    -- Remove item do estoque
     targetItem.stock = targetItem.stock - quantity
 
     -- Remove o item da lista se o stock chegou a zero
@@ -250,6 +273,51 @@ function ShopManager:purchaseItem(itemId, quantity)
         "[ShopManager.purchaseItem] Item comprado: " .. itemId .. " x" .. quantity .. " por " .. totalCost
     )
     return true
+end
+
+--- Calcula o preço de venda de um item
+---@param itemInstance table Instância do item
+---@return number price Preço de venda
+function ShopManager:calculateSellPrice(itemInstance)
+    if not itemInstance or not itemInstance.baseId then return 0 end
+
+    local baseData = self.itemDataManager and self.itemDataManager:getBaseItemData(itemInstance.baseId)
+    if not baseData then return 0 end
+
+    -- Preço de venda é o valor integral do item (valor base)
+    local sellValue = baseData.value * itemInstance.quantity
+    return sellValue
+end
+
+--- Vende um item individual para a loja
+---@param itemInstance table Instância do item
+---@return number sellPrice Preço obtido pela venda, 0 se falhou
+function ShopManager:sellItem(itemInstance)
+    if not itemInstance or not itemInstance.baseId then
+        Logger.warn("shop_manager.sell.failed", "[ShopManager.sellItem] Item inválido para venda")
+        return 0
+    end
+
+    local sellPrice = self:calculateSellPrice(itemInstance)
+
+    if sellPrice > 0 then
+        -- Adiciona dinheiro ao patrimônio do jogador
+        if self.patrimonyManager then
+            self.patrimonyManager:sellItem(sellPrice, itemInstance.baseId)
+        end
+
+        Logger.info(
+            "shop_manager.sell.success",
+            "[ShopManager.sellItem] Item vendido: " .. itemInstance.baseId .. " por " .. sellPrice .. " gold"
+        )
+    else
+        Logger.warn(
+            "shop_manager.sell.failed",
+            "[ShopManager.sellItem] Item sem valor: " .. (itemInstance.baseId or "unknown")
+        )
+    end
+
+    return sellPrice
 end
 
 --- Vende todos os itens do loadout
@@ -273,7 +341,11 @@ function ShopManager:sellAllFromLoadout(loadoutManager)
         end
     end
 
-    -- TODO: Adicionar o dinheiro ao jogador
+    -- Adiciona o dinheiro ao patrimônio do jogador
+    if self.patrimonyManager and totalValue > 0 then
+        self.patrimonyManager:sellItem(totalValue, "loadout_bulk_sale")
+    end
+
     Logger.info(
         "shop_manager.sell_all_from_loadout",
         "[ShopManager.sellAllFromLoadout] Vendidos itens por valor total: " .. totalValue

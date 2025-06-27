@@ -143,13 +143,15 @@ end
 ---@param dragState table Estado atual do drag-and-drop da cena pai.
 ---@param mx number Posição X do mouse.
 ---@param my number Posição Y do mouse.
+---@param navbarHeight number Altura da navbar.
 ---@return table storageArea, table loadoutArea, table shopArea
-function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
+function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, navbarHeight)
+    navbarHeight = navbarHeight or 0 -- Para compatibilidade se não for passado
     local padding = 20
-    local topPadding = 100
-    local areaY = topPadding
+    local topPadding = 30
+    local areaY = navbarHeight + topPadding
     local areaW = screenW
-    local areaH = screenH - tabSettings.height
+    local areaH = screenH - navbarHeight - tabSettings.height
 
     local sectionTopY = areaY
     local titleFont = fonts.title or love.graphics.getFont()
@@ -484,6 +486,28 @@ function ShoppingScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                 -- Cancelar compra se soltou em área inválida
                 return true
             end
+        end
+
+        -- Verifica se item está sendo arrastado para a área da loja para vender
+        if (dragState.sourceGridId == "storage" or dragState.sourceGridId == "loadout") and
+            self.shopGridArea and
+            x >= self.shopGridArea.x and x <= self.shopGridArea.x + self.shopGridArea.w and
+            y >= self.shopGridArea.y and y <= self.shopGridArea.y + self.shopGridArea.h then
+            -- Vendendo item para a loja
+            local itemToSell = dragState.draggedItem
+            local sellPrice = self.shopManager:sellItem(itemToSell)
+
+            if sellPrice > 0 then
+                -- Remove o item do inventário de origem
+                local sourceManager = (dragState.sourceGridId == "storage") and self.lobbyStorageManager or
+                    self.loadoutManager
+                sourceManager:removeItemInstance(itemToSell.instanceId)
+
+                Logger.info("shopping_screen.sell_item",
+                    string.format("[ShoppingScreen:handleMouseRelease] Item vendido por %d gold", sellPrice))
+            end
+
+            return true
         end
 
         -- Lógica normal de drag entre storage e loadout (similar ao equipment_screen)

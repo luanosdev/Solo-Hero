@@ -1,6 +1,7 @@
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local elements = require("src.ui.ui_elements")
+local Formatters = require("src.utils.formatters")
 
 ---@class ShopColumn
 local ShopColumn = {}
@@ -22,15 +23,9 @@ function ShopColumn.draw(x, y, w, h, shopManager, itemDataManager, mx, my)
         return
     end
 
-    -- Desenha borda da coluna
-    love.graphics.setColor(colors.tab_border)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", x, y, w, h)
-    love.graphics.setLineWidth(1)
-
-    -- Desenha fundo da coluna
+    -- Desenha fundo da coluna (sem borda)
     love.graphics.setColor(colors.lobby_background)
-    love.graphics.rectangle("fill", x + 1, y + 1, w - 2, h - 2)
+    love.graphics.rectangle("fill", x, y, w, h)
 
     local padding = 10
     local currentY = y + padding
@@ -69,22 +64,32 @@ function ShopColumn.draw(x, y, w, h, shopManager, itemDataManager, mx, my)
 
     currentY = currentY + sellButtonH + padding * 2
 
-    -- Desenha seção de itens em promoção
+    -- Desenha seção de itens em promoção (duas colunas, como itens normais)
     if #currentShop.featuredItems > 0 then
         love.graphics.setColor(colors.text_highlight)
         love.graphics.printf("🌟 PROMOÇÕES 🌟", x + padding, currentY, w - padding * 2, "center")
         currentY = currentY + 20 + padding / 2
 
-        -- Desenha itens em promoção
+        -- Layout de duas colunas para promoções
+        local itemsPerRow = 2
+        local cardWidth = (w - padding * 2 - padding) / 2
+        local cardHeight = 80 -- Mesma altura dos cards normais
+        local itemSpacing = padding
+
         for i, item in ipairs(currentShop.featuredItems) do
-            local itemY = currentY + (i - 1) * 80
-            if itemY + 80 > y + h then break end -- Não desenha se sair da área
+            local row = math.floor((i - 1) / itemsPerRow)
+            local col = (i - 1) % itemsPerRow
+
+            local itemX = x + padding + col * (cardWidth + itemSpacing)
+            local itemY = currentY + row * (cardHeight + itemSpacing)
+
+            if itemY + cardHeight > y + h then break end -- Não desenha se sair da área
 
             ShopColumn.drawShopItem(
-                x + padding,
+                itemX,
                 itemY,
-                w - padding * 2,
-                75,
+                cardWidth,
+                cardHeight,
                 item,
                 itemDataManager,
                 mx,
@@ -92,25 +97,38 @@ function ShopColumn.draw(x, y, w, h, shopManager, itemDataManager, mx, my)
                 true
             )
         end
-        currentY = currentY + #currentShop.featuredItems * 80 + padding
+
+        -- Calcula quantas linhas foram usadas
+        local numRows = math.ceil(#currentShop.featuredItems / itemsPerRow)
+        currentY = currentY + numRows * (cardHeight + itemSpacing) + padding
     end
 
-    -- Desenha seção de itens normais
+    -- Desenha seção de itens normais (duas colunas, cards menores)
     if #currentShop.items > 0 then
         love.graphics.setColor(colors.text_highlight)
         love.graphics.printf("ITENS DISPONÍVEIS", x + padding, currentY, w - padding * 2, "center")
         currentY = currentY + 20 + padding / 2
 
-        -- Desenha itens normais
+        -- Layout de duas colunas
+        local itemsPerRow = 2
+        local cardWidth = (w - padding * 2 - padding) / 2 -- Espaço entre as duas colunas
+        local cardHeight = 80                             -- Mesma altura dos cards promocionais
+        local itemSpacing = padding
+
         for i, item in ipairs(currentShop.items) do
-            local itemY = currentY + (i - 1) * 70
-            if itemY + 70 > y + h then break end -- Não desenha se sair da área
+            local row = math.floor((i - 1) / itemsPerRow)
+            local col = (i - 1) % itemsPerRow
+
+            local itemX = x + padding + col * (cardWidth + itemSpacing)
+            local itemY = currentY + row * (cardHeight + itemSpacing)
+
+            if itemY + cardHeight > y + h then break end -- Não desenha se sair da área
 
             ShopColumn.drawShopItem(
-                x + padding,
+                itemX,
                 itemY,
-                w - padding * 2,
-                65,
+                cardWidth,
+                cardHeight,
                 item,
                 itemDataManager,
                 mx,
@@ -164,13 +182,42 @@ function ShopColumn.drawShopItem(x, y, w, h, shopItem, itemDataManager, mx, my, 
     local rankGradientStart = colors.rankDetails[rarity].gradientStart
     local rankGradientEnd = colors.rankDetails[rarity].gradientEnd
 
+    -- Verifica se item está esgotado
+    local isOutOfStock = shopItem.stock <= 0
+
     -- Cor de fundo baseada na cor do ranking (mais transparente)
     local bgColor = { rankGradientStart[1], rankGradientStart[2], rankGradientStart[3], 0.15 }
-    if isPromotion then
-        bgColor = { rankGradientStart[1], rankGradientStart[2], rankGradientStart[3], 0.25 }
+    if isOutOfStock then
+        -- Item esgotado fica 50% mais transparente
+        bgColor = { rankGradientStart[1], rankGradientStart[2], rankGradientStart[3], 0.075 }
+    elseif isPromotion then
+        bgColor = { rankGradientStart[1], rankGradientStart[2], rankGradientStart[3], 1 }
     end
-    if isHovering then
+    if isHovering and not isOutOfStock then
         bgColor = { rankGradientEnd[1], rankGradientEnd[2], rankGradientEnd[3], 0.3 }
+    end
+
+    -- Padding vertical interno
+    local verticalPadding = 8
+    local innerY = y + verticalPadding
+    local innerH = h - (verticalPadding * 2)
+
+    -- Animação de sombra para itens em promoção
+    if isPromotion then
+        local time = love.timer.getTime()
+        local pulseIntensity = (math.sin(time * 3) + 1) * 0.3 + 0.4 -- Varia entre 0.4 e 1.0
+        local shadowSize = 2
+
+        -- Sombra animada colorida
+        local shadowColor = {
+            colors.text_gold[1],
+            colors.text_gold[2],
+            colors.text_gold[3],
+            pulseIntensity * 0.6
+        }
+
+        love.graphics.setColor(shadowColor)
+        love.graphics.rectangle("fill", x - shadowSize, y - shadowSize, w + shadowSize * 2, h + shadowSize * 2)
     end
 
     -- Desenha fundo do item
@@ -180,15 +227,20 @@ function ShopColumn.drawShopItem(x, y, w, h, shopItem, itemDataManager, mx, my, 
     -- Desenha borda vertical (como citação) com cor do ranking
     local borderWidth = 4
     local borderColor = isPromotion and colors.text_gold or rankColor
+    if isOutOfStock then
+        -- Borda mais transparente para itens esgotados
+        borderColor = { borderColor[1], borderColor[2], borderColor[3], 0.5 }
+    end
     love.graphics.setColor(borderColor)
     love.graphics.rectangle("fill", x, y, borderWidth, h)
 
-    -- Layout: [Ícone 60px] [Info central] [Preço direita]
-    local iconSize = h - 10
-    local iconX = x + borderWidth + 8 -- Espaçamento após borda vertical
-    local iconY = y + 5
+    -- Layout: [Ícone] [Info central] [Preço direita centralizado]
+    local iconSize = math.min(innerH, innerH - 10) -- Máximo 80% da altura do card interno
+    local iconX = x + borderWidth + 8
+    local iconY = innerY + (innerH - iconSize) / 2 -- Centraliza verticalmente no espaço interno
 
     -- Desenha ícone do item
+    local itemColor = isOutOfStock and { 1, 1, 1, 0.5 } or { 1, 1, 1, 1 }
     if baseData.icon and type(baseData.icon) == "userdata" then
         local icon = baseData.icon
         local iw, ih = icon:getDimensions()
@@ -197,18 +249,19 @@ function ShopColumn.drawShopItem(x, y, w, h, shopItem, itemDataManager, mx, my, 
         local drawX = iconX + (iconSize - drawW) / 2
         local drawY = iconY + (iconSize - drawH) / 2
 
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setColor(itemColor)
         love.graphics.draw(icon, drawX, drawY, 0, scale, scale)
     else
         -- Placeholder se não houver ícone
-        love.graphics.setColor(rankColor)
+        local placeholderColor = isOutOfStock and { rankColor[1], rankColor[2], rankColor[3], 0.5 } or rankColor
+        love.graphics.setColor(placeholderColor)
         love.graphics.rectangle("fill", iconX, iconY, iconSize, iconSize)
         love.graphics.setColor(colors.tab_border)
         love.graphics.rectangle("line", iconX, iconY, iconSize, iconSize)
 
         -- Primeira letra do nome como placeholder
         love.graphics.setFont(fonts.title)
-        love.graphics.setColor(colors.white)
+        love.graphics.setColor(isOutOfStock and { 1, 1, 1, 0.5 } or colors.white)
         local placeholderText = baseData.name and string.sub(baseData.name, 1, 1) or "?"
         love.graphics.printf(placeholderText, iconX, iconY + iconSize / 2 - fonts.title:getHeight() / 2, iconSize,
             "center")
@@ -216,62 +269,112 @@ function ShopColumn.drawShopItem(x, y, w, h, shopItem, itemDataManager, mx, my, 
 
     -- Área de informações central
     local infoX = iconX + iconSize + 10
-    local infoW = w - iconSize - 120 -- Deixa espaço para o preço
-    local infoY = y + 5
+    local infoW = w * 0.8 -- 80% da largura para info
+    local infoY = innerY + 5
 
-    -- Nome do item com cor do ranking
-    love.graphics.setFont(fonts.main)
-    love.graphics.setColor(rankColor)
+    -- Nome do item com cor do ranking e fonte em bold
+    love.graphics.setFont(fonts.main_large) -- Fonte bold para nomes dos itens
+    local nameColor = isOutOfStock and { rankColor[1], rankColor[2], rankColor[3], 0.5 } or rankColor
+    love.graphics.setColor(nameColor)
     love.graphics.printf(baseData.name or shopItem.itemId, infoX, infoY, infoW, "left")
 
-    -- Estoque na segunda linha
-    infoY = infoY + fonts.main:getHeight() + 5
-    love.graphics.setFont(fonts.main_small)
-    love.graphics.setColor(colors.text_default)
-    love.graphics.printf("Estoque: " .. shopItem.stock, infoX, infoY, infoW, "left")
+    -- Porcentagem de desconto para itens em promoção
+    if isPromotion and shopItem.isOnSale and shopItem.salePrice then
+        local originalPrice = shopItem.price
+        local salePrice = shopItem.salePrice
+        local discountPercent = math.floor((1 - salePrice / originalPrice) * 100)
 
-    -- Área do preço à direita (seguindo padrão do patrimônio)
-    local priceX = x + w - 110
-    local priceW = 100
-    local priceY = y + 8
+        local discountY = infoY + (fonts.main_bold or fonts.main):getHeight() + 2
+        love.graphics.setFont(fonts.main_small)
+        love.graphics.setColor(colors.text_gold)
+        love.graphics.printf("-" .. discountPercent .. "%", infoX, discountY, infoW, "left")
+    end
+
+    -- Área do preço à direita (centralizada verticalmente, máximo 80% do card interno)
+    local priceAreaMaxHeight = innerH * 0.8
+    local priceX = x + w * 0.6 -- Últimos 40% da largura
+    local priceW = w * 0.35
+
+    -- Centraliza verticalmente o preço no espaço interno
+    local priceAreaY = innerY + (innerH - priceAreaMaxHeight) / 2
+    local priceCenterY = priceAreaY + priceAreaMaxHeight / 2
 
     -- Estilo do patrimônio: fonte resource_value com sombra
     love.graphics.setFont(fonts.resource_value or fonts.main_large)
     local shadowColor = colors.black_transparent_more or { 0, 0, 0, 0.7 }
+    local priceColor = isOutOfStock and { colors.text_gold[1], colors.text_gold[2], colors.text_gold[3], 0.5 } or
+        colors.text_gold
 
+    local priceText, finalPriceY
     if shopItem.isOnSale and shopItem.salePrice then
-        -- Preço original riscado (menor, sem sombra)
+        -- Preço original riscado (menor, acima do preço promocional)
         love.graphics.setFont(fonts.main_small)
-        love.graphics.setColor(colors.text_default)
-        local originalPriceText = shopItem.price .. "G"
+        local originalPriceText = Formatters.formatCompactNumber(shopItem.price)
+        originalPriceText = "R$ " .. originalPriceText
         local originalTextWidth = fonts.main_small:getWidth(originalPriceText)
         local originalPriceX = priceX + priceW - originalTextWidth
-        love.graphics.print(originalPriceText, originalPriceX, priceY - 5)
-        -- Linha riscando o preço original
-        love.graphics.line(originalPriceX, priceY, originalPriceX + originalTextWidth, priceY)
+        local originalPriceY = priceCenterY - 25
 
-        -- Preço em promoção (estilo patrimônio)
+        local originalColor = isOutOfStock and
+            { colors.text_default[1], colors.text_default[2], colors.text_default[3], 0.5 } or colors.text_default
+        love.graphics.setColor(originalColor)
+        love.graphics.print(originalPriceText, originalPriceX, originalPriceY)
+        -- Linha riscando o preço original
+        love.graphics.line(originalPriceX, originalPriceY + 7, originalPriceX + originalTextWidth, originalPriceY + 7)
+
+        -- Preço em promoção (centralizado, abaixo do preço original)
         love.graphics.setFont(fonts.resource_value or fonts.main_large)
-        local salePriceText = shopItem.salePrice .. "G"
-        local saleTextWidth = (fonts.resource_value or fonts.main_large):getWidth(salePriceText)
-        local salePriceX = priceX + priceW - saleTextWidth
-        drawTextWithShadow(salePriceText, salePriceX, priceY + 12, colors.text_gold, shadowColor, 1)
-    else
-        -- Preço normal (estilo patrimônio)
-        local priceText = shopItem.price .. "G"
+        priceText = Formatters.formatCompactNumber(shopItem.salePrice)
+        priceText = "R$ " .. priceText
+        local priceHeight = (fonts.resource_value or fonts.main_large):getHeight()
+        finalPriceY = priceCenterY - 15
+
         local textWidth = (fonts.resource_value or fonts.main_large):getWidth(priceText)
         local finalPriceX = priceX + priceW - textWidth
-        drawTextWithShadow(priceText, finalPriceX, priceY + 8, colors.text_gold, shadowColor, 1)
+
+        if not isOutOfStock then
+            drawTextWithShadow(priceText, finalPriceX, finalPriceY, priceColor, shadowColor, 1)
+        else
+            love.graphics.setColor(priceColor)
+            love.graphics.print(priceText, finalPriceX, finalPriceY)
+        end
+    else
+        -- Preço normal (centralizado)
+        priceText = Formatters.formatCompactNumber(shopItem.price)
+        priceText = "R$ " .. priceText
+        local priceHeight = (fonts.resource_value or fonts.main_large):getHeight()
+        finalPriceY = priceCenterY - priceHeight / 2
+
+        local textWidth = (fonts.resource_value or fonts.main_large):getWidth(priceText)
+        local finalPriceX = priceX + priceW - textWidth
+
+        if not isOutOfStock then
+            drawTextWithShadow(priceText, finalPriceX, finalPriceY, priceColor, shadowColor, 1)
+        else
+            love.graphics.setColor(priceColor)
+            love.graphics.print(priceText, finalPriceX, finalPriceY)
+        end
     end
 
-    -- Quantidade atual/restante embaixo do preço
+    -- Texto de estoque embaixo do preço
     love.graphics.setFont(fonts.main_small)
-    love.graphics.setColor(colors.text_default)
-    local quantityText = "Restante: " .. shopItem.stock
-    local quantityWidth = fonts.main_small:getWidth(quantityText)
-    local quantityX = priceX + priceW - quantityWidth
-    local quantityY = y + h - fonts.main_small:getHeight() - 5
-    love.graphics.print(quantityText, quantityX, quantityY)
+    local stockColor = isOutOfStock and colors.text_gold or colors.text_default
+
+    local stockText
+    if shopItem.stock <= 0 then
+        stockText = "Esgotado!"
+    elseif shopItem.stock == 1 then
+        stockColor = colors.text_gold
+        stockText = "Último restante!"
+    else
+        stockText = "Restam " .. shopItem.stock
+    end
+
+    love.graphics.setColor(stockColor)
+    local stockWidth = fonts.main_small:getWidth(stockText)
+    local stockX = priceX + priceW - stockWidth
+    local stockY = finalPriceY + (fonts.resource_value or fonts.main_large):getHeight() - 5
+    love.graphics.print(stockText, stockX, stockY)
 
     love.graphics.setColor(colors.white)
 end
@@ -289,7 +392,14 @@ function ShopColumn.getItemAtPosition(x, y, shopArea, shopManager)
     if not currentShop then return nil end
 
     local padding = 10
-    local currentY = shopArea.y + padding + 60 -- Após header
+    -- Replica exatamente a mesma lógica da função draw()
+    local currentY = shopArea.y + padding
+
+    -- Header da loja (título)
+    currentY = currentY + fonts.title:getHeight() + padding
+
+    -- Timer de atualização
+    currentY = currentY + (fonts.main_small and fonts.main_small:getHeight() or 12) + padding
 
     -- Verifica botão "Vender Tudo"
     local sellButtonY = currentY
@@ -300,28 +410,50 @@ function ShopColumn.getItemAtPosition(x, y, shopArea, shopManager)
 
     currentY = currentY + 30 + padding * 2
 
-    -- Verifica itens em promoção
+    -- Verifica itens em promoção (layout de duas colunas)
     if #currentShop.featuredItems > 0 then
         currentY = currentY + 20 + padding / 2
 
+        local itemsPerRow = 2
+        local cardWidth = (shopArea.w - padding * 2 - padding) / 2
+        local cardHeight = 70
+        local itemSpacing = padding
+
         for i, item in ipairs(currentShop.featuredItems) do
-            local itemY = currentY + (i - 1) * 80
-            if y >= itemY and y <= itemY + 75 and
-                x >= shopArea.x + padding and x <= shopArea.x + shopArea.w - padding then
+            local row = math.floor((i - 1) / itemsPerRow)
+            local col = (i - 1) % itemsPerRow
+
+            local itemX = shopArea.x + padding + col * (cardWidth + itemSpacing)
+            local itemY = currentY + row * (cardHeight + itemSpacing)
+
+            if y >= itemY and y <= itemY + cardHeight and
+                x >= itemX and x <= itemX + cardWidth then
                 return item
             end
         end
-        currentY = currentY + #currentShop.featuredItems * 80 + padding
+
+        local numRows = math.ceil(#currentShop.featuredItems / itemsPerRow)
+        currentY = currentY + numRows * (cardHeight + itemSpacing) + padding
     end
 
-    -- Verifica itens normais
+    -- Verifica itens normais (layout de duas colunas)
     if #currentShop.items > 0 then
         currentY = currentY + 20 + padding / 2
 
+        local itemsPerRow = 2
+        local cardWidth = (shopArea.w - padding * 2 - padding) / 2
+        local cardHeight = 70 -- Deve corresponder ao valor usado na função draw
+        local itemSpacing = padding
+
         for i, item in ipairs(currentShop.items) do
-            local itemY = currentY + (i - 1) * 70
-            if y >= itemY and y <= itemY + 65 and
-                x >= shopArea.x + padding and x <= shopArea.x + shopArea.w - padding then
+            local row = math.floor((i - 1) / itemsPerRow)
+            local col = (i - 1) % itemsPerRow
+
+            local itemX = shopArea.x + padding + col * (cardWidth + itemSpacing)
+            local itemY = currentY + row * (cardHeight + itemSpacing)
+
+            if y >= itemY and y <= itemY + cardHeight and
+                x >= itemX and x <= itemX + cardWidth then
                 return item
             end
         end
@@ -344,30 +476,62 @@ function ShopColumn.getItemForTooltip(x, y, shopArea, shopManager)
     if not currentShop then return nil end
 
     local padding = 10
-    local currentY = shopArea.y + padding + 60 + 30 + padding * 2 -- Após header e botão vender tudo
+    -- Replica exatamente a mesma lógica da função draw()
+    local currentY = shopArea.y + padding
 
-    -- Verifica itens em promoção
+    -- Header da loja (título)
+    currentY = currentY + fonts.title:getHeight() + padding
+
+    -- Timer de atualização
+    currentY = currentY + (fonts.main_small and fonts.main_small:getHeight() or 12) + padding
+
+    -- Pula o botão "Vender Tudo" (não detecta hover)
+    currentY = currentY + 30 + padding * 2
+
+    -- Verifica itens em promoção (layout de duas colunas)
     if #currentShop.featuredItems > 0 then
         currentY = currentY + 20 + padding / 2
 
+        local itemsPerRow = 2
+        local cardWidth = (shopArea.w - padding * 2 - padding) / 2
+        local cardHeight = 70
+        local itemSpacing = padding
+
         for i, item in ipairs(currentShop.featuredItems) do
-            local itemY = currentY + (i - 1) * 80
-            if y >= itemY and y <= itemY + 75 and
-                x >= shopArea.x + padding and x <= shopArea.x + shopArea.w - padding then
+            local row = math.floor((i - 1) / itemsPerRow)
+            local col = (i - 1) % itemsPerRow
+
+            local itemX = shopArea.x + padding + col * (cardWidth + itemSpacing)
+            local itemY = currentY + row * (cardHeight + itemSpacing)
+
+            if y >= itemY and y <= itemY + cardHeight and
+                x >= itemX and x <= itemX + cardWidth then
                 return item
             end
         end
-        currentY = currentY + #currentShop.featuredItems * 80 + padding
+
+        local numRows = math.ceil(#currentShop.featuredItems / itemsPerRow)
+        currentY = currentY + numRows * (cardHeight + itemSpacing) + padding
     end
 
-    -- Verifica itens normais
+    -- Verifica itens normais (layout de duas colunas)
     if #currentShop.items > 0 then
         currentY = currentY + 20 + padding / 2
 
+        local itemsPerRow = 2
+        local cardWidth = (shopArea.w - padding * 2 - padding) / 2
+        local cardHeight = 70 -- Deve corresponder ao valor usado na função draw
+        local itemSpacing = padding
+
         for i, item in ipairs(currentShop.items) do
-            local itemY = currentY + (i - 1) * 70
-            if y >= itemY and y <= itemY + 65 and
-                x >= shopArea.x + padding and x <= shopArea.x + shopArea.w - padding then
+            local row = math.floor((i - 1) / itemsPerRow)
+            local col = (i - 1) % itemsPerRow
+
+            local itemX = shopArea.x + padding + col * (cardWidth + itemSpacing)
+            local itemY = currentY + row * (cardHeight + itemSpacing)
+
+            if y >= itemY and y <= itemY + cardHeight and
+                x >= itemX and x <= itemX + cardWidth then
                 return item
             end
         end

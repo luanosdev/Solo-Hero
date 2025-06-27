@@ -1,6 +1,7 @@
 --- src/utils/formatters.lua
 -- Módulo contendo funções utilitárias para formatação de dados.
 
+---@class Formatters
 local Formatters = {}
 
 local statDisplayNames = {
