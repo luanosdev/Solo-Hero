@@ -7,9 +7,11 @@ local Constants = require("src.config.constants")
 local ManagerRegistry = require("src.managers.manager_registry")
 local LobbyPortalManager = require("src.managers.lobby_portal_manager")
 local EquipmentScreen = require("src.ui.screens.equipment_screen")
+local ShoppingScreen = require("src.ui.screens.shopping_screen")
 local PortalScreen = require("src.ui.screens.portal_screen")
 local AgencyScreen = require("src.ui.screens.agency_screen")
 local LobbyNavbar = require("src.ui.components.lobby_navbar")
+local ShopManager = require("src.managers.shop_manager")
 
 local TabIds = Constants.TabIds
 
@@ -18,9 +20,11 @@ local TabIds = Constants.TabIds
 ---@class LobbyScene
 ---@field portalScreen PortalScreen
 ---@field equipmentScreen EquipmentScreen
+---@field shoppingScreen ShoppingScreen
 ---@field reputationManager ReputationManager
 ---@field agencyManager AgencyManager
 ---@field portalManager LobbyPortalManager
+---@field shopManager ShopManager
 ---@field itemDataManager ItemDataManager
 ---@field lobbyStorageManager LobbyStorageManager
 ---@field loadoutManager LoadoutManager
@@ -38,8 +42,10 @@ LobbyScene.loadoutManager = nil ---@type LoadoutManager|nil Instância do gerenc
 LobbyScene.archetypeManager = nil ---@type ArchetypeManager|nil Instância do gerenciador de archetype
 LobbyScene.hunterManager = nil ---@type HunterManager|nil Instância do gerenciador de caçadores
 LobbyScene.equipmentScreen = nil ---@type EquipmentScreen|nil Instância da tela de equipamento
+LobbyScene.shoppingScreen = nil ---@type ShoppingScreen|nil Instância da tela de shopping
 LobbyScene.portalScreen = nil ---@type PortalScreen|nil Instância da tela de portal
 LobbyScene.agencyScreen = nil ---@type AgencyScreen|nil Instância da tela da Agência
+LobbyScene.shopManager = nil ---@type ShopManager|nil Instância do gerenciador da loja
 LobbyScene.reputationManager = nil ---@type ReputationManager|nil Instância do gerenciador de reputação
 LobbyScene.navbar = nil ---@type LobbyNavbar|nil Instância da navbar do lobby
 
@@ -51,7 +57,7 @@ LobbyScene.fogBaseColor = { 0.3, 0.4, 0.6, 1.0 } ---@type table Cor base da név
 
 -- Configuração dos botões/tabs inferiores
 local tabs = {
-    { id = TabIds.VENDOR,    text = "Vendedor" },
+    { id = TabIds.SHOPPING,  text = "Shopping" },
     { id = TabIds.CRAFTING,  text = "Criação" },
     { id = TabIds.EQUIPMENT, text = "Equipamento" },
     { id = TabIds.PORTALS,   text = "Portais" },
@@ -120,6 +126,9 @@ function LobbyScene:load(args)
     LobbyScene.agencyManager = ManagerRegistry:get("agencyManager")
     LobbyScene.reputationManager = ManagerRegistry:get("reputationManager")
     LobbyScene.portalManager = LobbyPortalManager:new()
+
+    -- Inicializa o ShopManager
+    LobbyScene.shopManager = ShopManager:new(self.itemDataManager)
 
     -- Validação básica se os managers foram carregados corretamente em main.lua
     if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager or not self.reputationManager then
@@ -239,6 +248,8 @@ function LobbyScene:load(args)
     -- Inicializa as telas da UI da cena (DEPOIS de processar a extração, pois podem depender dos managers atualizados)
     self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
         self.loadoutManager)
+    self.shoppingScreen = ShoppingScreen:new(self.itemDataManager, self.shopManager, self.lobbyStorageManager,
+        self.loadoutManager)
     self.portalScreen = PortalScreen:new(self.portalManager, self.hunterManager)
     self.agencyScreen = AgencyScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
         self.loadoutManager, self.agencyManager)
@@ -351,6 +362,21 @@ function LobbyScene:update(dt)
         }
         if self.equipmentScreen and self.equipmentScreen.update then
             self.equipmentScreen:update(dt, mx, my, currentDragState)
+        end
+    elseif activeTab and activeTab.id == TabIds.SHOPPING then
+        local currentDragState = {
+            isDragging = self.isDragging,
+            draggedItem = self.draggedItem,
+            draggedItemOffsetX = self.draggedItemOffsetX,
+            draggedItemOffsetY = self.draggedItemOffsetY,
+            sourceGridId = self.sourceGridId,
+            draggedItemIsRotated = self.draggedItemIsRotated,
+            targetGridId = self.targetGridId,
+            targetSlotCoords = self.targetSlotCoords,
+            isDropValid = self.isDropValid
+        }
+        if self.shoppingScreen and self.shoppingScreen.update then
+            self.shoppingScreen:update(dt, mx, my, currentDragState)
         end
 
         -- A lógica de atualização do self.isDragging, self.targetGridId, etc., continua aqui por enquanto
@@ -518,6 +544,27 @@ function LobbyScene:draw()
                     mx,
                     my - navbarHeight -- Ajusta coordenadas do mouse
                 )
+            elseif activeTab.id == TabIds.SHOPPING then
+                local dragState = {
+                    isDragging = self.isDragging,
+                    draggedItem = self.draggedItem,
+                    draggedItemOffsetX = self.draggedItemOffsetX,
+                    draggedItemOffsetY = self.draggedItemOffsetY,
+                    draggedItemIsRotated = self.draggedItemIsRotated,
+                    targetGridId = self.targetGridId,
+                    targetSlotCoords = self.targetSlotCoords,
+                    isDropValid = self.isDropValid
+                }
+                -- Ajusta área disponível para o ShoppingScreen considerando navbar
+                local availableHeight = screenH - navbarHeight - tabSettings.height
+                self.storageGridArea, self.loadoutGridArea, self.shopArea = self.shoppingScreen:draw(
+                    screenW,
+                    availableHeight + navbarHeight,
+                    tabSettings,
+                    dragState,
+                    mx,
+                    my - navbarHeight
+                )
             elseif activeTab.id == TabIds.AGENCY then
                 if self.agencyScreen then
                     -- Define área de desenho (área entre navbar e tabs)
@@ -642,6 +689,23 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                     return -- Consumiu sem iniciar drag (ex: tab storage)
                 end
             end
+        elseif activeTab and activeTab.id == TabIds.SHOPPING then
+            -- Delega para ShoppingScreen
+            if self.shoppingScreen then
+                local consumed, dragStartData = self.shoppingScreen:handleMousePress(x, y, buttonIdx)
+                if consumed and dragStartData then
+                    self.isDragging = true
+                    self.draggedItem = dragStartData.item
+                    self.sourceGridId = dragStartData.sourceGridId
+                    self.draggedItemOffsetX = dragStartData.offsetX
+                    self.draggedItemOffsetY = dragStartData.offsetY
+                    self.draggedItemIsRotated = dragStartData.isRotated or false
+                    self.sourceSlotId = nil -- Shopping não tem slots específicos
+                    return
+                elseif consumed then
+                    return -- Consumiu sem iniciar drag
+                end
+            end
         elseif activeTab and activeTab.id == TabIds.PORTALS then
             -- Delega para PortalScreen (somente se não estava com zoom, pois isso foi tratado no passo 1)
             if self.portalScreen and not isPortalScreenZoomed then
@@ -698,7 +762,7 @@ function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
         if self.isDragging then
             print("LobbyScene: Drag finalizado.")
             local dragConsumed = false
-            -- Só trata drop na aba de equipamento por enquanto
+            -- Trata drop nas abas de equipamento e shopping
             if activeTab and activeTab.id == TabIds.EQUIPMENT then
                 local dragState = {
                     isDragging = self.isDragging,
@@ -712,6 +776,17 @@ function LobbyScene:mousereleased(x, y, buttonIdx, istouch, presses)
                     equipmentSlotAreas = self.equipmentSlotAreas
                 }
                 dragConsumed = self.equipmentScreen:handleMouseRelease(x, y, buttonIdx, dragState)
+            elseif activeTab and activeTab.id == TabIds.SHOPPING then
+                local dragState = {
+                    isDragging = self.isDragging,
+                    draggedItem = self.draggedItem,
+                    sourceGridId = self.sourceGridId,
+                    draggedItemIsRotated = self.draggedItemIsRotated,
+                    targetGridId = self.targetGridId,
+                    targetSlotCoords = self.targetSlotCoords,
+                    isDropValid = self.isDropValid
+                }
+                dragConsumed = self.shoppingScreen:handleMouseRelease(x, y, buttonIdx, dragState)
             end
 
             if dragConsumed then
@@ -748,7 +823,7 @@ function LobbyScene:keypressed(key, scancode, isrepeat)
 
     local activeTab = tabs[self.activeTabIndex]
 
-    -- Verifica se estamos arrastando um item na aba de Equipamento
+    -- Verifica se estamos arrastando um item na aba de Equipamento ou Shopping
     if self.isDragging and activeTab and activeTab.id == TabIds.EQUIPMENT and self.equipmentScreen then
         -- Delega para a keypressed da EquipmentScreen
         local dragState = {
@@ -762,6 +837,19 @@ function LobbyScene:keypressed(key, scancode, isrepeat)
             -- Alterna o estado de rotação VISUAL
             self.draggedItemIsRotated = not self.draggedItemIsRotated
             -- NÃO modifica self.draggedItem aqui
+        end
+    elseif self.isDragging and activeTab and activeTab.id == TabIds.SHOPPING and self.shoppingScreen then
+        -- Delega para a keypressed da ShoppingScreen
+        local dragState = {
+            isDragging = self.isDragging,
+            draggedItem = self.draggedItem,
+            draggedItemIsRotated = self.draggedItemIsRotated
+        }
+        local wantsToRotate = self.shoppingScreen:keypressed(key, dragState)
+
+        if wantsToRotate and self.draggedItem then
+            -- Alterna o estado de rotação VISUAL
+            self.draggedItemIsRotated = not self.draggedItemIsRotated
         end
     end
 
@@ -820,11 +908,13 @@ function LobbyScene:unload()
         self.portalScreen = nil
     end
     self.equipmentScreen = nil
+    self.shoppingScreen = nil
     self.agencyScreen = nil
     self.navbar = nil
 
     -- Salva estado dos managers
     if self.portalManager then self.portalManager:saveState() end
+    if self.shopManager then self.shopManager:saveState() end
     if self.lobbyStorageManager then self.lobbyStorageManager:saveStorage() end
     if self.loadoutManager then self.loadoutManager:saveState() end
     if self.hunterManager then
@@ -833,6 +923,7 @@ function LobbyScene:unload()
 
     -- Limpa referências dos managers
     self.portalManager = nil
+    self.shopManager = nil
     self.itemDataManager = nil
     self.lobbyStorageManager = nil
     self.loadoutManager = nil

@@ -3,7 +3,7 @@ local Constants = {}
 
 --- IDs constantes para as abas do Lobby.
 Constants.TabIds = {
-    VENDOR = 1,
+    SHOPPING = 1,
     CRAFTING = 2,
     EQUIPMENT = 3,
     PORTALS = 4,

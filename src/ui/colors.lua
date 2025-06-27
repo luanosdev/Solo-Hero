@@ -203,16 +203,20 @@ local colors = {
 
     -- Cores de Pele para Sistema de Player em Camadas
     skinTones = {
-        pale = { 0.96, 0.87, 0.82, 1.0 },         -- Tom muito claro
-        light = { 0.94, 0.84, 0.76, 1.0 },        -- Tom claro
-        medium_light = { 0.87, 0.72, 0.56, 1.0 }, -- Tom médio claro
-        medium = { 0.80, 0.65, 0.48, 1.0 },       -- Tom médio
-        medium_dark = { 0.67, 0.49, 0.35, 1.0 },  -- Tom médio escuro
-        dark = { 0.54, 0.36, 0.25, 1.0 },         -- Tom escuro
-        very_dark = { 0.45, 0.28, 0.19, 1.0 },    -- Tom muito escuro
-        olive = { 0.75, 0.68, 0.52, 1.0 },        -- Tom oliva
-        warm = { 0.89, 0.75, 0.60, 1.0 },         -- Tom quente
-        cool = { 0.85, 0.78, 0.72, 1.0 },         -- Tom frio
+        -- Progressão de tons claros para escuros
+        pale = { 0.98, 0.91, 0.87, 1.0 },   -- Um pálido mais rosado e vivo, menos acinzentado.
+        light = { 0.97, 0.86, 0.77, 1.0 },   -- Tom claro com base pêssego/dourada.
+        medium_light = { 0.88, 0.74, 0.62, 1.0 },   -- Médio-claro com mais saturação e calor.
+        medium = { 0.83, 0.67, 0.51, 1.0 },   -- Um tom "bronzeado" médio, bem equilibrado.
+        medium_dark = { 0.66, 0.49, 0.36, 1.0 },   -- Marrom rico com subtons avermelhados.
+        dark = { 0.49, 0.35, 0.25, 1.0 },   -- Tom escuro, mantendo a saturação para não parecer "sujo".
+        very_dark = { 0.32, 0.22, 0.16, 1.0 },   -- Tom bem escuro, um marrom profundo e quente, longe do preto puro.
+
+        -- Variações de subtons (undertones)
+        olive = { 0.80, 0.71, 0.56, 1.0 },   -- Tom oliva com um toque sutil de verde/amarelo, mais natural.
+        warm = { 0.89, 0.73, 0.57, 1.0 },   -- Tom quente com uma base laranja/vermelha bem definida.
+        cool = { 0.96, 0.85, 0.80, 1.0 },   -- Tom frio com uma base rosada/avermelhada mais perceptível.
+
     },
 }
 
