@@ -267,7 +267,7 @@ function GameplayScene:update(dt)
     end
 
     -- Atualiza a apresentação do boss se estiver ativa
-    if self.bossPresentationManager:isActive() then
+    if self.bossPresentationManager and self.bossPresentationManager:isActive() then
         self.bossPresentationManager:update(dt)
 
         -- Atualiza a animação do boss durante a apresentação
@@ -797,7 +797,7 @@ function GameplayScene:_cleanupLocalSystems()
         end
         self.bossPresentationManager = nil
         Logger.debug("gameplay_scene.cleanup_local_systems.boss_presentation_manager_destroyed",
-        "BossPresentationManager destruído")
+            "BossPresentationManager destruído")
     end
 
     -- Limpa BossHealthBarManager global
@@ -825,8 +825,11 @@ function GameplayScene:_cleanupForGameOver()
     Logger.info("GameplayScene", "Executando limpeza específica para Game Over...")
 
     -- Para todas as animações e efeitos visuais
-    if self.bossPresentationManager and self.bossPresentationManager:isActive() then
-        self.bossPresentationManager:destroy()
+    if self.bossPresentationManager then
+        if self.bossPresentationManager:isActive() then
+            self.bossPresentationManager:destroy()
+        end
+        self.bossPresentationManager = nil
     end
 
     -- Limpa todos os modais
@@ -976,6 +979,8 @@ end
 
 --- Verifica se há um boss próximo que necessite de uma apresentação.
 function GameplayScene:checkForBossPresentation()
+    -- Verificação de segurança: se o bossPresentationManager foi limpo, não faz nada
+    if not self.bossPresentationManager then return end
     if self.bossPresentationManager:isActive() then return end
 
     local enemyManager = ManagerRegistry:get("enemyManager")
@@ -994,7 +999,9 @@ function GameplayScene:checkForBossPresentation()
             local triggerDistanceY = (Camera.screenHeight / Camera.scale) * 0.3
 
             if distanceX < triggerDistanceX and distanceY < triggerDistanceY then
-                self.bossPresentationManager:start(enemy, playerManager)
+                if self.bossPresentationManager then
+                    self.bossPresentationManager:start(enemy, playerManager)
+                end
                 -- Para a verificação assim que a primeira apresentação começar
                 return
             end

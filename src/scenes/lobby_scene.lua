@@ -560,8 +560,8 @@ function LobbyScene:draw()
         end
     end
 
-    -- 3. Desenha a Navbar (sempre por cima de tudo)
-    if self.navbar then
+    -- 3. Desenha a Navbar (sempre por cima de tudo, exceto quando modal de recrutamento está ativo)
+    if self.navbar and not (self.agencyScreen and self.agencyScreen.recruitmentManager and self.agencyScreen.recruitmentManager.isRecruiting) then
         self.navbar:draw(screenW, screenH)
     end
 

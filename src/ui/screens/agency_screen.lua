@@ -72,15 +72,11 @@ function AgencyScreen:new(hunterManager, archetypeManager, itemDataManager, load
 
     -- Cria a instância do botão de Recrutar
     local screenW, screenH = love.graphics.getDimensions()
-    local contentH = screenH - 50
     local buttonW = 180
     local buttonH = 40
-    local buttonPadding = 15
-    local buttonX = (screenW - buttonW) / 2
-    local buttonY = contentH - buttonH - buttonPadding
 
     instance.recruitButton = Button:new({
-        rect = { x = buttonX, y = buttonY, w = buttonW, h = buttonH },
+        rect = { w = buttonW, h = buttonH }, -- x, y definidos dinamicamente no draw
         text = "Recrutar Caçador",
         variant = "primary",
         onClick = onClickRecruit,
@@ -338,6 +334,18 @@ function AgencyScreen:draw(x, y, w, h, mx, my)
 
     -- 3. Desenhar Botão de Recrutar (AGORA USANDO A CLASSE BUTTON)
     if self.recruitButton then
+        -- Posiciona o botão na parte inferior da tela, centralizado
+        local buttonLocalX = (w - self.recruitButton.rect.w) / 2
+        local buttonLocalY = h - self.recruitButton.rect.h - 15
+
+        -- Para desenho, usa coordenadas locais (após translate)
+        self.recruitButton.rect.x = buttonLocalX
+        self.recruitButton.rect.y = buttonLocalY
+
+        -- Armazena coordenadas globais para update
+        self.recruitButtonGlobalX = x + buttonLocalX
+        self.recruitButtonGlobalY = y + buttonLocalY
+
         self.recruitButton:draw()
     end
 
@@ -387,7 +395,22 @@ function AgencyScreen:update(dt, mx, my, allowHover)
     if self.recruitButton then
         -- Lógica de habilitação movida para o update, que é o local correto.
         self.recruitButton.isEnabled = not self.recruitmentManager.isRecruiting
-        self.recruitButton:update(dt, mx, my, isHoverAllowed)
+
+        -- Usa coordenadas globais para detecção de hover/clique
+        if self.recruitButtonGlobalX and self.recruitButtonGlobalY then
+            -- Temporariamente ajusta as coordenadas do botão para globais
+            local originalX, originalY = self.recruitButton.rect.x, self.recruitButton.rect.y
+            self.recruitButton.rect.x = self.recruitButtonGlobalX
+            self.recruitButton.rect.y = self.recruitButtonGlobalY
+
+            self.recruitButton:update(dt, mx, my, isHoverAllowed)
+
+            -- Restaura coordenadas locais
+            self.recruitButton.rect.x = originalX
+            self.recruitButton.rect.y = originalY
+        else
+            self.recruitButton:update(dt, mx, my, isHoverAllowed)
+        end
     end
 
     -- Atualiza o ItemDetailsModalManager com o item que está sob o mouse no slot de equipamento
@@ -461,10 +484,29 @@ function AgencyScreen:handleMousePress(clickX, clickY, button)
 
         if self.recruitButton then
             Logger.debug("[AgencyScreen]", "Verificando clique no botão Recrutar...")
-            local consumed = self.recruitButton:handleMousePress(clickX, clickY, button)
-            if consumed then
-                Logger.debug("[AgencyScreen]", "Clique consumido pelo botão Recrutar.")
-                return true
+            -- Usa coordenadas globais para detecção de clique
+            if self.recruitButtonGlobalX and self.recruitButtonGlobalY then
+                -- Temporariamente ajusta as coordenadas do botão para globais
+                local originalX, originalY = self.recruitButton.rect.x, self.recruitButton.rect.y
+                self.recruitButton.rect.x = self.recruitButtonGlobalX
+                self.recruitButton.rect.y = self.recruitButtonGlobalY
+
+                local consumed = self.recruitButton:handleMousePress(clickX, clickY, button)
+
+                -- Restaura coordenadas locais
+                self.recruitButton.rect.x = originalX
+                self.recruitButton.rect.y = originalY
+
+                if consumed then
+                    Logger.debug("[AgencyScreen]", "Clique consumido pelo botão Recrutar.")
+                    return true
+                end
+            else
+                local consumed = self.recruitButton:handleMousePress(clickX, clickY, button)
+                if consumed then
+                    Logger.debug("[AgencyScreen]", "Clique consumido pelo botão Recrutar.")
+                    return true
+                end
             end
         end
 
@@ -524,8 +566,24 @@ function AgencyScreen:handleMouseRelease(clickX, clickY, button)
         end
 
         if self.recruitButton then
-            local consumed = self.recruitButton:handleMouseRelease(clickX, clickY, button)
-            if consumed then return true end
+            -- Usa coordenadas globais para detecção de release
+            if self.recruitButtonGlobalX and self.recruitButtonGlobalY then
+                -- Temporariamente ajusta as coordenadas do botão para globais
+                local originalX, originalY = self.recruitButton.rect.x, self.recruitButton.rect.y
+                self.recruitButton.rect.x = self.recruitButtonGlobalX
+                self.recruitButton.rect.y = self.recruitButtonGlobalY
+
+                local consumed = self.recruitButton:handleMouseRelease(clickX, clickY, button)
+
+                -- Restaura coordenadas locais
+                self.recruitButton.rect.x = originalX
+                self.recruitButton.rect.y = originalY
+
+                if consumed then return true end
+            else
+                local consumed = self.recruitButton:handleMouseRelease(clickX, clickY, button)
+                if consumed then return true end
+            end
         end
     end
     return false
