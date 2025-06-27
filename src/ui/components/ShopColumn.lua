@@ -416,7 +416,7 @@ function ShopColumn.getItemAtPosition(x, y, shopArea, shopManager)
 
         local itemsPerRow = 2
         local cardWidth = (shopArea.w - padding * 2 - padding) / 2
-        local cardHeight = 70
+        local cardHeight = 80
         local itemSpacing = padding
 
         for i, item in ipairs(currentShop.featuredItems) do
@@ -442,7 +442,7 @@ function ShopColumn.getItemAtPosition(x, y, shopArea, shopManager)
 
         local itemsPerRow = 2
         local cardWidth = (shopArea.w - padding * 2 - padding) / 2
-        local cardHeight = 70 -- Deve corresponder ao valor usado na função draw
+        local cardHeight = 80 -- Deve corresponder ao valor usado na função draw
         local itemSpacing = padding
 
         for i, item in ipairs(currentShop.items) do
@@ -494,7 +494,7 @@ function ShopColumn.getItemForTooltip(x, y, shopArea, shopManager)
 
         local itemsPerRow = 2
         local cardWidth = (shopArea.w - padding * 2 - padding) / 2
-        local cardHeight = 70
+        local cardHeight = 80
         local itemSpacing = padding
 
         for i, item in ipairs(currentShop.featuredItems) do
@@ -520,7 +520,7 @@ function ShopColumn.getItemForTooltip(x, y, shopArea, shopManager)
 
         local itemsPerRow = 2
         local cardWidth = (shopArea.w - padding * 2 - padding) / 2
-        local cardHeight = 70 -- Deve corresponder ao valor usado na função draw
+        local cardHeight = 80 -- Deve corresponder ao valor usado na função draw
         local itemSpacing = padding
 
         for i, item in ipairs(currentShop.items) do
