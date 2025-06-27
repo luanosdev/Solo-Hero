@@ -4,6 +4,7 @@
 ---@field main_large love.Font
 ---@field title love.Font
 ---@field title_large love.Font
+---@field resource_value love.Font
 ---@field game_over love.Font
 ---@field hud love.Font
 ---@field details_title love.Font
@@ -27,6 +28,7 @@ function fonts.load()
     fonts.main_large = love.graphics.newFont(main_font_file, 18)
     fonts.title = love.graphics.newFont(bold_font_file, 24)
     fonts.title_large = love.graphics.newFont(bold_font_file, 32)
+    fonts.resource_value = love.graphics.newFont(bold_font_file, 30)
     fonts.game_over = love.graphics.newFont(bold_font_file, 56)
     fonts.hud = love.graphics.newFont(bold_font_file, 15)
     fonts.details_title = love.graphics.newFont(bold_font_file, 20)

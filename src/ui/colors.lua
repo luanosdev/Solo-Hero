@@ -140,6 +140,10 @@ local colors = {
     positive = { 0.4, 0.7, 0.7, 0.9 }, -- Azul-esverdeado claro/Teal
     negative = { 0.8, 0.5, 0.3, 0.9 }, -- Laranja/Marrom suave
 
+    -- Cores para Navbar do Lobby
+    navbar_money = { 0.95, 0.85, 0.2, 1.0 }, -- Dourado vibrante para patrimônio
+    navbar_tickets = { 0.2, 0.7, 1.0, 1.0 }, -- Azul vibrante para tickets
+
     -- Cores dos Tabs do Lobby
     lobby_background = { 0.15, 0.15, 0.2, 1 },    -- Fundo da cena do Lobby
     tab_bg = { 0.2, 0.2, 0.25, 1 },               -- Fundo normal do tab

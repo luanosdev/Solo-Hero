@@ -72,13 +72,12 @@ function AgencyScreen:new(hunterManager, archetypeManager, itemDataManager, load
 
     -- Cria a instância do botão de Recrutar
     local screenW, screenH = love.graphics.getDimensions()
-    local headerHeight = 60
-    local contentH = screenH - headerHeight - 50
+    local contentH = screenH - 50
     local buttonW = 180
     local buttonH = 40
     local buttonPadding = 15
     local buttonX = (screenW - buttonW) / 2
-    local buttonY = headerHeight + contentH - buttonH - buttonPadding
+    local buttonY = contentH - buttonH - buttonPadding
 
     instance.recruitButton = Button:new({
         rect = { x = buttonX, y = buttonY, w = buttonW, h = buttonH },
@@ -123,39 +122,8 @@ function AgencyScreen:draw(x, y, w, h, mx, my)
     love.graphics.push()
     love.graphics.translate(x, y)
 
-    local headerHeight = 60
-    local agencyData = self.agencyManager:getAgencyData()
-    local agencyName = (agencyData and agencyData.name) or "Agência Desconhecida"
-    local agencyRank = (agencyData and agencyData.rank) or "E"
-    local agencyReputation = (agencyData and agencyData.reputation) or 0
-    local currentHunters = table.maxn(self.hunterManager.hunters or {})
-    local maxHunters = 20
-
-    love.graphics.setFont(fonts.title)
-    love.graphics.setColor(colors.text_title)
-    love.graphics.printf(agencyName, 0, 5, w, "center")
-
-    love.graphics.setFont(fonts.main_large or fonts.main)
-    local padding = 40
-    local rankColor = (colors.rankDetails[agencyRank] and colors.rankDetails[agencyRank].text) or colors.text_default
-    love.graphics.setColor(colors.text_label)
-    love.graphics.print("Rank: ", padding, 35)
-    love.graphics.setColor(rankColor)
-    love.graphics.print(agencyRank, padding + fonts.main_large:getWidth("Rank: "), 35)
-
-    local countText = string.format("Caçadores: %d/%d", currentHunters, maxHunters)
-    love.graphics.setColor(colors.text_label)
-    love.graphics.printf(countText, 0, 35, w, "center")
-
-    local reputationText = string.format("Reputação: %d", agencyReputation)
-    love.graphics.setColor(colors.text_label)
-    love.graphics.print(reputationText, w - fonts.main_large:getWidth(reputationText) - padding, 35)
-
-    love.graphics.setColor(colors.window_border)
-    love.graphics.line(10, headerHeight - 5, w - 10, headerHeight - 5)
-
-    local contentY = headerHeight
-    local contentH = h - headerHeight
+    local contentY = 0
+    local contentH = h
 
     -- Layout Básico do Conteúdo
     local listWidth = math.floor(w * 0.25) -- Largura da lista
@@ -166,7 +134,7 @@ function AgencyScreen:draw(x, y, w, h, mx, my)
     self.hunterSlotRects = {}
 
     -- 2.1 Desenhar Lista de Caçadores (Esquerda)
-    local listStartY = 10 -- Posição Y inicial DENTRO da área de conteúdo
+    local listStartY = 20 -- Posição Y inicial DENTRO da área de conteúdo
     local currentListY = listStartY
     local slotHeight = 60
     local slotPadding = 5
@@ -234,12 +202,18 @@ function AgencyScreen:draw(x, y, w, h, mx, my)
     if self.setActiveButton then
         -- Posiciona ABAIXO do último slot desenhado, centralizado na coluna da lista
         -- currentListY está relativo à área de conteúdo (0, contentY)
-        -- O botão será desenhado relativo a (x, y) da AgencyScreen
-        local buttonDrawY = contentY + currentListY +
-            10                                                            -- Y relativo a (x, y), 10px abaixo do último slot
-        local buttonDrawX = (listWidth - self.setActiveButton.rect.w) / 2 -- X relativo a (x, y)
-        self.setActiveButton.rect.x = buttonDrawX
-        self.setActiveButton.rect.y = buttonDrawY
+        local buttonLocalY = contentY + currentListY +
+            10                                                             -- Y relativo a (x, y), 10px abaixo do último slot
+        local buttonLocalX = (listWidth - self.setActiveButton.rect.w) / 2 -- X relativo a (x, y)
+
+        -- Para desenho, usa coordenadas locais (após translate)
+        self.setActiveButton.rect.x = buttonLocalX
+        self.setActiveButton.rect.y = buttonLocalY
+
+        -- Armazena coordenadas globais para update
+        self.setActiveButtonGlobalX = x + buttonLocalX
+        self.setActiveButtonGlobalY = y + buttonLocalY
+
         self.setActiveButton:draw() -- Desenha relativo a (x, y)
     end
     -- <<< FIM DESENHO BOTÃO >>>
@@ -252,10 +226,10 @@ function AgencyScreen:draw(x, y, w, h, mx, my)
     if self.selectedHunterId then
         local selectedData = self.hunterManager.hunters[self.selectedHunterId]
         if selectedData then
-            local detailsPadding = 10
+            local detailsPadding = 20
             local titleFont = fonts.title or love.graphics.getFont()
             local titleHeight = titleFont:getHeight()
-            local titleMarginBottom = 5 -- Espaço abaixo do título (Reduzido de 15 para 5)
+            local titleMarginBottom = 10 -- Espaço abaixo do título
 
             -- Posição Y inicial para os TÍTULOS
             local titlesY = contentY + detailsPadding
@@ -392,7 +366,22 @@ function AgencyScreen:update(dt, mx, my, allowHover)
         local canSetActive = self.selectedHunterId ~= nil and
             self.selectedHunterId ~= self.hunterManager:getActiveHunterId()
         self.setActiveButton.isEnabled = canSetActive
-        self.setActiveButton:update(dt, mx, my, isHoverAllowed)
+
+        -- Usa coordenadas globais para detecção de hover/clique
+        if self.setActiveButtonGlobalX and self.setActiveButtonGlobalY then
+            -- Temporariamente ajusta as coordenadas do botão para globais
+            local originalX, originalY = self.setActiveButton.rect.x, self.setActiveButton.rect.y
+            self.setActiveButton.rect.x = self.setActiveButtonGlobalX
+            self.setActiveButton.rect.y = self.setActiveButtonGlobalY
+
+            self.setActiveButton:update(dt, mx, my, isHoverAllowed)
+
+            -- Restaura coordenadas locais
+            self.setActiveButton.rect.x = originalX
+            self.setActiveButton.rect.y = originalY
+        else
+            self.setActiveButton:update(dt, mx, my, isHoverAllowed)
+        end
     end
 
     if self.recruitButton then
@@ -446,8 +435,28 @@ function AgencyScreen:handleMousePress(clickX, clickY, button)
 
     -- Se o modal não estiver ativo, processa os cliques da tela principal.
     if button == 1 then
-        if self.setActiveButton and self.setActiveButton:handleMousePress(clickX, clickY, button) then
-            return true
+        if self.setActiveButton then
+            -- Usa coordenadas globais para detecção de clique
+            if self.setActiveButtonGlobalX and self.setActiveButtonGlobalY then
+                -- Temporariamente ajusta as coordenadas do botão para globais
+                local originalX, originalY = self.setActiveButton.rect.x, self.setActiveButton.rect.y
+                self.setActiveButton.rect.x = self.setActiveButtonGlobalX
+                self.setActiveButton.rect.y = self.setActiveButtonGlobalY
+
+                local consumed = self.setActiveButton:handleMousePress(clickX, clickY, button)
+
+                -- Restaura coordenadas locais
+                self.setActiveButton.rect.x = originalX
+                self.setActiveButton.rect.y = originalY
+
+                if consumed then
+                    return true
+                end
+            else
+                if self.setActiveButton:handleMousePress(clickX, clickY, button) then
+                    return true
+                end
+            end
         end
 
         if self.recruitButton then
@@ -490,8 +499,28 @@ function AgencyScreen:handleMouseRelease(clickX, clickY, button)
 
     -- Se o modal não estiver ativo, processa os releases da tela principal.
     if button == 1 then
-        if self.setActiveButton and self.setActiveButton:handleMouseRelease(clickX, clickY, button) then
-            return true
+        if self.setActiveButton then
+            -- Usa coordenadas globais para detecção de release
+            if self.setActiveButtonGlobalX and self.setActiveButtonGlobalY then
+                -- Temporariamente ajusta as coordenadas do botão para globais
+                local originalX, originalY = self.setActiveButton.rect.x, self.setActiveButton.rect.y
+                self.setActiveButton.rect.x = self.setActiveButtonGlobalX
+                self.setActiveButton.rect.y = self.setActiveButtonGlobalY
+
+                local consumed = self.setActiveButton:handleMouseRelease(clickX, clickY, button)
+
+                -- Restaura coordenadas locais
+                self.setActiveButton.rect.x = originalX
+                self.setActiveButton.rect.y = originalY
+
+                if consumed then
+                    return true
+                end
+            else
+                if self.setActiveButton:handleMouseRelease(clickX, clickY, button) then
+                    return true
+                end
+            end
         end
 
         if self.recruitButton then

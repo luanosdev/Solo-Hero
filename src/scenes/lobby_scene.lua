@@ -9,6 +9,7 @@ local LobbyPortalManager = require("src.managers.lobby_portal_manager")
 local EquipmentScreen = require("src.ui.screens.equipment_screen")
 local PortalScreen = require("src.ui.screens.portal_screen")
 local AgencyScreen = require("src.ui.screens.agency_screen")
+local LobbyNavbar = require("src.ui.components.lobby_navbar")
 
 local TabIds = Constants.TabIds
 
@@ -25,6 +26,7 @@ local TabIds = Constants.TabIds
 ---@field loadoutManager LoadoutManager
 ---@field archetypeManager ArchetypeManager
 ---@field hunterManager HunterManager
+---@field navbar LobbyNavbar
 local LobbyScene = {}
 
 -- Estado da cena
@@ -39,6 +41,7 @@ LobbyScene.equipmentScreen = nil ---@type EquipmentScreen|nil Instância da tela
 LobbyScene.portalScreen = nil ---@type PortalScreen|nil Instância da tela de portal
 LobbyScene.agencyScreen = nil ---@type AgencyScreen|nil Instância da tela da Agência
 LobbyScene.reputationManager = nil ---@type ReputationManager|nil Instância do gerenciador de reputação
+LobbyScene.navbar = nil ---@type LobbyNavbar|nil Instância da navbar do lobby
 
 -- Configs da névoa
 LobbyScene.fogNoiseScale = 4.0 ---@type number Escala do ruído (valores menores = "zoom maior")
@@ -240,6 +243,9 @@ function LobbyScene:load(args)
     self.agencyScreen = AgencyScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
         self.loadoutManager, self.agencyManager)
 
+    -- Inicializa a navbar
+    self.navbar = LobbyNavbar:new(self.hunterManager, self.agencyManager, self.reputationManager)
+
 
     -- Reseta estado de zoom/seleção
     self.portalScreen.isZoomedIn = false
@@ -269,6 +275,7 @@ function LobbyScene:load(args)
         self.portalScreen.mapCurrentPanY = self.portalScreen.mapTargetPanY
     end
 
+    local navbarHeight = self.navbar:getHeight()
     tabSettings.yPosition = screenH - tabSettings.height
 
     local totalTabs = #tabs
@@ -467,6 +474,7 @@ function LobbyScene:draw()
     local mx, my = love.mouse.getPosition() -- <<< Pega mouse coords aqui para passar
     local activeTab = tabs[self.activeTabIndex]
     local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
+    local navbarHeight = self.navbar:getHeight()
 
     -- 1. Desenha Fundo/Tela Principal da Aba Ativa
     if activeTab and activeTab.id == TabIds.PORTALS or isPortalScreenZoomed then
@@ -480,7 +488,7 @@ function LobbyScene:draw()
     else
         -- Desenha fundo padrão para outras abas
         love.graphics.setColor(colors.lobby_background)
-        love.graphics.rectangle("fill", 0, 0, screenW, screenH)
+        love.graphics.rectangle("fill", 0, navbarHeight, screenW, screenH - navbarHeight)
         love.graphics.setColor(colors.white)
 
         -- Desenha conteúdo específico da aba (exceto Portais)
@@ -500,18 +508,21 @@ function LobbyScene:draw()
                     isDropValid = self.isDropValid,
                     equipmentSlotAreas = self.equipmentSlotAreas
                 }
+                -- Ajusta área disponível para o EquipmentScreen considerando navbar
+                local availableHeight = screenH - navbarHeight - tabSettings.height
                 self.storageGridArea, self.loadoutGridArea, self.equipmentSlotAreas = self.equipmentScreen:draw(
                     screenW,
-                    screenH,
+                    availableHeight + navbarHeight, -- Passa altura total mas com offset
                     tabSettings,
                     dragState,
                     mx,
-                    my
+                    my - navbarHeight -- Ajusta coordenadas do mouse
                 )
             elseif activeTab.id == TabIds.AGENCY then
                 if self.agencyScreen then
-                    -- Define área de desenho (toda a área acima das tabs)
-                    local areaX, areaY, areaW, areaH = 0, 0, screenW, screenH - tabSettings.height
+                    -- Define área de desenho (área entre navbar e tabs)
+                    local areaX, areaY, areaW, areaH = 0, navbarHeight, screenW,
+                        screenH - navbarHeight - tabSettings.height
                     self.agencyScreen:draw(areaX, areaY, areaW, areaH, mx, my)
                 else
                     love.graphics.setColor(colors.red)
@@ -519,13 +530,13 @@ function LobbyScene:draw()
                 end
             elseif activeTab.id == TabIds.VENDOR then
                 -- Espaço para desenhar a UI do Vendedor
-                love.graphics.printf("VENDEDOR", screenW / 2, screenH / 2, 0, "center")
+                love.graphics.printf("VENDEDOR", screenW / 2, (screenH + navbarHeight) / 2, 0, "center")
             elseif activeTab.id == TabIds.CRAFTING then
                 -- Espaço para desenhar a UI de Criação
-                love.graphics.printf("CRIAÇÃO", screenW / 2, screenH / 2, 0, "center")
+                love.graphics.printf("CRIAÇÃO", screenW / 2, (screenH + navbarHeight) / 2, 0, "center")
             elseif activeTab.id == TabIds.SETTINGS then
                 -- Espaço para desenhar a UI de Configurações
-                love.graphics.printf("CONFIGURAÇÕES", screenW / 2, screenH / 2, 0, "center")
+                love.graphics.printf("CONFIGURAÇÕES", screenW / 2, (screenH + navbarHeight) / 2, 0, "center")
             end
         end
     end
@@ -547,6 +558,11 @@ function LobbyScene:draw()
                 colors = tabSettings.colors
             })
         end
+    end
+
+    -- 3. Desenha a Navbar (sempre por cima de tudo)
+    if self.navbar then
+        self.navbar:draw(screenW, screenH)
     end
 
     -- Reset final
@@ -805,6 +821,7 @@ function LobbyScene:unload()
     end
     self.equipmentScreen = nil
     self.agencyScreen = nil
+    self.navbar = nil
 
     -- Salva estado dos managers
     if self.portalManager then self.portalManager:saveState() end

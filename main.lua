@@ -117,7 +117,7 @@ function love.draw()
     -- Informações de Debug (FPS, etc.) - Opcional
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setFont(fonts.main)
-    love.graphics.print("FPS: " .. love.timer.getFPS(), 10, 10)
+    love.graphics.print("FPS: " .. love.timer.getFPS(), 10, 70)
 
     Logger.draw()
 end
