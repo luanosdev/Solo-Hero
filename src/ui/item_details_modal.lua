@@ -21,6 +21,10 @@ local SUB_SECTION_SPACING = 2 -- Reduzido de 5 para aproximar o rótulo "Dano"
 local SHADOW_OFFSET_X = 1
 local SHADOW_OFFSET_Y = 1
 
+-- Constantes para altura mínima e valor fixo
+local MIN_MODAL_HEIGHT = 200    -- Altura mínima do modal
+local VALUE_SECTION_HEIGHT = 40 -- Altura fixa da seção de valor
+
 --- Desenha o tooltip do item.
 --- @param item BaseItem|BaseWeapon A instância do item a ser exibida.
 --- @param baseItemData table Os dados base do item (do itemDataManager).
@@ -311,51 +315,25 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
         currentYInternal = currentYInternal + LINE_HEIGHT_SMALL
     end
 
-    -- Adiciona o preço de venda na parte inferior
-    if baseItemData.value and baseItemData.value > 0 then
-        -- Adiciona um espaçador antes do preço de venda
-        table.insert(tooltipLines, { type = "spacer", height = SECTION_SPACING })
-        currentYInternal = currentYInternal + SECTION_SPACING
-
-        -- Calcula o preço de venda (baseado na quantidade do item)
+    -- Calcular informações do valor (será tratado separadamente no final)
+    local hasValueSection = baseItemData.value and baseItemData.value > 0
+    local sellPrice = 0
+    local formattedPrice = ""
+    if hasValueSection then
         local quantity = item.quantity or 1
-        local sellPrice = baseItemData.value * quantity
-        local formattedPrice = Formatters.formatCompactNumber(sellPrice)
-
-        -- Adiciona o preço de venda com estilo de patrimônio
-        table.insert(tooltipLines, {
-            text = "Valor: R$ " .. formattedPrice,
-            font = fonts.main_small,
-            color = colors.text_gold,
-            alignment = "center",
-            height = (fonts.main_small):getHeight() + SECTION_SPACING / 2,
-            isSellPrice = true -- Marcador especial para aplicar sombra
-        })
-        currentYInternal = currentYInternal + (fonts.main_small):getHeight() +
-            SECTION_SPACING / 2
+        sellPrice = baseItemData.value * quantity
+        formattedPrice = Formatters.formatCompactNumber(sellPrice)
     end
 
-    -- Calcular altura total e largura máxima real
-    local totalHeight = PADDING
+    -- Calcular altura total e largura máxima real usando currentYInternal (que já contém toda a altura do conteúdo)
+    local contentHeight = currentYInternal -- currentYInternal já contém toda a altura do conteúdo acumulada
     local maxLineWidth = 0
-    -- Recalcula maxLineWidth e totalHeight baseado no tooltipLines final
-    maxLineWidth = tooltipWidth                   -- Definido inicialmente, mas o texto pode expandir
-    totalHeight = headerEndY - PADDING            -- Começa com a altura do cabeçalho
-    totalHeight = totalHeight + mainSectionHeight -- Adiciona altura da seção principal
-    if descriptionContentHeight > 0 then
-        totalHeight = totalHeight + descriptionContentHeight + PADDING * 2 +
-            SECTION_SPACING / 2
-    end
 
-    for lineIdx = #tooltipLines, 1, -1 do -- Itera para encontrar linhas que não são da seção principal ou nome
+    -- Recalcula maxLineWidth baseado no tooltipLines final
+    maxLineWidth = tooltipWidth -- Definido inicialmente, mas o texto pode expandir
+
+    for lineIdx = #tooltipLines, 1, -1 do
         local lineInfo = tooltipLines[lineIdx]
-        if not lineInfo.is_main_section_text and lineInfo.text and lineInfo.font and (lineInfo.alignment ~= "center" or lineIdx == 1 or lineInfo.isSellPrice) then
-            -- Linhas que não são da seção principal ou não são o título (inclui preço de venda centralizado)
-            if lineInfo.type ~= "description_marker_start" and lineInfo.type ~= "description_marker_end" and lineInfo.type ~= "multi-part" then
-                totalHeight = totalHeight + lineInfo.height
-            end
-        end
-
         local currentLineW = 0
         if lineInfo.text and lineInfo.font then
             currentLineW = (lineInfo.font):getWidth(lineInfo.text)
@@ -372,8 +350,19 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
         if lineInfo.alignment == "center" then totalLineW = currentLineW + PADDING * 2 end
         maxLineWidth = math.max(maxLineWidth, totalLineW)
     end
-    totalHeight = totalHeight + PADDING -- Padding inferior final
-    tooltipWidth = maxLineWidth         -- Ajusta a largura do tooltip para o conteúdo
+
+    -- Calcula altura total: conteúdo atual + seção de valor (se existir) + padding final
+    local totalHeight = contentHeight + PADDING -- Conteúdo + padding final
+
+    -- Adiciona espaçamento e altura da seção de valor se existir
+    if hasValueSection then
+        totalHeight = totalHeight + SECTION_SPACING + VALUE_SECTION_HEIGHT
+    end
+
+    -- Aplica altura mínima
+    totalHeight = math.max(totalHeight, MIN_MODAL_HEIGHT)
+
+    tooltipWidth = maxLineWidth -- Ajusta a largura do tooltip para o conteúdo
     iconColumnWidth = tooltipWidth * 0.4
     textColumnXOffset = iconColumnWidth + PADDING
 
@@ -409,6 +398,7 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
 
     local fallbackHeaderBg
 
+    -- Desenha fundo do header
     if useGradientForHeader then
         elements.drawVerticalGradientRect(x, y, tooltipWidth, headerHeight, gradStartColor, gradEndColor)
     else
@@ -418,6 +408,24 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
         end
         love.graphics.setColor(fallbackHeaderBg)
         love.graphics.rectangle("fill", x, y, tooltipWidth, headerHeight)
+    end
+
+    -- Desenha fundo da seção de valor (igual ao header)
+    if hasValueSection then
+        local valueSectionY = y + contentHeight + SECTION_SPACING
+        if useGradientForHeader then
+            elements.drawVerticalGradientRect(
+                x,
+                valueSectionY,
+                tooltipWidth,
+                VALUE_SECTION_HEIGHT,
+                gradStartColor,
+                gradEndColor
+            )
+        else
+            love.graphics.setColor(fallbackHeaderBg)
+            love.graphics.rectangle("fill", x, valueSectionY, tooltipWidth, VALUE_SECTION_HEIGHT)
+        end
     end
 
     -- <<< NOVO: Desenhar fundo da seção de descrição >>>
@@ -617,6 +625,27 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
                 end
             end
         end
+    end
+
+    -- Desenha o valor fixo na parte inferior
+    if hasValueSection then
+        local valueSectionY = y + contentHeight + SECTION_SPACING
+        local valueText = "Valor: R$ " .. formattedPrice
+        local valueFont = fonts.main_small
+        local valueColor = colors.text_gold or colors.white
+
+        love.graphics.setFont(valueFont)
+        local textWidth = valueFont:getWidth(valueText)
+        local textX = x + (tooltipWidth - textWidth) / 2
+        local textY = valueSectionY + (VALUE_SECTION_HEIGHT - valueFont:getHeight()) / 2
+
+        -- Desenha sombra
+        love.graphics.setColor(shadowColor)
+        love.graphics.print(valueText, textX + SHADOW_OFFSET_X, textY + SHADOW_OFFSET_Y)
+
+        -- Desenha texto
+        love.graphics.setColor(valueColor)
+        love.graphics.print(valueText, textX, textY)
     end
 
     love.graphics.setColor(colors.white)
