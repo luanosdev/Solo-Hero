@@ -203,11 +203,10 @@ function GameplayScene:load(args)
 
     -- Configura o callback de morte do jogador para usar o GameOverManager
     playerMgr:setOnPlayerDiedCallback(function()
-        -- Ações da GameplayScene ANTES de iniciar o Game Over
-        if InventoryScreen.isVisible then InventoryScreen.isVisible = false end
-        if LevelUpModal.visible then LevelUpModal.visible = false end
-        if RuneChoiceModal.visible then RuneChoiceModal.visible = false end
-        if ItemDetailsModal.isVisible then ItemDetailsModal.isVisible = false end
+        Logger.info("GameplayScene", "Callback de morte do jogador acionado - iniciando limpeza para Game Over...")
+
+        -- Executa limpeza específica para Game Over
+        self:_cleanupForGameOver()
 
         -- Obtém a causa da morte (último inimigo que causou dano)
         local lastDamageSource = playerMgr.healthController:getLastDamageSource()
@@ -674,35 +673,169 @@ function GameplayScene:mousereleased(x, y, button, istouch, presses)
 end
 
 function GameplayScene:unload()
-    print("GameplayScene:unload - Descarregando recursos do gameplay...")
-    LevelUpModal.visible = false; RuneChoiceModal.visible = false; InventoryScreen.isVisible = false; ItemDetailsModal.isVisible = false
-    if HUD.reset then HUD:reset() end
-    local enemyMgr = ManagerRegistry:get("enemyManager"); if enemyMgr and enemyMgr.reset then enemyMgr:reset() end
+    Logger.info(
+        "gameplay_scene.unload.started",
+        "[GameplayScene:unload] Iniciando descarregamento completo dos recursos do gameplay..."
+    )
 
-    self.mapManager = nil -- Apenas define como nil, o GC cuida do resto.
+    -- Fecha todos os modais e UIs primeiro
+    LevelUpModal.visible = false
+    RuneChoiceModal.visible = false
+    InventoryScreen.isVisible = false
+    ItemDetailsModal.isVisible = false
 
-    if self.dropManager and self.dropManager.destroy then
-        self.dropManager:destroy()
-        self.dropManager = nil
-        Logger.debug("GameplayScene", "DropManager destruído.")
+    -- Reset HUD se disponível
+    if HUD.reset then
+        HUD:reset()
     end
 
-    if self.experienceOrbManager and self.experienceOrbManager.destroy then
-        self.experienceOrbManager:destroy()
-        self.experienceOrbManager = nil
-        Logger.debug("GameplayScene", "ExperienceOrbManager destruído.")
+    -- Limpa managers específicos do GameplayScene primeiro
+    self:_cleanupGameplayManagers()
+
+    -- Limpa sistemas locais do GameplayScene
+    self:_cleanupLocalSystems()
+
+    -- Força limpeza de memória
+    collectgarbage("collect")
+
+    Logger.info("gameplay_scene.unload.finalized", "[GameplayScene:unload] Descarregamento completo finalizado.")
+end
+
+--- Limpa todos os managers específicos do gameplay de forma segura
+function GameplayScene:_cleanupGameplayManagers()
+    Logger.debug("GameplayScene", "Iniciando limpeza dos managers de gameplay...")
+
+    -- Lista de managers de gameplay na ordem correta de limpeza
+    local gameplayManagers = {
+        "extractionManager",
+        "extractionPortalManager",
+        "hudGameplayManager",
+        "experienceOrbManager",
+        "dropManager",
+        "enemyManager",
+        "playerManager",
+        "inventoryManager",
+        "inputManager"
+    }
+
+    for _, managerName in ipairs(gameplayManagers) do
+        local manager = ManagerRegistry:tryGet(managerName)
+        if manager then
+            Logger.debug("gameplay_scene.cleanup_gameplay_managers.started", string.format("Limpando %s...", managerName))
+
+            -- Tenta diferentes métodos de limpeza
+            if manager.destroy and type(manager.destroy) == "function" then
+                manager:destroy()
+                Logger.debug(
+                    "gameplay_scene.cleanup_gameplay_managers.destroyed",
+                    string.format("%s destruído via destroy()", managerName)
+                )
+            elseif manager.reset and type(manager.reset) == "function" then
+                manager:reset()
+                Logger.debug(
+                    "gameplay_scene.cleanup_gameplay_managers.reset",
+                    string.format("%s limpo via reset()", managerName)
+                )
+            elseif manager.cleanup and type(manager.cleanup) == "function" then
+                manager:cleanup()
+                Logger.debug(
+                    "gameplay_scene.cleanup_gameplay_managers.cleanup",
+                    string.format("%s limpo via cleanup()", managerName)
+                )
+            else
+                Logger.warn(
+                    "gameplay_scene.cleanup_gameplay_managers.no_cleanup_method",
+                    string.format("%s não possui método de limpeza adequado", managerName)
+                )
+            end
+
+            -- Remove do registry para evitar referências pendentes
+            ManagerRegistry:unregister(managerName)
+            Logger.debug(
+                "gameplay_scene.cleanup_gameplay_managers.unregistered",
+                string.format("%s removido do ManagerRegistry", managerName)
+            )
+        end
+    end
+end
+
+--- Limpa sistemas locais do GameplayScene
+function GameplayScene:_cleanupLocalSystems()
+    Logger.debug("gameplay_scene.cleanup_local_systems.started", "Limpando sistemas locais do GameplayScene...")
+
+    -- Limpa ProceduralMapManager
+    if self.mapManager then
+        if self.mapManager.destroy and type(self.mapManager.destroy) == "function" then
+            self.mapManager:destroy()
+            Logger.debug("gameplay_scene.cleanup_local_systems.map_manager_destroyed", "ProceduralMapManager destruído")
+        end
+        self.mapManager = nil
     end
 
-    if self.bossPresentationManager and self.bossPresentationManager.destroy then
-        self.bossPresentationManager:destroy()
+    -- Limpa RenderPipeline
+    if self.renderPipeline then
+        if self.renderPipeline.destroy and type(self.renderPipeline.destroy) == "function" then
+            self.renderPipeline:destroy()
+            Logger.debug("gameplay_scene.cleanup_local_systems.render_pipeline_destroyed", "RenderPipeline destruído")
+        end
+        self.renderPipeline = nil
+    end
+
+    -- Limpa GameOverManager
+    if self.gameOverManager then
+        if self.gameOverManager.destroy and type(self.gameOverManager.destroy) == "function" then
+            self.gameOverManager:destroy()
+        end
+        self.gameOverManager = nil
+        Logger.debug("gameplay_scene.cleanup_local_systems.game_over_manager_destroyed", "GameOverManager destruído")
+    end
+
+    -- Limpa BossPresentationManager
+    if self.bossPresentationManager then
+        if self.bossPresentationManager.destroy and type(self.bossPresentationManager.destroy) == "function" then
+            self.bossPresentationManager:destroy()
+        end
         self.bossPresentationManager = nil
+        Logger.debug("gameplay_scene.cleanup_local_systems.boss_presentation_manager_destroyed",
+        "BossPresentationManager destruído")
     end
 
-    if self.enemyManager and self.enemyManager.destroy then
-        self.enemyManager:destroy()
-        self.enemyManager = nil
-        Logger.debug("GameplayScene", "EnemyManager destruído.")
+    -- Limpa BossHealthBarManager global
+    local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
+    if BossHealthBarManager and BossHealthBarManager.destroy then
+        BossHealthBarManager:destroy()
+        Logger.debug("GameplayScene", "BossHealthBarManager global destruído")
     end
+
+    -- Limpa estado interno
+    self.initialItemInstanceIds = {}
+    self.inventoryDragState = { isDragging = false }
+    self.inventoryEquipmentAreas = {}
+    self.inventoryGridArea = {}
+    self.currentPortalData = nil
+    self.hordeConfig = nil
+    self.hunterId = nil
+    self.isPaused = false
+
+    Logger.debug("GameplayScene", "Sistemas locais limpos")
+end
+
+--- Executa limpeza específica para situações de Game Over
+function GameplayScene:_cleanupForGameOver()
+    Logger.info("GameplayScene", "Executando limpeza específica para Game Over...")
+
+    -- Para todas as animações e efeitos visuais
+    if self.bossPresentationManager and self.bossPresentationManager:isActive() then
+        self.bossPresentationManager:destroy()
+    end
+
+    -- Limpa todos os modais
+    LevelUpModal.visible = false
+    RuneChoiceModal.visible = false
+    InventoryScreen.isVisible = false
+    ItemDetailsModal.isVisible = false
+
+    Logger.debug("gameplay_scene.cleanup_for_game_over.finalized", "Limpeza de Game Over concluída")
 end
 
 --- Tira um "snapshot" dos IDs de todos os itens que o jogador possui no início da fase.
@@ -737,9 +870,13 @@ function GameplayScene:_snapshotInitialItems()
                 count = count + 1
             end
         end
-        Logger.debug("GameplayScene", string.format("  - %d itens instanciados capturados do equipamento.", count))
+        Logger.debug(
+            "gameplay_scene.snapshot_initial_items.captured_items",
+            string.format("  - %d itens instanciados capturados do equipamento.", count)
+        )
     end
-    Logger.debug("GameplayScene",
+    Logger.debug(
+        "gameplay_scene.snapshot_initial_items.finalized",
         string.format("Snapshot concluído. Total de %d IDs de itens únicos.",
             #self.initialItemInstanceIds))
 end

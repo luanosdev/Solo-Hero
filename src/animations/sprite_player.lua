@@ -308,10 +308,10 @@ function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
 
     -- Tempos de frame base (quando velocidade = valor base)
     local baseFrameTimes = {
-        walk = 0.05,
-        walk_backward = 0.05,
-        strafe_left = 0.05,
-        strafe_right = 0.05,
+        walk = 0.09,
+        walk_backward = 0.09,
+        strafe_left = 0.09,
+        strafe_right = 0.09,
         -- Estes não são afetados pela velocidade de movimento
         idle = 0.1,
         idle2 = 0.1,

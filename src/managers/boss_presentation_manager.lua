@@ -134,4 +134,20 @@ function BossPresentationManager:isActive()
     return self.state ~= PRESENTATION_STATE.INACTIVE
 end
 
+--- Destrói o gerenciador.
+function BossPresentationManager:destroy()
+    Logger.info(
+        "boss_presentation_manager.destroy",
+        "[BossPresentationManager:destroy] Destruindo BossPresentationManager..."
+    )
+    self.cameraEffects:stop()
+    self.state = PRESENTATION_STATE.INACTIVE
+    self.boss = nil
+    self.playerManager = nil
+    Logger.info(
+        "boss_presentation_manager.destroy.finalized",
+        "[BossPresentationManager:destroy] BossPresentationManager destruído."
+    )
+end
+
 return BossPresentationManager

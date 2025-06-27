@@ -397,4 +397,18 @@ function GameOverManager:clearDeathHistory()
     Logger.debug("GameOverManager", "Histórico de mortes limpo.")
 end
 
+--- Destrói o gerenciador.
+function GameOverManager:destroy()
+    Logger.info("game_over_manager.destroy", "[GameOverManager:destroy] Destruindo GameOverManager...")
+    self.deathHistory = {}
+    self.isGameOverActive = false
+    self.timer = 0
+    self.message = ""
+    self.hunterName = ""
+    self.hunterRank = ""
+    self.timestamp = ""
+    self.portalData = nil
+    Logger.info("game_over_manager.destroy.finalized", "[GameOverManager:destroy] GameOverManager destruído.")
+end
+
 return GameOverManager

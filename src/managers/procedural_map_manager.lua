@@ -410,22 +410,60 @@ end
 --- Libera os recursos utilizados pelo gerenciador.
 function ProceduralMapManager:destroy()
     -- Libera os recursos do chão.
-    for _, chunk in pairs(self.chunks) do
-        if chunk.ground and chunk.ground.release then
-            chunk.ground:release()
+    for y, row in pairs(self.chunks) do
+        for x, chunk in pairs(row) do
+            if chunk and chunk.ground then
+                if type(chunk.ground.release) == "function" then
+                    -- Verifica se já foi liberado antes de tentar liberar novamente
+                    if type(chunk.ground.isReleased) == "function" then
+                        if chunk.ground:isReleased() == false then
+                            chunk.ground:release()
+                        end
+                    else
+                        -- Se isReleased não existe, apenas libera
+                        chunk.ground:release()
+                    end
+                end
+            end
         end
     end
     self.chunks = {}
 
     -- Libera os recursos do atlas de decoração.
-    if self.decorationBatch and self.decorationBatch.release then
-        self.decorationBatch:release()
-    end
-    if self.decorationAtlas and self.decorationAtlas.canvas and self.decorationAtlas.canvas:isReleased() == false then
-        self.decorationAtlas.canvas:release()
+    if self.decorationBatch then
+        if type(self.decorationBatch.release) == "function" then
+            -- Verifica se o SpriteBatch já foi liberado
+            if type(self.decorationBatch.isReleased) == "function" then
+                if self.decorationBatch:isReleased() == false then
+                    self.decorationBatch:release()
+                end
+            else
+                -- Se isReleased não existe, apenas libera
+                self.decorationBatch:release()
+            end
+        end
     end
 
-    Logger.info("ProceduralMapManager.destroy", "ProceduralMapManager para o mapa " .. self.mapName .. " destruído.")
+    -- Verifica se o decorationAtlas e seu canvas existem antes de tentar liberar
+    if self.decorationAtlas and self.decorationAtlas.canvas then
+        -- Verifica se o método isReleased existe e se o canvas não foi liberado
+        if type(self.decorationAtlas.canvas.isReleased) == "function" then
+            if self.decorationAtlas.canvas:isReleased() == false then
+                self.decorationAtlas.canvas:release()
+            end
+        elseif type(self.decorationAtlas.canvas.release) == "function" then
+            -- Se isReleased não existe, mas release existe, apenas libera
+            self.decorationAtlas.canvas:release()
+        end
+    end
+
+    -- Limpa referências restantes
+    self.decorationBatch = nil
+    self.decorationAtlas = nil
+    self.generationQueue = {}
+
+    Logger.info("procedural_map_manager.destroy.finalized",
+        "[ProceduralMapManager:destroy] ProceduralMapManager para o mapa " .. self.mapName .. " destruído.")
 end
 
 return ProceduralMapManager

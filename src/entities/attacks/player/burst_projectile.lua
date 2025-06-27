@@ -106,7 +106,7 @@ function BurstProjectile:castSpecific(args)
     )
 
     -- Calcula ângulos de dispersão
-    local projectileAngles = self:calculateProjectileAnglesOptimized(multiResult.totalProjectiles)
+    local projectileAngles = self:calculateProjectileAnglesOptimized(multiResult.totalAttacks)
 
     -- Obtém SpatialGrid uma vez
     local enemyManager = ManagerRegistry:get("enemyManager")

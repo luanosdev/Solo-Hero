@@ -33,7 +33,10 @@ end
 ---@param config { type: 'portal'|'item', source: any, duration: number, details?: any }
 function ExtractionManager:startExtractionSequence(config)
     if self.isSequencing then return end
-    print("[ExtractionManager] Starting extraction sequence of type: " .. config.type)
+    Logger.info(
+        "extraction_manager.start_extraction_sequence",
+        "[ExtractionManager:startExtractionSequence] Iniciando sequência de extração do tipo: " .. config.type
+    )
 
     local playerManager = ManagerRegistry:get("playerManager")
     self.isSequencing = true
@@ -110,7 +113,7 @@ end
 
 ---@param portalData table
 function ExtractionManager:reset(portalData)
-    Logger.debug("ExtractionManager.reset", "Resetando estado do ExtractionManager.")
+    Logger.debug("extraction_manager.reset", "[ExtractionManager:reset] Resetando estado do ExtractionManager.")
     self.isCasting = false
     self.isSequencing = false
     self.config = {}
@@ -133,7 +136,11 @@ end
 ---@param extractionType string
 ---@return table params Parameters for the extraction summary scene
 function ExtractionManager:_getExtractionSummaryArgs(extractionType)
-    print(string.format("[ExtractionManager] Getting summary args for extraction type: %s", extractionType))
+    Logger.debug(
+        "extraction_manager.get_extraction_summary_args",
+        string.format("[ExtractionManager:_getExtractionSummaryArgs] Getting summary args for extraction type: %s",
+            extractionType)
+    )
     local playerManager = ManagerRegistry:get("playerManager")
     local inventoryManager = ManagerRegistry:get("inventoryManager")
     local hunterManager = ManagerRegistry:get("hunterManager")
@@ -234,6 +241,23 @@ end
 
 function ExtractionManager:stopExtractionTimer()
     HUDGameplayManager:stopExtractionTimer()
+end
+
+--- Adiciona método destroy para limpeza completa
+function ExtractionManager:destroy()
+    Logger.debug("extraction_manager.destroy", "[ExtractionManager:destroy] Destruindo ExtractionManager...")
+
+    self:reset({})
+
+    if self.teleportEffect then
+        self.teleportEffect = nil
+    end
+
+    self.portalData = nil
+    self.config = nil
+    self.onCastCompleteCallback = nil
+
+    Logger.debug("extraction_manager.destroy.finalized", "[ExtractionManager:destroy] ExtractionManager destruído")
 end
 
 return ExtractionManager

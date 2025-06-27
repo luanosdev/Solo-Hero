@@ -193,4 +193,23 @@ function RenderPipeline:draw(cameraX, cameraY)
     end
 end
 
+--- Destroi o pipeline e limpa todos os recursos
+function RenderPipeline:destroy()
+    -- Limpa todos os buckets e dados de SpriteBatch
+    self:reset()
+
+    -- Limpa referências dos SpriteBatches (sem destruir os batches, pois são gerenciados externamente)
+    self.spriteBatchReferences = {}
+    self.spriteBatchDrawData = {}
+
+    -- Remove referência do map manager
+    self.mapManager = nil
+
+    -- Limpa buckets
+    self.buckets = {}
+    self.sortableBuckets = {}
+
+    print("RenderPipeline destruído.")
+end
+
 return RenderPipeline
