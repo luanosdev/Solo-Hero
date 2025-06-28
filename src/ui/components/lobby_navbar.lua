@@ -11,6 +11,8 @@ local Formatters = require("src.utils.formatters")
 ---@field patrimonyManager PatrimonyManager|nil
 ---@field animatedGold number Valor animado do ouro
 ---@field targetGold number Valor alvo do ouro
+---@field startGold number Valor inicial da animação
+---@field animationTimer number Timer da animação do valor
 ---@field goldChangeText string|nil Texto de mudança (+1000, -500, etc)
 ---@field goldChangeTimer number Timer para animação de mudança
 ---@field goldChangeAlpha number Alpha do texto de mudança
@@ -21,8 +23,8 @@ LobbyNavbar.__index = LobbyNavbar
 local NAVBAR_HEIGHT = 60
 local PADDING = 20
 local SECTION_SPACING = 40
-local GOLD_ANIMATION_SPEED = 800 -- Velocidade da animação (ouro por segundo)
-local GOLD_CHANGE_DURATION = 2.0 -- Duração da animação de mudança em segundos
+local GOLD_ANIMATION_DURATION = 1.0 -- Duração fixa da animação do valor (1 segundo)
+local GOLD_CHANGE_DURATION = 2.0    -- Duração da animação de mudança em segundos
 
 --- Cria uma nova instância da LobbyNavbar
 ---@param hunterManager HunterManager
@@ -41,6 +43,8 @@ function LobbyNavbar:new(hunterManager, agencyManager, reputationManager, patrim
     local currentGold = patrimonyManager and patrimonyManager:getCurrentGold() or 0
     instance.animatedGold = currentGold
     instance.targetGold = currentGold
+    instance.startGold = currentGold
+    instance.animationTimer = 0
     instance.goldChangeText = nil
     instance.goldChangeTimer = 0
     instance.goldChangeAlpha = 0
@@ -80,28 +84,32 @@ function LobbyNavbar:update(dt)
         self.goldChangeTimer = GOLD_CHANGE_DURATION
         self.goldChangeAlpha = 1.0
 
-        -- Atualiza alvo
+        -- Inicia animação do valor com duração fixa
+        self.startGold = self.animatedGold
         self.targetGold = currentGold
+        self.animationTimer = GOLD_ANIMATION_DURATION
 
         Logger.info("lobby_navbar.gold_change",
             "[LobbyNavbar:update] Mudança de ouro detectada: " ..
             goldDifference .. " (novo total: " .. currentGold .. ")")
     end
 
-    -- Anima o valor do ouro em direção ao alvo
-    if math.abs(self.animatedGold - self.targetGold) > 1 then
-        local direction = self.targetGold > self.animatedGold and 1 or -1
-        local change = GOLD_ANIMATION_SPEED * dt * direction
+    -- Anima o valor do ouro com duração fixa
+    if self.animationTimer > 0 then
+        self.animationTimer = self.animationTimer - dt
 
-        -- Não ultrapassa o alvo
-        if direction > 0 then
-            self.animatedGold = math.min(self.animatedGold + change, self.targetGold)
+        if self.animationTimer <= 0 then
+            -- Animação terminou, define valor final
+            self.animatedGold = self.targetGold
+            self.animationTimer = 0
         else
-            self.animatedGold = math.max(self.animatedGold + change, self.targetGold)
+            -- Interpolação linear baseada no progresso da animação
+            local progress = 1 - (self.animationTimer / GOLD_ANIMATION_DURATION)
+            -- Usa easing suave (ease-out)
+            progress = 1 - (1 - progress) * (1 - progress)
+
+            self.animatedGold = self.startGold + (self.targetGold - self.startGold) * progress
         end
-    else
-        -- Snap para o valor exato quando muito próximo
-        self.animatedGold = self.targetGold
     end
 
     -- Atualiza animação do texto de mudança
@@ -315,11 +323,11 @@ local function drawResourceCard(x, y, w, h, label, icon, value, color, changeTex
 
     -- Desenha texto de mudança se existir
     if changeText and changeAlpha > 0 then
-        love.graphics.setFont(fonts.main_small or fonts.main)
+        love.graphics.setFont(fonts.main_bold)
         local changeColor = string.sub(changeText, 1, 1) == "+" and colors.text_success or colors.text_danger
         changeColor = { changeColor[1], changeColor[2], changeColor[3], changeAlpha }
 
-        local changeTextWidth = (fonts.main_small or fonts.main):getWidth(changeText)
+        local changeTextWidth = (fonts.main_bold):getWidth(changeText)
         local changeX = x + (w - changeTextWidth) / 2
         local changeY = valueY + valueHeight + 2
 
@@ -345,13 +353,33 @@ function LobbyNavbar:_drawResourceSection(x, y, sectionWidth)
     local cardHeight = NAVBAR_HEIGHT - 10
 
     -- Card do Patrimônio (com animação)
-    drawResourceCard(x, y + 5, cardWidth, cardHeight, "PATRIMÔNIO", "R$ ", patrimony, colors.navbar_money,
-        self.goldChangeText, self.goldChangeAlpha)
+    drawResourceCard(
+        x,
+        y + 5,
+        cardWidth,
+        cardHeight,
+        "PATRIMÔNIO",
+        "R$ ",
+        patrimony,
+        colors.navbar_money,
+        self.goldChangeText,
+        self.goldChangeAlpha
+    )
 
     -- Card dos Tickets
     local ticketCardX = x + cardWidth + 10
-    drawResourceCard(ticketCardX, y + 5, cardWidth, cardHeight, "TICKETS", "§", tickets, colors.navbar_tickets,
-        nil, 0)
+    drawResourceCard(
+        ticketCardX,
+        y + 5,
+        cardWidth,
+        cardHeight,
+        "TICKETS",
+        "§",
+        tickets,
+        colors.navbar_tickets,
+        nil,
+        0
+    )
 end
 
 --- Desenha a navbar completa
