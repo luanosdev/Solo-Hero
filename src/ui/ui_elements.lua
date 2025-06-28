@@ -33,11 +33,11 @@ elements.cacheSpeed = 0.5
 ---@param title string|nil Título opcional para o frame.
 function elements.drawWindowFrame(x, y, w, h, title)
     love.graphics.setColor(colors.window_bg)
-    love.graphics.rectangle("fill", x, y, w, h, 5, 5)
+    love.graphics.rectangle("fill", x, y, w, h)
 
     love.graphics.setColor(colors.window_border)
     love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", x, y, w, h, 5, 5)
+    love.graphics.rectangle("line", x, y, w, h)
     love.graphics.setLineWidth(1)
 
     if title then
@@ -241,7 +241,7 @@ function elements.drawRarityBorderAndGlow(itemRarity, x, y, w, h)
             shader:send("smoothness", smoothness)
 
             -- O shader desenha para fora da forma, então usamos a forma original
-            love.graphics.rectangle("fill", x, y, w, h, 3, 3)
+            love.graphics.rectangle("fill", x, y, w, h)
 
             love.graphics.setShader()
             -- Restaura a cor original
@@ -252,16 +252,16 @@ function elements.drawRarityBorderAndGlow(itemRarity, x, y, w, h)
     -- 2. Desenha a borda da raridade por cima do brilho
     love.graphics.setLineWidth(2)
     love.graphics.setColor(rarityColor)
-    love.graphics.rectangle("line", x, y, w, h, 3, 3)
+    love.graphics.rectangle("line", x, y, w, h)
     love.graphics.setLineWidth(1)
 end
 
 -- Função HELPER para desenhar o FUNDO de um slot vazio (MOVIDO DE inventory_screen.lua)
 function elements.drawEmptySlotBackground(slotX, slotY, slotW, slotH)
     love.graphics.setColor(colors.slot_empty_bg)
-    love.graphics.rectangle("fill", slotX, slotY, slotW, slotH, 3, 3)
+    love.graphics.rectangle("fill", slotX, slotY, slotW, slotH)
     love.graphics.setColor(colors.slot_empty_border)
-    love.graphics.rectangle("line", slotX, slotY, slotW, slotH, 3, 3)
+    love.graphics.rectangle("line", slotX, slotY, slotW, slotH)
 end
 
 --- Desenha um botão de tabulação, com suporte a estado de hover e destaque.
@@ -349,12 +349,12 @@ function elements.drawButton(config)
 
     -- Desenha o fundo
     love.graphics.setColor(bgColor)
-    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h, 3, 3)
+    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
 
     -- Desenha a borda
     love.graphics.setColor(borderColor)
     love.graphics.setLineWidth(1)
-    love.graphics.rectangle("line", rect.x, rect.y, rect.w, rect.h, 3, 3)
+    love.graphics.rectangle("line", rect.x, rect.y, rect.w, rect.h)
 
     -- Desenha o texto
     love.graphics.setFont(font)
@@ -396,7 +396,7 @@ function elements.drawItemGhost(x, y, itemInstance, alpha, isRotated)
 
     -- 1. Desenha um fundo semi-transparente
     love.graphics.setColor(0, 0, 0, alpha * 0.5) -- Preto com metade da opacidade do item
-    love.graphics.rectangle("fill", x, y, visualW, visualH, 3, 3)
+    love.graphics.rectangle("fill", x, y, visualW, visualH)
 
     -- 2. Desenha o ícone com a transparência principal e rotação
     love.graphics.setColor(1, 1, 1, alpha)
@@ -468,7 +468,7 @@ function elements.drawDropIndicator(areaX, areaY, areaW, areaH, gridRows, gridCo
 
     -- Desenha o retângulo semi-transparente
     love.graphics.setColor(color[1], color[2], color[3], 0.5) -- 50% alpha
-    love.graphics.rectangle("fill", indicatorX, indicatorY, indicatorW, indicatorH, 3, 3)
+    love.graphics.rectangle("fill", indicatorX, indicatorY, indicatorW, indicatorH)
     love.graphics.setColor(1, 1, 1, 1)                        -- Reseta cor
 end
 
@@ -507,13 +507,13 @@ function elements.drawTooltipBox(x, y, lines)
     -- Desenha fundo
     local bgColor = colors.window_bg or { 0.1, 0.1, 0.15, 0.95 }
     love.graphics.setColor(bgColor)
-    love.graphics.rectangle("fill", x, y, totalWidth, totalHeight, 3, 3)
+    love.graphics.rectangle("fill", x, y, totalWidth, totalHeight)
 
     -- Desenha borda
     local borderColor = colors.window_border or { 0.4, 0.45, 0.5, 0.8 }
     love.graphics.setLineWidth(1)
     love.graphics.setColor(borderColor)
-    love.graphics.rectangle("line", x, y, totalWidth, totalHeight, 3, 3)
+    love.graphics.rectangle("line", x, y, totalWidth, totalHeight)
 
     -- Desenha as linhas de texto
     local currentY = y + padding
@@ -537,7 +537,6 @@ end
 ---@param rankLetter string A letra do rank a ser exibida (ex: "S", "A", "E").
 ---@param config table|nil Tabela de configuração opcional com os seguintes campos:
 ---   font (Font|nil): Fonte para a letra do rank (padrão: `fonts.title`).
----   cornerRadius (number|nil): Raio dos cantos arredondados (padrão: 8).
 ---   showGlow (boolean|nil): Controla a exibição do brilho. Padrão é `true` para "S" e "SS", `false` para outros.
 ---   glowColor (table|nil): Cor do brilho {r,g,b,a} (padrão: cor do texto do rank com alfa).
 ---   glowRadius (number|nil): Raio do brilho (padrão: 6.0).
@@ -552,7 +551,6 @@ function elements.drawRankCard(x, y, w, h, rankLetter, config)
     end
 
     local font = config.font or fonts.title
-    local cornerRadius = config.cornerRadius or 8
     local textScaleFactor = config.textScaleFactor or 0.6
 
     -- Determina se o brilho deve ser mostrado
@@ -562,23 +560,15 @@ function elements.drawRankCard(x, y, w, h, rankLetter, config)
     end
     local glowRadius = config.glowRadius or 6.0
 
-    -- 1. Desenhar fundo com gradiente usando stencil para cantos arredondados
-    local stencilFunction = function()
-        love.graphics.rectangle("fill", x, y, w, h, cornerRadius)
-    end
-
-    love.graphics.stencil(stencilFunction, "replace", 1)
-    love.graphics.setStencilTest("equal", 1)
-
-    -- Desenha as duas metades do gradiente
+    -- 1. Desenhar fundo com gradiente
     local gradStartColor = rankData.gradientStart
     local gradEndColor = rankData.gradientEnd
+
+    -- Desenha as duas metades do gradiente
     love.graphics.setColor(gradStartColor)
     love.graphics.rectangle("fill", x, y, w, h / 2)         -- Metade superior
     love.graphics.setColor(gradEndColor)
     love.graphics.rectangle("fill", x, y + h / 2, w, h / 2) -- Metade inferior
-
-    love.graphics.setStencilTest()                          -- Limpa o teste de stencil
 
     -- 2. Desenhar brilho se habilitado e shader disponível
     if showGlow and glowShader then
@@ -587,7 +577,7 @@ function elements.drawRankCard(x, y, w, h, rankLetter, config)
         glowShader:send("glowColor", glowCol)
         glowShader:send("glowRadius", glowRadius)
         love.graphics.setLineWidth(2) -- Linha do brilho
-        love.graphics.rectangle("line", x, y, w, h, cornerRadius)
+        love.graphics.rectangle("line", x, y, w, h)
         love.graphics.setShader()
         love.graphics.setLineWidth(1) -- Reseta largura da linha
     end
@@ -630,8 +620,7 @@ end
 ---@param h number
 ---@param colorTop table Cor RGBA do topo
 ---@param colorBottom table Cor RGBA da base
----@param cornerRadius number|nil Raio dos cantos arredondados
-local function drawVerticalGradientRect(x, y, w, h, colorTop, colorBottom, cornerRadius)
+local function drawVerticalGradientRect(x, y, w, h, colorTop, colorBottom)
     love.graphics.setShader() -- Garante que nenhum shader afete o gradiente
     local mesh = love.graphics.newMesh({
         { 0, 0, 0, 0, colorTop[1],    colorTop[2],    colorTop[3],    colorTop[4] or 1 },
@@ -640,20 +629,11 @@ local function drawVerticalGradientRect(x, y, w, h, colorTop, colorBottom, corne
         { 0, h, 0, 1, colorBottom[1], colorBottom[2], colorBottom[3], colorBottom[4] or 1 },
     }, "fan")
     love.graphics.push("all")
-    if cornerRadius and cornerRadius > 0 then
-        love.graphics.stencil(function()
-            love.graphics.rectangle("fill", x, y, w, h, cornerRadius)
-        end, "replace", 1)
-        love.graphics.setStencilTest("equal", 1)
-    end
     love.graphics.draw(mesh, x, y)
-    if cornerRadius and cornerRadius > 0 then
-        love.graphics.setStencilTest()
-    end
     love.graphics.pop()
 end
 
---- Desenha um card estilizado para exibir texto, com gradiente, cantos arredondados e brilho opcional.
+--- Desenha um card estilizado para exibir texto, com gradiente e brilho opcional.
 ---@param x number Posição X do canto superior esquerdo do card.
 ---@param y number Posição Y do canto superior esquerdo do card.
 ---@param w number Largura do card.
@@ -666,7 +646,6 @@ end
 ---                                    Se definido, sobrescreve gradientStartColor, gradientEndColor, e cor base para brilho.
 ---   gradientStartColor (table|nil): Cor inicial do gradiente de fundo.
 ---   gradientEndColor (table|nil): Cor final do gradiente de fundo.
----   cornerRadius (number|nil): Raio dos cantos arredondados (padrão: 8).
 ---   h_align ('left'|'center'|'right'|'justify'|nil): Alinhamento horizontal do texto (padrão: 'left').
 ---   v_align ('top'|'middle'|'bottom'|nil): Alinhamento vertical do texto (padrão: 'top').
 ---   padding (number|nil): Preenchimento interno para o texto (padrão: 10).
@@ -686,7 +665,6 @@ function elements.drawTextCard(x, y, w, h, text, config)
 
     local font = config.font or fonts.main
     local textColor = (rankStyleData and rankStyleData.text) or config.textColor or colors.text_main
-    local cornerRadius = config.cornerRadius or 8
     local padding = config.padding or 10
 
     local gradStartColor = config.gradientStartColor or (rankStyleData and rankStyleData.gradientStart) or
@@ -709,8 +687,8 @@ function elements.drawTextCard(x, y, w, h, text, config)
     local glowColor = config.glowColor or
         { defaultGlowColorText[1], defaultGlowColorText[2], defaultGlowColorText[3], 0.7 }
 
-    -- 1. Desenhar fundo com gradiente usando mesh e stencil para cantos arredondados
-    drawVerticalGradientRect(x, y, w, h, gradStartColor, gradEndColor, cornerRadius)
+    -- 1. Desenhar fundo com gradiente
+    drawVerticalGradientRect(x, y, w, h, gradStartColor, gradEndColor)
 
     -- 2. Desenhar brilho se habilitado e shader disponível
     if showGlow and glowShader then
@@ -718,7 +696,7 @@ function elements.drawTextCard(x, y, w, h, text, config)
         glowShader:send("glowColor", glowColor)
         glowShader:send("glowRadius", glowRadius)
         love.graphics.setLineWidth(2) -- Linha do brilho
-        love.graphics.rectangle("line", x, y, w, h, cornerRadius)
+        love.graphics.rectangle("line", x, y, w, h)
         love.graphics.setShader()
         love.graphics.setLineWidth(1) -- Reseta largura da linha
     end

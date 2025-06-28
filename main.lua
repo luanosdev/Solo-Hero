@@ -18,6 +18,8 @@ local lovebird = require("src.libs.lovebird")
 local profiler = require("src.libs.profiler")
 local Logger = require("src.libs.logger")
 local lurker = require("src.libs.lurker")
+local push = require("src.libs.push")
+local ResolutionUtils = require("src.utils.resolution_utils")
 
 _G.Shaders = {}
 
@@ -27,8 +29,8 @@ function love.load()
     Logger.setVisibleLevels({ debug = false, info = true, warn = true, error = false })
     _G.Logger = Logger
 
-    Logger.debug("Main", "Iniciando love.load()...")
-    Logger.debug("Main", "Modo DEV: " .. tostring(DEV))
+    Logger.debug("love.load.start", "[love.load] Iniciando love.load()...")
+    Logger.debug("love.load.dev", "[love.load] Modo DEV: " .. tostring(DEV))
 
     if DEV and PROFILER then
         profiler.start()
@@ -36,7 +38,7 @@ function love.load()
 
     pcall(function()
         _G.Shaders.glow = love.graphics.newShader("src/ui/shaders/simple_glow.fs")
-        Logger.info("Main", "Shader de brilho carregado com sucesso.")
+        Logger.info("love.load.shaders", "[love.load] Shader de brilho carregado com sucesso.")
     end)
 
     fonts.load()
@@ -45,57 +47,78 @@ function love.load()
 
     math.randomseed(os.time() + tonumber(tostring(os.clock()):reverse():sub(1, 6)))
 
+    -- Configuração do sistema de resolução adaptável
+    local windowWidth, windowHeight = love.window.getDesktopDimensions()
+
+    -- Em modo DEV, permite redimensionamento e modo janela para facilitar desenvolvimento
+    -- Em modo PROD, usa fullscreen conforme configurado no conf.lua
+    local pushOptions = {
+        fullscreen = DEV and false or true, -- Janela em DEV, fullscreen em PROD
+        resizable = true,
+        canvas = true,
+        pixelperfect = false,
+        highdpi = true,
+        stretched = false
+    }
+
+    push:setupScreen(1920, 1080, windowWidth, windowHeight, pushOptions)
+    Logger.info(
+        "love.load.resolution",
+        "[love.load] Sistema de resolução configurado: 1920x1080 -> " .. windowWidth .. "x" .. windowHeight
+    )
+
+    -- Inicializa o utilitário de resolução
+    ResolutionUtils.initialize(push)
+    _G.ResolutionUtils = ResolutionUtils
+    Logger.info("love.load.resolution_utils", "[love.load] ResolutionUtils inicializado e disponível globalmente")
+
     SceneManager.switchScene("bootloader_scene")
 
-    Logger.debug("Main", "Inicializando ManagerRegistry...")
-    Logger.debug("Main", "Criando e carregando managers persistentes...")
-
-    Logger.debug("Main", "  - Criando ItemDataManager...")
+    Logger.debug("love.load.managers.start", "[love.load] Inicializando ManagerRegistry...")
+    Logger.debug("love.load.managers.item_data_manager", "[love.load] Criando ItemDataManager...")
     local itemDataMgr = ItemDataManager:new()
     ManagerRegistry:register("itemDataManager", itemDataMgr)
-    Logger.debug("Main", "    > ItemDataManager registrado.")
+    Logger.debug("love.load.managers.item_data_manager.registered", "[love.load] ItemDataManager registrado.")
 
-    Logger.debug("Main", "  - Criando ArchetypeManager...")
+    Logger.debug("love.load.managers.archetype_manager", "[love.load] Criando ArchetypeManager...")
     local archetypeMgr = ArchetypeManager:new()
     ManagerRegistry:register("archetypeManager", archetypeMgr)
-    Logger.debug("Main", "    > ArchetypeManager registrado.")
+    Logger.debug("love.load.managers.archetype_manager.registered", "[love.load] ArchetypeManager registrado.")
 
-    Logger.debug("Main", "  - Criando LobbyStorageManager...")
-    local lobbyStorageMgr = LobbyStorageManager:new(itemDataMgr) -- Injeta dependência
+    Logger.debug("love.load.managers.lobby_storage_manager", "[love.load] Criando LobbyStorageManager...")
+    local lobbyStorageMgr = LobbyStorageManager:new(itemDataMgr)
     ManagerRegistry:register("lobbyStorageManager", lobbyStorageMgr)
-    Logger.debug("Main", "    > LobbyStorageManager registrado.")
+    Logger.debug("love.load.managers.lobby_storage_manager.registered", "[love.load] LobbyStorageManager registrado.")
 
-    Logger.debug("Main", "  - Criando LoadoutManager...")
-    local loadoutMgr = LoadoutManager:new(itemDataMgr) -- Passa apenas ItemDataManager
+    Logger.debug("love.load.managers.loadout_manager", "[love.load] Criando LoadoutManager...")
+    local loadoutMgr = LoadoutManager:new(itemDataMgr)
     ManagerRegistry:register("loadoutManager", loadoutMgr)
-    Logger.debug("Main", "    > LoadoutManager registrado.")
+    Logger.debug("love.load.managers.loadout_manager.registered", "[love.load] LoadoutManager registrado.")
 
-    Logger.debug("Main", "  - Criando HunterManager...")
-    local hunterMgr = HunterManager:new(loadoutMgr, itemDataMgr, archetypeMgr) -- Injeta dependências
+    Logger.debug("love.load.managers.hunter_manager", "[love.load] Criando HunterManager...")
+    local hunterMgr = HunterManager:new(loadoutMgr, itemDataMgr, archetypeMgr)
     ManagerRegistry:register("hunterManager", hunterMgr)
-    Logger.debug("Main", "    > HunterManager registrado.")
+    Logger.debug("love.load.managers.hunter_manager.registered", "[love.load] HunterManager registrado.")
 
-    Logger.debug("Main", "  - Criando AgencyManager...")
+    Logger.debug("love.load.managers.agency_manager", "[love.load] Criando AgencyManager...")
     local agencyMgr = AgencyManager:new()
     ManagerRegistry:register("agencyManager", agencyMgr)
-    Logger.debug("Main", "    > AgencyManager registrado.")
+    Logger.debug("love.load.managers.agency_manager.registered", "[love.load] AgencyManager registrado.")
 
-    Logger.debug("Main", "  - Criando ReputationManager...")
-    local reputationMgr = ReputationManager:new(agencyMgr, itemDataMgr) -- Injeta dependências
+    Logger.debug("love.load.managers.reputation_manager", "[love.load] Criando ReputationManager...")
+    local reputationMgr = ReputationManager:new(agencyMgr, itemDataMgr)
     ManagerRegistry:register("reputationManager", reputationMgr)
-    Logger.debug("Main", "    > ReputationManager registrado.")
+    Logger.debug("love.load.managers.reputation_manager.registered", "[love.load] ReputationManager registrado.")
 
-    Logger.debug("Main", "  - Criando GameStatisticsManager...")
+    Logger.debug("love.load.managers.game_statistics_manager", "[love.load] Criando GameStatisticsManager...")
     local gameStatsMgr = GameStatisticsManager:new()
     ManagerRegistry:register("gameStatisticsManager", gameStatsMgr)
-    Logger.debug("Main", "    > GameStatisticsManager registrado.")
+    Logger.debug("love.load.managers.game_statistics_manager.registered", "[love.load] GameStatisticsManager registrado.")
 
-    Logger.debug("Main", "Managers persistentes registrados no ManagerRegistry.")
+    Logger.debug("love.load.managers.registered", "[love.load] Managers persistentes registrados no ManagerRegistry.")
 
-    Logger.debug("Main", "love.load() concluído.")
+    Logger.debug("love.load.end", "[love.load] love.load() concluído.")
 end
-
--- [[ Ciclo de Vida LOVE ]] --
 
 function love.update(dt)
     -- Delega o update para a cena atual (se não for encerrar)
@@ -111,15 +134,31 @@ function love.update(dt)
 end
 
 function love.draw()
+    -- Inicia o sistema de resolução adaptável
+    push:start()
+
     -- Desenha a cena ativa
     SceneManager.draw()
 
-    -- Informações de Debug (FPS, etc.) - Opcional
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.setFont(fonts.main)
-    love.graphics.print("FPS: " .. love.timer.getFPS(), 10, 70)
+    -- Informações de resolução em modo DEV
+    if DEV then
+        love.graphics.setFont(fonts.main_small)
+        local scaleInfo = ResolutionUtils.getScaleInfo()
+        love.graphics.print(string.format(
+            "FPS: %d | Resolução: %dx%d -> %dx%d | Escala: %.2f | Offset: %.0f,%.0f | Stencil: %s",
+            love.timer.getFPS(),
+            scaleInfo.gameWidth, scaleInfo.gameHeight,
+            scaleInfo.windowWidth, scaleInfo.windowHeight,
+            scaleInfo.scaleX,
+            scaleInfo.offsetX, scaleInfo.offsetY,
+            scaleInfo.hasStencil and "✓" or "✗"
+        ), 10, 70)
+    end
 
     Logger.draw()
+
+    -- Finaliza o sistema de resolução adaptável
+    push:finish()
 end
 
 -- [[ Callbacks de Input LOVE ]] --
@@ -130,8 +169,7 @@ function love.keypressed(key, scancode, isrepeat)
 
     -- Toggle Fullscreen com F11 (exemplo global)
     if key == "f11" then
-        local isFullscreen, fullscreenType = love.window.getFullscreen()
-        love.window.setFullscreen(not isFullscreen, "desktop")
+        push:switchFullscreen()
     end
     if key == "f10" then
         Logger.disable()
@@ -150,11 +188,19 @@ function love.keyreleased(key, scancode)
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
-    SceneManager.mousepressed(x, y, button, istouch, presses)
+    -- Converte coordenadas da tela para coordenadas do jogo
+    local gameX, gameY = push:toGame(x, y)
+    if gameX and gameY then
+        SceneManager.mousepressed(gameX, gameY, button, istouch, presses)
+    end
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
-    SceneManager.mousereleased(x, y, button, istouch, presses)
+    -- Converte coordenadas da tela para coordenadas do jogo
+    local gameX, gameY = push:toGame(x, y)
+    if gameX and gameY then
+        SceneManager.mousereleased(gameX, gameY, button, istouch, presses)
+    end
 end
 
 function love.textinput(t)
@@ -162,7 +208,16 @@ function love.textinput(t)
 end
 
 function love.mousemoved(x, y, dx, dy, istouch)
-    SceneManager.mousemoved(x, y, dx, dy, istouch)
+    -- Converte coordenadas da tela para coordenadas do jogo
+    local gameX, gameY = push:toGame(x, y)
+    if gameX and gameY then
+        SceneManager.mousemoved(gameX, gameY, dx, dy, istouch)
+    end
+end
+
+function love.resize(w, h)
+    push:resize(w, h)
+    Logger.info("Main", "Janela redimensionada para: " .. w .. "x" .. h)
 end
 
 --[[
