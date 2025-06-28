@@ -119,7 +119,7 @@ local portalDefinitions = {
     portal_teste_sem_spawn = {
         name = "TESTE: Sem Spawn",
         rank = "TEST",
-        map = "plains",
+        map = "dungeon",
         requiredUnitTypes = {},
 
         hordeConfig = {
