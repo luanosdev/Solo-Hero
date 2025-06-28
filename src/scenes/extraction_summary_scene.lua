@@ -51,11 +51,44 @@ function ExtractionSummaryScene:load(args)
     local reputationManager = ManagerRegistry:get("reputationManager")
     if reputationManager then
         print("[ExtractionSummaryScene] Processando reputação...")
+
+        -- Mapear corretamente os parâmetros recebidos
+        local extractedItemsList = {}
+
+        -- Combinar itens da mochila e equipamentos extraídos
+        if args.extractedItems then
+            for _, item in ipairs(args.extractedItems) do
+                -- Verificação robusta antes de adicionar à lista
+                if item and item.itemBaseId and
+                    type(item.itemBaseId) == "string" and item.itemBaseId ~= "" then
+                    table.insert(extractedItemsList, item)
+                else
+                    Logger.warn("[ExtractionSummaryScene:load]",
+                        string.format("Item da mochila inválido ignorado ao processar reputação: itemBaseId = %s",
+                            tostring(item and item.itemBaseId or "nil")))
+                end
+            end
+        end
+
+        if args.extractedEquipment then
+            for _, item in pairs(args.extractedEquipment) do
+                -- Verificação robusta antes de adicionar à lista
+                if item and item.itemBaseId and
+                    type(item.itemBaseId) == "string" and item.itemBaseId ~= "" then
+                    table.insert(extractedItemsList, item)
+                else
+                    Logger.warn("[ExtractionSummaryScene:load]",
+                        string.format("Item de equipamento inválido ignorado ao processar reputação: itemBaseId = %s",
+                            tostring(item and item.itemBaseId or "nil")))
+                end
+            end
+        end
+
         self.reputationDetails = reputationManager:processIncursionResult({
             portalData = args.portalData,
             wasSuccess = args.wasSuccess,
             hunterData = args.hunterData,
-            lootedItems = args.lootedItems,
+            lootedItems = extractedItemsList,
             gameplayStats = args.gameplayStats
         })
     else
@@ -229,7 +262,13 @@ function ExtractionSummaryScene:draw()
     local iconInternalPadding = 4                   -- Padding DENTRO da área do ícone, entre a borda do card do ícone e o ícone real
 
     local function drawItemEntry(itemInstance, currentItemY)
-        if not itemInstance or not itemInstance.itemBaseId then return currentItemY end
+        -- Verificação robusta para itemInstance e itemBaseId
+        if not itemInstance or not itemInstance.itemBaseId or
+            itemInstance.itemBaseId == "" or type(itemInstance.itemBaseId) ~= "string" then
+            Logger.warn("[ExtractionSummaryScene:drawItemEntry]",
+                string.format("Item inválido ignorado: %s", tostring(itemInstance and itemInstance.itemBaseId or "nil")))
+            return currentItemY
+        end
         if currentItemY + itemCardH > columnTopY + columnContentHeight then return currentItemY, true end
 
         local itemBaseData = self.itemDataManager:getBaseItemData(itemInstance.itemBaseId)
@@ -323,11 +362,17 @@ function ExtractionSummaryScene:draw()
         local displayOrder = Constants.EQUIPMENT_SLOTS_ORDER or {}
         for _, slotId in ipairs(displayOrder) do
             local itemInstance = self.args.extractedEquipment[slotId]
-            if itemInstance then
+            -- Verificação adicional antes de chamar drawItemEntry
+            if itemInstance and itemInstance.itemBaseId and
+                type(itemInstance.itemBaseId) == "string" and itemInstance.itemBaseId ~= "" then
                 local newY, hasOverflowed
                 itemDisplayY, hasOverflowed = drawItemEntry(itemInstance, itemDisplayY)
                 if hasOverflowed then break end
                 hasDrawnAnyEquipment = true
+            elseif itemInstance then
+                Logger.warn("[ExtractionSummaryScene:draw]",
+                    string.format("Item de equipamento inválido ignorado no slot %s: itemBaseId = %s",
+                        tostring(slotId), tostring(itemInstance.itemBaseId)))
             end
         end
     end
@@ -340,9 +385,17 @@ function ExtractionSummaryScene:draw()
             love.graphics.setColor(colors.white)
         end
         for _, itemInstance in ipairs(self.args.extractedItems) do
-            local newY, hasOverflowed
-            itemDisplayY, hasOverflowed = drawItemEntry(itemInstance, itemDisplayY)
-            if hasOverflowed then break end
+            -- Verificação adicional antes de chamar drawItemEntry
+            if itemInstance and itemInstance.itemBaseId and
+                type(itemInstance.itemBaseId) == "string" and itemInstance.itemBaseId ~= "" then
+                local newY, hasOverflowed
+                itemDisplayY, hasOverflowed = drawItemEntry(itemInstance, itemDisplayY)
+                if hasOverflowed then break end
+            elseif itemInstance then
+                Logger.warn("[ExtractionSummaryScene:draw]",
+                    string.format("Item da mochila inválido ignorado: itemBaseId = %s",
+                        tostring(itemInstance.itemBaseId)))
+            end
         end
     end
 
@@ -384,11 +437,22 @@ function ExtractionSummaryScene:keypressed(key, scancode, isrepeat)
 
         if loadoutManager and self.args.extractedItems then
             loadoutManager:clearAllItems() -- Limpa o loadout antigo
+            local validItemsCount = 0
             for _, itemInstance in ipairs(self.args.extractedItems) do
-                loadoutManager:addItem(itemInstance.itemBaseId, itemInstance.quantity)
+                -- Verificação robusta antes de salvar no loadout
+                if itemInstance and itemInstance.itemBaseId and
+                    type(itemInstance.itemBaseId) == "string" and itemInstance.itemBaseId ~= "" then
+                    loadoutManager:addItem(itemInstance.itemBaseId, itemInstance.quantity)
+                    validItemsCount = validItemsCount + 1
+                else
+                    Logger.warn("[ExtractionSummaryScene:keypressed]",
+                        string.format("Item inválido ignorado ao salvar no loadout: itemBaseId = %s",
+                            tostring(itemInstance and itemInstance.itemBaseId or "nil")))
+                end
             end
-            Logger.info("ExtractionSummaryScene", string.format("  -> %d itens da mochila salvos no Loadout.",
-                #self.args.extractedItems))
+            Logger.info("ExtractionSummaryScene",
+                string.format("  -> %d itens válidos da mochila salvos no Loadout (de %d total).",
+                    validItemsCount, #self.args.extractedItems))
         end
     end
 

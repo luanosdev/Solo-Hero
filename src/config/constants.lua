@@ -39,7 +39,7 @@ Constants.EQUIPMENT_SLOTS_ORDER = {
 Constants.HUNTER_DEFAULT_STATS = {
     health = 300,
     attackSpeed = 1.0,         -- Attacks per second
-    moveSpeed = 20,
+    moveSpeed = 25,
     critChance = 0.10,         -- 10%
     critDamage = 1.5,          -- 150% Multiplier
     multiAttackChance = 0.1,   -- 20%
@@ -119,6 +119,7 @@ Constants.KNOCKBACK_FORCE = {
     NONE         = 0,   -- Magias de dano contínuo, projéteis fracos
     CHAIN_LASER  = 0,   -- Lança-chamas com alto knockback
     FLAMETHROWER = 0,   -- Força moderada em função da pressão contínua
+    BULLET       = 5,   -- Balas empurram levemente (útil com força alta)
     DUAL_DAGGERS = 10,  -- Golpes rápidos, mas pouco impacto
     BOW          = 25,  -- Flechas empurram levemente (útil com força alta)
     SWORDS       = 50,  -- Golpes médios (espadas comuns)
@@ -146,6 +147,16 @@ Constants.POTION_SYSTEM = {
     MIN_FILL_RATE = 0.5,
     -- Taxa máxima de preenchimento (não pode ser maior que 300%)
     MAX_FILL_RATE = 3.0,
+}
+
+-- Constantes do Sistema de Spawn Otimizado
+Constants.SPAWN_OPTIMIZATION = {
+    -- Número máximo de inimigos spawnados por frame para evitar stuttering
+    MAX_SPAWNS_PER_FRAME = 5,
+    -- Limite mínimo permitido para maxSpawnsPerFrame
+    MIN_SPAWNS_PER_FRAME = 1,
+    -- Limite máximo permitido para maxSpawnsPerFrame
+    MAX_SPAWNS_PER_FRAME_LIMIT = 50,
 }
 
 return Constants

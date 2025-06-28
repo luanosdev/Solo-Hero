@@ -37,7 +37,7 @@ local CONFIG = {
             color = { 0.7, 0.7, 0.7, 0.2 }
         },
         attack = {
-            projectileSpeed = 300,
+            projectileSpeed = 500,
             color = { 1, 1, 1, 1 }
         }
     },

@@ -1,5 +1,4 @@
--- src/config/reputation_config.lua
-
+---@class ReputationConfig
 local ReputationConfig = {
     -- Pontos de reputação necessários para alcançar cada ranking de agência.
     rankThresholds = {
@@ -13,40 +12,40 @@ local ReputationConfig = {
 
     -- Pontos base ganhos ao completar um portal com sucesso, por rank do portal.
     basePointsForSuccess = {
-        E = 50,
-        D = 100,
-        C = 200,
-        B = 400,
-        A = 800,
-        S = 1600,
-        SS = 3200,
+        E = 75,
+        D = 150,
+        C = 300,
+        B = 600,
+        A = 1200,
+        S = 2400,
+        SS = 4800,
     },
 
     -- Fator de multiplicação da penalidade por morte.
-    -- Ex: Morte em portal Rank E -> 50 * 0.4 = 20 pontos perdidos.
-    deathPenaltyMultiplier = 0.4,
+    -- Ex: Morte em portal Rank E -> 75 * 0.2 = 15 pontos perdidos.
+    deathPenaltyMultiplier = 0.2,
 
     -- Bônus/Penalidade baseado na diferença de rank entre o Caçador e o Portal.
     -- A chave é a diferença (hunterRankIndex - portalRankIndex).
     rankDifferenceBonus = {
         -- Caçador tem rank MUITO maior que o portal (fácil demais)
-        [3] = 0.5,  -- -50% de bônus (penalidade)
-        [2] = 0.7,  -- -30% de bônus (penalidade)
+        [3] = 0.3,
+        [2] = 0.5,
         -- Caçador tem rank maior que o portal (fácil)
-        [1] = 0.9,  -- -10% de bônus (penalidade)
+        [1] = 0.8,
         -- Caçador e portal tem o mesmo rank (desafio ideal)
-        [0] = 1.2,  -- +20% de bônus
+        [0] = 1.0,
         -- Caçador tem rank menor que o portal (desafiador)
-        [-1] = 1.5, -- +50% de bônus
+        [-1] = 1.3,
         -- Caçador tem rank MUITO menor (muito desafiador)
-        [-2] = 2.0, -- +100% de bônus (dobro de pontos)
-        [-3] = 2.5, -- +150% de bônus
+        [-2] = 1.6,
+        [-3] = 2.0,
         -- Mais do que isso é considerado o mesmo que -3
     },
 
     -- Como o valor de venda de um item se converte em pontos de reputação.
-    -- Ex: Item vale 100 gold, lootToReputationRatio = 0.5 -> 50 pontos de reputação.
-    lootToReputationRatio = 0.5,
+    -- Ex: Item vale 100 gold, lootToReputationRatio = 0.1 -> 10 pontos de reputação.
+    lootToReputationRatio = 0.1,
 
     -- Mapeamento interno para calcular a diferença de ranks.
     rankOrder = { "E", "D", "C", "B", "A", "S", "SS" },

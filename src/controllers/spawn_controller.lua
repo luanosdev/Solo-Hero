@@ -1,4 +1,11 @@
 local Camera = require("src.config.camera")
+local Logger = require("src.libs.logger")
+local Constants = require("src.config.constants")
+
+---@class SpawnRequest
+---@field enemyClass table
+---@field position { x: number, y: number }
+---@field options table|nil
 
 ---@class SpawnController
 ---@field enemyManager EnemyManager
@@ -12,6 +19,8 @@ local Camera = require("src.config.camera")
 ---@field nextMinorSpawnTime number
 ---@field nextMVPSpawnTime number
 ---@field nextBossIndex number
+---@field spawnQueue SpawnRequest[] Fila de spawns pendentes para distribuir ao longo de múltiplos frames
+---@field maxSpawnsPerFrame number Número máximo de inimigos a spawnar por frame
 local SpawnController = {}
 SpawnController.__index = SpawnController
 
@@ -36,6 +45,10 @@ function SpawnController:new(enemyManager, playerManager, mapManager)
     instance.nextMVPSpawnTime = 0
     instance.nextBossIndex = 1
 
+    -- Sistema de Spawn Distribuído
+    instance.spawnQueue = {}
+    instance.maxSpawnsPerFrame = Constants.SPAWN_OPTIMIZATION.MAX_SPAWNS_PER_FRAME
+
     return instance
 end
 
@@ -46,6 +59,9 @@ function SpawnController:setup(hordeConfig)
     self.timeInCurrentCycle = 0
     self.currentCycleIndex = 1
     self.nextBossIndex = 1
+
+    -- Limpa a fila de spawn de sessões anteriores
+    self.spawnQueue = {}
 
     if not self.worldConfig or not self.worldConfig.cycles or #self.worldConfig.cycles == 0 then
         error("Erro [SpawnController:setup]: Configuração de horda inválida ou vazia fornecida.")
@@ -65,14 +81,17 @@ function SpawnController:setup(hordeConfig)
 
     local mapRank = self.worldConfig.mapRank or "E"
     Logger.info("[SpawnController]",
-        string.format("SpawnController inicializado com Horda Config. Rank Mapa: %s. %d ciclo(s).",
-            mapRank, #self.worldConfig.cycles))
+        string.format("SpawnController inicializado com Horda Config. Rank Mapa: %s. %d ciclo(s). Max spawns/frame: %d.",
+            mapRank, #self.worldConfig.cycles, self.maxSpawnsPerFrame))
 end
 
 ---@param dt number
 function SpawnController:update(dt)
     self.gameTimer = self.gameTimer + dt
     self.timeInCurrentCycle = self.timeInCurrentCycle + dt
+
+    -- Processa a fila de spawn distribuído PRIMEIRO
+    self:processSpawnQueue()
 
     if self.gameTimer >= self.nextMVPSpawnTime then
         self:spawnMVP()
@@ -116,6 +135,46 @@ function SpawnController:update(dt)
     end
 end
 
+--- Processa a fila de spawn distribuído, limitando spawns por frame
+function SpawnController:processSpawnQueue()
+    local spawnsThisFrame = 0
+
+    while #self.spawnQueue > 0 and spawnsThisFrame < self.maxSpawnsPerFrame do
+        if not self.enemyManager:canSpawnMoreEnemies() then
+            Logger.warn("[SpawnController:processSpawnQueue]", "Limite máximo de inimigos atingido.")
+            break
+        end
+
+        local spawnRequest = table.remove(self.spawnQueue, 1)
+        if spawnRequest and spawnRequest.enemyClass then
+            self.enemyManager:spawnSpecificEnemy(
+                spawnRequest.enemyClass,
+                spawnRequest.position,
+                spawnRequest.options
+            )
+            spawnsThisFrame = spawnsThisFrame + 1
+        end
+    end
+
+    if spawnsThisFrame > 0 then
+        Logger.debug("[SpawnController:processSpawnQueue]",
+            string.format("Processados %d spawns. %d restantes na fila.",
+                spawnsThisFrame, #self.spawnQueue))
+    end
+end
+
+--- Adiciona um spawn request à fila
+---@param enemyClass table
+---@param position { x: number, y: number }
+---@param options table|nil
+function SpawnController:addToSpawnQueue(enemyClass, position, options)
+    table.insert(self.spawnQueue, {
+        enemyClass = enemyClass,
+        position = position,
+        options = options
+    })
+end
+
 ---@param currentCycle HordeCycle
 function SpawnController:handleMajorSpawn(currentCycle)
     local spawnConfig = currentCycle.majorSpawn
@@ -124,19 +183,15 @@ function SpawnController:handleMajorSpawn(currentCycle)
         (spawnConfig.baseCount * spawnConfig.countScalePerMin * minutesPassed))
 
     Logger.debug("[SpawnController:handleMajorSpawn]", string.format(
-        "Major Spawn (Ciclo %d) no tempo %.2f: Tentando spawnar %d inimigos.",
+        "Major Spawn (Ciclo %d) no tempo %.2f: Adicionando %d inimigos à fila de spawn.",
         self.currentCycleIndex, self.gameTimer, countToSpawn))
 
+    -- Adiciona spawns à fila ao invés de spawnar imediatamente
     for _ = 1, countToSpawn do
-        if not self.enemyManager:canSpawnMoreEnemies() then
-            Logger.warn("[SpawnController:handleMajorSpawn]", "Limite máximo de inimigos atingido.")
-            break
-        end
-
         local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
         if enemyClass then
             local spawnX, spawnY = self:calculateSpawnPosition()
-            self.enemyManager:spawnSpecificEnemy(enemyClass, { x = spawnX, y = spawnY }, nil)
+            self:addToSpawnQueue(enemyClass, { x = spawnX, y = spawnY }, nil)
         end
     end
 end
@@ -147,28 +202,20 @@ function SpawnController:handleMinorSpawn(currentCycle)
     local countToSpawn = spawnConfig.count
 
     Logger.debug("[SpawnController:handleMinorSpawn]",
-        string.format("Minor Spawn (Ciclo %d) no tempo %.2f", self.currentCycleIndex, self.gameTimer))
+        string.format("Minor Spawn (Ciclo %d) no tempo %.2f: Adicionando %d inimigos à fila de spawn.",
+            self.currentCycleIndex, self.gameTimer, countToSpawn))
 
+    -- Adiciona spawns à fila ao invés de spawnar imediatamente
     for _ = 1, countToSpawn do
-        if not self.enemyManager:canSpawnMoreEnemies() then
-            Logger.warn("[SpawnController:handleMinorSpawn]", "Limite máximo de inimigos atingido.")
-            break
-        end
-
         local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
         if enemyClass then
             local spawnX, spawnY = self:calculateSpawnPosition()
-            self.enemyManager:spawnSpecificEnemy(enemyClass, { x = spawnX, y = spawnY }, nil)
+            self:addToSpawnQueue(enemyClass, { x = spawnX, y = spawnY }, nil)
         end
     end
 end
 
 function SpawnController:spawnMVP()
-    if not self.enemyManager:canSpawnMoreEnemies() then
-        Logger.warn("[SpawnController:spawnMVP]", "Limite máximo de inimigos atingido, não é possível spawnar MVP.")
-        return
-    end
-
     local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
     if not currentCycle then return end
 
@@ -176,6 +223,8 @@ function SpawnController:spawnMVP()
     if not enemyClass then return end
 
     local spawnX, spawnY = self:calculateSpawnPosition()
+    -- MVPs são spawnados imediatamente por prioridade, mas só 1 por vez então não causa gargalo
+    Logger.debug("[SpawnController:spawnMVP]", "Spawnando MVP diretamente (prioridade alta).")
     self.enemyManager:spawnSpecificEnemy(enemyClass, { x = spawnX, y = spawnY }, { isMVP = true })
 end
 
@@ -260,6 +309,32 @@ function SpawnController:calculateSpawnPosition()
     local spawnY = math.random(selectedZone.y, selectedZone.y + selectedZone.height)
 
     return spawnX, spawnY
+end
+
+--- Ajusta o limite de spawns por frame para fine-tuning de performance
+---@param newLimit number Novo limite de spawns por frame
+function SpawnController:setMaxSpawnsPerFrame(newLimit)
+    local minLimit = Constants.SPAWN_OPTIMIZATION.MIN_SPAWNS_PER_FRAME
+    local maxLimit = Constants.SPAWN_OPTIMIZATION.MAX_SPAWNS_PER_FRAME_LIMIT
+
+    if newLimit and newLimit >= minLimit and newLimit <= maxLimit then
+        self.maxSpawnsPerFrame = newLimit
+        Logger.info("[SpawnController:setMaxSpawnsPerFrame]",
+            string.format("Limite de spawns por frame ajustado para: %d", newLimit))
+    else
+        Logger.warn("[SpawnController:setMaxSpawnsPerFrame]",
+            string.format("Limite inválido (%s). Deve ser entre %d e %d.",
+                tostring(newLimit), minLimit, maxLimit))
+    end
+end
+
+--- Retorna informações sobre o estado atual da fila de spawn
+---@return table Estado da fila contendo: count (número de spawns pendentes), maxPerFrame (limite por frame)
+function SpawnController:getSpawnQueueInfo()
+    return {
+        count = #self.spawnQueue,
+        maxPerFrame = self.maxSpawnsPerFrame
+    }
 end
 
 return SpawnController

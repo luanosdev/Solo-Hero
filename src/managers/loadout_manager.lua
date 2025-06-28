@@ -257,13 +257,81 @@ function LoadoutManager:removeItemInstance(instanceId, quantity)
         -- Remove a instância inteira
         local actualW = instance.isRotated and instance.gridHeight or instance.gridWidth
         local actualH = instance.isRotated and instance.gridWidth or instance.gridHeight
-        ItemGridLogic.clearGridArea(self.grid, self.rows, self.cols, instanceId, instance.row, instance.col, actualW,
-        actualH)
+        ItemGridLogic.clearGridArea(
+            self.grid,
+            self.rows,
+            self.cols,
+            instanceId,
+            instance.row,
+            instance.col,
+            actualW,
+            actualH
+        )
         self.items[instanceId] = nil
         Logger.info("[LoadoutManager:removeItemInstance]",
             string.format("Item %s (ID %s) removido.", instance.itemBaseId, instanceId))
         return true
     end
+end
+
+--- Adiciona uma instância de item existente ao loadout, encontrando automaticamente um espaço livre.
+--- Esta função NÃO cria um novo item, ela apenas o "coloca" no loadout.
+--- Útil para mover itens entre inventários.
+--- @param itemInstance table A instância completa do item a ser adicionado.
+--- @return boolean True se o item foi adicionado com sucesso.
+function LoadoutManager:addItemInstance(itemInstance)
+    if not itemInstance or not itemInstance.instanceId or not itemInstance.itemBaseId then
+        Logger.error("[LoadoutManager:addItemInstance]",
+            string.format("Instância de item inválida: %s",
+                tostring(itemInstance and itemInstance.itemBaseId or "nil")))
+        return false
+    end
+
+    -- Tenta empilhar primeiro se o item for stackable
+    local baseData = self:_getItemBaseData(itemInstance.itemBaseId)
+    if baseData and baseData.stackable then
+        local maxStack = baseData.maxStack or 99
+
+        -- Procura por stacks existentes do mesmo item que tenham espaço
+        for id, existingInstance in pairs(self.items) do
+            if existingInstance.itemBaseId == itemInstance.itemBaseId and
+                existingInstance.quantity < maxStack then
+                local spaceAvailable = maxStack - existingInstance.quantity
+                local amountToStack = math.min(itemInstance.quantity, spaceAvailable)
+
+                existingInstance.quantity = existingInstance.quantity + amountToStack
+                itemInstance.quantity = itemInstance.quantity - amountToStack
+
+                Logger.info("[LoadoutManager:addItemInstance]",
+                    string.format("Empilhado %d unidades de %s em stack existente",
+                        amountToStack, itemInstance.itemBaseId))
+
+                -- Se toda a quantidade foi empilhada, retorna sucesso
+                if itemInstance.quantity <= 0 then
+                    return true
+                end
+            end
+        end
+    end
+
+    -- Se restou quantidade (ou não é stackable), procura espaço livre
+    if itemInstance.quantity > 0 then
+        local width = itemInstance.gridWidth or baseData.gridWidth or 1
+        local height = itemInstance.gridHeight or baseData.gridHeight or 1
+
+        local freeSpace = ItemGridLogic.findFreeSpace(self.grid, self.rows, self.cols, width, height)
+
+        if freeSpace then
+            return self:addItemInstanceAt(itemInstance, freeSpace.row, freeSpace.col, false)
+        else
+            Logger.warn("[LoadoutManager:addItemInstance]",
+                string.format("Sem espaço no loadout para %s (%dx%d).",
+                    itemInstance.itemBaseId, width, height))
+            return false
+        end
+    end
+
+    return true
 end
 
 --- Adiciona uma instância de item existente ao loadout em uma posição específica.

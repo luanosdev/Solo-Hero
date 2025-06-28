@@ -171,36 +171,66 @@ end
 ]]
 function love.quit()
     Logger.debug("Main", "Iniciando love.quit()...")
+
+    -- Verifica se estamos numa sessão ativa de gameplay
+    local isInActiveGameplaySession = false
+    if SceneManager.currentScene then
+        -- Verifica se é GameplayScene olhando por propriedades específicas
+        local isGameplayScene = SceneManager.currentScene.gameOverManager ~= nil and
+            SceneManager.currentScene.currentPortalData ~= nil and
+            SceneManager.currentScene.hunterId ~= nil
+
+        if isGameplayScene then
+            -- Verifica se o player ainda não entrou na sequência de extração
+            local extractionManager = ManagerRegistry:get("extractionManager")
+            local isInExtractionSequence = extractionManager and extractionManager:isPlayingExtrationSequence()
+            local isGameOver = SceneManager.currentScene.gameOverManager and
+                SceneManager.currentScene.gameOverManager.isGameOverActive
+
+            -- Se não está em extração E não está em game over, então está numa sessão ativa
+            isInActiveGameplaySession = not isInExtractionSequence and not isGameOver
+
+            if isInActiveGameplaySession then
+                Logger.info("Main",
+                    "Detectada sessão ativa de gameplay - evitando salvamento para prevenir perda de progresso")
+            end
+        end
+    end
+
     -- Chama o método de unload da cena atual, se existir
     if SceneManager.currentScene and SceneManager.currentScene.unload then
         SceneManager.currentScene:unload()
         SceneManager.currentScene = nil -- Limpa referência
     end
 
-    -- Salvar estado de Managers Globais/Persistentes (Exemplo)
-    Logger.debug("Main", "Solicitando salvamento final dos managers persistentes...")
-    local hunterMgr = ManagerRegistry:get("hunterManager")
-    if hunterMgr and hunterMgr.saveState then
-        Logger.debug("Main", "  - Salvando HunterManager...")
-        hunterMgr:saveState()
-    end
-    local loadoutMgr = ManagerRegistry:get("loadoutManager")
-    if loadoutMgr and loadoutMgr.saveState then -- saveState() pode não existir em LoadoutManager? Verificar
-        Logger.debug("Main", "  - Salvando LoadoutManager...")
-        loadoutMgr:saveState()                  -- Ou :saveAllLoadouts() se for o caso
-    end
-    local lobbyStorageMgr = ManagerRegistry:get("lobbyStorageManager")
-    if lobbyStorageMgr and lobbyStorageMgr.saveStorage then
-        Logger.debug("Main", "  - Salvando LobbyStorageManager...")
-        lobbyStorageMgr:saveStorage()
-    end
-    -- Adicione saves para outros managers persistentes aqui se necessário
+    -- Só salva se NÃO estiver numa sessão ativa de gameplay
+    if not isInActiveGameplaySession then
+        Logger.debug("Main", "Solicitando salvamento final dos managers persistentes...")
+        local hunterMgr = ManagerRegistry:get("hunterManager")
+        if hunterMgr and hunterMgr.saveState then
+            Logger.debug("Main", "  - Salvando HunterManager...")
+            hunterMgr:saveState()
+        end
+        local loadoutMgr = ManagerRegistry:get("loadoutManager")
+        if loadoutMgr and loadoutMgr.saveState then -- saveState() pode não existir em LoadoutManager? Verificar
+            Logger.debug("Main", "  - Salvando LoadoutManager...")
+            loadoutMgr:saveState()                  -- Ou :saveAllLoadouts() se for o caso
+        end
+        local lobbyStorageMgr = ManagerRegistry:get("lobbyStorageManager")
+        if lobbyStorageMgr and lobbyStorageMgr.saveStorage then
+            Logger.debug("Main", "  - Salvando LobbyStorageManager...")
+            lobbyStorageMgr:saveStorage()
+        end
+        -- Adicione saves para outros managers persistentes aqui se necessário
 
-    ---@type AgencyManager
-    local agencyMgr = ManagerRegistry:get("agencyManager")
-    if agencyMgr and agencyMgr:hasAgency() then
-        Logger.debug("Main", "  - Salvando AgencyManager...")
-        agencyMgr:saveState()
+        ---@type AgencyManager
+        local agencyMgr = ManagerRegistry:get("agencyManager")
+        if agencyMgr and agencyMgr:hasAgency() then
+            Logger.debug("Main", "  - Salvando AgencyManager...")
+            agencyMgr:saveState()
+        end
+    else
+        Logger.info("Main", "Salvamento ignorado devido à sessão ativa de gameplay")
     end
 
     Logger.debug("Main", "love.quit() concluído.")

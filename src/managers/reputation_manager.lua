@@ -17,17 +17,35 @@ function ReputationManager:new(agencyManager, itemDataManager)
     return instance
 end
 
+---@class ReputationManagerParams
+---@field extractionSuccessful boolean|nil Se a extração foi bem-sucedida (compatibilidade).
+---@field wasSuccess boolean|nil Se a extração foi bem-sucedida (novo formato).
+---@field portalData table Dados do portal (ex: { id = "...", rank = "C" }).
+---@field hunterData table Dados do caçador (ex: { id = "...", finalRankId = "B" }).
+---@field lootedItems table<ItemInstance> | nil Lista de itens adquiridos na incursão.
+
 --- Calcula e aplica a mudança de reputação após uma incursão em portal.
 --- Além de aplicar, retorna os detalhes do cálculo para UI.
----@param params table
----@param params.extractionSuccessful boolean Se a extração foi bem-sucedida.
----@param params.portalData table Dados do portal (ex: { id = "...", rank = "C" }).
----@param params.hunterData table Dados do caçador (ex: { id = "...", finalRankId = "B" }).
----@param params.lootedItems table<ItemInstance> | nil Lista de itens adquiridos na incursão.
+---@param params ReputationManagerParams
 ---@return table reputationDetails Contém o detalhamento dos pontos ganhos/perdidos.
 function ReputationManager:processIncursionResult(params)
     assert(params.portalData and params.portalData.rank, "Dados do portal ou rank do portal ausente.")
     assert(params.hunterData and params.hunterData.finalRankId, "Dados do caçador ou rank do caçador ausente.")
+
+    -- Suporte para ambos os nomes de parâmetros (extractionSuccessful e wasSuccess)
+    local extractionSuccessful = params.extractionSuccessful
+    if extractionSuccessful == nil then
+        extractionSuccessful = params.wasSuccess
+    end
+
+    print(string.format(
+        "[ReputationManager] Processando incursão: Portal %s (rank %s), Hunter %s (rank %s), Sucesso: %s",
+        params.portalData.name or "Desconhecido",
+        params.portalData.rank,
+        params.hunterData.name or "Desconhecido",
+        params.hunterData.finalRankId,
+        tostring(extractionSuccessful)
+    ))
 
     local basePoints = ReputationConfig.basePointsForSuccess[params.portalData.rank] or 0
     if basePoints == 0 then
@@ -44,10 +62,10 @@ function ReputationManager:processIncursionResult(params)
         lootPoints = 0,
         penaltyMultiplier = 0,
         totalChange = 0,
-        wasSuccess = params.extractionSuccessful
+        wasSuccess = extractionSuccessful
     }
 
-    if params.extractionSuccessful then
+    if extractionSuccessful then
         -- SUCESSO NA EXTRAÇÃO
         local rankBonusMultiplier = self:_getRankDifferenceBonus(params.hunterData.finalRankId, params.portalData.rank)
         local lootPoints = self:_calculateLootPoints(params.lootedItems)

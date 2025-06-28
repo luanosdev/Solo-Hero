@@ -378,7 +378,7 @@ function GameOverManager:handleExit()
         gameplayStats = self.gameplayStats,
         archetypeIds = self.archetypeIds,
         archetypeManagerInstance = self.archetypeManagerInstance,
-        lootedItems = {} -- Nenhum item é extraído na morte
+        hunterId = self.hunterId
     }
 
     self.sceneManager.switchScene("extraction_summary_scene", params)

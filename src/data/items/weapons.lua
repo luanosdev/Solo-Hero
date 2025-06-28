@@ -134,6 +134,8 @@ local weapons = {
         animationFolderPath = "sword_tier_1",
         modifiers = {
             { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.1 },
+            { stat = "force",      type = "fixed",                        value = 5 },
+            { stat = "health",     type = "fixed",                        value = 50 },
         },
         value = 200,
     },
@@ -152,8 +154,8 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 100,
-        cooldown = 0.6,
-        range = 100,
+        cooldown = 0.4,
+        range = 120,
         angle = math.rad(150),
         attackClass = "alternating_cone_strike",
         weaponClass = "base_weapon",
@@ -161,8 +163,7 @@ local weapons = {
         knockbackForce = Constants.KNOCKBACK_FORCE.DUAL_DAGGERS,
         modifiers = {
             { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.2 },
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.5 },
-            { stat = "moveSpeed",  type = "fixed",                        value = 10 },
+            { stat = "moveSpeed",  type = "fixed",                        value = 5 },
         },
         value = 100,
     },
@@ -181,19 +182,19 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 50,
-        cooldown = 0.4,
-        range = 120,
+        cooldown = 0.2,
+        range = 150,
         angle = math.rad(30),
         attackClass = "flame_stream",
         weaponClass = "base_weapon",
         projectileClass = "fire_particle",
         -- Atributos específicos do Lança-Chamas
-        particleScale = 0.8,                             -- Escala base da partícula
+        particleScale = 0.9,                             -- Escala base da partícula
         piercing = 5,                                    -- Pontos de perfuração inerentes da arma
         knockbackPower = Constants.KNOCKBACK_POWER.NONE, -- Sem knockback por partícula, pois é contínuo (mas projéteis individuais podem ter)
         knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
         modifiers = {
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.1 },
+            { stat = "defense",    type = "fixed",                        value = 10 },
             { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.5 },
         },
         value = 200,
@@ -228,9 +229,7 @@ local weapons = {
         knockbackForce = Constants.KNOCKBACK_FORCE.BOW,
         modifiers = {
             { stat = "moveSpeed",   type = "fixed",                        value = 5 },
-            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.1 },
-            { stat = "critDamage",  type = "fixed_percentage_as_fraction", value = 0.5 },
-            { stat = "multiAttack", type = "fixed_percentage_as_fraction", value = 0.3 },
+            { stat = "multiAttack", type = "fixed_percentage_as_fraction", value = 0.4 },
         },
         value = 200,
     },
@@ -248,9 +247,9 @@ local weapons = {
         gridHeight = 1,
         stackable = false,
         maxStack = 1,
-        damage = 150,
+        damage = 100,
         cooldown = 0.5,
-        range = 100,
+        range = 150,
         -- Atributos específicos da Bobina
         chainCount = 3,
         jumpRange = 100,
@@ -258,6 +257,9 @@ local weapons = {
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.NONE,
         knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
+        modifiers = {
+            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 1 },
+        },
         value = 100,
     },
     ---@type SpreadProjectileWeapon
@@ -273,8 +275,8 @@ local weapons = {
         gridHeight = 2,
         stackable = false,
         maxStack = 1,
-        damage = 50, -- Dano por projétil
-        cooldown = 1.8,
+        damage = 80, -- Dano por projétil
+        cooldown = 1.5,
         range = 200,
         angle = math.rad(25),        -- Abertura do leque de 25 graus
         -- Atributos específicos
@@ -284,7 +286,11 @@ local weapons = {
         projectileClass = "bullet",  -- O novo projétil que criamos
         weaponClass = "base_weapon", -- Usa a implementação genérica de BaseWeapon
         knockbackPower = Constants.KNOCKBACK_POWER.MEDIUM,
-        knockbackForce = Constants.KNOCKBACK_FORCE.HAMMER,
+        knockbackForce = Constants.KNOCKBACK_FORCE.BULLET,
+        modifiers = {
+            { stat = "defense", type = "fixed", value = 10 },
+            { stat = "force",   type = "fixed", value = 15 },
+        },
         value = 150,
     },
     ---@type SequentialProjectileWeapon
@@ -300,18 +306,23 @@ local weapons = {
         gridHeight = 2,
         stackable = false,
         maxStack = 1,
-        damage = 20,    -- Dano por projétil
-        cooldown = 1.0, -- Tempo de espera entre as rajadas
+        damage = 33,    -- Dano por projétil
+        cooldown = 0.8, -- Tempo de espera entre as rajadas
         range = 250,
         -- Atributos específicos
-        projectiles = 5, -- 4 projéteis por rajada
+        projectiles = 5, -- 5 projéteis por rajada
         cadence = 0.08,  -- Tempo entre os disparos da mesma rajada
         piercing = 1,
         attackClass = "sequential_projectile",
         projectileClass = "bullet",
         weaponClass = "base_weapon",
-        knockbackPower = Constants.KNOCKBACK_POWER.LOW,
-        knockbackForce = Constants.KNOCKBACK_FORCE.BOW,
+        knockbackPower = Constants.KNOCKBACK_POWER.VERY_LOW,
+        knockbackForce = Constants.KNOCKBACK_FORCE.BULLET,
+        modifiers = {
+            { stat = "moveSpeed",  type = "fixed",                        value = 5 },
+            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.1 },
+            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.5 },
+        },
         value = 100,
     },
 

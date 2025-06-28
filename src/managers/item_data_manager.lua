@@ -63,6 +63,11 @@ end
 ---@param itemBaseId string O ID base do item a ser obtido.
 ---@return CircularSmashWeapon|ConeWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon|table data Os dados base do item, ou nil se o itemBaseId não for encontrado.
 function ItemDataManager:getBaseItemData(itemBaseId)
+    -- Verificação robusta para itemBaseId inválido
+    if not itemBaseId or itemBaseId == "" or type(itemBaseId) ~= "string" then
+        error("AVISO [ItemDataManager]: itemBaseId inválido fornecido: " .. tostring(itemBaseId))
+    end
+
     local data = self.itemDatabase[itemBaseId]
     if not data then
         error("AVISO [ItemDataManager]: Dados base não encontrados para ID: " .. itemBaseId)
@@ -82,8 +87,9 @@ end
 ---@param quantity integer (Opcional) A quantidade para a instância (padrão 1).
 ---@return table newInstance A nova instância do item.
 function ItemDataManager:createItemInstanceById(itemBaseId, quantity)
-    if not itemBaseId then
-        error("AVISO [ItemDataManager:createItemInstanceById]: itemBaseId não fornecido.")
+    -- Verificação robusta para itemBaseId
+    if not itemBaseId or itemBaseId == "" or type(itemBaseId) ~= "string" then
+        error("AVISO [ItemDataManager:createItemInstanceById]: itemBaseId inválido fornecido: " .. tostring(itemBaseId))
     end
 
     local baseData = self:getBaseItemData(itemBaseId)
@@ -103,6 +109,13 @@ function ItemDataManager:createItemInstanceById(itemBaseId, quantity)
     newInstance.instanceId = uuid.generate()
     newInstance.quantity = quantity or 1
     newInstance.itemBaseId = itemBaseId -- Garante que itemBaseId está na instância
+
+    -- Validação final para garantir integridade da instância
+    if not newInstance.itemBaseId or newInstance.itemBaseId == "" then
+        error(string.format(
+            "ERRO [ItemDataManager:createItemInstanceById]: Falha ao definir itemBaseId na instância. ID base: %s",
+            itemBaseId))
+    end
 
     -- Adiciona outros campos padrão de instância, se necessário
     -- Exemplo: newInstance.isRotated = false

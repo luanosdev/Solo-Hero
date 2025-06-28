@@ -162,6 +162,9 @@ function PlayerManager:setupGameplay(registry, hunterId)
         error(string.format("[PlayerManager:setupGameplay]: Falha ao obter dados para hunter ID: %s", hunterId))
     end
 
+    -- Corrige hunterStats para incluir as instâncias completas dos itens equipados
+    hunterStats.equippedItems = equippedItems
+
     -- 3. Inicializa PlayerStateController
     self.stateController = PlayerStateController:new(self, hunterStats)
 

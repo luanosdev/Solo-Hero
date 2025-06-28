@@ -390,6 +390,113 @@ function LobbyScene:update(dt)
         if self.equipmentScreen and self.equipmentScreen.update then
             self.equipmentScreen:update(dt, mx, my, currentDragState)
         end
+
+        -- Lógica de atualização do drag and drop para Equipment Screen
+        if self.isDragging then
+            self.targetGridId = nil
+            self.targetSlotCoords = nil
+            self.isDropValid = false
+
+            local visualW = self.draggedItem.gridWidth or 1
+            local visualH = self.draggedItem.gridHeight or 1
+            if self.draggedItemIsRotated then
+                visualW = self.draggedItem.gridHeight or 1
+                visualH = self.draggedItem.gridWidth or 1
+            end
+
+            local isMouseOverStorage = self.storageGridArea.x and mx >= self.storageGridArea.x and
+                mx < self.storageGridArea.x + self.storageGridArea.w and my >= self.storageGridArea.y and
+                my < self.storageGridArea.y + self.storageGridArea.h
+            local isMouseOverLoadout = self.loadoutGridArea.x and mx >= self.loadoutGridArea.x and
+                mx < self.loadoutGridArea.x + self.loadoutGridArea.w and my >= self.loadoutGridArea.y and
+                my < self.loadoutGridArea.y + self.loadoutGridArea.h
+
+            local hoverEquipmentSlot = false
+            if self.equipmentSlotAreas then
+                for slotId, area in pairs(self.equipmentSlotAreas) do
+                    if area and mx >= area.x and mx < area.x + area.w and my >= area.y and my < area.y + area.h then
+                        self.targetGridId = "equipment"
+                        self.targetSlotCoords = slotId
+                        hoverEquipmentSlot = true
+                        -- Validação de drop para equipamento
+                        if self.itemDataManager and self.draggedItem then
+                            local baseData = self.itemDataManager:getBaseItemData(self.draggedItem.itemBaseId)
+                            local itemType = baseData and baseData.type
+                            local expectedType = nil
+                            if slotId == Constants.SLOT_IDS.WEAPON then
+                                expectedType = "weapon"
+                            elseif slotId == Constants.SLOT_IDS.HELMET then
+                                expectedType = "helmet"
+                            elseif slotId == Constants.SLOT_IDS.CHEST then
+                                expectedType = "chest"
+                            elseif slotId == Constants.SLOT_IDS.GLOVES then
+                                expectedType = "gloves"
+                            elseif slotId == Constants.SLOT_IDS.BOOTS then
+                                expectedType = "boots"
+                            elseif slotId == Constants.SLOT_IDS.LEGS then
+                                expectedType = "legs"
+                            elseif string.sub(slotId, 1, 5) == "rune_" then
+                                expectedType = "rune"
+                            end
+                            self.isDropValid = (expectedType and expectedType == itemType)
+                        else
+                            self.isDropValid = false
+                        end
+                        break
+                    end
+                end
+            end
+
+            if not hoverEquipmentSlot then
+                if isMouseOverStorage then
+                    self.targetGridId = "storage"
+                    local storageRows, storageCols = self.lobbyStorageManager:getActiveSectionDimensions()
+                    if storageRows and storageCols then
+                        local ItemGridUI = require("src.ui.item_grid_ui")
+                        self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, storageRows, storageCols,
+                            self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w,
+                            self.storageGridArea.h)
+                        if self.targetSlotCoords then
+                            self.isDropValid = self.lobbyStorageManager:canPlaceItemAt(
+                                self.draggedItem, self.targetSlotCoords.row, self.targetSlotCoords.col, visualW, visualH,
+                                self.draggedItem.instanceId)
+                        end
+                    else
+                        self.isDropValid = false
+                    end
+                elseif isMouseOverLoadout then
+                    self.targetGridId = "loadout"
+                    local loadoutRows, loadoutCols = self.loadoutManager:getDimensions()
+                    if loadoutRows and loadoutCols then
+                        local ItemGridUI = require("src.ui.item_grid_ui")
+                        self.targetSlotCoords = ItemGridUI.getSlotCoordsAtMouse(mx, my, loadoutRows, loadoutCols,
+                            self.loadoutGridArea.x, self.loadoutGridArea.y, self.loadoutGridArea.w,
+                            self.loadoutGridArea.h)
+                        if self.targetSlotCoords then
+                            self.isDropValid = self.loadoutManager:canPlaceItemAt(self.draggedItem,
+                                self.targetSlotCoords.row, self.targetSlotCoords.col, visualW, visualH,
+                                self.draggedItem.instanceId)
+                        end
+                    else
+                        self.isDropValid = false
+                    end
+                end
+            end
+
+            if self.targetSlotCoords then
+                local manager = (self.targetGridId == "storage") and self.lobbyStorageManager or self.loadoutManager
+                if manager and manager.getItemInstanceAtCoords then
+                    local item_at_target = manager:getItemInstanceAtCoords(self.targetSlotCoords.row,
+                        self.targetSlotCoords.col)
+                    print(string.format(
+                        "LobbyScene:update - Target: %s[%s,%s], Dragged: %s, ValidDrop: %s, ItemAtTarget: %s",
+                        self.targetGridId, self.targetSlotCoords.row, self.targetSlotCoords.col,
+                        self.draggedItem and self.draggedItem.itemBaseId or "nil",
+                        tostring(self.isDropValid),
+                        item_at_target and item_at_target.itemBaseId or "nil"))
+                end
+            end
+        end
     elseif activeTab and activeTab.id == TabIds.SHOPPING then
         local currentDragState = {
             isDragging = self.isDragging,
