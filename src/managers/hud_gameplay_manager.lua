@@ -76,7 +76,6 @@ function HUDGameplayManager:setupGameplay()
     local xpGainFont = fonts.main_small
     local hunterData = hunterManager:getHunterData(playerManager.currentHunterId)
 
-    
     local initialLevel = playerManager.stateController:getCurrentLevel()
     local initialXP = playerManager.stateController:getCurrentExperience()
     local initialHP = playerManager.stateController.currentHealth
@@ -201,12 +200,16 @@ end
 ---@param duration number Duração em segundos.
 ---@param text string Texto a ser exibido na barra.
 function HUDGameplayManager:startExtractionTimer(duration, text)
-    self.extractionProgressBar:start(duration, text)
+    if self.extractionProgressBar then
+        self.extractionProgressBar:start(duration, text)
+    end
 end
 
 --- Para a barra de progresso de extração.
 function HUDGameplayManager:stopExtractionTimer()
-    self.extractionProgressBar:stop()
+    if self.extractionProgressBar then
+        self.extractionProgressBar:stop()
+    end
 end
 
 --- Verifica se a barra de progresso de extração concluiu.
@@ -383,7 +386,10 @@ function HUDGameplayManager:draw(isPaused)
         self.potionDisplay:draw(readyFlasks, totalFlasks, flasksInfo)
     end
 
-    self.extractionProgressBar:draw()
+    -- Desenha a barra de progresso de extração
+    if self.extractionProgressBar then
+        self.extractionProgressBar:draw()
+    end
 
     if self.portalIndicators then
         for _, indicator in ipairs(self.portalIndicators) do

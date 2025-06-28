@@ -31,119 +31,63 @@ GameplayScene.gameOverManager = nil         -- Instância do GameOverManager
 GameplayScene.bossPresentationManager = nil -- Instância do BossPresentationManager
 
 function GameplayScene:load(args)
-    Logger.debug("GameplayScene", "GameplayScene:load - Inicializando sistemas de gameplay...")
-    self.renderPipeline = RenderPipeline:new()
+    Logger.debug("GameplayScene", "GameplayScene:load - Configurando gameplay para sessão...")
+
+    -- Extrai argumentos (já validados pela GameLoadingScene)
     self.portalId = args and args.portalId or "floresta_assombrada"
     self.hordeConfig = args and args.hordeConfig or nil
     self.hunterId = args and args.hunterId or nil
+    self.currentPortalData = portalDefinitions[self.portalId]
 
-    -- Instancia e inicializa o GameOverManager
+    -- Inicializa sistemas específicos do gameplay
+    self.renderPipeline = RenderPipeline:new()
+
+    -- Instancia managers específicos da sessão
     self.gameOverManager = GameOverManager:new()
-    self.gameOverManager:init(ManagerRegistry, SceneManager) -- Passa dependências
-    self.gameOverManager:reset()                             -- Garante estado inicial limpo
+    self.gameOverManager:init(ManagerRegistry, SceneManager)
+    self.gameOverManager:reset()
 
-    -- Instancia o BossPresentationManager
     self.bossPresentationManager = BossPresentationManager:new()
 
-    -- Instancia o UiGameplayManager
-
-    self.currentPortalData = portalDefinitions[self.portalId]
-    if not self.currentPortalData then
-        Logger.error("GameplayScene",
-            string.format("ERRO CRÍTICO [GameplayScene:load]: Definição do portal '%s' não encontrada!", self.portalId))
-    end
-    -- Se hordeConfig não foi passado via args, pega do portalData (se existir)
-    if not self.hordeConfig and self.currentPortalData.hordeConfig then
-        self.hordeConfig = self.currentPortalData.hordeConfig
-        Logger.debug("GameplayScene",
-            string.format("GameplayScene: Usando hordeConfig do portalDefinition para '%s'", self.portalId))
-    end
-
-    -- Validações iniciais
-    if not self.hordeConfig then
-        Logger.error("GameplayScene",
-            "ERRO CRÍTICO [GameplayScene:load]: Nenhuma hordeConfig fornecida ou encontrada no portalDefinition!")
-    end
-    if not self.hunterId then
-        Logger.error("GameplayScene",
-            "ERRO CRÍTICO [GameplayScene:load]: Nenhum hunterId fornecido!")
-    end
-    Logger.debug("GameplayScene",
-        string.format("  - Carregando portal ID: %s, Hunter ID: %s", self.portalId, self.hunterId))
-
+    -- Estado inicial da UI
     self.isPaused = false
-    self.mapManager = nil
-
-    if not fonts.main then fonts.load() end
-    -- Garante que a fonte de game over seja carregada
-    if not fonts.gameOver then
-        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Bold.ttf", 48)
-        if success then fonts.gameOver = font else fonts.gameOver = fonts.title_large or fonts.main end
-    end
-    if not fonts.gameOverDetails then
-        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Regular.ttf", 24)
-        if success then fonts.gameOverDetails = font else fonts.gameOverDetails = fonts.main_small or fonts.main end
-    end
-    if not fonts.gameOverFooter then
-        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Regular.ttf", 20)
-        if success then fonts.gameOverFooter = font else fonts.gameOverFooter = fonts.debug or fonts.main_small end
-    end
-
-    self.inventoryDragState = { isDragging = false, draggedItem = nil, draggedItemOffsetX = 0, draggedItemOffsetY = 0, sourceGridId = nil, sourceSlotId = nil, draggedItemIsRotated = false, targetGridId = nil, targetSlotCoords = nil, isDropValid = false }
+    self.inventoryDragState = {
+        isDragging = false,
+        draggedItem = nil,
+        draggedItemOffsetX = 0,
+        draggedItemOffsetY = 0,
+        sourceGridId = nil,
+        sourceSlotId = nil,
+        draggedItemIsRotated = false,
+        targetGridId = nil,
+        targetSlotCoords = nil,
+        isDropValid = false
+    }
     self.inventoryEquipmentAreas = {}
     self.inventoryGridArea = {}
 
+    -- Carrega shader de glow (operação rápida)
     local success, shaderOrErr = pcall(love.graphics.newShader, "assets/shaders/glow.fs")
     if success then
-        elements.setGlowShader(shaderOrErr); InventoryScreen.setGlowShader(shaderOrErr);
+        elements.setGlowShader(shaderOrErr)
+        InventoryScreen.setGlowShader(shaderOrErr)
         Logger.debug("GameplayScene", "Glow shader carregado.")
     else
         Logger.warn("GameplayScene", "Aviso - Falha ao carregar glow shader.")
     end
 
+    -- Inicializa camera
     Camera:init()
-    Logger.debug("GameplayScene", "Chamado Camera:init() no módulo global.")
-    AnimationLoader.loadInitial()
-    if self.currentPortalData and self.currentPortalData.requiredUnitTypes then
-        AnimationLoader.loadUnits(self.currentPortalData.requiredUnitTypes)
-    else
-        Logger.error("GameplayScene", string.format(
-            "AVISO [GameplayScene:load]: Portal '%s' não possui requiredUnitTypes. Nenhuma animação de unidade específica do portal foi carregada.",
-            self.portalId))
-    end
 
-    Bootstrap.initialize()
+    -- Obtém managers (já inicializados pela GameLoadingScene)
+    local enemyMgr = ManagerRegistry:get("enemyManager") ---@type EnemyManager
+    local dropMgr = ManagerRegistry:get("dropManager") ---@type DropManager
+    local playerMgr = ManagerRegistry:get("playerManager") ---@type PlayerManager
+    local hudGameplayManager = ManagerRegistry:get("hudGameplayManager") ---@type HUDGameplayManager
+    local extractionPortalManager = ManagerRegistry:get("extractionPortalManager") ---@type ExtractionPortalManager
+    local extractionManager = ManagerRegistry:get("extractionManager") ---@type ExtractionManager
 
-    ---@type EnemyManager
-    local enemyMgr = ManagerRegistry:get("enemyManager")
-    ---@type DropManager
-    local dropMgr = ManagerRegistry:get("dropManager")
-    ---@type PlayerManager
-    local playerMgr = ManagerRegistry:get("playerManager")
-    ---@type ItemDataManager
-    local itemDataMgr = ManagerRegistry:get("itemDataManager")
-    ---@type ExperienceOrbManager
-    local experienceOrbMgr = ManagerRegistry:get("experienceOrbManager")
-    ---@type HUDGameplayManager
-    local hudGameplayManager = ManagerRegistry:get("hudGameplayManager")
-    ---@type ExtractionPortalManager
-    local extractionPortalManager = ManagerRegistry:get("extractionPortalManager")
-    ---@type ExtractionManager
-    local extractionManager = ManagerRegistry:get("extractionManager")
-
-    if not playerMgr or not enemyMgr or not dropMgr or not itemDataMgr or not experienceOrbMgr or not extractionPortalManager then
-        local missing = {}
-        if not playerMgr then table.insert(missing, "PlayerManager") end
-        if not enemyMgr then table.insert(missing, "EnemyManager") end
-        if not dropMgr then table.insert(missing, "DropManager") end
-        if not itemDataMgr then table.insert(missing, "ItemDataManager") end
-        if not experienceOrbMgr then table.insert(missing, "ExperienceOrbManager") end
-        if not extractionPortalManager then table.insert(missing, "ExtractionPortalManager") end
-        Logger.error("GameplayScene",
-            "ERRO CRÍTICO [GameplayScene:load]: Falha ao obter managers: " .. table.concat(missing, ", "))
-    end
-
-    -- CRIAR SPRITEBATCHES PARA ANIMAÇÕES CARREGADAS
+    -- Cria SpriteBatches para o RenderPipeline
     if AnimatedSpritesheet and AnimatedSpritesheet.assets then
         for unitType, unitAssets in pairs(AnimatedSpritesheet.assets) do
             if unitAssets.sheets then
@@ -152,25 +96,23 @@ function GameplayScene:load(args)
                         local maxSpritesInBatch = enemyMgr and enemyMgr.maxEnemies or 200
                         local newBatch = love.graphics.newSpriteBatch(sheetTexture, maxSpritesInBatch)
                         self.renderPipeline:registerSpriteBatch(sheetTexture, newBatch)
-                        Logger.debug("GameplayScene",
-                            string.format("GameplayScene: Criado e Registrado SpriteBatch para textura de %s - %s",
-                                unitType,
-                                animName))
                     end
                 end
             end
         end
     end
 
+    -- Instancia ProceduralMapManager para esta sessão
     local mapName = self.currentPortalData.map
     if not mapName then
-        error("GameplayScene:load  O portal " .. self.portalId .. " não define um 'map'.")
+        error("GameplayScene:load - O portal " .. self.portalId .. " não define um 'map'.")
     end
     self.mapManager = ProceduralMapManager:new(mapName, AssetManager)
-    self.renderPipeline:setMapManager(self.mapManager) -- Configura no RenderPipeline
-    Logger.debug("GameplayScene", "ProceduralMapManager instanciado e configurado no RenderPipeline.")
+    self.renderPipeline:setMapManager(self.mapManager)
 
+    -- Configura managers para esta sessão específica
     playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
+
     local enemyManagerConfig = {
         hordeConfig = self.hordeConfig,
         playerManager = playerMgr,
@@ -178,12 +120,15 @@ function GameplayScene:load(args)
         mapManager = self.mapManager
     }
     enemyMgr:setupGameplay(enemyManagerConfig)
+
+    -- IMPORTANTE: Configura HUD ANTES de resetar sistemas que dependem dele
     hudGameplayManager:setupGameplay()
 
-    -- Limpa o estado do ExtractionManager ao carregar a cena
+    -- Configura sistemas de extração (APÓS HUD estar configurado)
     extractionManager:reset(self.currentPortalData)
     extractionPortalManager:spawnPortals()
 
+    -- Captura snapshot inicial de itens
     self:_snapshotInitialItems()
 
     -- DEBUG: Spawna uma arma de rank E aleatória perto do jogador
@@ -199,13 +144,10 @@ function GameplayScene:load(args)
     }
     local randomWeaponId = rankEWeapons[math.random(#rankEWeapons)]
     self:createDropNearPlayer(randomWeaponId)
-    Logger.info("GameplayScene", "Arma de rank E aleatória dropada perto do jogador: " .. randomWeaponId)
 
-    -- Configura o callback de morte do jogador para usar o GameOverManager
+    -- Configura callback de morte do jogador
     playerMgr:setOnPlayerDiedCallback(function()
-        Logger.info("GameplayScene", "Callback de morte do jogador acionado - iniciando limpeza para Game Over...")
-
-        -- Executa limpeza específica para Game Over
+        Logger.info("gameplay_scene.load", "[GameplayScene:load] Callback de morte do jogador acionado")
         self:_cleanupForGameOver()
 
         -- Obtém a causa da morte (último inimigo que causou dano)
@@ -224,6 +166,7 @@ function GameplayScene:load(args)
         self.gameOverManager:start(self.currentPortalData, deathCause)
     end)
 
+    -- Posiciona camera inicial
     local playerInitialPos = playerMgr:getPlayerPosition()
     if playerInitialPos then
         local initialCamX = playerInitialPos.x - (Camera.screenWidth / 2)
@@ -233,7 +176,7 @@ function GameplayScene:load(args)
         Camera:setPosition(0, 0)
     end
 
-    Logger.debug("GameplayScene", "GameplayScene:load concluído.")
+    Logger.debug("gameplay_scene.load", "[GameplayScene:load] GameplayScene:load concluído - sessão pronta para iniciar.")
 end
 
 function GameplayScene:createDropNearPlayer(dropId)
