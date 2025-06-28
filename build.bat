@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 REM Script de Deploy para Love2D (Windows)
 REM Configurações
 set PROJECT_NAME=solo_hero
-set VERSION=0.0.1
+set VERSION=0.0.2
 set BUILD_DIR=build
 set DIST_DIR=dist
 
