@@ -270,7 +270,7 @@ function ShopColumn.drawShopItem(x, y, w, h, shopItem, itemDataManager, mx, my, 
     -- Área de informações central
     local infoX = iconX + iconSize + 10
     local infoW = w * 0.8 -- 80% da largura para info
-    local infoY = innerY + 5
+    local infoY = innerY
 
     -- Nome do item com cor do ranking e fonte em bold
     love.graphics.setFont(fonts.main_large) -- Fonte bold para nomes dos itens

@@ -130,12 +130,10 @@ function LobbyScene:load(args)
     LobbyScene.reputationManager = ManagerRegistry:get("reputationManager")
     LobbyScene.portalManager = LobbyPortalManager:new()
 
-    -- Inicializa o ShopManager
-    LobbyScene.shopManager = ShopManager:new(self.itemDataManager, self.patrimonyManager)
-
-    -- Inicializa o PatrimonyManager
     LobbyScene.patrimonyManager = PatrimonyManager:new()
     LobbyScene.patrimonyManager:initialize()
+
+    LobbyScene.shopManager = ShopManager:new(self.itemDataManager, self.patrimonyManager)
 
     -- Validação básica se os managers foram carregados corretamente em main.lua
     if not self.itemDataManager or not self.lobbyStorageManager or not self.loadoutManager or not self.archetypeManager or not self.hunterManager or not self.reputationManager then
@@ -253,13 +251,30 @@ function LobbyScene:load(args)
     -- <<< FIM DO PROCESSAMENTO DE DADOS DE EXTRAÇÃO >>>
 
     -- Inicializa as telas da UI da cena (DEPOIS de processar a extração, pois podem depender dos managers atualizados)
-    self.equipmentScreen = EquipmentScreen:new(self.itemDataManager, self.hunterManager, self.lobbyStorageManager,
-        self.loadoutManager)
-    self.shoppingScreen = ShoppingScreen:new(self.itemDataManager, self.shopManager, self.lobbyStorageManager,
-        self.loadoutManager)
-    self.portalScreen = PortalScreen:new(self.portalManager, self.hunterManager)
-    self.agencyScreen = AgencyScreen:new(self.hunterManager, self.archetypeManager, self.itemDataManager,
-        self.loadoutManager, self.agencyManager)
+    self.equipmentScreen = EquipmentScreen:new(
+        self.itemDataManager,
+        self.hunterManager,
+        self.lobbyStorageManager,
+        self.loadoutManager
+    )
+    self.shoppingScreen = ShoppingScreen:new(
+        self.itemDataManager,
+        self.shopManager,
+        self.lobbyStorageManager,
+        self.loadoutManager,
+        self.patrimonyManager
+    )
+    self.portalScreen = PortalScreen:new(
+        self.portalManager,
+        self.hunterManager
+    )
+    self.agencyScreen = AgencyScreen:new(
+        self.hunterManager,
+        self.archetypeManager,
+        self.itemDataManager,
+        self.loadoutManager,
+        self.agencyManager
+    )
 
     -- Inicializa a navbar
     self.navbar = LobbyNavbar:new(self.hunterManager, self.agencyManager, self.reputationManager, self.patrimonyManager)
@@ -335,6 +350,11 @@ end
 --- Atualiza a lógica da cena (verificação de hover, animação de zoom/pan).
 ---@param dt number
 function LobbyScene:update(dt)
+    -- Atualiza animações da navbar
+    if self.navbar and self.navbar.update then
+        self.navbar:update(dt)
+    end
+
     local mx, my = love.mouse.getPosition()
     local activeTab = tabs[self.activeTabIndex]
     local isPortalScreenActive = activeTab and activeTab.id == TabIds.PORTALS

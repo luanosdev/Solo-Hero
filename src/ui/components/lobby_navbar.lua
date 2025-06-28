@@ -2,12 +2,18 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local ReputationConfig = require("src.config.reputation_config")
 local elements = require("src.ui.ui_elements")
+local Formatters = require("src.utils.formatters")
 
 ---@class LobbyNavbar
 ---@field hunterManager HunterManager
 ---@field agencyManager AgencyManager
 ---@field reputationManager ReputationManager
 ---@field patrimonyManager PatrimonyManager|nil
+---@field animatedGold number Valor animado do ouro
+---@field targetGold number Valor alvo do ouro
+---@field goldChangeText string|nil Texto de mudança (+1000, -500, etc)
+---@field goldChangeTimer number Timer para animação de mudança
+---@field goldChangeAlpha number Alpha do texto de mudança
 local LobbyNavbar = {}
 LobbyNavbar.__index = LobbyNavbar
 
@@ -15,6 +21,8 @@ LobbyNavbar.__index = LobbyNavbar
 local NAVBAR_HEIGHT = 60
 local PADDING = 20
 local SECTION_SPACING = 40
+local GOLD_ANIMATION_SPEED = 800 -- Velocidade da animação (ouro por segundo)
+local GOLD_CHANGE_DURATION = 2.0 -- Duração da animação de mudança em segundos
 
 --- Cria uma nova instância da LobbyNavbar
 ---@param hunterManager HunterManager
@@ -28,7 +36,90 @@ function LobbyNavbar:new(hunterManager, agencyManager, reputationManager, patrim
     instance.agencyManager = agencyManager
     instance.reputationManager = reputationManager
     instance.patrimonyManager = patrimonyManager
+
+    -- Inicializa sistema de animação do ouro
+    local currentGold = patrimonyManager and patrimonyManager:getCurrentGold() or 0
+    instance.animatedGold = currentGold
+    instance.targetGold = currentGold
+    instance.goldChangeText = nil
+    instance.goldChangeTimer = 0
+    instance.goldChangeAlpha = 0
+
+    Logger.info(
+        "lobby_navbar.init",
+        "[LobbyNavbar:new] Inicializado com ouro: " .. currentGold .. " (PatrimonyManager: " ..
+        (patrimonyManager and "disponível" or "nil") .. ")"
+    )
+
     return instance
+end
+
+--- Atualiza as animações da navbar
+---@param dt number Delta time
+function LobbyNavbar:update(dt)
+    if not self.patrimonyManager then
+        Logger.warn("lobby_navbar.update", "[LobbyNavbar:update] PatrimonyManager não disponível")
+        return
+    end
+
+    local currentGold = self.patrimonyManager:getCurrentGold()
+
+
+    -- Verifica se o ouro mudou (para iniciar animação)
+    if currentGold ~= self.targetGold then
+        local goldDifference = currentGold - self.targetGold
+
+        -- Cria texto de mudança
+        if goldDifference > 0 then
+            self.goldChangeText = "+" .. tostring(goldDifference)
+        else
+            self.goldChangeText = tostring(goldDifference) -- Já inclui o sinal negativo
+        end
+
+        -- Reinicia animação de mudança
+        self.goldChangeTimer = GOLD_CHANGE_DURATION
+        self.goldChangeAlpha = 1.0
+
+        -- Atualiza alvo
+        self.targetGold = currentGold
+
+        Logger.info("lobby_navbar.gold_change",
+            "[LobbyNavbar:update] Mudança de ouro detectada: " ..
+            goldDifference .. " (novo total: " .. currentGold .. ")")
+    end
+
+    -- Anima o valor do ouro em direção ao alvo
+    if math.abs(self.animatedGold - self.targetGold) > 1 then
+        local direction = self.targetGold > self.animatedGold and 1 or -1
+        local change = GOLD_ANIMATION_SPEED * dt * direction
+
+        -- Não ultrapassa o alvo
+        if direction > 0 then
+            self.animatedGold = math.min(self.animatedGold + change, self.targetGold)
+        else
+            self.animatedGold = math.max(self.animatedGold + change, self.targetGold)
+        end
+    else
+        -- Snap para o valor exato quando muito próximo
+        self.animatedGold = self.targetGold
+    end
+
+    -- Atualiza animação do texto de mudança
+    if self.goldChangeTimer > 0 then
+        self.goldChangeTimer = self.goldChangeTimer - dt
+
+        -- Fade out no último 50% da duração
+        local fadeStartTime = GOLD_CHANGE_DURATION * 0.5
+        if self.goldChangeTimer <= fadeStartTime then
+            self.goldChangeAlpha = self.goldChangeTimer / fadeStartTime
+        end
+
+        -- Remove quando termina
+        if self.goldChangeTimer <= 0 then
+            self.goldChangeText = nil
+            self.goldChangeAlpha = 0
+        end
+    end
 end
 
 --- Calcula a próxima reputação necessária para rankear
@@ -195,7 +286,9 @@ end
 ---@param icon string
 ---@param value number
 ---@param color table
-local function drawResourceCard(x, y, w, h, label, icon, value, color)
+---@param changeText string|nil Texto de mudança (+1000, -500, etc)
+---@param changeAlpha number Alpha do texto de mudança
+local function drawResourceCard(x, y, w, h, label, icon, value, color, changeText, changeAlpha)
     local labelFont = fonts.main_small or fonts.main
     local valueFont = fonts.resource_value or fonts.main
 
@@ -213,12 +306,30 @@ local function drawResourceCard(x, y, w, h, label, icon, value, color)
 
     -- Ícone e valor centralizados abaixo do label
     love.graphics.setFont(valueFont)
-    local valueText = icon .. " " .. elements.formatNumber(value)
+    local valueText = icon .. " " .. Formatters.formatCompactNumber(math.floor(value), 2)
     local valueTextWidth = valueFont:getWidth(valueText)
     local valueX = x + (w - valueTextWidth) / 2
     local valueY = contentStartY + labelHeight + 5
 
     drawTextWithShadow(valueText, valueX, valueY, color, { 0, 0, 0, 0.5 }, 1)
+
+    -- Desenha texto de mudança se existir
+    if changeText and changeAlpha > 0 then
+        love.graphics.setFont(fonts.main_small or fonts.main)
+        local changeColor = string.sub(changeText, 1, 1) == "+" and colors.text_success or colors.text_danger
+        changeColor = { changeColor[1], changeColor[2], changeColor[3], changeAlpha }
+
+        local changeTextWidth = (fonts.main_small or fonts.main):getWidth(changeText)
+        local changeX = x + (w - changeTextWidth) / 2
+        local changeY = valueY + valueHeight + 2
+
+        -- Animação de subida
+        local offsetY = (1 - changeAlpha) * 10 -- Sobe 10 pixels conforme some
+        changeY = changeY - offsetY
+
+        love.graphics.setColor(changeColor)
+        love.graphics.print(changeText, changeX, changeY)
+    end
 end
 
 --- Desenha a seção de recursos (lado direito)
@@ -226,19 +337,21 @@ end
 ---@param y number
 ---@param sectionWidth number
 function LobbyNavbar:_drawResourceSection(x, y, sectionWidth)
-    -- Obtém valores reais do patrimônio
-    local patrimony = self.patrimonyManager and self.patrimonyManager:getCurrentGold() or 0
+    -- Obtém valores animados do patrimônio
+    local patrimony = self.animatedGold
     local tickets = 0 -- TODO: Implementar sistema de tickets quando necessário
 
     local cardWidth = (sectionWidth - 10) / 2
     local cardHeight = NAVBAR_HEIGHT - 10
 
-    -- Card do Patrimônio
-    drawResourceCard(x, y + 5, cardWidth, cardHeight, "PATRIMÔNIO", "R$ ", patrimony, colors.navbar_money)
+    -- Card do Patrimônio (com animação)
+    drawResourceCard(x, y + 5, cardWidth, cardHeight, "PATRIMÔNIO", "R$ ", patrimony, colors.navbar_money,
+        self.goldChangeText, self.goldChangeAlpha)
 
     -- Card dos Tickets
     local ticketCardX = x + cardWidth + 10
-    drawResourceCard(ticketCardX, y + 5, cardWidth, cardHeight, "TICKETS", "§", tickets, colors.navbar_tickets)
+    drawResourceCard(ticketCardX, y + 5, cardWidth, cardHeight, "TICKETS", "§", tickets, colors.navbar_tickets,
+        nil, 0)
 end
 
 --- Desenha a navbar completa

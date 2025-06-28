@@ -279,9 +279,9 @@ end
 ---@param itemInstance table Instância do item
 ---@return number price Preço de venda
 function ShopManager:calculateSellPrice(itemInstance)
-    if not itemInstance or not itemInstance.baseId then return 0 end
+    if not itemInstance or not itemInstance.itemBaseId then return 0 end
 
-    local baseData = self.itemDataManager and self.itemDataManager:getBaseItemData(itemInstance.baseId)
+    local baseData = self.itemDataManager and self.itemDataManager:getBaseItemData(itemInstance.itemBaseId)
     if not baseData then return 0 end
 
     -- Preço de venda é o valor integral do item (valor base)
@@ -293,7 +293,7 @@ end
 ---@param itemInstance table Instância do item
 ---@return number sellPrice Preço obtido pela venda, 0 se falhou
 function ShopManager:sellItem(itemInstance)
-    if not itemInstance or not itemInstance.baseId then
+    if not itemInstance or not itemInstance.itemBaseId then
         Logger.warn("shop_manager.sell.failed", "[ShopManager.sellItem] Item inválido para venda")
         return 0
     end
@@ -303,17 +303,17 @@ function ShopManager:sellItem(itemInstance)
     if sellPrice > 0 then
         -- Adiciona dinheiro ao patrimônio do jogador
         if self.patrimonyManager then
-            self.patrimonyManager:sellItem(sellPrice, itemInstance.baseId)
+            self.patrimonyManager:sellItem(sellPrice, itemInstance.itemBaseId)
         end
 
         Logger.info(
             "shop_manager.sell.success",
-            "[ShopManager.sellItem] Item vendido: " .. itemInstance.baseId .. " por " .. sellPrice .. " gold"
+            "[ShopManager.sellItem] Item vendido: " .. itemInstance.itemBaseId .. " por " .. sellPrice .. " gold"
         )
     else
         Logger.warn(
             "shop_manager.sell.failed",
-            "[ShopManager.sellItem] Item sem valor: " .. (itemInstance.baseId or "unknown")
+            "[ShopManager.sellItem] Item sem valor: " .. (itemInstance.itemBaseId or "unknown")
         )
     end
 

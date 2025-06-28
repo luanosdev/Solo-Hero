@@ -196,8 +196,9 @@ end
 
 --- Formata um número em notação compacta (ex: 1.2K, 5.0M, 3B, etc.).
 --- @param num number|string O número a ser formatado.
+--- @param precision number|nil Precisão opcional para casas decimais (default: 1).
 --- @return string O número formatado de forma legível.
-function Formatters.formatCompactNumber(num)
+function Formatters.formatCompactNumber(num, precision)
     local absNum = math.abs(tonumber(num) or 0)
     local suffixes = {
         { value = 1e15, suffix = "Q" }, -- Quadrilhão
@@ -210,10 +211,10 @@ function Formatters.formatCompactNumber(num)
     for _, entry in ipairs(suffixes) do
         if absNum >= entry.value then
             local formatted = num / entry.value
-            if formatted % 1 == 0 then
-                return string.format("%.0f%s", formatted, entry.suffix)
+            if precision then
+                return string.format("%." .. precision .. "f%s", formatted, entry.suffix)
             else
-                return string.format("%.1f%s", formatted, entry.suffix)
+                return string.format("%.0f%s", formatted, entry.suffix)
             end
         end
     end

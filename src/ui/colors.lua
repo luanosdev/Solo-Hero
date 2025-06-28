@@ -39,6 +39,8 @@ local colors = {
     item_quantity_text = { 0.9, 0.9, 0.9, 1.0 },     -- Cor para texto de quantidade
     black_transparent_more = { 0, 0, 0, 0.7 },       -- Preto mais transparente para sombra de texto
     red = { 1, 0, 0, 1 },                            -- Cor vermelha básica para erros
+    text_success = { 0.2, 0.8, 0.3, 1.0 },           -- Verde para textos de sucesso
+    text_danger = { 0.8, 0.2, 0.2, 1.0 },            -- Vermelho para textos de perigo
 
     -- Cores de Raridade (mantidas como referência ou para itens)
     rarity = {
@@ -204,19 +206,17 @@ local colors = {
     -- Cores de Pele para Sistema de Player em Camadas
     skinTones = {
         -- Progressão de tons claros para escuros
-        pale = { 0.98, 0.91, 0.87, 1.0 },   -- Um pálido mais rosado e vivo, menos acinzentado.
-        light = { 0.97, 0.86, 0.77, 1.0 },   -- Tom claro com base pêssego/dourada.
-        medium_light = { 0.88, 0.74, 0.62, 1.0 },   -- Médio-claro com mais saturação e calor.
-        medium = { 0.83, 0.67, 0.51, 1.0 },   -- Um tom "bronzeado" médio, bem equilibrado.
-        medium_dark = { 0.66, 0.49, 0.36, 1.0 },   -- Marrom rico com subtons avermelhados.
-        dark = { 0.49, 0.35, 0.25, 1.0 },   -- Tom escuro, mantendo a saturação para não parecer "sujo".
-        very_dark = { 0.32, 0.22, 0.16, 1.0 },   -- Tom bem escuro, um marrom profundo e quente, longe do preto puro.
-
+        pale = { 0.98, 0.91, 0.87, 1.0 },         -- Um pálido mais rosado e vivo, menos acinzentado.
+        light = { 0.97, 0.86, 0.77, 1.0 },        -- Tom claro com base pêssego/dourada.
+        medium_light = { 0.88, 0.74, 0.62, 1.0 }, -- Médio-claro com mais saturação e calor.
+        medium = { 0.83, 0.67, 0.51, 1.0 },       -- Um tom "bronzeado" médio, bem equilibrado.
+        medium_dark = { 0.66, 0.49, 0.36, 1.0 },  -- Marrom rico com subtons avermelhados.
+        dark = { 0.49, 0.35, 0.25, 1.0 },         -- Tom escuro, mantendo a saturação para não parecer "sujo".
+        very_dark = { 0.32, 0.22, 0.16, 1.0 },    -- Tom bem escuro, um marrom profundo e quente, longe do preto puro.
         -- Variações de subtons (undertones)
-        olive = { 0.80, 0.71, 0.56, 1.0 },   -- Tom oliva com um toque sutil de verde/amarelo, mais natural.
-        warm = { 0.89, 0.73, 0.57, 1.0 },   -- Tom quente com uma base laranja/vermelha bem definida.
-        cool = { 0.96, 0.85, 0.80, 1.0 },   -- Tom frio com uma base rosada/avermelhada mais perceptível.
-
+        olive = { 0.80, 0.71, 0.56, 1.0 }, -- Tom oliva com um toque sutil de verde/amarelo, mais natural.
+        warm = { 0.89, 0.73, 0.57, 1.0 },  -- Tom quente com uma base laranja/vermelha bem definida.
+        cool = { 0.96, 0.85, 0.80, 1.0 },  -- Tom frio com uma base rosada/avermelhada mais perceptível.
     },
 }
 

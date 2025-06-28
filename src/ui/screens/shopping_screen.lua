@@ -11,6 +11,7 @@ local ItemDetailsModalManager = require("src.managers.item_details_modal_manager
 ---@field shopManager ShopManager
 ---@field lobbyStorageManager LobbyStorageManager
 ---@field loadoutManager LoadoutManager
+---@field patrimonyManager PatrimonyManager|nil
 ---@field storageGridArea table
 ---@field loadoutGridArea table
 ---@field shopArea table
@@ -23,13 +24,15 @@ ShoppingScreen.__index = ShoppingScreen
 ---@param shopManager ShopManager
 ---@param lobbyStorageManager LobbyStorageManager
 ---@param loadoutManager LoadoutManager
+---@param patrimonyManager PatrimonyManager|nil
 ---@return ShoppingScreen
-function ShoppingScreen:new(itemDataManager, shopManager, lobbyStorageManager, loadoutManager)
+function ShoppingScreen:new(itemDataManager, shopManager, lobbyStorageManager, loadoutManager, patrimonyManager)
     local instance = setmetatable({}, ShoppingScreen)
     instance.itemDataManager = itemDataManager
     instance.shopManager = shopManager
     instance.lobbyStorageManager = lobbyStorageManager
     instance.loadoutManager = loadoutManager
+    instance.patrimonyManager = patrimonyManager
     -- Inicializa áreas com valores padrão para evitar erros
     instance.shopArea = { x = 0, y = 0, w = 0, h = 0 }
     instance.storageGridArea = { x = 0, y = 0, w = 0, h = 0 }
@@ -334,15 +337,19 @@ function ShoppingScreen:handleMousePress(x, y, buttonIdx)
                     return true, nil
                 end
 
+                -- Obtém dados base do item para dimensões corretas
+                local baseData = self.itemDataManager:getBaseItemData(shopItem.itemId)
+
                 -- Cria um item temporário para o drag de compra
                 local purchaseItem = {
                     itemBaseId = shopItem.itemId,
                     quantity = 1,
                     instanceId = "shop_temp_" .. shopItem.itemId,
-                    gridWidth = shopItem.gridWidth or 1,
-                    gridHeight = shopItem.gridHeight or 1,
+                    gridWidth = baseData and baseData.gridWidth or shopItem.gridWidth or 1,
+                    gridHeight = baseData and baseData.gridHeight or shopItem.gridHeight or 1,
                     isShopPurchase = true,
-                    shopPrice = shopItem.isOnSale and shopItem.salePrice or shopItem.price
+                    shopPrice = shopItem.isOnSale and shopItem.salePrice or shopItem.price,
+                    icon = baseData and baseData.icon or "default"
                 }
 
                 local dragStartData = {
@@ -463,9 +470,6 @@ function ShoppingScreen:handleMouseRelease(x, y, buttonIdx, dragState)
                 local success = self.shopManager:purchaseItem(dragState.draggedItem.itemBaseId, 1)
 
                 if success then
-                    -- Remove o preço da compra do dinheiro do jogador
-                    -- TODO: Implementar sistema de moeda
-
                     -- Cria instância real do item comprado
                     local itemInstance = self.itemDataManager:createItemInstanceById(dragState.draggedItem.itemBaseId, 1)
 
@@ -477,8 +481,16 @@ function ShoppingScreen:handleMouseRelease(x, y, buttonIdx, dragState)
 
                     if not added then
                         -- Se falhou em adicionar, devolver o dinheiro
-                        -- TODO: Implementar devolução de moeda
-                        print("Falha ao adicionar item comprado ao inventário")
+                        if self.patrimonyManager then
+                            self.patrimonyManager:addGold(
+                                dragState.draggedItem.shopPrice,
+                                "purchase_refund_" .. dragState.draggedItem.itemBaseId
+                            )
+                        end
+                        Logger.warn(
+                            "shopping_screen.purchase_failed",
+                            "[ShoppingScreen:handleMouseRelease] Falha ao adicionar item comprado ao inventário - dinheiro devolvido"
+                        )
                     end
                 end
                 return true
@@ -490,9 +502,9 @@ function ShoppingScreen:handleMouseRelease(x, y, buttonIdx, dragState)
 
         -- Verifica se item está sendo arrastado para a área da loja para vender
         if (dragState.sourceGridId == "storage" or dragState.sourceGridId == "loadout") and
-            self.shopGridArea and
-            x >= self.shopGridArea.x and x <= self.shopGridArea.x + self.shopGridArea.w and
-            y >= self.shopGridArea.y and y <= self.shopGridArea.y + self.shopGridArea.h then
+            self.shopArea and
+            x >= self.shopArea.x and x <= self.shopArea.x + self.shopArea.w and
+            y >= self.shopArea.y and y <= self.shopArea.y + self.shopArea.h then
             -- Vendendo item para a loja
             local itemToSell = dragState.draggedItem
             local sellPrice = self.shopManager:sellItem(itemToSell)
@@ -547,9 +559,15 @@ end
 ---@return boolean wantsToRotate
 function ShoppingScreen:keypressed(key, dragState)
     if key == "space" then
-        if dragState and dragState.isDragging and dragState.draggedItem and not dragState.draggedItem.isShopPurchase then
+        if dragState and dragState.isDragging and dragState.draggedItem then
             local item = dragState.draggedItem
             if item.gridWidth and item.gridHeight and item.gridWidth ~= item.gridHeight then
+                Logger.info(
+                    "shopping_screen.rotate_item",
+                    "[ShoppingScreen:keypressed] Rotacionando item: " .. (item.itemBaseId or "unknown") ..
+                    " de " .. item.gridWidth .. "x" .. item.gridHeight ..
+                    " para " .. item.gridHeight .. "x" .. item.gridWidth
+                )
                 return true
             end
         end

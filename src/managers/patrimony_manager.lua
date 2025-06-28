@@ -196,7 +196,8 @@ function PatrimonyManager:purchaseItem(itemPrice, itemName)
     if success then
         Logger.info(
             "patrimony_manager.purchase",
-            "[PatrimonyManager:purchaseItem] Compra realizada. Item: " .. itemName .. ", Preço: " .. itemPrice
+            "[PatrimonyManager:purchaseItem] Compra realizada. Item: " ..
+            itemName .. ", Preço: " .. itemPrice .. ", Novo total: " .. self.currentGold
         )
     end
 
@@ -214,7 +215,8 @@ function PatrimonyManager:sellItem(sellPrice, itemName)
     if success then
         Logger.info(
             "patrimony_manager.sell",
-            "[PatrimonyManager:sellItem] Venda realizada. Item: " .. itemName .. ", Preço: " .. sellPrice
+            "[PatrimonyManager:sellItem] Venda realizada. Item: " ..
+            itemName .. ", Preço: " .. sellPrice .. ", Novo total: " .. self.currentGold
         )
     end
 
