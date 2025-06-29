@@ -324,19 +324,6 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
 
                     renderPipelineInstance:add(rendable)
 
-                    if enemy.isBoss and enemy.draw then
-                        local bossDrawRenderable = TablePool.get()
-                        bossDrawRenderable.type = "drawFunction"
-                        bossDrawRenderable.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI -- Renderiza sobre os sprites
-                        bossDrawRenderable.sortY = sortY + 1000
-
-                        local capturedEnemy = enemy
-                        bossDrawRenderable.drawFunction = function()
-                            capturedEnemy:draw()
-                        end
-                        renderPipelineInstance:add(bossDrawRenderable)
-                    end
-
                     -- <<< NOVA LÓGICA PARA BARRAS DE VIDA DE MVP >>>
                     if enemy.isMVP and enemy.isAlive then
                         local mvpBarRenderable = TablePool.get()

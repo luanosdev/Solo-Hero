@@ -29,5 +29,5 @@ function love.conf(t)
     t.window.vsync = 0 -- VSync desligado para DEV mode
 
     t.modules.joystick = true
-    t.console = true -- Habilita console para debug (pressione `)
+    t.console = DEV
 end
