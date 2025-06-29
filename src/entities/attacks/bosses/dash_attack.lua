@@ -12,6 +12,8 @@ local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 ---@field followUpChances table Array de chances para cada follow-up.
 ---@field followUpRangeIncrease number Multiplicador do aumento do alcance.
 ---@field followUpStunIncrease number Segundos a adicionar ao stun por follow-up.
+---@field telegraphReductionPerFollowUp number|nil Redução do tempo de telegraph por follow-up (padrão: 0.15).
+---@field lowHealthSpeedMultiplier number|nil Multiplicador de velocidade quando vida < 50% (padrão: 0.5).
 
 ---@class DashAttack
 ---@field boss BaseBoss
@@ -71,6 +73,10 @@ function DashAttack:start(playerManager)
     -- Reseta os parâmetros para os valores originais no início de uma nova sequência.
     self.params.range = self.originalParams.range
     self.params.stunDuration = self.originalParams.stunDuration
+    self.params.telegraphDuration = self.originalParams.telegraphDuration
+
+    -- Aplica modificadores baseados no estado do boss
+    self:applyBossStateModifiers()
 
     -- Toca a animação de "taunt"
     AnimatedSpritesheet.setMovementType(self.boss.sprite, "taunt", self.boss.unitType)
@@ -97,6 +103,22 @@ function DashAttack:calculateDashVector(playerManager)
         x = self.boss.position.x + self.dashVector.x * dashRange,
         y = self.boss.position.y + self.dashVector.y * dashRange
     }
+end
+
+--- Aplica modificadores baseados no estado atual do boss (vida baixa, etc).
+function DashAttack:applyBossStateModifiers()
+    -- Verifica se o boss está com vida baixa (< 50%)
+    local isLowHealth = false
+    if self.boss.currentHealth and self.boss.maxHealth then
+        isLowHealth = (self.boss.currentHealth / self.boss.maxHealth) < 0.5
+    end
+
+    -- Se vida baixa, aplica multiplicador de velocidade
+    if isLowHealth then
+        local speedMultiplier = self.originalParams.lowHealthSpeedMultiplier or 0.5
+        self.params.telegraphDuration = self.originalParams.telegraphDuration * speedMultiplier
+        self.params.stunDuration = self.originalParams.stunDuration * speedMultiplier
+    end
 end
 
 --- Atualiza a lógica da habilidade.
@@ -186,6 +208,15 @@ function DashAttack:startFollowUp(playerManager)
     -- Aumenta o alcance do ataque de forma cumulativa
     local rangeMultiplier = self.params.followUpRangeIncrease or 1.2
     self.params.range = self.params.range * rangeMultiplier
+
+    -- Reduz o tempo de telegraph baseado no número de follow-ups
+    local telegraphReduction = self.originalParams.telegraphReductionPerFollowUp or 0.15
+    local newTelegraphDuration = self.originalParams.telegraphDuration - (self.followUpCount * telegraphReduction)
+    -- Garante um tempo mínimo de telegraph
+    self.params.telegraphDuration = math.max(newTelegraphDuration, 0.3)
+
+    -- Aplica modificadores do estado do boss (vida baixa)
+    self:applyBossStateModifiers()
 
     -- Reinicia o estado para um novo ciclo
     self.timer = 0

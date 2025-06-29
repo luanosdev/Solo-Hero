@@ -12,6 +12,8 @@ local CameraEffects = require("src.utils.camera_effects")
 ---@field followUpChances table Array de chances para cada follow-up (ex: {0.8, 0.5}).
 ---@field followUpRadiusIncrease number Multiplicador do aumento do raio (ex: 1.2 para 20%).
 ---@field followUpStunIncrease number Segundos a adicionar ao stun por follow-up.
+---@field telegraphReductionPerFollowUp number|nil Redução do tempo de telegraph por follow-up (padrão: 0.15).
+---@field lowHealthSpeedMultiplier number|nil Multiplicador de velocidade quando vida < 50% (padrão: 0.5).
 
 ---@class AreaExplosionAttack
 ---@field boss BaseBoss
@@ -73,9 +75,29 @@ function AreaExplosionAttack:start()
     -- Reseta os parâmetros para os valores originais no início de uma nova sequência.
     self.params.explosionRadius = self.originalParams.explosionRadius
     self.params.stunDuration = self.originalParams.stunDuration
+    self.params.telegraphDuration = self.originalParams.telegraphDuration
+
+    -- Aplica modificadores baseados no estado do boss
+    self:applyBossStateModifiers()
 
     -- Inicia a animação de "taunt" e reseta para o primeiro frame.
     AnimatedSpritesheet.setMovementType(self.boss.sprite, "taunt", self.boss.unitType, true)
+end
+
+--- Aplica modificadores baseados no estado atual do boss (vida baixa, etc).
+function AreaExplosionAttack:applyBossStateModifiers()
+    -- Verifica se o boss está com vida baixa (< 50%)
+    local isLowHealth = false
+    if self.boss.currentHealth and self.boss.maxHealth then
+        isLowHealth = (self.boss.currentHealth / self.boss.maxHealth) < 0.5
+    end
+
+    -- Se vida baixa, aplica multiplicador de velocidade
+    if isLowHealth then
+        local speedMultiplier = self.originalParams.lowHealthSpeedMultiplier or 0.5
+        self.params.telegraphDuration = self.originalParams.telegraphDuration * speedMultiplier
+        self.params.stunDuration = self.originalParams.stunDuration * speedMultiplier
+    end
 end
 
 --- Atualiza a lógica da habilidade.
@@ -214,6 +236,15 @@ function AreaExplosionAttack:startFollowUp()
     -- Aumenta o raio do ataque de forma cumulativa
     local radiusMultiplier = self.params.followUpRadiusIncrease or 1.2
     self.params.explosionRadius = self.params.explosionRadius * radiusMultiplier
+
+    -- Reduz o tempo de telegraph baseado no número de follow-ups
+    local telegraphReduction = self.originalParams.telegraphReductionPerFollowUp or 0.15
+    local newTelegraphDuration = self.originalParams.telegraphDuration - (self.followUpCount * telegraphReduction)
+    -- Garante um tempo mínimo de telegraph
+    self.params.telegraphDuration = math.max(newTelegraphDuration, 0.3)
+
+    -- Aplica modificadores do estado do boss (vida baixa)
+    self:applyBossStateModifiers()
 
     -- Reinicia o estado para um novo ciclo de telegraph -> attack
     self.timer = 0
