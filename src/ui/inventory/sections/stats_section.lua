@@ -727,21 +727,35 @@ function StatsSection.drawBaseStats(x, y, w, h, finalStats, archetypeIds, mx, my
                     for _, slot in pairs(Constants.SLOT_IDS) do
                         local item = equippedItems[slot]
                         if item then
-                            local itemBaseData = itemDataManager:getBaseItemData(item)
-                            if itemBaseData and itemBaseData.modifiers then
-                                for _, mod in ipairs(itemBaseData.modifiers) do
-                                    if mod.stat == attr.key then
-                                        local sourceText = "(" .. (itemBaseData.name or itemBaseData.id) .. ")"
-                                        local modStr = Formatters.formatStatValue(attr.key, mod.value, mod.type)
-                                        local prefix = mod.value >= 0 and "+" or ""
-                                        local text = "    " .. sourceText .. ": " .. prefix .. modStr
+                            -- Correção: Garantir que estamos passando itemBaseId como string
+                            local itemBaseId = nil
+                            if type(item) == "string" then
+                                itemBaseId = item
+                            elseif type(item) == "table" and item.itemBaseId then
+                                itemBaseId = item.itemBaseId
+                            else
+                                Logger.warn("stats_section.drawBaseStats.warning",
+                                    string.format("[StatsSection] Item inválido no slot %s: %s",
+                                        slot, tostring(item)))
+                            end
 
-                                        if mod.type == "fixed" then
-                                            table.insert(fixedBonusesTexts,
-                                                { text = text, color = fixedBonusColor })
-                                        elseif mod.type == "percentage" or mod.type == "fixed_percentage_as_fraction" then
-                                            table.insert(percentBonusesTexts,
-                                                { text = text, color = percentBonusColor })
+                            if itemBaseId then
+                                local itemBaseData = itemDataManager:getBaseItemData(itemBaseId)
+                                if itemBaseData and itemBaseData.modifiers then
+                                    for _, mod in ipairs(itemBaseData.modifiers) do
+                                        if mod.stat == attr.key then
+                                            local sourceText = "(" .. (itemBaseData.name or itemBaseData.id) .. ")"
+                                            local modStr = Formatters.formatStatValue(attr.key, mod.value, mod.type)
+                                            local prefix = mod.value >= 0 and "+" or ""
+                                            local text = "    " .. sourceText .. ": " .. prefix .. modStr
+
+                                            if mod.type == "fixed" then
+                                                table.insert(fixedBonusesTexts,
+                                                    { text = text, color = fixedBonusColor })
+                                            elseif mod.type == "percentage" or mod.type == "fixed_percentage_as_fraction" then
+                                                table.insert(percentBonusesTexts,
+                                                    { text = text, color = percentBonusColor })
+                                            end
                                         end
                                     end
                                 end

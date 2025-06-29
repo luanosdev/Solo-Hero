@@ -19,8 +19,279 @@ ExtractionSummaryScene.itemDataManager = nil ---@type ItemDataManager
 ExtractionSummaryScene.tooltipItem = nil       -- Item atualmente sob o mouse para tooltip
 ExtractionSummaryScene.gameStats = nil         -- Estatísticas do jogo
 
+-- Sistema de carregamento assíncrono
+ExtractionSummaryScene.loadingCoroutine = nil
+ExtractionSummaryScene.loadingTasks = {}
+ExtractionSummaryScene.currentTaskIndex = 1
+ExtractionSummaryScene.totalTasks = 0
+ExtractionSummaryScene.currentTaskName = "Iniciando..."
+ExtractionSummaryScene.isLoadingComplete = false
+ExtractionSummaryScene.loadingProgress = 0
+
+-- Configurações de performance
+local LOAD_BUDGET_MS = 8     -- 8ms por frame para carregamento
+local ITEM_PROCESS_BATCH = 5 -- Processar 5 itens por frame
+local RENDER_BATCH_SIZE = 10 -- Renderizar 10 itens por vez
+
 -- Modificado: Uma única lista para todas as áreas de itens clicáveis na coluna 3
 ExtractionSummaryScene.allItemsDisplayAreas = {} -- {{x,y,w,h,itemInstance}, ...}
+
+-- Cache para otimização de renderização
+ExtractionSummaryScene.renderCache = {
+    processedItems = {},
+    itemCards = {},
+    lastFrameTime = 0,
+    needsRefresh = true
+}
+
+--- Inicializa as tarefas de carregamento assíncrono
+function ExtractionSummaryScene:_initializeLoadingTasks()
+    self.loadingTasks = {
+        {
+            name = "Carregando managers...",
+            task = function() return self:_loadManagers() end
+        },
+        {
+            name = "Processando reputação...",
+            task = function() return self:_processReputation() end
+        },
+        {
+            name = "Carregando estatísticas...",
+            task = function() return self:_loadGameStats() end
+        },
+        {
+            name = "Processando itens extraídos...",
+            task = function() return self:_processExtractedItems() end
+        },
+        {
+            name = "Preparando interface...",
+            task = function() return self:_prepareInterface() end
+        },
+        {
+            name = "Finalizando carregamento...",
+            task = function() return self:_finalizeLoading() end
+        }
+    }
+
+    self.totalTasks = #self.loadingTasks
+    self.currentTaskIndex = 1
+    Logger.info(
+        "extraction_summary_scene.load",
+        string.format(
+            "[ExtractionSummaryScene] Carregamento assíncrono iniciado com %d tarefas",
+            self.totalTasks
+        )
+    )
+end
+
+--- Cria corrotina principal de carregamento
+function ExtractionSummaryScene:_createLoadingCoroutine()
+    return coroutine.create(function()
+        local startTime = love.timer.getTime()
+
+        for i, taskData in ipairs(self.loadingTasks) do
+            self.currentTaskIndex = i
+            self.currentTaskName = taskData.name
+            self.loadingProgress = (i - 1) / self.totalTasks
+
+            Logger.debug(
+                "extraction_summary_scene.createLoadingCoroutine.execute",
+                string.format("[ExtractionSummaryScene] Executando tarefa %d/%d: %s", i, self.totalTasks, taskData.name))
+
+            local taskStartTime = love.timer.getTime()
+            local success, result = pcall(taskData.task)
+
+            if not success then
+                Logger.error(
+                    "extraction_summary_scene.createLoadingCoroutine.execute.error",
+                    string.format("[ExtractionSummaryScene] Erro na tarefa '%s': %s", taskData.name, tostring(result)))
+            end
+
+            local taskTime = love.timer.getTime() - taskStartTime
+            if taskTime > LOAD_BUDGET_MS / 1000 then
+                Logger.warn(
+                    "extraction_summary_scene.createLoadingCoroutine.execute.warning",
+                    string.format(
+                        "[ExtractionSummaryScene] Tarefa '%s' excedeu budget (%.2fms)",
+                        taskData.name,
+                        taskTime * 1000
+                    )
+                )
+            end
+
+            -- Yield para manter responsividade
+            coroutine.yield()
+        end
+
+        self.isLoadingComplete = true
+        self.loadingProgress = 1.0
+
+        local totalTime = love.timer.getTime() - startTime
+        Logger.info(
+            "extraction_summary_scene.createLoadingCoroutine.execute.success",
+            string.format(
+                "[ExtractionSummaryScene] Carregamento concluído em %.2fms",
+                totalTime * 1000
+            )
+        )
+    end)
+end
+
+--- Carrega managers necessários
+function ExtractionSummaryScene:_loadManagers()
+    ---@type ItemDataManager
+    self.itemDataManager = ManagerRegistry:get("itemDataManager")
+    if not self.itemDataManager then
+        error("[ExtractionSummaryScene] ItemDataManager não encontrado no Registry!")
+    end
+end
+
+--- Processa dados de reputação
+function ExtractionSummaryScene:_processReputation()
+    ---@class ReputationManager
+    local reputationManager = ManagerRegistry:get("reputationManager")
+    if not reputationManager then
+        error("[ExtractionSummaryScene] CRITICAL: ReputationManager não encontrado no Registry!")
+    end
+
+    -- Combinar itens da mochila e equipamentos extraídos com validação robusta
+    local extractedItemsList = {}
+
+    if self.args.extractedItems then
+        for _, item in ipairs(self.args.extractedItems) do
+            if item and item.itemBaseId and
+                type(item.itemBaseId) == "string" and item.itemBaseId ~= "" then
+                table.insert(extractedItemsList, item)
+            else
+                Logger.warn(
+                    "extraction_summary_scene.processReputation.warning",
+                    string.format(
+                        "[ExtractionSummaryScene] Item da mochila inválido ignorado: itemBaseId = %s",
+                        tostring(item and item.itemBaseId or "nil")))
+            end
+        end
+    end
+
+    if self.args.extractedEquipment then
+        for _, item in pairs(self.args.extractedEquipment) do
+            if item and item.itemBaseId and
+                type(item.itemBaseId) == "string" and item.itemBaseId ~= "" then
+                table.insert(extractedItemsList, item)
+            else
+                Logger.warn(
+                    "extraction_summary_scene.processReputation.warning",
+                    string.format(
+                        "[ExtractionSummaryScene] Item de equipamento inválido ignorado: itemBaseId = %s",
+                        tostring(item and item.itemBaseId or "nil")))
+            end
+        end
+    end
+
+    self.reputationDetails = reputationManager:processIncursionResult({
+        portalData = self.args.portalData,
+        wasSuccess = self.args.wasSuccess,
+        hunterData = self.args.hunterData,
+        lootedItems = extractedItemsList,
+        gameplayStats = self.args.gameplayStats
+    })
+end
+
+--- Carrega estatísticas do jogo
+function ExtractionSummaryScene:_loadGameStats()
+    local gameStatsManager = ManagerRegistry:get("gameStatisticsManager")
+    if gameStatsManager then
+        self.gameStats = gameStatsManager:getRawStats()
+    end
+end
+
+--- Processa itens extraídos em lotes para otimizar performance
+function ExtractionSummaryScene:_processExtractedItems()
+    -- Garante que listas existem
+    if not self.args.extractedEquipment then
+        self.args.extractedEquipment = {}
+    end
+    if not self.args.extractedItems then
+        self.args.extractedItems = {}
+    end
+
+    -- Pre-processa itens válidos
+    self.renderCache.processedItems.equipment = {}
+    self.renderCache.processedItems.backpack = {}
+
+    -- Processa equipamentos
+    local displayOrder = Constants.EQUIPMENT_SLOTS_ORDER or {}
+    for _, slotId in ipairs(displayOrder) do
+        local itemInstance = self.args.extractedEquipment[slotId]
+        if itemInstance and itemInstance.itemBaseId and
+            type(itemInstance.itemBaseId) == "string" and itemInstance.itemBaseId ~= "" then
+            table.insert(self.renderCache.processedItems.equipment, itemInstance)
+        end
+    end
+
+    -- Processa itens da mochila
+    for _, itemInstance in ipairs(self.args.extractedItems) do
+        if itemInstance and itemInstance.itemBaseId and
+            type(itemInstance.itemBaseId) == "string" and itemInstance.itemBaseId ~= "" then
+            table.insert(self.renderCache.processedItems.backpack, itemInstance)
+        end
+    end
+
+    Logger.debug(
+        "extraction_summary_scene.processExtractedItems",
+        string.format(
+            "[ExtractionSummaryScene] Processados %d equipamentos e %d itens da mochila",
+            #self.renderCache.processedItems.equipment,
+            #self.renderCache.processedItems.backpack)
+    )
+end
+
+--- Prepara interface para renderização
+function ExtractionSummaryScene:_prepareInterface()
+    -- Limpar estado de tooltips e layouts anteriores
+    self.tooltipItem = nil
+    self.allItemsDisplayAreas = {}
+    self.renderCache.needsRefresh = true
+
+    -- Pre-calcular dimensões da interface
+    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
+    self.renderCache.screenDimensions = { w = screenW, h = screenH }
+end
+
+--- Finaliza o carregamento
+function ExtractionSummaryScene:_finalizeLoading()
+    -- Força coleta de lixo
+    collectgarbage("collect")
+
+    -- Pequena pausa para garantir estabilidade
+    love.timer.sleep(0.01)
+end
+
+--- Processa fila de carregamento assíncrono
+function ExtractionSummaryScene:_processLoadingQueue(maxTime)
+    if not self.loadingCoroutine or self.isLoadingComplete then
+        return
+    end
+
+    local startTime = love.timer.getTime()
+
+    while love.timer.getTime() - startTime < maxTime do
+        local success, result = coroutine.resume(self.loadingCoroutine)
+
+        if not success then
+            Logger.error(
+                "extraction_summary_scene.processLoadingQueue.error",
+                string.format(
+                    "[ExtractionSummaryScene] Erro na corrotina de carregamento: %s",
+                    tostring(result)
+                )
+            )
+            self.isLoadingComplete = true
+            break
+        elseif coroutine.status(self.loadingCoroutine) == 'dead' then
+            break
+        end
+    end
+end
 
 --- Chamado quando a cena é carregada.
 ---@param args table Argumentos da GameplayScene:
@@ -29,108 +300,65 @@ ExtractionSummaryScene.allItemsDisplayAreas = {} -- {{x,y,w,h,itemInstance}, ...
 ---   hunterId (string), gameplayStats (table),
 ---   finalStats (table), archetypeIds (table), archetypeManagerInstance (ArchetypeManager)
 function ExtractionSummaryScene:load(args)
-    print("[ExtractionSummaryScene] Loading...")
+    Logger.info(
+        "extraction_summary_scene.load",
+        "[ExtractionSummaryScene] Iniciando carregamento assíncrono..."
+    )
+
     if args then
-        print("  Portal Name: " .. tostring(args.portalData and args.portalData.name or "N/A"))
-        print("  Portal Rank: " .. tostring(args.portalData and args.portalData.rank or "N/A"))
-        print("  Hunter ID: " .. tostring(args.hunterId))
-        print("  Num Extracted Items (Backpack): " .. tostring(args.extractedItems and #args.extractedItems or 0))
-        local equipCount = 0
-        if args.extractedEquipment then for _ in pairs(args.extractedEquipment) do equipCount = equipCount + 1 end end
-        print("  Num Extracted Equipment: " .. equipCount)
-        print("  FinalStats received: " .. tostring(args.finalStats ~= nil))
-        print("  ArchetypeIds received: " .. tostring(args.archetypeIds ~= nil and #args.archetypeIds or 0))
-        print("  ArchetypeManager instance received: " .. tostring(args.archetypeManagerInstance ~= nil))
+        Logger.debug(
+            "extraction_summary_scene.load",
+            string.format(
+                "[ExtractionSummaryScene] Portal: %s (Rank %s), Hunter: %s, Itens: %d, Equipamentos: %d",
+                tostring(args.portalData and args.portalData.name or "N/A"),
+                tostring(args.portalData and args.portalData.rank or "N/A"),
+                tostring(args.hunterId),
+                tostring(args.extractedItems and #args.extractedItems or 0),
+                args.extractedEquipment and
+                (function()
+                    local count = 0; for _ in pairs(args.extractedEquipment) do count = count + 1 end; return count
+                end)() or 0
+            ))
     else
-        print("  WARNING: No args received by ExtractionSummaryScene!")
+        Logger.warn("ExtractionSummaryScene", "Nenhum argumento recebido!")
     end
 
     self.args = args
 
-    ---@class ReputationManager
-    local reputationManager = ManagerRegistry:get("reputationManager")
-    if reputationManager then
-        print("[ExtractionSummaryScene] Processando reputação...")
-
-        -- Mapear corretamente os parâmetros recebidos
-        local extractedItemsList = {}
-
-        -- Combinar itens da mochila e equipamentos extraídos
-        if args.extractedItems then
-            for _, item in ipairs(args.extractedItems) do
-                -- Verificação robusta antes de adicionar à lista
-                if item and item.itemBaseId and
-                    type(item.itemBaseId) == "string" and item.itemBaseId ~= "" then
-                    table.insert(extractedItemsList, item)
-                else
-                    Logger.warn("[ExtractionSummaryScene:load]",
-                        string.format("Item da mochila inválido ignorado ao processar reputação: itemBaseId = %s",
-                            tostring(item and item.itemBaseId or "nil")))
-                end
-            end
-        end
-
-        if args.extractedEquipment then
-            for _, item in pairs(args.extractedEquipment) do
-                -- Verificação robusta antes de adicionar à lista
-                if item and item.itemBaseId and
-                    type(item.itemBaseId) == "string" and item.itemBaseId ~= "" then
-                    table.insert(extractedItemsList, item)
-                else
-                    Logger.warn("[ExtractionSummaryScene:load]",
-                        string.format("Item de equipamento inválido ignorado ao processar reputação: itemBaseId = %s",
-                            tostring(item and item.itemBaseId or "nil")))
-                end
-            end
-        end
-
-        self.reputationDetails = reputationManager:processIncursionResult({
-            portalData = args.portalData,
-            wasSuccess = args.wasSuccess,
-            hunterData = args.hunterData,
-            lootedItems = extractedItemsList,
-            gameplayStats = args.gameplayStats
-        })
-    else
-        error("[ExtractionSummaryScene] CRITICAL: ReputationManager não encontrado no Registry!")
+    -- Verifica argumentos críticos e define padrões
+    if not self.args.archetypeManagerInstance then
+        Logger.warn(
+            "extraction_summary_scene.load.warning",
+            "[ExtractionSummaryScene] ArchetypeManager instance não recebida!"
+        )
     end
-
-    -- Coleta estatísticas do jogo
-    local gameStatsManager = ManagerRegistry:get("gameStatisticsManager")
-    if gameStatsManager then
-        self.gameStats = gameStatsManager:getRawStats()
-    end
-
-    self.itemDataManager = ManagerRegistry:get("itemDataManager")
-
-    if not self.itemDataManager then
-        error("[ExtractionSummaryScene] ItemDataManager não encontrado no Registry!")
-    end
-    if self.args and not self.args.archetypeManagerInstance then
-        print(
-            "WARN [ExtractionSummaryScene] ArchetypeManager instance (args.archetypeManagerInstance) não recebida! Stats do caçador podem não incluir arquétipos.")
-    end
-    if self.args and not self.args.extractedEquipment then
+    if not self.args.extractedEquipment then
         self.args.extractedEquipment = {}
-        print("  WARN: args.extractedEquipment era nil, inicializado como tabela vazia.")
     end
-    if self.args and not self.args.extractedItems then
+    if not self.args.extractedItems then
         self.args.extractedItems = {}
-        print("  WARN: args.extractedItems era nil, inicializado como tabela vazia.")
     end
 
-    -- Limpar estado de tooltips e layouts anteriores
-    self.tooltipItem = nil
-    self.allItemsDisplayAreas = {} -- Reseta a lista unificada
+    -- Inicializa sistema de carregamento assíncrono
+    self:_initializeLoadingTasks()
+    self.loadingCoroutine = self:_createLoadingCoroutine()
+    self.isLoadingComplete = false
+    self.loadingProgress = 0
 end
 
 --- Atualiza a lógica da cena.
 ---@param dt number Delta time.
 function ExtractionSummaryScene:update(dt)
+    -- Processa carregamento assíncrono se ainda não completou
+    if not self.isLoadingComplete then
+        self:_processLoadingQueue(LOAD_BUDGET_MS / 1000)
+        return -- Não processa outros updates até carregamento completar
+    end
+
     local mx, my = love.mouse.getPosition()
     self.tooltipItem = nil -- Reseta a cada frame
 
-    -- Verificar hover nos itens exibidos na coluna 3
+    -- Verificar hover nos itens exibidos na coluna 3 (apenas se carregamento completo)
     if self.allItemsDisplayAreas then
         for _, area in ipairs(self.allItemsDisplayAreas) do
             if area.item and mx >= area.x and mx <= area.x + area.w and my >= area.y and my <= area.y + area.h then
@@ -142,19 +370,85 @@ function ExtractionSummaryScene:update(dt)
 
     -- Atualiza o gerenciador de tooltip
     ItemDetailsModalManager.update(dt, mx, my, self.tooltipItem)
+
+    -- Atualiza cache de renderização se necessário
+    if self.renderCache.needsRefresh then
+        self:_refreshRenderCache()
+        self.renderCache.needsRefresh = false
+    end
+end
+
+--- Atualiza cache de renderização para otimizar performance
+function ExtractionSummaryScene:_refreshRenderCache()
+    -- Limpa áreas de itens anteriores
+    self.allItemsDisplayAreas = {}
+
+    -- Força coleta de lixo para liberar memória
+    if collectgarbage("count") > 50000 then -- Se > 50MB
+        collectgarbage("collect")
+    end
+
+    Logger.debug(
+        "extraction_summary_scene.refreshRenderCache",
+        "[ExtractionSummaryScene] Cache de renderização atualizado"
+    )
+end
+
+--- Desenha tela de carregamento otimizada
+function ExtractionSummaryScene:_drawLoadingScreen(screenW, screenH)
+    local centerX, centerY = screenW / 2, screenH / 2
+
+    -- Título
+    love.graphics.setFont(fonts.title_large or fonts.title)
+    love.graphics.setColor(colors.text_title)
+    love.graphics.printf("Processando Extração...", 0, centerY - 100, screenW, "center")
+
+    -- Barra de progresso
+    local barW, barH = 400, 20
+    local barX, barY = centerX - barW / 2, centerY - 20
+
+    -- Fundo da barra
+    love.graphics.setColor(colors.border_active or { 0.2, 0.2, 0.2 })
+    love.graphics.rectangle("fill", barX, barY, barW, barH)
+
+    -- Preenchimento da barra
+    love.graphics.setColor(colors.text_value or { 0.2, 0.6, 1.0 })
+    love.graphics.rectangle("fill", barX, barY, barW * self.loadingProgress, barH)
+
+    -- Borda da barra
+    love.graphics.setColor(colors.bar_border or { 0.4, 0.4, 0.4 })
+    love.graphics.rectangle("line", barX, barY, barW, barH)
+
+    -- Texto do progresso
+    love.graphics.setFont(fonts.main or fonts.main_small)
+    love.graphics.setColor(colors.text_main)
+    love.graphics.printf(self.currentTaskName, 0, centerY + 30, screenW, "center")
+
+    -- Porcentagem
+    local percentText = string.format("%.0f%%", self.loadingProgress * 100)
+    love.graphics.printf(percentText, 0, centerY + 60, screenW, "center")
+
+    love.graphics.setColor(colors.white) -- Reset
 end
 
 --- Desenha os elementos da cena.
 function ExtractionSummaryScene:draw()
     local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
-    local mx, my = love.mouse.getPosition() -- Para passar ao HunterStatsColumn
 
     -- Fundo simples
     love.graphics.setColor(colors.lobby_background)
     love.graphics.rectangle("fill", 0, 0, screenW, screenH)
     love.graphics.setColor(colors.white)
 
-    local currentY = 20 -- Reduzido para dar mais espaço ao título do portal
+    -- Se ainda está carregando, mostra tela de carregamento
+    if not self.isLoadingComplete then
+        self:_drawLoadingScreen(screenW, screenH)
+        return
+    end
+
+    local mx, my = love.mouse.getPosition() -- Para passar ao HunterStatsColumn
+
+    local currentY = 20                     -- Reduzido para dar mais espaço ao título do portal
     local centerX = screenW / 2
 
     -- Título
@@ -261,15 +555,33 @@ function ExtractionSummaryScene:draw()
     local itemFont = fonts.main or fonts.main_small -- Fonte para nome do item
     local iconInternalPadding = 4                   -- Padding DENTRO da área do ícone, entre a borda do card do ícone e o ícone real
 
+    -- Função otimizada de renderização de itens com batching
+    local itemBatchCount = 0
+    local maxItemsPerFrame = RENDER_BATCH_SIZE
+
     local function drawItemEntry(itemInstance, currentItemY)
         -- Verificação robusta para itemInstance e itemBaseId
         if not itemInstance or not itemInstance.itemBaseId or
             itemInstance.itemBaseId == "" or type(itemInstance.itemBaseId) ~= "string" then
-            Logger.warn("[ExtractionSummaryScene:drawItemEntry]",
-                string.format("Item inválido ignorado: %s", tostring(itemInstance and itemInstance.itemBaseId or "nil")))
+            Logger.warn(
+                "extraction_summary_scene.drawItemEntry.warning",
+                string.format(
+                    "[ExtractionSummaryScene] Item inválido ignorado: %s",
+                    tostring(itemInstance and itemInstance.itemBaseId or "nil")
+                )
+            )
             return currentItemY
         end
-        if currentItemY + itemCardH > columnTopY + columnContentHeight then return currentItemY, true end
+
+        -- Controle de batch - limita quantos itens renderizar por frame
+        itemBatchCount = itemBatchCount + 1
+        if itemBatchCount > maxItemsPerFrame then
+            return currentItemY, true -- Sinaliza overflow para parar renderização
+        end
+
+        if currentItemY + itemCardH > columnTopY + columnContentHeight then
+            return currentItemY, true
+        end
 
         local itemBaseData = self.itemDataManager:getBaseItemData(itemInstance.itemBaseId)
         local itemName = itemBaseData and itemBaseData.name or "Item Desconhecido"
@@ -429,41 +741,29 @@ end
 function ExtractionSummaryScene:keypressed(key, scancode, isrepeat)
     if isrepeat then return end
 
-    -- Salva os itens antes de mudar de cena
-    if self.args and self.args.wasSuccess then
-        Logger.info("ExtractionSummaryScene", "Salvando itens e equipamentos extraídos...")
-        ---@type LoadoutManager
-        local loadoutManager = ManagerRegistry:get("loadoutManager")
-
-        if loadoutManager and self.args.extractedItems then
-            loadoutManager:clearAllItems() -- Limpa o loadout antigo
-            local validItemsCount = 0
-            for _, itemInstance in ipairs(self.args.extractedItems) do
-                -- Verificação robusta antes de salvar no loadout
-                if itemInstance and itemInstance.itemBaseId and
-                    type(itemInstance.itemBaseId) == "string" and itemInstance.itemBaseId ~= "" then
-                    loadoutManager:addItem(itemInstance.itemBaseId, itemInstance.quantity)
-                    validItemsCount = validItemsCount + 1
-                else
-                    Logger.warn("[ExtractionSummaryScene:keypressed]",
-                        string.format("Item inválido ignorado ao salvar no loadout: itemBaseId = %s",
-                            tostring(itemInstance and itemInstance.itemBaseId or "nil")))
-                end
-            end
-            Logger.info("ExtractionSummaryScene",
-                string.format("  -> %d itens válidos da mochila salvos no Loadout (de %d total).",
-                    validItemsCount, #self.args.extractedItems))
-        end
+    -- Só permite continuar se carregamento estiver completo
+    if not self.isLoadingComplete then
+        Logger.debug(
+            "extraction_summary_scene.keypressed",
+            "[ExtractionSummaryScene] Aguardando carregamento completar..."
+        )
+        return
     end
 
+    -- Otimização: salva itens de forma assíncrona para evitar travamentos
+    self:_saveItemsAsync()
+
+    -- Limpa recursos antes de mudar de cena
+    self:_cleanupResources()
+
+    -- Prepara argumentos para lobby_scene
+    local lobbyArgs = {}
     if self.args then
-        -- Passa os mesmos args para a lobby_scene, pois eles já contêm
-        -- extractedItems, extractedEquipment, hunterId.
-        -- A lobby_scene já está preparada para lidar com eles.
-        local lobbyArgs = shallowcopy(self.args)       -- Cria cópia rasa para não modificar original
+        lobbyArgs = shallowcopy(self.args)
         lobbyArgs.extractionSuccessful = self.reputationDetails and self.reputationDetails.wasSuccess or false
-        lobbyArgs.startTab = Constants.TabIds.SHOPPING -- Redireciona para o shopping após extração
-        -- Remove dados que são apenas para esta cena de sumário
+        lobbyArgs.startTab = Constants.TabIds.SHOPPING
+
+        -- Remove dados pesados que não são necessários na lobby
         lobbyArgs.portalName = nil
         lobbyArgs.portalRank = nil
         lobbyArgs.portalData = nil
@@ -471,11 +771,103 @@ function ExtractionSummaryScene:keypressed(key, scancode, isrepeat)
         lobbyArgs.finalStats = nil
         lobbyArgs.archetypeIds = nil
         lobbyArgs.archetypeManagerInstance = nil
-
-        SceneManager.switchScene("lobby_scene", lobbyArgs)
     else
-        SceneManager.switchScene("lobby_scene", { extractionSuccessful = false, startTab = Constants.TabIds.SHOPPING })
+        lobbyArgs = { extractionSuccessful = false, startTab = Constants.TabIds.SHOPPING }
     end
+
+    SceneManager.switchScene("lobby_scene", lobbyArgs)
+end
+
+--- Salva itens de forma assíncrona para evitar travamentos
+function ExtractionSummaryScene:_saveItemsAsync()
+    if not self.args or not self.args.wasSuccess then
+        return
+    end
+
+    Logger.info(
+        "extraction_summary_scene.saveItemsAsync",
+        "[ExtractionSummaryScene] Iniciando salvamento assíncrono de itens..."
+    )
+
+    -- Usar corrotina para salvar em lotes
+    local saveCoroutine = coroutine.create(function()
+        ---@type LoadoutManager
+        local loadoutManager = ManagerRegistry:get("loadoutManager")
+
+        if loadoutManager and self.args.extractedItems then
+            loadoutManager:clearAllItems()
+
+            local validItemsCount = 0
+            local batchSize = ITEM_PROCESS_BATCH
+
+            -- Processa itens em lotes
+            for i, itemInstance in ipairs(self.args.extractedItems) do
+                if itemInstance and itemInstance.itemBaseId and
+                    type(itemInstance.itemBaseId) == "string" and itemInstance.itemBaseId ~= "" then
+                    loadoutManager:addItem(itemInstance.itemBaseId, itemInstance.quantity)
+                    validItemsCount = validItemsCount + 1
+                else
+                    Logger.warn(
+                        "extraction_summary_scene.saveItemsAsync.warning",
+                        string.format(
+                            "[ExtractionSummaryScene] Item inválido ignorado: itemBaseId = %s",
+                            tostring(itemInstance and itemInstance.itemBaseId or "nil")))
+                end
+
+                -- Yield a cada lote para manter responsividade
+                if i % batchSize == 0 then
+                    coroutine.yield()
+                end
+            end
+
+            Logger.info(
+                "extraction_summary_scene.saveItemsAsync.success",
+                string.format(
+                    "[ExtractionSummaryScene] Salvamento concluído: %d itens válidos de %d total",
+                    validItemsCount, #self.args.extractedItems))
+        end
+    end)
+
+    -- Executa salvamento (pode ser feito em uma frame ou duas)
+    local success, result = coroutine.resume(saveCoroutine)
+    if not success then
+        Logger.error(
+            "extraction_summary_scene.saveItemsAsync.error",
+            string.format(
+                "[ExtractionSummaryScene] Erro no salvamento assíncrono: %s",
+                tostring(result)
+            )
+        )
+    end
+end
+
+--- Limpa recursos para evitar vazamentos de memória
+function ExtractionSummaryScene:_cleanupResources()
+    -- Limpa cache de renderização
+    if self.renderCache then
+        self.renderCache.processedItems = {}
+        self.renderCache.itemCards = {}
+        self.renderCache.needsRefresh = false
+    end
+
+    -- Limpa áreas de itens
+    self.allItemsDisplayAreas = {}
+
+    -- Para corrotinas ativas
+    if self.loadingCoroutine then
+        self.loadingCoroutine = nil
+    end
+
+    -- Limpa tarefas de carregamento
+    self.loadingTasks = {}
+
+    -- Força coleta de lixo
+    collectgarbage("collect")
+
+    Logger.debug(
+        "extraction_summary_scene.cleanupResources",
+        "[ExtractionSummaryScene] Recursos limpos antes de mudar de cena"
+    )
 end
 
 --- Processa movimento do mouse (para tooltips).
@@ -485,10 +877,31 @@ end
 
 --- Chamado quando a cena é descarregada.
 function ExtractionSummaryScene:unload()
-    print("[ExtractionSummaryScene] Unloading.")
+    Logger.info(
+        "extraction_summary_scene.unload",
+        "[ExtractionSummaryScene] Descarregando cena com limpeza otimizada..."
+    )
+
+    -- Usa limpeza otimizada de recursos
+    self:_cleanupResources()
+
+    -- Limpa dados específicos da cena
     self.args = nil
+    self.reputationDetails = nil
+    self.gameStats = nil
     self.tooltipItem = nil
-    self.allItemsDisplayAreas = {} -- Limpa a lista unificada
+    self.itemDataManager = nil
+
+    -- Reset estado de carregamento
+    self.isLoadingComplete = false
+    self.loadingProgress = 0
+    self.currentTaskIndex = 1
+    self.currentTaskName = "Iniciando..."
+
+    Logger.info(
+        "extraction_summary_scene.unload.success",
+        "[ExtractionSummaryScene] Cena descarregada com sucesso."
+    )
 end
 
 -- Função utilitária para cópia rasa de tabelas
