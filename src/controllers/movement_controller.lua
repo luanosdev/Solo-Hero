@@ -76,8 +76,8 @@ function MovementController:setupPlayerSprite(finalStats)
     -- Cria a instância do sprite do jogador
     self.player = SpritePlayer.newConfig({
         position = {
-            x = love.graphics.getWidth() / 2,
-            y = love.graphics.getHeight() / 2
+            x = ResolutionUtils.getGameWidth() / 2,
+            y = ResolutionUtils.getGameHeight() / 2
         },
         scale = 1.4,
         appearance = appearance

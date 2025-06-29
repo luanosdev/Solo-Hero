@@ -51,7 +51,13 @@ end
 --- @param area table A área para verificar com x, y, width, height
 --- @return boolean
 function IsMouseOver(area)
-    local mx, my = love.mouse.getPosition()
+    -- Converte coordenadas físicas do mouse para coordenadas virtuais
+    local physicalMx, physicalMy = love.mouse.getPosition()
+    local mx, my = ResolutionUtils.toGame(physicalMx, physicalMy)
+    if not mx or not my then
+        return false -- Se o mouse estiver fora da área do jogo
+    end
+
     return mx >= area.x and mx <= area.x + area.width and
         my >= area.y and my <= area.y + area.height
 end

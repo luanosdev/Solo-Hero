@@ -16,7 +16,7 @@ ActiveSkillsDisplay.__index = ActiveSkillsDisplay
 
 -- Configurações visuais
 local CONFIG = {
-    y_position = love.graphics.getHeight() - 70,
+    y_position = ResolutionUtils.getGameHeight() - 70,
     icon_size = 58,
     spacing = 72,
     background_color_alpha = 0.5, -- Opacidade do fundo quando o cooldown está cheio
@@ -272,7 +272,7 @@ function ActiveSkillsDisplay:_calculateLayout()
     -- Calcula a posição inicial para o centro do primeiro ícone
     local first_skill_radius = #self.skills > 0 and ((self.skills[1].type == "weapon") and weapon_size or rune_size) / 2 or
         0
-    local start_x = (love.graphics.getWidth() - total_width) / 2 + first_skill_radius
+    local start_x = (ResolutionUtils.getGameWidth() - total_width) / 2 + first_skill_radius
 
     for i, skill in ipairs(self.skills) do
         local current_size = (skill.type == "weapon") and weapon_size or rune_size

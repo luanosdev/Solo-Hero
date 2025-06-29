@@ -42,82 +42,78 @@ function love.load()
     end)
 
     fonts.load()
-    love.graphics.setDefaultFilter("nearest", "nearest")
+    -- Usar filtro linear para melhor qualidade visual
+    love.graphics.setDefaultFilter("linear", "linear")
     love.keyboard.setKeyRepeat(true) -- Habilita repetição de tecla
 
     math.randomseed(os.time() + tonumber(tostring(os.clock()):reverse():sub(1, 6)))
 
     -- Configuração do sistema de resolução adaptável
-    local windowWidth, windowHeight = love.window.getDesktopDimensions()
+    local gameWidth, gameHeight = 1920, 1080
+    local windowWidth, windowHeight
 
-    -- Em modo DEV, permite redimensionamento e modo janela para facilitar desenvolvimento
-    -- Em modo PROD, usa fullscreen conforme configurado no conf.lua
-    local pushOptions = {
-        fullscreen = DEV and false or true, -- Janela em DEV, fullscreen em PROD
-        resizable = true,
-        canvas = true,
-        pixelperfect = false,
-        highdpi = true,
-        stretched = false
-    }
+    -- Em modo DEV, usa janela configurada no conf.lua
+    -- Em modo produção, usa fullscreen com dimensões da área de trabalho
+    if DEV then
+        windowWidth, windowHeight = 1280, 720
+    else
+        windowWidth, windowHeight = love.window.getDesktopDimensions()
+    end
 
-    push:setupScreen(1920, 1080, windowWidth, windowHeight, pushOptions)
-    Logger.info(
-        "love.load.resolution",
-        "[love.load] Sistema de resolução configurado: 1920x1080 -> " .. windowWidth .. "x" .. windowHeight
+    -- Detecta se as proporções são iguais ANTES de configurar o push
+    local gameAspect = gameWidth / gameHeight
+    local screenAspect = windowWidth / windowHeight
+    local aspectDiff = math.abs(gameAspect - screenAspect)
+    local shouldUseStretched = aspectDiff < 0.01
+
+    push:setupScreen(
+        gameWidth,
+        gameHeight,
+        windowWidth,
+        windowHeight,
+        {
+            fullscreen = not DEV, -- Fullscreen apenas em produção
+            resizable = DEV,      -- Redimensionável apenas em DEV
+            pixelperfect = false,
+            highdpi = true,
+            canvas = true,
+            stencil = true,
+            stretched = shouldUseStretched -- TRUE para proporções iguais
+        }
     )
 
-    -- Inicializa o utilitário de resolução
+    -- Inicializa o ResolutionUtils com a instância do push
     ResolutionUtils.initialize(push)
     _G.ResolutionUtils = ResolutionUtils
-    Logger.info("love.load.resolution_utils", "[love.load] ResolutionUtils inicializado e disponível globalmente")
+
+
 
     SceneManager.switchScene("bootloader_scene")
 
-    Logger.debug("love.load.managers.start", "[love.load] Inicializando ManagerRegistry...")
-    Logger.debug("love.load.managers.item_data_manager", "[love.load] Criando ItemDataManager...")
+    -- Inicializa managers persistentes
     local itemDataMgr = ItemDataManager:new()
     ManagerRegistry:register("itemDataManager", itemDataMgr)
-    Logger.debug("love.load.managers.item_data_manager.registered", "[love.load] ItemDataManager registrado.")
 
-    Logger.debug("love.load.managers.archetype_manager", "[love.load] Criando ArchetypeManager...")
     local archetypeMgr = ArchetypeManager:new()
     ManagerRegistry:register("archetypeManager", archetypeMgr)
-    Logger.debug("love.load.managers.archetype_manager.registered", "[love.load] ArchetypeManager registrado.")
 
-    Logger.debug("love.load.managers.lobby_storage_manager", "[love.load] Criando LobbyStorageManager...")
     local lobbyStorageMgr = LobbyStorageManager:new(itemDataMgr)
     ManagerRegistry:register("lobbyStorageManager", lobbyStorageMgr)
-    Logger.debug("love.load.managers.lobby_storage_manager.registered", "[love.load] LobbyStorageManager registrado.")
 
-    Logger.debug("love.load.managers.loadout_manager", "[love.load] Criando LoadoutManager...")
     local loadoutMgr = LoadoutManager:new(itemDataMgr)
     ManagerRegistry:register("loadoutManager", loadoutMgr)
-    Logger.debug("love.load.managers.loadout_manager.registered", "[love.load] LoadoutManager registrado.")
 
-    Logger.debug("love.load.managers.hunter_manager", "[love.load] Criando HunterManager...")
     local hunterMgr = HunterManager:new(loadoutMgr, itemDataMgr, archetypeMgr)
     ManagerRegistry:register("hunterManager", hunterMgr)
-    Logger.debug("love.load.managers.hunter_manager.registered", "[love.load] HunterManager registrado.")
 
-    Logger.debug("love.load.managers.agency_manager", "[love.load] Criando AgencyManager...")
     local agencyMgr = AgencyManager:new()
     ManagerRegistry:register("agencyManager", agencyMgr)
-    Logger.debug("love.load.managers.agency_manager.registered", "[love.load] AgencyManager registrado.")
 
-    Logger.debug("love.load.managers.reputation_manager", "[love.load] Criando ReputationManager...")
     local reputationMgr = ReputationManager:new(agencyMgr, itemDataMgr)
     ManagerRegistry:register("reputationManager", reputationMgr)
-    Logger.debug("love.load.managers.reputation_manager.registered", "[love.load] ReputationManager registrado.")
 
-    Logger.debug("love.load.managers.game_statistics_manager", "[love.load] Criando GameStatisticsManager...")
     local gameStatsMgr = GameStatisticsManager:new()
     ManagerRegistry:register("gameStatisticsManager", gameStatsMgr)
-    Logger.debug("love.load.managers.game_statistics_manager.registered", "[love.load] GameStatisticsManager registrado.")
-
-    Logger.debug("love.load.managers.registered", "[love.load] Managers persistentes registrados no ManagerRegistry.")
-
-    Logger.debug("love.load.end", "[love.load] love.load() concluído.")
 end
 
 function love.update(dt)
@@ -140,19 +136,11 @@ function love.draw()
     -- Desenha a cena ativa
     SceneManager.draw()
 
-    -- Informações de resolução em modo DEV
+    -- Info básica de debug (modo DEV)
     if DEV then
         love.graphics.setFont(fonts.main_small)
-        local scaleInfo = ResolutionUtils.getScaleInfo()
-        love.graphics.print(string.format(
-            "FPS: %d | Resolução: %dx%d -> %dx%d | Escala: %.2f | Offset: %.0f,%.0f | Stencil: %s",
-            love.timer.getFPS(),
-            scaleInfo.gameWidth, scaleInfo.gameHeight,
-            scaleInfo.windowWidth, scaleInfo.windowHeight,
-            scaleInfo.scaleX,
-            scaleInfo.offsetX, scaleInfo.offsetY,
-            scaleInfo.hasStencil and "✓" or "✗"
-        ), 10, 70)
+        love.graphics.setColor(1, 1, 1, 0.8)
+        love.graphics.print(string.format("FPS: %d", love.timer.getFPS()), 10, 70)
     end
 
     Logger.draw()
@@ -171,11 +159,13 @@ function love.keypressed(key, scancode, isrepeat)
     if key == "f11" then
         push:switchFullscreen()
     end
-    if key == "f10" then
+
+    -- Profiler com Shift+F10 (modo DEV)
+    if key == "f10" and love.keyboard.isDown("lshift", "rshift") and DEV then
         Logger.disable()
         profiler.start()
     end
-    if key == "f12" then
+    if key == "f12" and DEV then
         profiler.stop()
         profiler.report("profiler_report.txt")
     end
@@ -217,15 +207,10 @@ end
 
 function love.resize(w, h)
     push:resize(w, h)
-    Logger.info("Main", "Janela redimensionada para: " .. w .. "x" .. h)
 end
 
---[[
-    Callback chamado quando o jogo está prestes a fechar.
-    Ideal para salvar o estado final.
-]]
 function love.quit()
-    Logger.debug("Main", "Iniciando love.quit()...")
+    Logger.debug("main.love.quit.start", "[love.quit] Iniciando love.quit()...")
 
     -- Verifica se estamos numa sessão ativa de gameplay
     local isInActiveGameplaySession = false
@@ -244,52 +229,45 @@ function love.quit()
 
             -- Se não está em extração E não está em game over, então está numa sessão ativa
             isInActiveGameplaySession = not isInExtractionSequence and not isGameOver
-
-            if isInActiveGameplaySession then
-                Logger.info("Main",
-                    "Detectada sessão ativa de gameplay - evitando salvamento para prevenir perda de progresso")
-            end
         end
     end
 
-    -- Chama o método de unload da cena atual, se existir
+    -- Unload da cena atual
     if SceneManager.currentScene and SceneManager.currentScene.unload then
         SceneManager.currentScene:unload()
-        SceneManager.currentScene = nil -- Limpa referência
+        SceneManager.currentScene = nil
     end
 
-    -- Só salva se NÃO estiver numa sessão ativa de gameplay
+    -- Salva apenas se não estiver em sessão ativa
     if not isInActiveGameplaySession then
-        Logger.debug("Main", "Solicitando salvamento final dos managers persistentes...")
+        ---@type HunterManager
         local hunterMgr = ManagerRegistry:get("hunterManager")
         if hunterMgr and hunterMgr.saveState then
-            Logger.debug("Main", "  - Salvando HunterManager...")
             hunterMgr:saveState()
         end
+
+        ---@type LoadoutManager
         local loadoutMgr = ManagerRegistry:get("loadoutManager")
-        if loadoutMgr and loadoutMgr.saveState then -- saveState() pode não existir em LoadoutManager? Verificar
-            Logger.debug("Main", "  - Salvando LoadoutManager...")
-            loadoutMgr:saveState()                  -- Ou :saveAllLoadouts() se for o caso
+        if loadoutMgr and loadoutMgr.saveState then
+            loadoutMgr:saveState()
         end
+
+        ---@type LobbyStorageManager
         local lobbyStorageMgr = ManagerRegistry:get("lobbyStorageManager")
         if lobbyStorageMgr and lobbyStorageMgr.saveStorage then
-            Logger.debug("Main", "  - Salvando LobbyStorageManager...")
             lobbyStorageMgr:saveStorage()
         end
-        -- Adicione saves para outros managers persistentes aqui se necessário
 
         ---@type AgencyManager
         local agencyMgr = ManagerRegistry:get("agencyManager")
         if agencyMgr and agencyMgr:hasAgency() then
-            Logger.debug("Main", "  - Salvando AgencyManager...")
             agencyMgr:saveState()
         end
     else
-        Logger.info("Main", "Salvamento ignorado devido à sessão ativa de gameplay")
+        Logger.info("main.love.quit.save.skipped", "[love.quit] Salvamento ignorado devido à sessão ativa de gameplay")
     end
 
-    Logger.debug("Main", "love.quit() concluído.")
-    return false -- Retorna false para permitir o fechamento padrão
+    return false
 end
 
 -- Em algum lugar que é executado (ex: main.lua ou um arquivo de debug)
@@ -299,8 +277,7 @@ _G.GSAddItem = function(itemId, quantity)
     if scene and scene.debugAddItemToPlayerInventory then
         scene:debugAddItemToPlayerInventory(itemId, quantity)
     else
-        Logger.error("Main",
-            "Não foi possível chamar debugAddItemToPlayerInventory. Cena atual ou método não encontrado.")
+        error("Não foi possível chamar debugAddItemToPlayerInventory. Cena atual ou método não encontrado.")
     end
 end
 
@@ -309,6 +286,6 @@ _G.GSDropItem = function(itemId, quantity)
     if scene and scene.debugDropItemAtPlayer then
         scene:debugDropItemAtPlayer(itemId, quantity)
     else
-        Logger.error("Main", "Não foi possível chamar debugDropItemAtPlayer. Cena atual ou método não encontrado.")
+        error("Não foi possível chamar debugDropItemAtPlayer. Cena atual ou método não encontrado.")
     end
 end

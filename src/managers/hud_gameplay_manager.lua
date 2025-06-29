@@ -69,8 +69,8 @@ function HUDGameplayManager:setupGameplay()
 
     BossHealthBarManager:init()
 
-    local screenWidth = love.graphics.getWidth()
-    local screenHeight = love.graphics.getHeight()
+    local screenWidth = ResolutionUtils.getGameWidth()
+    local screenHeight = ResolutionUtils.getGameHeight()
     local mainFont = fonts.main
     local levelNumFont = fonts.main_large
     local xpGainFont = fonts.main_small
@@ -259,10 +259,10 @@ function HUDGameplayManager:update(dt)
         end
     end
 
-    local screenWidth = love.graphics.getWidth() -- Necessário para reposicionamento
-    local screenHeight = love.graphics.getHeight()
-    local paddingFromScreenEdgeBottom = 20       -- Usado no construtor, manter consistência
-    local spacingBetweenBars = 8                 -- Usado no construtor, manter consistência
+    local screenWidth = ResolutionUtils.getGameWidth() -- Necessário para reposicionamento
+    local screenHeight = ResolutionUtils.getGameHeight()
+    local paddingFromScreenEdgeBottom = 20             -- Usado no construtor, manter consistência
+    local spacingBetweenBars = 8                       -- Usado no construtor, manter consistência
 
     -- Atualização da Barra de XP
     if playerManager.experienceController.getExperienceRequiredForLevel then

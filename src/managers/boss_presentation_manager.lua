@@ -101,7 +101,8 @@ function BossPresentationManager:draw()
 
     -- Desenha um overlay escuro
     love.graphics.setColor(0, 0, 0, 0.4)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+    local gameW, gameH = ResolutionUtils.getGameDimensions()
+    love.graphics.rectangle("fill", 0, 0, gameW, gameH)
     love.graphics.setColor(1, 1, 1, 1)
 
     -- A barra de vida agora é desenhada pelo seu próprio manager,

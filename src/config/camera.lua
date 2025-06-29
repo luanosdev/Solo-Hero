@@ -33,8 +33,8 @@ end
 
 function Camera:init()
     -- Obtém dimensões da tela
-    self.screenWidth = love.graphics.getWidth()
-    self.screenHeight = love.graphics.getHeight()
+    self.screenWidth = ResolutionUtils.getGameWidth()
+    self.screenHeight = ResolutionUtils.getGameHeight()
 end
 
 ---@param position Vector2D

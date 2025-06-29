@@ -73,7 +73,7 @@ function ThunderRune:new(playerManager, runeItemData)
     instance.name = runeItemData.name or "Runa do Trovão (Instância)"
     instance.damage = runeItemData.damage or self.defaultDamage
     instance.cooldown = runeItemData.interval or self.defaultCooldown -- 'interval' em runes.lua
-    instance.range = (runeItemData.radius or (math.max(love.graphics.getWidth(), love.graphics.getHeight()) * self.defaultRangeMultiplier))
+    instance.range = (runeItemData.radius or (math.max(ResolutionUtils.getGameWidth(), ResolutionUtils.getGameHeight()) * self.defaultRangeMultiplier))
 
     instance.currentCooldown = instance.cooldown -- Começa no cooldown para não disparar imediatamente
 

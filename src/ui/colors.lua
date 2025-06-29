@@ -29,13 +29,13 @@ local colors = {
     panel_bg = { 0.08, 0.09, 0.12, 0.9 }, -- Azul/Preto levemente mais claro que window_bg
 
     slot_empty_bg = { 0.07, 0.08, 0.1, 0.8 },
-    slot_empty_border = { 0.3, 0.35, 0.4, 0.6 },
+    slot_empty_border = { 0.3, 0.35, 0.4, 0.3 },
     slot_hover_bg = { 0.1, 0.15, 0.2, 0.7 },
     slot_bg = { 0.1, 0.12, 0.15, 0.85 },             -- Cor de fundo para slots ocupados (pode ajustar)
     border_active = { 0.3, 0.7, 1.0, 1.0 },          -- Azul vibrante para borda do item/slot ativo
     -- <<< NOVAS CORES PARA SLOTS DE INVENTÁRIO/STORAGE >>>
     inventory_slot_bg = { 0.1, 0.12, 0.15, 0.9 },    -- Similar ao modal_bg, mas talvez um pouco mais opaco
-    inventory_slot_border = { 0.4, 0.45, 0.5, 0.7 }, -- Similar ao window_border
+    inventory_slot_border = { 0.4, 0.45, 0.5, 0.3 }, -- Similar ao window_border
     item_quantity_text = { 0.9, 0.9, 0.9, 1.0 },     -- Cor para texto de quantidade
     black_transparent_more = { 0, 0, 0, 0.7 },       -- Preto mais transparente para sombra de texto
     red = { 1, 0, 0, 1 },                            -- Cor vermelha básica para erros
@@ -214,9 +214,9 @@ local colors = {
         dark = { 0.49, 0.35, 0.25, 1.0 },         -- Tom escuro, mantendo a saturação para não parecer "sujo".
         very_dark = { 0.32, 0.22, 0.16, 1.0 },    -- Tom bem escuro, um marrom profundo e quente, longe do preto puro.
         -- Variações de subtons (undertones)
-        olive = { 0.80, 0.71, 0.56, 1.0 }, -- Tom oliva com um toque sutil de verde/amarelo, mais natural.
-        warm = { 0.89, 0.73, 0.57, 1.0 },  -- Tom quente com uma base laranja/vermelha bem definida.
-        cool = { 0.96, 0.85, 0.80, 1.0 },  -- Tom frio com uma base rosada/avermelhada mais perceptível.
+        olive = { 0.80, 0.71, 0.56, 1.0 },        -- Tom oliva com um toque sutil de verde/amarelo, mais natural.
+        warm = { 0.89, 0.73, 0.57, 1.0 },         -- Tom quente com uma base laranja/vermelha bem definida.
+        cool = { 0.96, 0.85, 0.80, 1.0 },         -- Tom frio com uma base rosada/avermelhada mais perceptível.
     },
 }
 

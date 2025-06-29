@@ -224,7 +224,12 @@ function GameplayScene:update(dt)
         return
     end
 
-    local mx, my = love.mouse.getPosition()
+    -- Converte coordenadas físicas do mouse para coordenadas virtuais
+    local physicalMx, physicalMy = love.mouse.getPosition()
+    local mx, my = ResolutionUtils.toGame(physicalMx, physicalMy)
+    if not mx or not my then
+        mx, my = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
+    end
 
     InventoryScreen.update(dt, mx, my, self.inventoryDragState)
     if LevelUpModal.visible then LevelUpModal:update(dt) end
@@ -486,7 +491,7 @@ function GameplayScene:draw()
         local enemies = enemyMgr:getEnemies()
         if enemies and #enemies > 0 then
             love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle('fill', love.graphics.getWidth() - 210, 5, 205, 150)
+            love.graphics.rectangle('fill', ResolutionUtils.getGameWidth() - 210, 5, 205, 150)
             love.graphics.setColor(1, 1, 1, 1)
             love.graphics.setFont(fonts.debug or fonts.main_small)
             local debugText = string.format(
@@ -509,7 +514,7 @@ function GameplayScene:draw()
             if bossCount > 0 then
                 debugText = debugText .. "\nBosses Vivos:\n" .. table.concat(bossLines, "\n")
             end
-            love.graphics.print(debugText, love.graphics.getWidth() - 200, 10)
+            love.graphics.print(debugText, ResolutionUtils.getGameWidth() - 200, 10)
         end
     end
     love.graphics.setFont(fonts.main)
@@ -575,7 +580,13 @@ function GameplayScene:mousepressed(x, y, button, istouch, presses)
     end
 
     if InventoryScreen.isVisible then
-        local consumed, dragStartData, useItemData = InventoryScreen.handleMousePress(x, y, button)
+        -- Converte coordenadas físicas do mouse para coordenadas virtuais
+        local virtualX, virtualY = ResolutionUtils.toGame(x, y)
+        if not virtualX or not virtualY then
+            virtualX, virtualY = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
+        end
+
+        local consumed, dragStartData, useItemData = InventoryScreen.handleMousePress(virtualX, virtualY, button)
 
         if consumed and dragStartData then
             self.inventoryDragState.isDragging = true; self.inventoryDragState.draggedItem = dragStartData.item; self.inventoryDragState.sourceGridId =

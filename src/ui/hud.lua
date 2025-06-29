@@ -50,8 +50,8 @@ end
     Draw the HUD elements
 ]]
 function HUD:draw()
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
 
     local playerManager = ManagerRegistry:get("playerManager")
     -- Barra de XP com estilo Solo Leveling

@@ -53,8 +53,8 @@ function OffscreenIndicator:update(targetWorldPos, playerWorldPos)
     self.distance = math.sqrt(dx * dx + dy * dy)
 
     local screenX, screenY = Camera:worldToScreen(targetWorldPos.x, targetWorldPos.y)
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
 
     -- Check if target is on-screen
     if screenX > 0 and screenX < screenW and screenY > 0 and screenY < screenH then

@@ -366,7 +366,7 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
     iconColumnWidth = tooltipWidth * 0.4
     textColumnXOffset = iconColumnWidth + PADDING
 
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
     if x + tooltipWidth > screenW then x = screenW - tooltipWidth end
     if y + totalHeight > screenH then y = screenH - totalHeight end
     x = math.max(0, x)

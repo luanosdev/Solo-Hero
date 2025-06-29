@@ -493,8 +493,8 @@ function elements.drawTooltipBox(x, y, lines)
     local totalWidth = padding * 2 + maxWidth
 
     -- Ajusta posição para não sair da tela (simples)
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
     if x + totalWidth > screenW then
         x = screenW - totalWidth
     end

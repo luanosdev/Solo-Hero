@@ -109,8 +109,8 @@ LobbyScene.equipmentSlotAreas = {} ---@type table<string, table> { [slotId] = {x
 -- args.extractedEquipment: table, mapa de equipamentos extraídos (slotId -> itemInstance).
 function LobbyScene:load(args)
     print("LobbyScene:load")
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
 
     -- Configurações básicas da cena
     self.camera = Camera:new()
@@ -355,7 +355,12 @@ function LobbyScene:update(dt)
         self.navbar:update(dt)
     end
 
-    local mx, my = love.mouse.getPosition()
+    -- Converte coordenadas físicas do mouse para coordenadas virtuais
+    local physicalMx, physicalMy = love.mouse.getPosition()
+    local mx, my = ResolutionUtils.toGame(physicalMx, physicalMy)
+    if not mx or not my then
+        mx, my = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
+    end
     local activeTab = tabs[self.activeTabIndex]
     local isPortalScreenActive = activeTab and activeTab.id == TabIds.PORTALS
     local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
@@ -629,9 +634,14 @@ end
 --- Desenha os elementos da cena.
 -- Desenha o mapa ou fundo padrão, o modal (se ativo) e a barra de tabs.
 function LobbyScene:draw()
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
-    local mx, my = love.mouse.getPosition() -- <<< Pega mouse coords aqui para passar
+    -- Usa dimensões virtuais do jogo ao invés das dimensões físicas da janela
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
+    -- Converte coordenadas físicas do mouse para coordenadas virtuais
+    local physicalMx, physicalMy = love.mouse.getPosition()
+    local mx, my = ResolutionUtils.toGame(physicalMx, physicalMy)
+    if not mx or not my then
+        mx, my = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
+    end
     local activeTab = tabs[self.activeTabIndex]
     local isPortalScreenZoomed = self.portalScreen and self.portalScreen.isZoomedIn
     local navbarHeight = self.navbar:getHeight()
@@ -1025,7 +1035,12 @@ function LobbyScene:wheelmoved(x, y)
     local activeTab = tabs[self.activeTabIndex]
     if activeTab and activeTab.id == TabIds.AGENCY then
         if self.agencyScreen and self.agencyScreen.handleMouseScroll then
-            local mx, my = love.mouse.getPosition()
+            -- Converte coordenadas físicas do mouse para coordenadas virtuais
+            local physicalMx, physicalMy = love.mouse.getPosition()
+            local mx, my = ResolutionUtils.toGame(physicalMx, physicalMy)
+            if not mx or not my then
+                mx, my = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
+            end
             self.agencyScreen:handleMouseScroll(x, y, mx, my)
         end
         -- Adicionar delegação para outras telas que precisem de scroll

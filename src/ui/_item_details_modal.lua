@@ -35,13 +35,14 @@ function ItemDetailsModal:draw()
 
     -- Fundo escuro semi-transparente (como outros modais)
     love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.8)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+    local gameW, gameH = ResolutionUtils.getGameDimensions()
+    love.graphics.rectangle("fill", 0, 0, gameW, gameH)
 
     -- Calcula posição central do modal
     local modalWidth = 350  -- Largura menor que a seção anterior
     local modalHeight = 500 -- Altura ajustável
-    local modalX = (love.graphics.getWidth() - modalWidth) / 2
-    local modalY = (love.graphics.getHeight() - modalHeight) / 2
+    local modalX = (ResolutionUtils.getGameWidth() - modalWidth) / 2
+    local modalY = (ResolutionUtils.getGameHeight() - modalHeight) / 2
 
     -- Desenha o frame do modal (usando ui_elements)
     elements.drawWindowFrame(modalX, modalY, modalWidth, modalHeight, "Detalhes do Item")
@@ -217,8 +218,8 @@ function ItemDetailsModal:mousepressed(x, y, button)
     -- Verifica clique fora do modal para fechar (opcional)
     local modalWidth = 350
     local modalHeight = 500
-    local modalX = (love.graphics.getWidth() - modalWidth) / 2
-    local modalY = (love.graphics.getHeight() - modalHeight) / 2
+    local modalX = (ResolutionUtils.getGameWidth() - modalWidth) / 2
+    local modalY = (ResolutionUtils.getGameHeight() - modalHeight) / 2
     if not (x > modalX and x < modalX + modalWidth and y > modalY and y < modalY + modalHeight) then
         self:hide()
         return true -- Input tratado (clique fora)

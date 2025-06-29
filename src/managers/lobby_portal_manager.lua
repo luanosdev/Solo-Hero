@@ -82,8 +82,8 @@ function LobbyPortalManager:initialize(mapW, mapH)
     end
 
     -- >>> OBTÉM DIMENSÕES DA TELA <<<
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
 
     -- >>> FUNÇÃO AUXILIAR PARA CONVERTER TELA -> MAPA (CÂMERA INICIAL NO CENTRO, ZOOM 1.0) <<<
     local function screenToMapCoords(sx, sy, currentMapW, currentMapH)
@@ -186,8 +186,8 @@ end
 function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalData)
     local portalFont = fonts.main_small or fonts.main
     local portalFontHeight = portalFont:getHeight()
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
 
     love.graphics.setFont(portalFont)
     love.graphics.setLineWidth(2)

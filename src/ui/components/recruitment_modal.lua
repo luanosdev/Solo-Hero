@@ -41,7 +41,7 @@ function RecruitmentModal:_drawCard(index)
         return
     end
 
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
     local numCandidates = #self.recruitmentManager.hunterCandidates
     local totalPadding = 40
     local modalColumnGap = 20
@@ -77,7 +77,7 @@ function RecruitmentModal:draw(mx, my)
         return
     end
 
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
     love.graphics.setColor(0, 0, 0, 0.7)
     love.graphics.rectangle("fill", 0, 0, screenW, screenH)
 
@@ -102,7 +102,7 @@ function RecruitmentModal:draw(mx, my)
 end
 
 function RecruitmentModal:_createOrUpdateModalElements()
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
     local numCandidates = #self.recruitmentManager.hunterCandidates
     local totalPadding = 40
     local modalColumnGap = 20
@@ -215,7 +215,7 @@ function RecruitmentModal:update(dt, mx, my, allowHover)
     end
 
     -- Lógica de Hover e Animação de Escala
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
     local numCandidates = #self.columns
     if numCandidates == 0 then return end
 

@@ -36,7 +36,7 @@ function BossHPBar:new(boss, yPosition)
     instance.boss = boss
     instance.y = yPosition
     instance.width = 800
-    instance.x = love.graphics.getWidth() / 2 -- Centralizado
+    instance.x = ResolutionUtils.getGameWidth() / 2 -- Centralizado
 
     instance.visualHP = boss.currentHealth
     instance.rankColors = Colors.rankDetails[boss.rank or "E"] or Colors.rankDetails["E"]

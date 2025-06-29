@@ -17,16 +17,19 @@ DEBUG_SHOW_CHUNK_BOUNDS = DEV and false
 
 function love.conf(t)
     t.window.title = "Solo Hero"
-    -- Configurações de janela básicas - o sistema push vai gerenciar resolução e fullscreen
-    t.window.width = 1280       -- Janela menor por padrão para desenvolvimento
+    -- Configurações otimizadas para forçar dimensões corretas
+    t.window.width = 1280       -- Janela padrão para desenvolvimento
     t.window.height = 720
-    t.window.fullscreen = false -- Deixa o push gerenciar fullscreen
-    t.window.resizable = true   -- Permite redimensionamento
-    t.window.msaa = 4           -- Anti-aliasing
+    t.window.fullscreen = false -- O push gerencia fullscreen
+    t.window.resizable = false  -- FORÇAR dimensões fixas para evitar redimensionamento
+    t.window.msaa = 0           -- Desabilitado para melhor performance
+    t.window.highdpi = true     -- Suporte para telas de alta DPI
+    t.window.minwidth = 1280    -- Força dimensões mínimas iguais às desejadas
+    t.window.minheight = 720    -- Força dimensões mínimas iguais às desejadas
+    t.window.centered = true    -- Centraliza a janela
 
-    -- Define o VSync. Se DEV for true, vsync é 0 (desligado).
-    -- Se DEV for false ou nil, vsync é 1 (ligado, padrão).
-    t.window.vsync = 0 -- VSync desligado para DEV mode
+    -- VSync ligado para estabilidade visual
+    t.window.vsync = 1
 
     t.modules.joystick = true
     t.console = DEV

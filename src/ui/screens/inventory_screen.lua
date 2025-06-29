@@ -128,7 +128,7 @@ function InventoryScreen.draw(dragState)
     ---@type ItemDataManager
     local itemDataManager = ManagerRegistry:get("itemDataManager")
 
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
 
     -- Fundo semi-transparente
     love.graphics.setColor(0, 0, 0, 0.8)
@@ -226,59 +226,63 @@ function InventoryScreen.draw(dragState)
         itemDataManager
     )
 
+
     if dragState and dragState.isDragging and dragState.draggedItem then
-        -- Usa mouseX/Y local da tela para desenho (assumindo que 'update' ainda armazena)
-        local mx_draw, my_draw = InventoryScreen.mouseX, InventoryScreen.mouseY
-        if mx_draw and my_draw then
-            local ghostX = mx_draw - (dragState.draggedItemOffsetX or 0) -- Usa offset do dragState
-            local ghostY = my_draw - (dragState.draggedItemOffsetY or 0) -- Usa offset do dragState
-            elements.drawItemGhost(ghostX, ghostY, dragState.draggedItem, 0.75,
-                dragState.draggedItemIsRotated)                          -- Usa rotação do dragState
+        -- Usa coordenadas virtuais já convertidas pelo gameplay_scene.update()
+        -- (InventoryScreen.mouseX/Y já são virtuais!)
+        local ghostX = InventoryScreen.mouseX - (dragState.draggedItemOffsetX or 0) -- Offset em coordenadas virtuais
+        local ghostY = InventoryScreen.mouseY - (dragState.draggedItemOffsetY or 0) -- Offset em coordenadas virtuais
+        elements.drawItemGhost(
+            ghostX,
+            ghostY,
+            dragState.draggedItem,
+            0.75,
+            dragState.draggedItemIsRotated
+        )
 
-            if dragState.targetGridId and dragState.targetSlotCoords then
-                local visualW = dragState.draggedItem.gridWidth or 1
-                local visualH = dragState.draggedItem.gridHeight or 1
-                if dragState.draggedItemIsRotated then
-                    visualW = dragState.draggedItem.gridHeight or 1
-                    visualH = dragState.draggedItem.gridWidth or 1
+        if dragState.targetGridId and dragState.targetSlotCoords then
+            local visualW = dragState.draggedItem.gridWidth or 1
+            local visualH = dragState.draggedItem.gridHeight or 1
+            if dragState.draggedItemIsRotated then
+                visualW = dragState.draggedItem.gridHeight or 1
+                visualH = dragState.draggedItem.gridWidth or 1
+            end
+
+            if dragState.targetGridId == "inventory" then
+                local targetArea = InventoryScreen.inventoryGridArea -- Usa área local calculada neste frame
+                local targetManager = inventoryManager
+                if targetManager then
+                    local gridDims = targetManager:getGridDimensions()
+                    local targetRows = gridDims and gridDims.rows
+                    local targetCols = gridDims and gridDims.cols
+                    -- Usa targetCoords e isDropValid do dragState
+                    if targetRows and targetCols and dragState.targetSlotCoords.row then
+                        elements.drawDropIndicator(
+                            targetArea.x, targetArea.y, targetArea.w, targetArea.h,
+                            targetRows, targetCols,
+                            dragState.targetSlotCoords.row, dragState.targetSlotCoords.col,
+                            visualW, visualH,
+                            dragState.isDropValid -- Usa validade do dragState
+                        )
+                    end
                 end
-
-                if dragState.targetGridId == "inventory" then
-                    local targetArea = InventoryScreen.inventoryGridArea -- Usa área local calculada neste frame
-                    local targetManager = inventoryManager
-                    if targetManager then
-                        local gridDims = targetManager:getGridDimensions()
-                        local targetRows = gridDims and gridDims.rows
-                        local targetCols = gridDims and gridDims.cols
-                        -- Usa targetCoords e isDropValid do dragState
-                        if targetRows and targetCols and dragState.targetSlotCoords.row then
-                            elements.drawDropIndicator(
-                                targetArea.x, targetArea.y, targetArea.w, targetArea.h,
-                                targetRows, targetCols,
-                                dragState.targetSlotCoords.row, dragState.targetSlotCoords.col,
-                                visualW, visualH,
-                                dragState.isDropValid -- Usa validade do dragState
-                            )
-                        end
+            elseif dragState.targetGridId == "equipment" then
+                local slotId = dragState.targetSlotCoords
+                -- Usa áreas locais calculadas neste frame
+                local area = InventoryScreen.equipmentSlotAreas and InventoryScreen.equipmentSlotAreas[slotId]
+                if area then
+                    -- Indicador temporário (usa isDropValid do dragState)
+                    local r, g, b, a
+                    if dragState.isDropValid then
+                        local validColor = colors.placement_valid
+                        r, g, b, a = validColor[1], validColor[2], validColor[3], 0.5 -- Usa alpha 0.5
+                    else
+                        local invalidColor = colors.placement_invalid
+                        r, g, b, a = invalidColor[1], invalidColor[2], invalidColor[3], 0.5 -- Usa alpha 0.5
                     end
-                elseif dragState.targetGridId == "equipment" then
-                    local slotId = dragState.targetSlotCoords
-                    -- Usa áreas locais calculadas neste frame
-                    local area = InventoryScreen.equipmentSlotAreas and InventoryScreen.equipmentSlotAreas[slotId]
-                    if area then
-                        -- Indicador temporário (usa isDropValid do dragState)
-                        local r, g, b, a
-                        if dragState.isDropValid then
-                            local validColor = colors.placement_valid
-                            r, g, b, a = validColor[1], validColor[2], validColor[3], 0.5 -- Usa alpha 0.5
-                        else
-                            local invalidColor = colors.placement_invalid
-                            r, g, b, a = invalidColor[1], invalidColor[2], invalidColor[3], 0.5 -- Usa alpha 0.5
-                        end
-                        love.graphics.setColor(r, g, b, a)
-                        love.graphics.rectangle('fill', area.x, area.y, area.w, area.h)
-                        love.graphics.setColor(colors.white) -- Resetar cor
-                    end
+                    love.graphics.setColor(r, g, b, a)
+                    love.graphics.rectangle('fill', area.x, area.y, area.w, area.h)
+                    love.graphics.setColor(colors.white) -- Resetar cor
                 end
             end
         end
