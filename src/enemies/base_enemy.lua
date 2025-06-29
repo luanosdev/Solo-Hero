@@ -121,7 +121,7 @@ local BaseEnemy = {
 
     -- Constants
     RADIUS_SIZE_DELTA = 0.5,
-    SEPARATION_STRENGTH = 50.0, -- Aumentado de 20.0 para 50.0 para separação mais efetiva
+    SEPARATION_STRENGTH = 30.0,
 }
 
 --- Constructor
