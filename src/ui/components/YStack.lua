@@ -138,35 +138,13 @@ function YStack:update(dt, mx, my, allowHover)
 end
 
 --- Desenha a stack e seus filhos.
---- Aplica clipping interno se fixedHeight foi definido.
 function YStack:draw()
     self:_updateLayout()
 
     -- Desenha debug da stack base
     Component.draw(self)
 
-    local needsClipping = self.fixedHeight ~= nil
-    local clipX, clipY, clipW, clipH
-
-    if needsClipping then
-        clipX = math.floor(self.rect.x + self.padding.left)
-        clipY = math.floor(self.rect.y + self.padding.top)
-        clipW = math.floor(self.rect.w - self.padding.left - self.padding.right)
-        clipH = math.floor(self.rect.h - self.padding.top - self.padding.bottom)
-
-        if clipW > 0 and clipH > 0 then
-            love.graphics.push("all")
-            local stencilFunc = function()
-                love.graphics.rectangle("fill", clipX, clipY, clipW, clipH)
-            end
-            love.graphics.stencil(stencilFunc, "replace", 1)
-            love.graphics.setStencilTest("equal", 1)
-        else
-            needsClipping = false
-        end
-    end
-
-    -- Desenha os filhos (dentro ou fora do stencil)
+    -- Desenha os filhos
     for _, child in ipairs(self.children) do
         if child.draw then
             child:draw()
@@ -178,10 +156,6 @@ function YStack:draw()
                 love.graphics.pop()
             end
         end
-    end
-
-    if needsClipping then
-        love.graphics.pop()
     end
 end
 
