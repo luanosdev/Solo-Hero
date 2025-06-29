@@ -224,7 +224,12 @@ function GameplayScene:update(dt)
         return
     end
 
-    local mx, my = love.mouse.getPosition()
+    -- Converte coordenadas físicas do mouse para coordenadas virtuais
+    local physicalMx, physicalMy = love.mouse.getPosition()
+    local mx, my = ResolutionUtils.toGame(physicalMx, physicalMy)
+    if not mx or not my then
+        mx, my = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
+    end
 
     InventoryScreen.update(dt, mx, my, self.inventoryDragState)
     if LevelUpModal.visible then LevelUpModal:update(dt) end
@@ -575,7 +580,13 @@ function GameplayScene:mousepressed(x, y, button, istouch, presses)
     end
 
     if InventoryScreen.isVisible then
-        local consumed, dragStartData, useItemData = InventoryScreen.handleMousePress(x, y, button)
+        -- Converte coordenadas físicas do mouse para coordenadas virtuais
+        local virtualX, virtualY = ResolutionUtils.toGame(x, y)
+        if not virtualX or not virtualY then
+            virtualX, virtualY = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
+        end
+
+        local consumed, dragStartData, useItemData = InventoryScreen.handleMousePress(virtualX, virtualY, button)
 
         if consumed and dragStartData then
             self.inventoryDragState.isDragging = true; self.inventoryDragState.draggedItem = dragStartData.item; self.inventoryDragState.sourceGridId =

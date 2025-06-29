@@ -178,8 +178,8 @@ function InputManager:mousemoved(x, y, dx, dy)
 end
 
 -- Manipulador de clique do mouse
-function InputManager:mousepressed(x, y, button, isGamePaused)                   -- Recebe estado de pausa
-    print("InputManager:mousepressed - type(LevelUpModal):", type(LevelUpModal)) -- DEBUG
+function InputManager:mousepressed(x, y, button, isGamePaused) -- Recebe estado de pausa
+    -- Log de debug removido para evitar spam
     -- 1. Verifica se as UIs visíveis querem tratar o clique (usa ItemDetailsModal direto)
     if ItemDetailsModal.isVisible and ItemDetailsModal:mousepressed(x, y, button) then return true end
     if InventoryScreen.isVisible and InventoryScreen.handleMousePress(x, y, button) then return true end

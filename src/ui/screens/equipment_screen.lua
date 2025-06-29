@@ -244,10 +244,10 @@ function EquipmentScreen:draw(screenW, screenH, tabSettings, dragState, mx, my)
 
     -- <<< DESENHO DO DRAG-AND-DROP (usa dragState da cena) >>>
     if dragState.isDragging and dragState.draggedItem then
-        local current_mx, current_my = love.mouse.getPosition() -- Usa current mouse position para o ghost
-        -- Desenha o item fantasma
-        local ghostX = current_mx - dragState.draggedItemOffsetX
-        local ghostY = current_my - dragState.draggedItemOffsetY
+        -- Usa coordenadas virtuais já convertidas pelo lobby_scene.update()
+        -- (mx, my já são virtuais!)
+        local ghostX = mx - (dragState.draggedItemOffsetX or 0) -- Offset em coordenadas virtuais
+        local ghostY = my - (dragState.draggedItemOffsetY or 0) -- Offset em coordenadas virtuais
         elements.drawItemGhost(ghostX, ghostY, dragState.draggedItem, 0.75, dragState.draggedItemIsRotated)
 
         -- Desenha o indicador de drop (usa target info do dragState)

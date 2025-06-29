@@ -510,7 +510,13 @@ function AgencyScreen:handleMousePress(clickX, clickY, button)
             end
         end
 
-        local globalClickX, globalClickY = love.mouse.getPosition()
+        -- Converte coordenadas físicas do mouse para coordenadas virtuais
+        local physicalClickX, physicalClickY = love.mouse.getPosition()
+        local globalClickX, globalClickY = ResolutionUtils.toGame(physicalClickX, physicalClickY)
+        if not globalClickX or not globalClickY then
+            return false -- Mouse fora da área do jogo
+        end
+
         for hunterId, rect in pairs(self.hunterSlotRects) do
             if globalClickX >= rect.x and globalClickX < rect.x + rect.w and
                 globalClickY >= rect.y and globalClickY < rect.y + rect.h then
