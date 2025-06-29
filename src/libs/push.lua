@@ -1,320 +1,338 @@
+-- push.lua v0.4
+
+-- Copyright (c) 2020 Ulysse Ramage
+-- Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+-- The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+local love11 = love.getVersion() == 11
+local getDPI = love11 and love.window.getDPIScale or love.window.getPixelScale
+local windowUpdateMode = love11 and love.window.updateMode or function(width, height, settings)
+  local _, _, flags = love.window.getMode()
+  for k, v in pairs(settings) do flags[k] = v end
+  love.window.setMode(width, height, flags)
+end
+
 ---@class Push
----@field defaults table
----@field STENCIL_VALUE number
----@field canvas table
----@field borderColor table
----@field canvases table
----@field canvasShaders table
----@field activeShader table
-local push = {}
-
--- Configurações padrão
-push.defaults = {
-    gameWidth = 1920,
-    gameHeight = 1080,
-    windowWidth = 1920,
-    windowHeight = 1080,
+local push = {
+  defaults = {
     fullscreen = false,
-    resizable = true,
-    canvas = true,
+    resizable = false,
     pixelperfect = false,
-    highdpi = false,
+    highdpi = true,
+    canvas = true,
+    stencil = true,
     stretched = false
+  }
+
 }
+setmetatable(push, push)
 
--- Variáveis internas
-local STENCIL_VALUE = 1
-local canvas, borderColor = nil, { 0, 0, 0 }
-local canvases = {}
-local canvasShaders = {}
-local activeShader = nil
-local ww, wh, gw, gh = 0, 0, 0, 0
-local _sx, _sy, _dx, _dy = 0, 0, 0, 0
-
----@param gameWidth number
----@param gameHeight number
----@param windowWidth number
----@param windowHeight number
----@param options table
-function push:setupScreen(gameWidth, gameHeight, windowWidth, windowHeight, options)
-    options = options or {}
-
-    gw, gh = gameWidth, gameHeight
-    ww, wh = windowWidth, windowHeight
-
-    love.window.setMode(windowWidth, windowHeight, {
-        fullscreen = options.fullscreen or push.defaults.fullscreen,
-        resizable = options.resizable or push.defaults.resizable,
-        vsync = options.vsync or false,
-        msaa = options.msaa or 0,
-        highdpi = options.highdpi or push.defaults.highdpi
-    })
-
-    self:initValues()
-
-    if options.canvas or push.defaults.canvas then
-        self:setupCanvas()
-    end
+function push:applySettings(settings)
+  for k, v in pairs(settings) do
+    self["_" .. k] = v
+  end
 end
 
----@param canvases_table? table
-function push:setupCanvas(canvases_table)
-    -- Tentar criar canvas com stencil, fallback para canvas padrão se falhar
-    local canvas, hasStencil = self:_createCanvasWithStencil(gw, gh)
+function push:resetSettings() return self:applySettings(self.defaults) end
 
-    table.insert(canvases, {
-        name = "_default",
-        canvas = canvas,
-        hasStencil = hasStencil
-    })
+function push:setupScreen(WWIDTH, WHEIGHT, RWIDTH, RHEIGHT, settings)
+  settings = settings or {}
 
-    if canvases_table then
-        for i = 1, #canvases_table do
-            local _table = canvases_table[i]
-            local canvas, hasStencil = self:_createCanvasWithStencil(gw, gh)
+  self._WWIDTH, self._WHEIGHT = WWIDTH, WHEIGHT
+  self._RWIDTH, self._RHEIGHT = RWIDTH, RHEIGHT
 
-            table.insert(canvases, {
-                name = _table.name,
-                canvas = canvas,
-                hasStencil = hasStencil,
-                shader = _table.shader
-            })
-        end
-    end
+  self:applySettings(self.defaults) --set defaults first
+  self:applySettings(settings)      --then fill with custom settings
+
+  windowUpdateMode(self._RWIDTH, self._RHEIGHT, {
+    fullscreen = self._fullscreen,
+    resizable = self._resizable,
+    highdpi = self._highdpi
+  })
+
+  self:initValues()
+
+  if self._canvas then
+    self:setupCanvas({ "default" }) --setup canvas
+  end
+
+  self._borderColor = { 0, 0, 0 }
+
+  self._drawFunctions = {
+    ["start"] = self.start,
+    ["end"] = self.finish
+  }
+
+  return self
 end
 
--- Função auxiliar para criar canvas com stencil, com fallback
-function push:_createCanvasWithStencil(width, height)
-    -- Tentar diferentes abordagens para criar canvas com stencil
-    local canvas, hasStencil = nil, false
+function push:setupCanvas(canvases)
+  table.insert(canvases, { name = "_render", private = true }) --final render
 
-    -- Tentativa 1: Canvas com stencil integrado (LÖVE 12+)
-    pcall(function()
-        canvas = love.graphics.newCanvas(width, height, { stencil = true })
-        hasStencil = true
-    end)
+  self._canvas = true
+  self.canvases = {}
 
-    -- Tentativa 2: Canvas com formato de tabela (LÖVE 11.x)
-    if not canvas then
-        pcall(function()
-            canvas = love.graphics.newCanvas(width, height, { format = "rgba8", stencil = true })
-            hasStencil = true
-        end)
-    end
+  for i = 1, #canvases do
+    push:addCanvas(canvases[i])
+  end
 
-    -- Fallback: Canvas padrão sem stencil
-    if not canvas then
-        canvas = love.graphics.newCanvas(width, height)
-        hasStencil = false
-        Logger.warn("push.canvas_creation", "[push:_createCanvasWithStencil] Usando canvas sem stencil (fallback)")
-    else
-        Logger.info("push.canvas_creation", "[push:_createCanvasWithStencil] Canvas com stencil criado com sucesso")
-    end
-
-    return canvas, hasStencil
+  return self
 end
 
----@param name string
+function push:addCanvas(params)
+  table.insert(self.canvases, {
+    name = params.name,
+    private = params.private,
+    shader = params.shader,
+    canvas = love.graphics.newCanvas(self._WWIDTH, self._WHEIGHT),
+    stencil = params.stencil or self._stencil
+  })
+end
+
 function push:setCanvas(name)
-    if not name or name == "_default" then
-        return love.graphics.setCanvas(self:getCanvas("_default").canvas)
-    end
-    local _canvas = self:getCanvas(name)
-    return love.graphics.setCanvas(_canvas.canvas)
+  if not self._canvas then return true end
+  local canvasTable = self:getCanvasTable(name)
+  return love.graphics.setCanvas({ canvasTable.canvas, stencil = canvasTable.stencil })
 end
 
----@param name string
-function push:getCanvas(name)
-    name = name or "_default"
-    for i = 1, #canvases do
-        if canvases[i].name == name then
-            return canvases[i]
-        end
+function push:getCanvasTable(name)
+  for i = 1, #self.canvases do
+    if self.canvases[i].name == name then
+      return self.canvases[i]
     end
+  end
 end
 
----@param name string
----@param shader table
 function push:setShader(name, shader)
-    if not name then
-        activeShader = shader
-        return activeShader
-    end
-
-    local _canvas = self:getCanvas(name)
-    if _canvas then
-        canvasShaders[name] = shader
-    end
+  if not shader then
+    self:getCanvasTable("_render").shader = name
+  else
+    self:getCanvasTable(name).shader = shader
+  end
 end
 
 function push:initValues()
-    _sx = ww / gw
-    _sy = wh / gh
+  self._PSCALE = (not love11 and self._highdpi) and getDPI() or 1
 
-    if not push.defaults.stretched then
-        _sx = math.min(_sx, _sy)
-        _sy = _sx
-    end
+  self._SCALE = {
+    x = self._RWIDTH / self._WWIDTH * self._PSCALE,
+    y = self._RHEIGHT / self._WHEIGHT * self._PSCALE
+  }
 
-    _dx = (ww - (gw * _sx)) * 0.5
-    _dy = (wh - (gh * _sy)) * 0.5
+  if self._stretched then --if stretched, no need to apply offset
+    self._OFFSET = { x = 0, y = 0 }
+  else
+    local scale = math.min(self._SCALE.x, self._SCALE.y)
+    if self._pixelperfect then scale = math.floor(scale) end
+
+    self._OFFSET = { x = (self._SCALE.x - scale) * (self._WWIDTH / 2), y = (self._SCALE.y - scale) * (self._WHEIGHT / 2) }
+    self._SCALE.x, self._SCALE.y = scale, scale --apply same scale to X and Y
+  end
+
+  self._GWIDTH = self._RWIDTH * self._PSCALE - self._OFFSET.x * 2
+  self._GHEIGHT = self._RHEIGHT * self._PSCALE - self._OFFSET.y * 2
 end
 
----@param operation string
-function push:apply(operation)
-    if operation == "start" then
-        self:start()
-    elseif operation == "finish" or operation == "end" then
-        self:finish()
-    end
+function push:apply(operation, shader)
+  self._drawFunctions[operation](self, shader)
 end
 
 function push:start()
-    if #canvases > 0 then
-        love.graphics.setCanvas(self:getCanvas("_default").canvas)
-        love.graphics.clear()
-    else
-        love.graphics.push()
-        love.graphics.translate(_dx, _dy)
-        love.graphics.scale(_sx, _sy)
-    end
+  if self._canvas then
+    love.graphics.push()
+    love.graphics.setCanvas({ self.canvases[1].canvas, stencil = self.canvases[1].stencil })
+  else
+    love.graphics.translate(self._OFFSET.x, self._OFFSET.y)
+    love.graphics.setScissor(self._OFFSET.x, self._OFFSET.y, self._WWIDTH * self._SCALE.x, self._WHEIGHT * self._SCALE.y)
+    love.graphics.push()
+    love.graphics.scale(self._SCALE.x, self._SCALE.y)
+  end
 end
 
-function push:finish()
-    if #canvases > 0 then
-        love.graphics.setCanvas()
+function push:applyShaders(canvas, shaders)
+  local _shader = love.graphics.getShader()
+  if #shaders <= 1 then
+    love.graphics.setShader(shaders[1])
+    love.graphics.draw(canvas)
+  else
+    local _canvas = love.graphics.getCanvas()
 
-        for i = 1, #canvases do
-            local _table = canvases[i]
-            love.graphics.setColor(1, 1, 1, 1)
-
-            -- Aplicar shader se existir
-            local shader = _table.shader or canvasShaders[_table.name] or activeShader
-            if type(shader) == "table" then
-                for j = 1, #shader do
-                    love.graphics.setShader(shader[j])
-                end
-            elseif shader then
-                love.graphics.setShader(shader)
-            end
-
-            love.graphics.draw(_table.canvas, _dx, _dy, 0, _sx, _sy)
-            love.graphics.setShader()
-        end
-
-        -- Desenhar bordas se não for stretched
-        if not push.defaults.stretched then
-            self:drawBorders()
-        end
-    else
-        love.graphics.pop()
-    end
-end
-
-function push:drawBorders()
-    love.graphics.setColor(borderColor)
-
-    -- Bordas superiores e inferiores
-    if _dy > 0 then
-        love.graphics.rectangle("fill", 0, 0, ww, _dy)
-        love.graphics.rectangle("fill", 0, wh - _dy, ww, _dy)
+    local _tmp = self:getCanvasTable("_tmp")
+    if not _tmp then --create temp canvas only if needed
+      self:addCanvas({ name = "_tmp", private = true, shader = nil })
+      _tmp = self:getCanvasTable("_tmp")
     end
 
-    -- Bordas laterais
-    if _dx > 0 then
-        love.graphics.rectangle("fill", 0, 0, _dx, wh)
-        love.graphics.rectangle("fill", ww - _dx, 0, _dx, wh)
+    love.graphics.push()
+    love.graphics.origin()
+    local outputCanvas
+    for i = 1, #shaders do
+      local inputCanvas = i % 2 == 1 and canvas or _tmp.canvas
+      outputCanvas = i % 2 == 0 and canvas or _tmp.canvas
+      love.graphics.setCanvas(outputCanvas)
+      love.graphics.clear()
+      love.graphics.setShader(shaders[i])
+      love.graphics.draw(inputCanvas)
+      love.graphics.setCanvas(inputCanvas)
+    end
+    love.graphics.pop()
+
+    love.graphics.setCanvas(_canvas)
+    love.graphics.draw(outputCanvas)
+  end
+  love.graphics.setShader(_shader)
+end
+
+function push:finish(shader)
+  love.graphics.setBackgroundColor(unpack(self._borderColor))
+  if self._canvas then
+    local _render = self:getCanvasTable("_render")
+
+    love.graphics.pop()
+
+    local white = love11 and 1 or 255
+    love.graphics.setColor(white, white, white)
+
+    --draw canvas
+    love.graphics.setCanvas(_render.canvas)
+    for i = 1, #self.canvases do --do not draw _render yet
+      local _table = self.canvases[i]
+      if not _table.private then
+        local _canvas = _table.canvas
+        local _shader = _table.shader
+        self:applyShaders(_canvas, type(_shader) == "table" and _shader or { _shader })
+      end
+    end
+    love.graphics.setCanvas()
+
+    --draw render
+    love.graphics.translate(self._OFFSET.x, self._OFFSET.y)
+    local shader = shader or _render.shader
+    love.graphics.push()
+    love.graphics.scale(self._SCALE.x, self._SCALE.y)
+    self:applyShaders(_render.canvas, type(shader) == "table" and shader or { shader })
+    love.graphics.pop()
+
+    --clear canvas
+    for i = 1, #self.canvases do
+      love.graphics.setCanvas(self.canvases[i].canvas)
+      love.graphics.clear()
     end
 
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setCanvas()
+    love.graphics.setShader()
+  else
+    love.graphics.pop()
+    love.graphics.setScissor()
+  end
 end
 
----@param r number
----@param g number
----@param b number
----@param a number
-function push:setBorderColor(r, g, b, a)
-    if type(r) == "table" then
-        borderColor = r
-        for i = 1, 4 do borderColor[i] = borderColor[i] or 0 end
-    else
-        borderColor = { r or 0, g or 0, b or 0, a or 1 }
-    end
+function push:setBorderColor(color, g, b)
+  self._borderColor = g and { color, g, b } or color
 end
 
----@param x number
----@param y number
-function push:toGame(x, y)
-    if x < _dx or x > ww - _dx or y < _dy or y > wh - _dy then
-        return nil, nil
-    end
-    return (x - _dx) / _sx, (y - _dy) / _sy
-end
-
----@param x number
----@param y number
-function push:toReal(x, y)
-    return x * _sx + _dx, y * _sy + _dy
-end
-
----@param winw? number
----@param winh? number
-function push:switchFullscreen(winw, winh)
-    local fullscreen, fstype = love.window.getFullscreen()
-    if not fullscreen then
-        ww, wh = love.window.getDesktopDimensions()
-        love.window.setFullscreen(true, "desktop")
-    else
-        ww, wh = winw or push.defaults.windowWidth, winh or push.defaults.windowHeight
-        love.window.setMode(ww, wh)
-    end
-    self:initValues()
-end
-
----@param w number
----@param h number
-function push:resize(w, h)
-    ww, wh = w, h
-    self:initValues()
-end
-
-function push:getWidth()
-    return gw
-end
-
-function push:getHeight()
-    return gh
-end
-
----@return number, number
+--- Retorna as dimensões virtuais do jogo
+---@return number width Largura virtual
+---@return number height Altura virtual
 function push:getDimensions()
-    return gw, gh
+  return self._WWIDTH, self._WHEIGHT
 end
 
---- Verifica se o canvas padrão tem suporte a stencil
----@return boolean hasStencil Se o canvas tem suporte a stencil
+--- Retorna a largura virtual do jogo
+---@return number width Largura virtual
+function push:getWidth()
+  return self._WWIDTH
+end
+
+--- Retorna a altura virtual do jogo
+---@return number height Altura virtual
+function push:getHeight()
+  return self._WHEIGHT
+end
+
+function push:toGame(x, y)
+  x, y = x - self._OFFSET.x, y - self._OFFSET.y
+  local normalX, normalY = x / self._GWIDTH, y / self._GHEIGHT
+
+  x = (x >= 0 and x <= self._WWIDTH * self._SCALE.x) and normalX * self._WWIDTH or nil
+  y = (y >= 0 and y <= self._WHEIGHT * self._SCALE.y) and normalY * self._WHEIGHT or nil
+
+  return x, y
+end
+
+function push:toReal(x, y)
+  local realX = self._OFFSET.x + (self._GWIDTH * x) / self._WWIDTH
+  local realY = self._OFFSET.y + (self._GHEIGHT * y) / self._WHEIGHT
+  return realX, realY
+end
+
+function push:switchFullscreen(winw, winh)
+  self._fullscreen = not self._fullscreen
+  local windowWidth, windowHeight = love.window.getDesktopDimensions()
+
+  if self._fullscreen then --save windowed dimensions for later
+    self._WINWIDTH, self._WINHEIGHT = self._RWIDTH, self._RHEIGHT
+  elseif not self._WINWIDTH or not self._WINHEIGHT then
+    self._WINWIDTH, self._WINHEIGHT = windowWidth * .5, windowHeight * .5
+  end
+
+  self._RWIDTH = self._fullscreen and windowWidth or winw or self._WINWIDTH
+  self._RHEIGHT = self._fullscreen and windowHeight or winh or self._WINHEIGHT
+
+  self:initValues()
+
+  love.window.setFullscreen(self._fullscreen, "desktop")
+  if not self._fullscreen and (winw or winh) then
+    windowUpdateMode(self._RWIDTH, self._RHEIGHT) --set window dimensions
+  end
+end
+
+function push:resize(w, h)
+  if self._highdpi then w, h = w / self._PSCALE, h / self._PSCALE end
+  self._RWIDTH = w
+  self._RHEIGHT = h
+
+  -- Recalcula se deve usar stretched baseado nas novas dimensões
+  local gameAspect = self._WWIDTH / self._WHEIGHT
+  local screenAspect = self._RWIDTH / self._RHEIGHT
+  local aspectDiff = math.abs(gameAspect - screenAspect)
+  self._stretched = aspectDiff < 0.01
+
+  self:initValues()
+end
+
+function push:getWidth() return self._WWIDTH end
+
+function push:getHeight() return self._WHEIGHT end
+
+function push:getDimensions() return self._WWIDTH, self._WHEIGHT end
+
 function push:hasStencilSupport()
-    local defaultCanvas = self:getCanvas("_default")
-    return defaultCanvas and defaultCanvas.hasStencil or false
+  if not self._canvas or not self.canvases then return false end
+  local renderCanvas = self:getCanvasTable("_render")
+  if not renderCanvas then return false end
+  return renderCanvas.stencil ~= false
 end
 
---- Retorna informações sobre os canvas disponíveis
----@return table canvasInfo Informações sobre canvas e stencil
 function push:getCanvasInfo()
-    local info = {
-        totalCanvases = #canvases,
-        hasStencil = self:hasStencilSupport(),
-        canvases = {}
-    }
+  local info = {
+    hasCanvas = self._canvas,
+    canvasCount = self.canvases and #self.canvases or 0,
+    canvases = {}
+  }
 
-    for i = 1, #canvases do
-        table.insert(info.canvases, {
-            name = canvases[i].name,
-            hasStencil = canvases[i].hasStencil or false
-        })
+  if self.canvases then
+    for i, canvas in ipairs(self.canvases) do
+      info.canvases[i] = {
+        name = canvas.name,
+        private = canvas.private,
+        hasStencil = canvas.stencil ~= false
+      }
     end
+  end
 
-    return info
+  return info
 end
 
 return push

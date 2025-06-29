@@ -486,7 +486,7 @@ function GameplayScene:draw()
         local enemies = enemyMgr:getEnemies()
         if enemies and #enemies > 0 then
             love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle('fill', love.graphics.getWidth() - 210, 5, 205, 150)
+            love.graphics.rectangle('fill', ResolutionUtils.getGameWidth() - 210, 5, 205, 150)
             love.graphics.setColor(1, 1, 1, 1)
             love.graphics.setFont(fonts.debug or fonts.main_small)
             local debugText = string.format(
@@ -509,7 +509,7 @@ function GameplayScene:draw()
             if bossCount > 0 then
                 debugText = debugText .. "\nBosses Vivos:\n" .. table.concat(bossLines, "\n")
             end
-            love.graphics.print(debugText, love.graphics.getWidth() - 200, 10)
+            love.graphics.print(debugText, ResolutionUtils.getGameWidth() - 200, 10)
         end
     end
     love.graphics.setFont(fonts.main)

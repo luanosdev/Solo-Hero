@@ -71,7 +71,7 @@ function AgencyScreen:new(hunterManager, archetypeManager, itemDataManager, load
     end
 
     -- Cria a instância do botão de Recrutar
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
     local buttonW = 180
     local buttonH = 40
 

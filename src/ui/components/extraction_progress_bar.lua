@@ -23,8 +23,8 @@ function ExtractionProgressBar:new(config)
     local instance = setmetatable({}, ExtractionProgressBar)
 
     instance.width = config.w or 400
-    instance.x = love.graphics.getWidth() / 2 - instance.width / 2
-    instance.y = love.graphics.getHeight() - (config.h or 60) - 100 -- Positioned at the bottom-center
+    instance.x = ResolutionUtils.getGameWidth() / 2 - instance.width / 2
+    instance.y = ResolutionUtils.getGameHeight() - (config.h or 60) - 100 -- Positioned at the bottom-center
 
     instance.isVisible = false
     instance.progress = 0

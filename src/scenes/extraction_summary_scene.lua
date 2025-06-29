@@ -253,7 +253,7 @@ function ExtractionSummaryScene:_prepareInterface()
     self.renderCache.needsRefresh = true
 
     -- Pre-calcular dimensões da interface
-    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
     self.renderCache.screenDimensions = { w = screenW, h = screenH }
 end
 
@@ -433,7 +433,7 @@ end
 
 --- Desenha os elementos da cena.
 function ExtractionSummaryScene:draw()
-    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
 
     -- Fundo simples
     love.graphics.setColor(colors.lobby_background)
@@ -446,9 +446,14 @@ function ExtractionSummaryScene:draw()
         return
     end
 
-    local mx, my = love.mouse.getPosition() -- Para passar ao HunterStatsColumn
+    -- Converte coordenadas físicas do mouse para coordenadas virtuais
+    local physicalMx, physicalMy = love.mouse.getPosition()
+    local mx, my = ResolutionUtils.toGame(physicalMx, physicalMy)
+    if not mx or not my then
+        mx, my = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
+    end
 
-    local currentY = 20                     -- Reduzido para dar mais espaço ao título do portal
+    local currentY = 20 -- Reduzido para dar mais espaço ao título do portal
     local centerX = screenW / 2
 
     -- Título

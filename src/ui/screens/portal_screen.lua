@@ -56,8 +56,8 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
     instance.zoomSmoothFactor = 5.0
 
     -- Estado do Modal
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
     local modalW = 350
     local modalMarginX = 20
     local modalMarginY = 20
@@ -158,8 +158,8 @@ function PortalScreen:update(dt, mx, my, allowHover)
     self.noiseTime = self.noiseTime + dt
 
     -- Recalcula as coordenadas de desenho do mapa APÓS a interpolação do frame
-    local screenW = love.graphics.getWidth()
-    local screenH = love.graphics.getHeight()
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
     local currentMapScale = self.mapCurrentZoom
     local currentMapDrawX = screenW / 2 - self.mapCurrentPanX * currentMapScale
     local currentMapDrawY = screenH / 2 - self.mapCurrentPanY * currentMapScale

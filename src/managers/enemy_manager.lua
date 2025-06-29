@@ -223,7 +223,7 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
     -- Obtém informações da câmera e tela
     local camX = Camera.x
     local camY = Camera.y
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
 
     for _, enemy in ipairs(self.enemies) do
         if enemy and enemy.position and enemy.sprite then -- Garante que o inimigo e seu sprite existem

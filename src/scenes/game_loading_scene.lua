@@ -290,8 +290,8 @@ end
 
 --- Chamado a cada frame para desenhar o progresso.
 function GameLoadingScene:draw()
-    local w = love.graphics.getWidth()
-    local h = love.graphics.getHeight()
+    local w = ResolutionUtils.getGameWidth()
+    local h = ResolutionUtils.getGameHeight()
 
     -- Fundo escuro
     love.graphics.setColor(0.1, 0.1, 0.1, 1)

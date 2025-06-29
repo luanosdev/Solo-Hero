@@ -73,8 +73,8 @@ end
 --- Chamado a cada frame para desenhar os elementos da cena.
 -- Desenha a logo redimensionada e o título do jogo.
 function BootloaderScene:draw()
-    local w = love.graphics.getWidth()
-    local h = love.graphics.getHeight()
+    local w = ResolutionUtils.getGameWidth()
+    local h = ResolutionUtils.getGameHeight()
 
     -- Define um fundo preto (caso a imagem tenha transparência)
     love.graphics.setColor(0, 0, 0, 1)

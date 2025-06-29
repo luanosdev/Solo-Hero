@@ -121,7 +121,7 @@ end
 function Logger.draw()
     if not Logger.enabled or not Logger.showOnScreen then return end
 
-    local screenWidth, screenHeight = love.graphics.getDimensions()
+    local screenWidth, screenHeight = ResolutionUtils.getGameDimensions()
     local lineHeight = 14
     local margin = 10
     local bgHeight = lineHeight * Logger.maxLines + 10

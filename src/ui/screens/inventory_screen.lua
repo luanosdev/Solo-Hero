@@ -128,7 +128,7 @@ function InventoryScreen.draw(dragState)
     ---@type ItemDataManager
     local itemDataManager = ManagerRegistry:get("itemDataManager")
 
-    local screenW, screenH = love.graphics.getDimensions()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
 
     -- Fundo semi-transparente
     love.graphics.setColor(0, 0, 0, 0.8)

@@ -246,8 +246,8 @@ end
 function GameOverManager:draw()
     if not self.isGameOverActive then return end
 
-    local screenWidth = love.graphics.getWidth()
-    local screenHeight = love.graphics.getHeight()
+    local screenWidth = ResolutionUtils.getGameWidth()
+    local screenHeight = ResolutionUtils.getGameHeight()
     local currentY = 0
 
     love.graphics.setColor(0, 0, 0, self.fadeAlpha * 0.85)

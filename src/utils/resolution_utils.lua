@@ -79,16 +79,27 @@ function ResolutionUtils.getScaleInfo()
     local gameW, gameH = push:getDimensions()
     local windowW, windowH = love.graphics.getDimensions()
 
-    local scaleX = windowW / gameW
-    local scaleY = windowH / gameH
-    local scale = math.min(scaleX, scaleY)
+    -- Usa o estado atual do push para determinar escalas
+    local scaleX, scaleY, offsetX, offsetY
 
-    local offsetX = (windowW - (gameW * scale)) * 0.5
-    local offsetY = (windowH - (gameH * scale)) * 0.5
+    if push._stretched then
+        -- Modo stretched: usa toda a tela (escalas independentes)
+        scaleX = windowW / gameW
+        scaleY = windowH / gameH
+        offsetX = 0
+        offsetY = 0
+    else
+        -- Modo normal: mantém proporção e centraliza
+        local scale = math.min(windowW / gameW, windowH / gameH)
+        scaleX = scale
+        scaleY = scale
+        offsetX = (windowW - (gameW * scale)) * 0.5
+        offsetY = (windowH - (gameH * scale)) * 0.5
+    end
 
     return {
-        scaleX = scale,
-        scaleY = scale,
+        scaleX = scaleX,
+        scaleY = scaleY,
         offsetX = offsetX,
         offsetY = offsetY,
         windowWidth = windowW,

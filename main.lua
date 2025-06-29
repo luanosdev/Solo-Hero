@@ -42,35 +42,69 @@ function love.load()
     end)
 
     fonts.load()
-    love.graphics.setDefaultFilter("nearest", "nearest")
+    -- Usar filtro linear para melhor qualidade visual
+    love.graphics.setDefaultFilter("linear", "linear")
     love.keyboard.setKeyRepeat(true) -- Habilita repetição de tecla
 
     math.randomseed(os.time() + tonumber(tostring(os.clock()):reverse():sub(1, 6)))
 
     -- Configuração do sistema de resolução adaptável
-    local windowWidth, windowHeight = love.window.getDesktopDimensions()
+    local gameWidth, gameHeight = 1920, 1080
+    local windowWidth, windowHeight
 
-    -- Em modo DEV, permite redimensionamento e modo janela para facilitar desenvolvimento
-    -- Em modo PROD, usa fullscreen conforme configurado no conf.lua
-    local pushOptions = {
-        fullscreen = DEV and false or true, -- Janela em DEV, fullscreen em PROD
-        resizable = true,
-        canvas = true,
-        pixelperfect = false,
-        highdpi = true,
-        stretched = false
-    }
+    -- Em modo DEV, usa janela configurada no conf.lua
+    -- Em modo produção, usa fullscreen com dimensões da área de trabalho
+    if DEV then
+        windowWidth, windowHeight = 1280, 720
+    else
+        windowWidth, windowHeight = love.window.getDesktopDimensions()
+    end
 
-    push:setupScreen(1920, 1080, windowWidth, windowHeight, pushOptions)
-    Logger.info(
-        "love.load.resolution",
-        "[love.load] Sistema de resolução configurado: 1920x1080 -> " .. windowWidth .. "x" .. windowHeight
+    -- Detecta se as proporções são iguais ANTES de configurar o push
+    local gameAspect = gameWidth / gameHeight
+    local screenAspect = windowWidth / windowHeight
+    local aspectDiff = math.abs(gameAspect - screenAspect)
+    local shouldUseStretched = aspectDiff < 0.01
+
+    push:setupScreen(
+        gameWidth,
+        gameHeight,
+        windowWidth,
+        windowHeight,
+        {
+            fullscreen = not DEV, -- Fullscreen apenas em produção
+            resizable = DEV,      -- Redimensionável apenas em DEV
+            pixelperfect = false,
+            highdpi = true,
+            canvas = true,
+            stencil = true,
+            stretched = shouldUseStretched -- TRUE para proporções iguais
+        }
     )
 
-    -- Inicializa o utilitário de resolução
+    -- Inicializa o ResolutionUtils com a instância do push
     ResolutionUtils.initialize(push)
     _G.ResolutionUtils = ResolutionUtils
-    Logger.info("love.load.resolution_utils", "[love.load] ResolutionUtils inicializado e disponível globalmente")
+
+    Logger.info(
+        "love.load.resolution",
+        string.format(
+            "[love.load] Sistema de resolução configurado: %dx%d -> %dx%d (Stretched: %s, Aspect: %.6f vs %.6f)",
+            gameWidth, gameHeight, windowWidth, windowHeight,
+            shouldUseStretched and "SIM" or "NÃO",
+            gameAspect, screenAspect)
+    )
+
+    -- Verifica se as dimensões da janela estão corretas após a inicialização
+    if DEV then
+        local actualWidth, actualHeight = love.graphics.getDimensions()
+        if actualWidth ~= windowWidth or actualHeight ~= windowHeight then
+            Logger.info("Main", string.format(
+                "AVISO: Dimensões da janela foram alteradas de %dx%d para %dx%d após inicialização",
+                windowWidth, windowHeight, actualWidth, actualHeight
+            ))
+        end
+    end
 
     SceneManager.switchScene("bootloader_scene")
 
@@ -144,15 +178,43 @@ function love.draw()
     if DEV then
         love.graphics.setFont(fonts.main_small)
         local scaleInfo = ResolutionUtils.getScaleInfo()
+        local gameAspect = scaleInfo.gameWidth / scaleInfo.gameHeight
+        local screenAspect = scaleInfo.windowWidth / scaleInfo.windowHeight
+        local isCorrectAspect = math.abs(gameAspect - screenAspect) < 0.01
+
+        -- Linha 1: Info básica
         love.graphics.print(string.format(
-            "FPS: %d | Resolução: %dx%d -> %dx%d | Escala: %.2f | Offset: %.0f,%.0f | Stencil: %s",
+            "FPS: %d | Janela: %dx%d | Stretched: %s | Offset: %.0f,%.0f",
             love.timer.getFPS(),
-            scaleInfo.gameWidth, scaleInfo.gameHeight,
             scaleInfo.windowWidth, scaleInfo.windowHeight,
-            scaleInfo.scaleX,
-            scaleInfo.offsetX, scaleInfo.offsetY,
-            scaleInfo.hasStencil and "✓" or "✗"
+            push._stretched and "SIM" or "NÃO",
+            scaleInfo.offsetX, scaleInfo.offsetY
         ), 10, 70)
+
+        -- Linha 2: Diagnóstico do problema
+        local problemText = ""
+        if not isCorrectAspect then
+            problemText = " ⚠️ PROPORÇÃO INCORRETA!"
+        elseif not push._stretched then
+            problemText = " ⚠️ STRETCHED DESATIVADO!"
+        elseif scaleInfo.offsetX ~= 0 or scaleInfo.offsetY ~= 0 then
+            problemText = " ⚠️ BORDAS DETECTADAS!"
+        else
+            problemText = " ✅ CONFIGURAÇÃO OK"
+        end
+
+        love.graphics.print(string.format(
+            "Aspect: %.3f vs %.3f | Escala: %.3f,%.3f%s",
+            gameAspect, screenAspect,
+            scaleInfo.scaleX, scaleInfo.scaleY,
+            problemText
+        ), 10, 90)
+
+        -- Linha 3: Controles
+        love.graphics.print(
+            "F8: Forçar 1280x720 | F9: Toggle Stretched | F11: Fullscreen",
+            10, 110
+        )
     end
 
     Logger.draw()
@@ -170,6 +232,33 @@ function love.keypressed(key, scancode, isrepeat)
     -- Toggle Fullscreen com F11 (exemplo global)
     if key == "f11" then
         push:switchFullscreen()
+    end
+
+    -- Toggle Stretched Mode com F9 (modo DEV)
+    if key == "f9" and DEV then
+        push._stretched = not push._stretched
+        push:initValues()
+        Logger.info("Main", "Modo Stretched alterado para: " .. (push._stretched and "ATIVO" or "INATIVO"))
+    end
+
+    -- Força dimensões corretas com F8 (modo DEV)
+    if key == "f8" and DEV then
+        local targetWidth, targetHeight = 1280, 720
+        Logger.info("Main", "Forçando dimensões para: " .. targetWidth .. "x" .. targetHeight)
+
+        love.window.setMode(targetWidth, targetHeight, {
+            fullscreen = false,
+            resizable = false,
+            centered = true
+        })
+
+        -- Força o push a usar as dimensões corretas
+        push._RWIDTH = targetWidth
+        push._RHEIGHT = targetHeight
+        local gameAspect = 1920 / 1080
+        local screenAspect = targetWidth / targetHeight
+        push._stretched = math.abs(gameAspect - screenAspect) < 0.01
+        push:initValues()
     end
     if key == "f10" then
         Logger.disable()
@@ -216,8 +305,48 @@ function love.mousemoved(x, y, dx, dy, istouch)
 end
 
 function love.resize(w, h)
+    -- Em modo DEV, força dimensões 16:9 se foram alteradas incorretamente
+    if DEV then
+        local gameAspect = 1920 / 1080 -- 1.777778
+        local screenAspect = w / h
+        local aspectDiff = math.abs(gameAspect - screenAspect)
+
+        -- Se as proporções estão muito diferentes, força correção
+        if aspectDiff > 0.05 then
+            local targetWidth = 1280
+            local targetHeight = 720
+
+            Logger.info("Main", string.format(
+                "Redimensionamento incorreto detectado %dx%d (aspect: %.6f). Forçando para %dx%d",
+                w, h, screenAspect, targetWidth, targetHeight
+            ))
+
+            love.window.setMode(targetWidth, targetHeight, {
+                fullscreen = false,
+                resizable = false,
+                centered = true
+            })
+
+            -- Atualiza o push com as dimensões corretas
+            push._RWIDTH = targetWidth
+            push._RHEIGHT = targetHeight
+            push:initValues()
+            return
+        end
+    end
+
     push:resize(w, h)
-    Logger.info("Main", "Janela redimensionada para: " .. w .. "x" .. h)
+
+    -- Debug da detecção de stretched após resize
+    local gameAspect = 1920 / 1080
+    local screenAspect = w / h
+    local aspectDiff = math.abs(gameAspect - screenAspect)
+    local shouldBeStretched = aspectDiff < 0.01
+
+    Logger.info("Main", string.format(
+        "Janela redimensionada para: %dx%d | Aspect: %.6f vs %.6f | Diff: %.6f | Stretched: %s",
+        w, h, gameAspect, screenAspect, aspectDiff, shouldBeStretched and "SIM" or "NÃO"
+    ))
 end
 
 --[[

@@ -75,8 +75,8 @@ end
 function RuneChoiceModal:getOptionAtPosition(x, y)
     local modalWidth = 500
     local modalHeight = 400
-    local modalX = (love.graphics.getWidth() - modalWidth) / 2
-    local modalY = (love.graphics.getHeight() - modalHeight) / 2
+    local modalX = (ResolutionUtils.getGameWidth() - modalWidth) / 2
+    local modalY = (ResolutionUtils.getGameHeight() - modalHeight) / 2
 
     for i, _ in ipairs(self.abilities) do
         local optionY = modalY + 120 + (i - 1) * 80
@@ -187,13 +187,14 @@ function RuneChoiceModal:draw()
 
     -- Desenha fundo semi-transparente
     love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+    local gameW, gameH = ResolutionUtils.getGameDimensions()
+    love.graphics.rectangle("fill", 0, 0, gameW, gameH)
 
     -- Configurações do modal
     local modalWidth = 500
     local modalHeight = 400
-    local modalX = (love.graphics.getWidth() - modalWidth) / 2
-    local modalY = (love.graphics.getHeight() - modalHeight) / 2
+    local modalX = (ResolutionUtils.getGameWidth() - modalWidth) / 2
+    local modalY = (ResolutionUtils.getGameHeight() - modalHeight) / 2
 
     -- Desenha o frame do modal usando a função do ui_elements
     elements.drawWindowFrame(modalX, modalY, modalWidth, modalHeight, "Nova Runa!")

@@ -28,7 +28,7 @@ local function registerAgency()
 end
 
 function AgencyCreationScene:load()
-    local ww, wh = love.graphics.getDimensions()
+    local ww, wh = ResolutionUtils.getGameDimensions()
 
     -- Posição do InputField será calculada dinamicamente no draw,
     -- mas o objeto precisa ser criado aqui.
@@ -59,7 +59,7 @@ function AgencyCreationScene:update(dt)
 end
 
 function AgencyCreationScene:draw()
-    local ww, wh = love.graphics.getDimensions()
+    local ww, wh = ResolutionUtils.getGameDimensions()
     love.graphics.clear(colors.window_bg)
 
     -- Aumenta a altura do container para acomodar o texto

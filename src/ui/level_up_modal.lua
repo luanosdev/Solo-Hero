@@ -130,8 +130,8 @@ end
 function LevelUpModal:getOptionAtPosition(x, y)
     local modalWidth = 550
     local modalHeight = 512 -- Altura total do modal, MODIFICADO: Era 450
-    local modalX = (love.graphics.getWidth() - modalWidth) / 2
-    local modalY = (love.graphics.getHeight() - modalHeight) / 2
+    local modalX = (ResolutionUtils.getGameWidth() - modalWidth) / 2
+    local modalY = (ResolutionUtils.getGameHeight() - modalHeight) / 2
 
     local titleAreaHeight = 45        -- Altura estimada da área do título (sem a linha divisória)
     local dividerHeight = 2           -- Altura da linha divisória
@@ -192,13 +192,14 @@ function LevelUpModal:draw()
 
     -- Fundo escuro semi-transparente
     love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.8)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+    local gameW, gameH = ResolutionUtils.getGameDimensions()
+    love.graphics.rectangle("fill", 0, 0, gameW, gameH)
 
     -- Calcula posição central do modal
     local modalWidth = 550
     local modalHeight = 512 -- MODIFICADO: Era 450
-    local modalX = (love.graphics.getWidth() - modalWidth) / 2
-    local modalY = (love.graphics.getHeight() - modalHeight) / 2
+    local modalX = (gameW - modalWidth) / 2
+    local modalY = (gameH - modalHeight) / 2
 
     -- Desenha o frame do modal
     elements.drawWindowFrame(modalX, modalY, modalWidth, modalHeight, "Level Up!")
