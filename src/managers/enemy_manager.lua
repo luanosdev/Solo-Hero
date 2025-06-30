@@ -322,6 +322,22 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
                     rendable.ox = ox
                     rendable.oy = oy
 
+                    -- Aplica tonalidade vermelha se for boss usando Charging Run Attack
+                    if enemy.isBoss and enemy.currentAbility then
+                        local isChargingRun = false
+                        -- Verifica se é ChargingRunAttack usando o método getAbilityType
+                        if enemy.currentAbility.getAbilityType and enemy.currentAbility:getAbilityType() == "ChargingRunAttack" then
+                            isChargingRun = true
+                        elseif enemy.currentAbility.state == "charging" and enemy.currentAbility.currentAngle and enemy.currentAbility.currentSpeed then
+                            -- Fallback: verifica se tem os campos específicos do ChargingRunAttack
+                            isChargingRun = true
+                        end
+
+                        if isChargingRun then
+                            rendable.color = { 1, 0.3, 0.3, 1 } -- Tonalidade vermelha
+                        end
+                    end
+
                     renderPipelineInstance:add(rendable)
 
                     -- <<< NOVA LÓGICA PARA BARRAS DE VIDA DE MVP >>>
@@ -336,6 +352,22 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
                             self:drawMvpBar(capturedEnemy, capturedEnemy.position.x, capturedEnemy.position.y)
                         end
                         renderPipelineInstance:add(mvpBarRenderable)
+                    end
+
+                    -- <<< LÓGICA PARA EFEITOS DE DESENHO DOS BOSSES >>>
+                    if enemy.isBoss and enemy.isAlive and enemy.draw then
+                        local bossEffectsRenderable = TablePool.get()
+                        bossEffectsRenderable.type = "drawFunction"
+                        bossEffectsRenderable.depth = RenderPipeline
+                            .DEPTH_EFFECTS_WORLD_UI -- Renderiza sobre os sprites
+                        bossEffectsRenderable.sortY = sortY +
+                            500                     -- Menor que MVP bar para ficar atrás
+
+                        local capturedBoss = enemy
+                        bossEffectsRenderable.drawFunction = function()
+                            capturedBoss:draw()
+                        end
+                        renderPipelineInstance:add(bossEffectsRenderable)
                     end
 
                     -- Barras de vida e outros elementos de BaseEnemy podem ser desenhados separadamente

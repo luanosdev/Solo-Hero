@@ -163,24 +163,80 @@ function BaseBoss:taunt()
     self.isImmobile = true
 end
 
+--- Seleciona uma habilidade baseada no sistema de peso.
+--- @param availableAbilities table Lista de habilidades disponíveis com seus índices e dados.
+--- @return table A habilidade selecionada.
+function BaseBoss:selectAbilityByWeight(availableAbilities)
+    -- Calcula o peso total
+    local totalWeight = 0
+    for _, ability in ipairs(availableAbilities) do
+        totalWeight = totalWeight + (ability.data.weight or 1)
+    end
+
+    -- Gera um número aleatório entre 1 e o peso total
+    local randomValue = math.random() * totalWeight
+    local currentWeight = 0
+
+    -- Encontra a habilidade correspondente ao valor aleatório
+    for _, ability in ipairs(availableAbilities) do
+        currentWeight = currentWeight + (ability.data.weight or 1)
+        if randomValue <= currentWeight then
+            Logger.info(
+                "base_boss.select_ability_by_weight.selected",
+                "[BaseBoss:selectAbilityByWeight] Habilidade selecionada: " ..
+                ability.data.name .. " (peso: " .. (ability.data.weight or 1) .. "/" .. totalWeight .. ")")
+            return ability
+        end
+    end
+
+    -- Fallback: retorna a primeira habilidade se algo der errado
+    Logger.warn(
+        "base_boss.select_ability_by_weight.fallback",
+        "[BaseBoss:selectAbilityByWeight] Fallback para primeira habilidade disponível"
+    )
+    return availableAbilities[1]
+end
+
 --- Usa uma habilidade do boss.
 --- @param playerManager table Manager do jogador.
 function BaseBoss:useAbility(playerManager)
     if not self.abilities or #self.abilities == 0 then return end
 
-    -- TODO: Implementar seleção de habilidade baseada em peso. Por agora, usa a próxima da lista.
-    local ability_data = self.abilities[self.currentAbilityIndex]
-
-    if not ability_data then return end
-
-    -- Verifica a distância mínima, se especificada
-    local playerPos = playerManager:getCollisionPosition().position
-    local distanceToPlayer = math.sqrt((self.position.x - playerPos.x) ^ 2 + (self.position.y - playerPos.y) ^ 2)
-
-    if ability_data.params and distanceToPlayer > ability_data.params.range then
-        -- O jogador está muito longe para esta habilidade, então o boss continua a perseguição
-        return
+    -- Verifica o estado de vida do boss
+    local isLowHealth = false
+    if self.currentHealth and self.maxHealth then
+        isLowHealth = (self.currentHealth / self.maxHealth) < 0.5
     end
+
+    -- Filtra habilidades disponíveis baseado na condição de vida
+    local availableAbilities = {}
+    for i, ability_data in ipairs(self.abilities) do
+        local canUse = true
+
+        -- Verifica se a habilidade tem restrição de vida baixa
+        if ability_data.lowHealthOnly and not isLowHealth then
+            canUse = false
+        end
+
+        -- Verifica distância mínima se especificada
+        if canUse and ability_data.params and ability_data.params.range then
+            local playerPos = playerManager:getCollisionPosition().position
+            local distanceToPlayer = math.sqrt((self.position.x - playerPos.x) ^ 2 + (self.position.y - playerPos.y) ^ 2)
+            if distanceToPlayer > ability_data.params.range then
+                canUse = false
+            end
+        end
+
+        if canUse then
+            table.insert(availableAbilities, { index = i, data = ability_data })
+        end
+    end
+
+    if #availableAbilities == 0 then return end
+
+    -- Implementa seleção por peso
+    local selectedAbility = self:selectAbilityByWeight(availableAbilities)
+    local ability_data = selectedAbility.data
 
     if ability_data.classPath then
         local AbilityClass = require(ability_data.classPath)
@@ -192,8 +248,10 @@ function BaseBoss:useAbility(playerManager)
             self.currentAbility:start(playerManager)
             self.bossState = BOSS_STATE.CASTING
 
-            -- Avança para a próxima habilidade
-            self.currentAbilityIndex = (self.currentAbilityIndex % #self.abilities) + 1
+            Logger.info(
+                "base_boss.use_ability.activated",
+                "[BaseBoss:useAbility] Habilidade ativada: " .. ability_data.name
+            )
         end
     end
 end
