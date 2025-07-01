@@ -42,6 +42,7 @@ local colors = require("src.ui.colors")
 ---@field zoomSmoothFactor number Fator de suavização do zoom
 ---@field isZoomedIn boolean Se está em modo zoom
 ---@field zoomTarget Vector2D|nil Posição de zoom alvo (para portal selecionado)
+---@field structureImages love.Image[]
 local LobbyMapPortals = {}
 LobbyMapPortals.__index = LobbyMapPortals
 
@@ -50,8 +51,9 @@ local CONFIG = {
     VIRTUAL_MAP_WIDTH = 3000,     -- Largura virtual do mapa gerado
     VIRTUAL_MAP_HEIGHT = 2000,    -- Altura virtual do mapa gerado
     MAX_POINTS = 1280,            -- Máximo de pontos do continente
-    STRUCTURE_COUNT = 50,         -- Número de estruturas
-    MIN_STRUCTURE_DISTANCE = 100, -- Distância mínima entre estruturas
+    STRUCTURE_COUNT = 20,         -- Número de estruturas
+    MIN_STRUCTURE_DISTANCE = 200, -- Distância mínima entre estruturas
+    STRUCTURE_SCALE = 0.5,        -- Escala das estruturas desenhadas
     GRID_SIZE = 25,               -- Tamanho da grade tática
     ISO_SCALE = 1.5,              -- Escala da projeção isométrica (igual ao map.lua)
     GRID_RANGE = 60,              -- Alcance da grade tática (igual ao map.lua)
@@ -77,7 +79,7 @@ local CONFIG = {
     -- nil = posição aleatória baseada em lados naturais, 1-X = posição específica da lista
     FORCE_CAMERA_POSITION = nil,
 
-    STRUCTURE_GENERATION_ATTEMPTS_MULTIPLIER = 400 -- Multiplicador para tentativas de geração (STRUCTURE_COUNT * X)
+    STRUCTURE_GENERATION_ATTEMPTS_MULTIPLIER = 800 -- Multiplicador para tentativas de geração (STRUCTURE_COUNT * X)
 }
 
 
@@ -100,6 +102,18 @@ function LobbyMapPortals:new()
     instance.frameCounter = 0
     instance.maxPoints = CONFIG.MAX_POINTS
     instance._debugPrinted = false
+
+    -- Carregar imagens das estruturas
+    instance.structureImages = {}
+    for i = 1, 200 do
+        local path = string.format("assets/images/buildings/build-%d.png", i)
+        local ok, img = pcall(love.graphics.newImage, path)
+        if ok then
+            table.insert(instance.structureImages, img)
+        else
+            Logger.error("LobbyMapPortals:new", "Falha ao carregar imagem da estrutura: " .. path)
+        end
+    end
 
     -- Configuração inicial da câmera (será ajustada após geração, usando dimensões reais como no map.lua)
     local windowWidth = ResolutionUtils.getGameWidth()
@@ -729,7 +743,7 @@ function LobbyMapPortals:_generateStructures()
                 table.insert(self.structures, {
                     x = x,
                     y = y,
-                    type = love.math.random(1, 3),
+                    imageId = love.math.random(1, #self.structureImages),
                     id = #self.structures + 1
                 })
             end
@@ -987,26 +1001,17 @@ function LobbyMapPortals:draw(screenW, screenH)
 
         for _, structure in ipairs(self.structures) do
             local isoX, isoY = self:_toIso(structure.x, structure.y, mapScale, mapDrawX, mapDrawY)
+            local img = self.structureImages[structure.imageId]
 
-            love.graphics.setColor(mapColors.structure)
-            if structure.type == 1 then
-                -- Cidade (círculo grande)
-                love.graphics.circle('fill', isoX, isoY, 6)
-                love.graphics.setColor(mapColors.structure[1] + 0.2, mapColors.structure[2] + 0.2,
-                    mapColors.structure[3] + 0.2)
-                love.graphics.circle('line', isoX, isoY, 6)
-            elseif structure.type == 2 then
-                -- Forte (quadrado)
-                love.graphics.rectangle('fill', isoX - 4, isoY - 4, 8, 8)
-                love.graphics.setColor(mapColors.structure[1] + 0.2, mapColors.structure[2] + 0.2,
-                    mapColors.structure[3] + 0.2)
-                love.graphics.rectangle('line', isoX - 4, isoY - 4, 8, 8)
-            else
-                -- Vila (círculo pequeno)
-                love.graphics.circle('fill', isoX, isoY, 3)
-                love.graphics.setColor(mapColors.structure[1] + 0.2, mapColors.structure[2] + 0.2,
-                    mapColors.structure[3] + 0.2)
-                love.graphics.circle('line', isoX, isoY, 3)
+            if img then
+                love.graphics.setColor(mapColors.structure)
+                local w, h = img:getDimensions()
+                local scale = CONFIG.STRUCTURE_SCALE
+                love.graphics.draw(img, isoX, isoY, 0, scale, scale, w / 2, h)
+
+                -- Desenhar o número de identificação
+                -- love.graphics.setColor(colors.white)
+                -- love.graphics.printf(tostring(_), isoX - 25, isoY - (h * scale) - 20, 50, 'center')
             end
         end
     end
