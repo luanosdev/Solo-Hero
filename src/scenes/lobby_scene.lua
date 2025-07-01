@@ -284,29 +284,18 @@ function LobbyScene:load(args)
     self.portalScreen.isZoomedIn = false
     self.portalScreen.selectedPortal = nil
 
-    -- Carrega a imagem do mapa
-    local mapSuccess, mapErr = pcall(function()
-        self.portalScreen.mapImage = love.graphics.newImage(self.portalScreen.mapImagePath)
-    end)
-    if not mapSuccess or not self.portalScreen.mapImage then
-        print(string.format("Erro ao carregar imagem do mapa '%s': %s", self.portalScreen.mapImagePath,
-            tostring(mapErr or "not found")))
-        self.portalScreen.mapImage = nil
-        self.portalScreen.mapOriginalWidth = 0
-        self.portalScreen.mapOriginalHeight = 0
-    else
-        -- Armazena dimensões originais e inicializa pan/zoom
-        self.portalScreen.mapOriginalWidth = self.portalScreen.mapImage:getWidth()
-        self.portalScreen.mapOriginalHeight = self.portalScreen.mapImage:getHeight()
+    -- O PortalScreen agora gerencia internamente o sistema de mapa procedural
+    -- Aguardar que o mapa procedural seja gerado antes de inicializar portais
+    Logger.info("lobby_scene.load.map", "[LobbyScene] Sistema de mapa procedural configurado no PortalScreen")
 
-        self.portalManager:initialize(self.portalScreen.mapOriginalWidth, self.portalScreen.mapOriginalHeight)
+    -- Obter dimensões do mapa procedural
+    local mapW, mapH = self.portalScreen.proceduralMap:getMapDimensions()
 
-        self.portalScreen.mapTargetPanX = self.portalScreen.mapOriginalWidth / 2
-        self.portalScreen.mapTargetPanY = self.portalScreen.mapOriginalHeight / 2
+    -- Inicializar o Portal Manager com as dimensões do mapa procedural
+    self.portalManager:initialize(mapW, mapH)
 
-        self.portalScreen.mapCurrentPanX = self.portalScreen.mapTargetPanX
-        self.portalScreen.mapCurrentPanY = self.portalScreen.mapTargetPanY
-    end
+    Logger.info("lobby_scene.load.portals",
+        "[LobbyScene] Portal Manager inicializado com dimensões " .. mapW .. "x" .. mapH)
 
     local navbarHeight = self.navbar:getHeight()
     tabSettings.yPosition = screenH - tabSettings.height
@@ -852,13 +841,11 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                 end
             end
         elseif activeTab and activeTab.id == TabIds.PORTALS then
-            -- Delega para PortalScreen (somente se não estava com zoom, pois isso foi tratado no passo 1)
-            if self.portalScreen and not isPortalScreenZoomed then
-                -- DEBUG:
-                -- print(">>> LobbyScene:mousepressed - Delegating click to PortalScreen (not zoomed)")
-                local consumed = self.portalScreen:handleMousePress(x, y, buttonIdx)
+            -- Delega para PortalScreen (funciona tanto para zoom quanto não-zoom)
+            if self.portalScreen and self.portalScreen.handleMousePress then
+                local consumed = self.portalScreen:handleMousePress(x, y, buttonIdx, istouch)
                 if consumed then
-                    -- print(">>> LobbyScene:mousepressed - PortalScreen consumed the click.")
+                    Logger.debug("lobby_scene.mousepressed.portals", "[LobbyScene] Clique consumido pelo PortalScreen")
                     return
                 end
             end
@@ -1073,7 +1060,7 @@ end
 --- Chamado quando a cena é descarregada.
 -- Libera a imagem do mapa da memória e limpa referência do manager.
 function LobbyScene:unload()
-    print("LobbyScene:unload")
+    Logger.info("lobby_scene.unload", "[LobbyScene] Descarregando cena de lobby")
     -- Libera recursos das telas filhas
     if self.portalScreen then
         self.portalScreen:unload()

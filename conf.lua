@@ -29,7 +29,7 @@ function love.conf(t)
     t.window.centered = true    -- Centraliza a janela
 
     -- VSync ligado para estabilidade visual
-    t.window.vsync = 1
+    t.window.vsync = false
 
     t.modules.joystick = true
     t.console = DEV

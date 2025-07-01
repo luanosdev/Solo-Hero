@@ -291,6 +291,12 @@ function HunterManager:getHunterData(hunterId)
     return self.hunters[hunterId]
 end
 
+--- Returns the hunter data for the active hunter.
+--- @return table | nil The hunter data or nil if not found.
+function HunterManager:getCurrentHunterData()
+    return self.hunters[self.activeHunterId]
+end
+
 --- Sets the active hunter.
 -- Saves previous hunter's data (loadout) and loads the new one.
 --- @param hunterId string ID of the new active hunter.

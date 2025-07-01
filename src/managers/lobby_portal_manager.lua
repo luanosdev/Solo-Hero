@@ -6,6 +6,10 @@ local portalDefinitions = require("src.data.portals.portal_definitions")
 
 --- Gerencia a criação, atualização e desenho dos portais no Lobby.
 ---@class LobbyPortalManager
+---@field activePortals PortalInstanceData[]
+---@field mapW number Largura do mapa
+---@field mapH number Altura do mapa
+---@field proceduralMap LobbyMapPortals|nil Referência para o mapa procedural
 local LobbyPortalManager = {}
 LobbyPortalManager.__index = LobbyPortalManager
 
@@ -16,57 +20,28 @@ LobbyPortalManager.PORTAL_INTERACT_RADIUS = 10
 -- <<< NOVO: Configuração da animação dos feixes >>>
 LobbyPortalManager.beamAnimationSpeed = 0.5
 
--- <<< NOVO: Constantes para área de spawn NA TELA (inicialmente) >>>
-local SCREEN_SPAWN_MARGIN_TOP = 100
-local SCREEN_SPAWN_MARGIN_BOTTOM = 100 -- Evitar área das tabs
-local SCREEN_SPAWN_MARGIN_RIGHT = 50
-local SCREEN_SPAWN_MARGIN_LEFT = 50
--- Removidas constantes antigas baseadas no mapa
-
--- Tabela de pesos para a raridade dos ranks
--- local portalRankWeights = {
---     { rank = "E",  weight = 50 },
---     { rank = "D",  weight = 25 },
---     { rank = "C",  weight = 15 },
---     { rank = "B",  weight = 7 },
---     { rank = "A",  weight = 2 },
---     { rank = "S",  weight = 0.8 },
---     { rank = "SS", weight = 0.2 },
--- }
-
--- <<< REMOVER FUNÇÕES ANTIGAS >>> --
--- local function getRandomWeightedRank() ... end
--- local function generateRandomPortal(mapW, mapH) ... end
-
---- Seleciona um rank aleatório baseado nos pesos definidos.
----@return string Rank selecionado (ex: "E", "S")
--- local function getRandomWeightedRank()
---     local totalWeight = 0
---     for _, data in ipairs(portalRankWeights) do
---         totalWeight = totalWeight + data.weight
---     end
---
---     local randomNum = math.random() * totalWeight
---     for _, data in ipairs(portalRankWeights) do
---         if randomNum < data.weight then
---             return data.rank
---         end
---         randomNum = randomNum - data.weight
---     end
---     return portalRankWeights[#portalRankWeights].rank
--- end
+-- <<< NOVO: Constantes para área de spawn segura (margem do continente) >>>
+local CONTINENT_SPAWN_MARGIN = 200
+local MIN_PORTAL_DISTANCE = 300
 
 ---@alias PortalInstanceData { id:string, name:string, rank:string, theme:string, mapX:number, mapY:number, screenX:number, screenY:number, color: {number}, radius:number, isHovering:boolean }
 
 -- Cria uma nova instância
 function LobbyPortalManager:new()
     local instance = setmetatable({}, LobbyPortalManager)
-    instance.activePortals = {} ---@type PortalInstanceData[]
+    instance.activePortals = {}
     instance.mapW = 0
     instance.mapH = 0
-    -- numPortals não é mais necessário, será baseado nas definições
-    print("LobbyPortalManager: Instância criada.")
+    instance.proceduralMap = nil
+
     return instance
+end
+
+--- Define a referência do mapa procedural
+---@param proceduralMap LobbyMapPortals Instância do mapa procedural
+function LobbyPortalManager:setProceduralMap(proceduralMap)
+    self.proceduralMap = proceduralMap
+    Logger.info("lobby_portal_manager.setProceduralMap", "[LobbyPortalManager] Referência do mapa procedural definida")
 end
 
 -- Inicializa o gerenciador com as dimensões do mapa e CRIA portais com base nas DEFINIÇÕES
@@ -74,18 +49,150 @@ function LobbyPortalManager:initialize(mapW, mapH)
     self.mapW = mapW or 0
     self.mapH = mapH or 0
     self.activePortals = {} -- Limpa portais antigos
-    print(string.format("LobbyPortalManager: Inicializando com mapa %dx%d.", self.mapW, self.mapH))
+    Logger.info("lobby_portal_manager.initialize",
+        "[LobbyPortalManager] Inicializando com mapa " .. self.mapW .. "x" .. self.mapH)
 
     if not portalDefinitions or next(portalDefinitions) == nil then
-        print("ERRO: portalDefinitions não carregadas ou vazias!")
+        Logger.error("lobby_portal_manager.initialize.error",
+            "[LobbyPortalManager] portalDefinitions não carregadas ou vazias!")
         return
     end
 
-    -- >>> OBTÉM DIMENSÕES DA TELA <<<
+    -- Aguardar geração do mapa procedural antes de posicionar portais
+    if self.proceduralMap and not self.proceduralMap:isGenerationComplete() then
+        Logger.info("lobby_portal_manager.initialize.waiting",
+            "[LobbyPortalManager] Aguardando geração do mapa procedural...")
+        return
+    end
+
+    self:_generatePortalPositions()
+end
+
+--- Gera as posições dos portais dentro do continente procedural
+function LobbyPortalManager:_generatePortalPositions()
+    if not self.proceduralMap then
+        Logger.warn("lobby_portal_manager._generatePortalPositions",
+            "[LobbyPortalManager] Mapa procedural não disponível, usando posicionamento de tela")
+        self:_generatePortalsScreenBased()
+        return
+    end
+
+    Logger.info("lobby_portal_manager._generatePortalPositions",
+        "[LobbyPortalManager] Gerando portais dentro do continente procedural")
+
+    local portalCount = 0
+    local maxAttempts = 10000
+
+    for portalId, definition in pairs(portalDefinitions) do
+        local portalPlaced = false
+        local attempts = 0
+
+        while not portalPlaced and attempts < maxAttempts do
+            attempts = attempts + 1
+
+            -- Gerar posição aleatória dentro dos limites do mapa virtual
+            local x = love.math.random() * self.mapW
+            local y = love.math.random() * self.mapH
+
+            -- Verificar se está dentro do continente
+            if self.proceduralMap:isPointInContinent(x, y) then
+                -- Verificar margem de segurança das bordas do continente
+                if self:_isPositionSafeFromEdges(x, y) then
+                    -- Verificar distância mínima de outros portais
+                    if self:_isValidPortalDistance(x, y) then
+                        local portalInstance = {
+                            id = portalId,
+                            name = definition.name,
+                            rank = definition.rank,
+                            theme = definition.theme or "default",
+                            mapX = x,
+                            mapY = y,
+                            screenX = 0, -- Será calculado no update/draw
+                            screenY = 0, -- Será calculado no update/draw
+                            color = colors.rankDetails[definition.rank].text,
+                            radius = LobbyPortalManager.PORTAL_INTERACT_RADIUS,
+                            isHovering = false,
+                        }
+
+                        table.insert(self.activePortals, portalInstance)
+                        portalPlaced = true
+                        portalCount = portalCount + 1
+
+                        Logger.info("lobby_portal_manager._generatePortalPositions.portal",
+                            "[LobbyPortalManager] Portal '" .. portalInstance.name .. "' (" .. portalInstance.rank ..
+                            ") posicionado em (%.0f, %.0f)", x, y)
+                    end
+                end
+            end
+        end
+
+        if not portalPlaced then
+            Logger.warn("lobby_portal_manager._generatePortalPositions.failed",
+                "[LobbyPortalManager] Falha ao posicionar portal '" ..
+                portalId .. "' após " .. maxAttempts .. " tentativas")
+        end
+    end
+
+    Logger.info("lobby_portal_manager._generatePortalPositions.complete",
+        "[LobbyPortalManager] " .. portalCount .. " portais posicionados no continente procedural")
+end
+
+--- Verifica se a posição está segura das bordas do continente
+---@param x number Coordenada X
+---@param y number Coordenada Y
+---@return boolean isSafe Se a posição está segura
+function LobbyPortalManager:_isPositionSafeFromEdges(x, y)
+    if not self.proceduralMap then return true end
+
+    -- Verificar pontos ao redor da posição para garantir margem de segurança
+    local checkPoints = {
+        { x + CONTINENT_SPAWN_MARGIN,       y },
+        { x - CONTINENT_SPAWN_MARGIN,       y },
+        { x,                                y + CONTINENT_SPAWN_MARGIN },
+        { x,                                y - CONTINENT_SPAWN_MARGIN },
+        { x + CONTINENT_SPAWN_MARGIN * 0.7, y + CONTINENT_SPAWN_MARGIN * 0.7 },
+        { x - CONTINENT_SPAWN_MARGIN * 0.7, y - CONTINENT_SPAWN_MARGIN * 0.7 },
+        { x + CONTINENT_SPAWN_MARGIN * 0.7, y - CONTINENT_SPAWN_MARGIN * 0.7 },
+        { x - CONTINENT_SPAWN_MARGIN * 0.7, y + CONTINENT_SPAWN_MARGIN * 0.7 }
+    }
+
+    for _, point in ipairs(checkPoints) do
+        if not self.proceduralMap:isPointInContinent(point[1], point[2]) then
+            return false -- Muito perto da borda
+        end
+    end
+
+    return true
+end
+
+--- Verifica se a distância de outros portais é válida
+---@param x number Coordenada X
+---@param y number Coordenada Y
+---@return boolean isValid Se a distância é válida
+function LobbyPortalManager:_isValidPortalDistance(x, y)
+    for _, existingPortal in ipairs(self.activePortals) do
+        local dist = math.sqrt((x - existingPortal.mapX) ^ 2 + (y - existingPortal.mapY) ^ 2)
+        if dist < MIN_PORTAL_DISTANCE then
+            return false
+        end
+    end
+    return true
+end
+
+--- Fallback para posicionamento baseado em tela (quando mapa procedural não está disponível)
+function LobbyPortalManager:_generatePortalsScreenBased()
+    Logger.info("lobby_portal_manager._generatePortalsScreenBased",
+        "[LobbyPortalManager] Usando posicionamento baseado em tela como fallback")
+
     local screenW = ResolutionUtils.getGameWidth()
     local screenH = ResolutionUtils.getGameHeight()
 
-    -- >>> FUNÇÃO AUXILIAR PARA CONVERTER TELA -> MAPA (CÂMERA INICIAL NO CENTRO, ZOOM 1.0) <<<
+    -- Margens de tela
+    local SCREEN_SPAWN_MARGIN_TOP = 100
+    local SCREEN_SPAWN_MARGIN_BOTTOM = 150
+    local SCREEN_SPAWN_MARGIN_RIGHT = 50
+    local SCREEN_SPAWN_MARGIN_LEFT = 50
+
     local function screenToMapCoords(sx, sy, currentMapW, currentMapH)
         local initialCamX = currentMapW / 2
         local initialCamY = currentMapH / 2
@@ -98,62 +205,84 @@ function LobbyPortalManager:initialize(mapW, mapH)
         return mx, my
     end
 
-    -- Cria instâncias para cada portal definido
     local portalCount = 0
     for portalId, definition in pairs(portalDefinitions) do
         portalCount = portalCount + 1
 
-        -- 1. Calcula posição aleatória NA TELA dentro das margens
+        -- Calcular posição aleatória na tela dentro das margens
         local targetScreenX, targetScreenY
         local minScreenX = SCREEN_SPAWN_MARGIN_LEFT
         local maxScreenX = screenW - SCREEN_SPAWN_MARGIN_RIGHT
         local minScreenY = SCREEN_SPAWN_MARGIN_TOP
-        local maxScreenY = screenH - SCREEN_SPAWN_MARGIN_BOTTOM - 50 -- Subtrai altura estimada das tabs
+        local maxScreenY = screenH - SCREEN_SPAWN_MARGIN_BOTTOM
 
         if minScreenX < maxScreenX and minScreenY < maxScreenY then
             targetScreenX = math.random(minScreenX, maxScreenX)
             targetScreenY = math.random(minScreenY, maxScreenY)
         else
-            print(string.format("AVISO: Margens de TELA inválidas para portal '%s'. Spawning no centro da tela.",
-                portalId))
+            Logger.warn("lobby_portal_manager._generatePortalsScreenBased.margin",
+                "[LobbyPortalManager] Margens de tela inválidas para portal '" .. portalId .. "'")
             targetScreenX = screenW / 2
             targetScreenY = screenH / 2
         end
 
-        -- 2. Converte a posição da tela para coordenadas do MAPA
+        -- Converter posição da tela para coordenadas do mapa
         local finalMapX, finalMapY = screenToMapCoords(targetScreenX, targetScreenY, self.mapW, self.mapH)
 
-        -- Garante que as coordenadas do mapa não saiam dos limites (caso a conversão resulte fora)
+        -- Garantir que não saia dos limites do mapa
         finalMapX = math.max(0, math.min(self.mapW, finalMapX))
         finalMapY = math.max(0, math.min(self.mapH, finalMapY))
 
-        ---@type PortalInstanceData
         local portalInstance = {
             id = portalId,
             name = definition.name,
             rank = definition.rank,
-            theme = definition.theme,
-            mapX = finalMapX, -- <<< USA COORDENADAS DO MAPA CONVERTIDAS
-            mapY = finalMapY, -- <<< USA COORDENADAS DO MAPA CONVERTIDAS
-            screenX = 0,      -- Será calculado no update/draw
-            screenY = 0,      -- Será calculado no update/draw
-            color = colors.rank[definition.rank] or colors.white,
+            theme = definition.theme or "default",
+            mapX = finalMapX,
+            mapY = finalMapY,
+            screenX = 0,
+            screenY = 0,
+            color = colors.rankDetails[definition.rank].text or colors.white,
             radius = LobbyPortalManager.PORTAL_INTERACT_RADIUS,
             isHovering = false,
-            -- timer = math.huge -- Timer removido/desnecessário por enquanto
         }
 
         table.insert(self.activePortals, portalInstance)
-        print(string.format("  - Portal '%s' (%s) criado em MAPA(%.0f, %.0f) [originado da TELA(%.0f, %.0f)]",
-            portalInstance.name, portalInstance.rank, portalInstance.mapX, portalInstance.mapY,
-            targetScreenX, targetScreenY)) -- Log Atualizado
+
+        Logger.info("lobby_portal_manager._generatePortalsScreenBased.portal",
+            "[LobbyPortalManager] Portal '" .. portalInstance.name .. "' (" .. portalInstance.rank ..
+            ") criado em MAPA(%.0f, %.0f) [tela(%.0f, %.0f)]", finalMapX, finalMapY, targetScreenX, targetScreenY)
     end
 
-    print(string.format("LobbyPortalManager inicializado com %d portais definidos.", portalCount))
+    Logger.info("lobby_portal_manager._generatePortalsScreenBased.complete",
+        "[LobbyPortalManager] " .. portalCount .. " portais criados com posicionamento de tela")
+end
+
+--- Tenta reposicionar portais quando o mapa procedural fica disponível
+function LobbyPortalManager:tryRepositionPortals()
+    if not self.proceduralMap or not self.proceduralMap:isGenerationComplete() then
+        return false
+    end
+
+    if #self.activePortals > 0 then
+        Logger.info("lobby_portal_manager.tryRepositionPortals",
+            "[LobbyPortalManager] Reposicionando portais para o continente procedural")
+        self:_generatePortalPositions()
+        return true
+    end
+
+    return false
 end
 
 -- Atualiza o estado de hover dos portais (remove lógica de timer expirado)
 function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDrawX, mapDrawY)
+    -- Tentar reposicionar portais se mapa procedural estiver disponível
+    if self.proceduralMap and self.proceduralMap:isGenerationComplete() then
+        if #self.activePortals == 0 or (self.activePortals[1] and self.activePortals[1].mapX == 0) then
+            self:tryRepositionPortals()
+        end
+    end
+
     if allowPortalHover then
         for i, portal in ipairs(self.activePortals) do
             -- Calcula posição na tela
@@ -161,21 +290,15 @@ function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDr
             portal.screenY = mapDrawY + portal.mapY * mapScale
 
             -- Verifica hover usando raio escalado
-            local scaledRadius = portal.radius * mapScale -- Raio em pixels da tela
+            local scaledRadius = portal.radius * mapScale
             local distSq = (mx - portal.screenX) ^ 2 + (my - portal.screenY) ^ 2
             portal.isHovering = distSq <= (scaledRadius * scaledRadius)
-
-            -- DEBUG:
-            -- if portal.isHovering then
-            --     print(string.format("Hover DETECTED on '%s': distSq=%.1f, scaledRadiusSq=%.1f", portal.name, distSq, scaledRadius * scaledRadius))
-            -- end
         end
     else
         for _, portal in ipairs(self.activePortals) do
             portal.isHovering = false
         end
     end
-    -- Lógica de remover portais expirados foi removida
 end
 
 --- Desenha os portais ativos no mapa.
@@ -192,18 +315,13 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
     love.graphics.setFont(portalFont)
     love.graphics.setLineWidth(2)
 
-    local ellipseYFactor = 0.6 -- Fator para achatar a elipse verticalmente
+    local ellipseYFactor = 0.6
 
     for i, portal in ipairs(self.activePortals) do
-        -- >>> RESTAURANDO LÓGICA ORIGINAL <<<
-        local isSelected = selectedPortalData and
-            (portal.id == selectedPortalData.id) -- Comparar por ID único
+        local isSelected = selectedPortalData and (portal.id == selectedPortalData.id)
+        local checkRadius = isSelected and portal.radius * mapScale * 1.5 or portal.radius * mapScale
 
-        local checkRadius = isSelected and portal.radius * mapScale * 1.5 or
-            portal.radius *
-            mapScale -- Usa mapScale para checkRadius
-
-        -- Otimização: Só desenha se estiver perto da tela visível (usando portal.screenX/Y calculados no UPDATE)
+        -- Otimização: Só desenha se estiver perto da tela visível
         if portal.screenX >= -checkRadius and portal.screenX <= screenW + checkRadius and
             portal.screenY >= -checkRadius * ellipseYFactor and portal.screenY <= screenH + checkRadius * ellipseYFactor then
             local r, g, b, a = portal.color[1], portal.color[2], portal.color[3], portal.color[4]
@@ -212,9 +330,9 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
             local baseRadiusX = portal.radius
             local hoverScale = portal.isHovering and 1.2 or 1.0
 
-            -- <<< Aplica escala adicional se for o portal selecionado >>>
-            local selectionScale = isSelected and mapScale or 1.0 -- Escala com o zoom do mapa se selecionado
-            selectionScale = math.max(1.0, selectionScale * 0.8)  -- Garante escala mínima e suaviza um pouco
+            -- Aplica escala adicional se for o portal selecionado
+            local selectionScale = isSelected and mapScale or 1.0
+            selectionScale = math.max(1.0, selectionScale * 0.8)
 
             -- Aplica todas as escalas
             local finalScale = hoverScale * selectionScale
@@ -227,12 +345,12 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
             love.graphics.setColor(r * 1.2, g * 1.2, b * 1.2, 0.8)
             love.graphics.ellipse("line", portal.screenX, portal.screenY, drawRadiusX, drawRadiusY)
 
-            -- Desenha feixes de luz (não escalam com o zoom para não ficarem enormes)
+            -- Desenha feixes de luz
             local numBeams = 15
-            local baseBeamHeight = isSelected and 70 * mapScale or 70 -- Feixes mais altos se selecionado e com zoom
+            local baseBeamHeight = isSelected and 70 * mapScale or 70
             local baseBeamAlpha = 0.3
             love.graphics.setLineWidth(1)
-            for j = 1, numBeams do -- <<< Use j para evitar conflito com loop externo
+            for j = 1, numBeams do
                 local angle = math.random() * 2 * math.pi
                 local beamStartX = portal.screenX + drawRadiusX * math.cos(angle)
                 local beamStartY = portal.screenY + drawRadiusY * math.sin(angle)
@@ -246,9 +364,9 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
                 love.graphics.setColor(r, g, b, currentBeamAlpha)
                 love.graphics.line(beamStartX, beamStartY, beamStartX, beamStartY - currentBeamHeight)
             end
-            love.graphics.setLineWidth(2) -- Restaura largura
+            love.graphics.setLineWidth(2)
 
-            -- Desenha informações acima do portal (somente se NÃO selecionado, para não colidir com modal)
+            -- Desenha informações acima do portal (somente se NÃO selecionado)
             if not isSelected then
                 local textY = portal.screenY - drawRadiusY - portalFontHeight * 2 - 5
                 local infoText = string.format("[%s] %s", portal.rank, portal.name)
@@ -263,7 +381,7 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
             end
         end
     end
-    love.graphics.setLineWidth(1) -- Reseta largura da linha final
+    love.graphics.setLineWidth(1)
 end
 
 -- Retorna dados do portal clicado, se houver
@@ -274,32 +392,36 @@ end
 ---@param mapDrawY number Coordenada Y do canto superior esquerdo do mapa desenhado.
 ---@return PortalInstanceData|nil Retorna a instância do portal clicado ou nil.
 function LobbyPortalManager:handleMouseClick(x, y, mapScale, mapDrawX, mapDrawY)
-    -- print(">>> LPM:handleMouseClick - ENTERED") -- DEBUG (Simplificado)
-    -- print(string.format(">>> LPM:handleMouseClick - Checking click at (%.0f, %.0f) with scale %.2f, draw (%.0f, %.0f)", x, y, mapScale, mapDrawX, mapDrawY)) -- DEBUG (Original)
     for _, portal in ipairs(self.activePortals) do
         -- Calcula a posição do portal na tela AGORA
         local currentScreenX = mapDrawX + portal.mapX * mapScale
+        local currentScreenY = mapDrawY + portal.mapY * mapScale
 
-        -- Realiza a verificação de hover AQUI, no momento do clique
+        -- Verifica clique usando raio escalado
         local scaledRadius = portal.radius * mapScale
         local distSq = (x - currentScreenX) ^ 2 + (y - currentScreenY) ^ 2
-        local isClickedOn = distSq <= (scaledRadius * scaledRadius)
 
-        -- print(string.format("    Portal '%s': screen(%.0f, %.0f), distSq=%.1f, scaledRadiusSq=%.1f, isClicked=%s", portal.name, currentScreenX, currentScreenY, distSq, scaledRadius * scaledRadius, tostring(isClickedOn))) -- DEBUG
-
-        if isClickedOn then
-            -- print(string.format(">>> LPM:handleMouseClick - Portal '%s' DETECTED as clicked!", portal.name)) -- DEBUG
-            return portal -- Retorna a instância completa do portal
+        if distSq <= (scaledRadius * scaledRadius) then
+            Logger.info("lobby_portal_manager.handleMouseClick.portal_clicked",
+                "[LobbyPortalManager] Portal '" .. portal.name .. "' clicado")
+            return portal
         end
     end
-    -- print(">>> LPM:handleMouseClick - No portal detected at click location.") -- DEBUG
+
     return nil
 end
 
--- Função para limpar recursos se necessário (não muito útil aqui)
--- function LobbyPortalManager:cleanup()
---     self.activePortals = {}
--- end
+--- Retorna todos os portais ativos
+---@return PortalInstanceData[] Lista de portais ativos
+function LobbyPortalManager:getActivePortals()
+    return self.activePortals
+end
+
+--- Retorna o número de portais ativos
+---@return number Número de portais ativos
+function LobbyPortalManager:getPortalCount()
+    return #self.activePortals
+end
 
 --[[---------------------------------------------------------------------------
     Funções de Salvamento e Carregamento de Portais
