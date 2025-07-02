@@ -13,13 +13,13 @@ LobbyPortal.__index = LobbyPortal
 
 LobbyPortal.defaultConfig = {
     position = { x = 0, y = 0 },
-    scale = 0.8,
+    scale = 0.2,
     color = { 1, 1, 1 }, -- Branco por padrão (sem alteração)
     alpha = 1.0,
     animation = {
         currentFrame = 1,
         timer = 0,
-        frameTime = 0.15, -- Tempo entre frames (em segundos)
+        frameTime = 0.05, -- Tempo entre frames (em segundos)
         totalFrames = 10, -- 2 linhas x 5 colunas = 10 frames
         rows = 2,
         cols = 5,

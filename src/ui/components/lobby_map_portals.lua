@@ -5,10 +5,10 @@
 local colors = require("src.ui.colors")
 
 ---@class Structure
----@field x number
----@field y number
----@field type number
----@field id number
+---@field x number Coordenada X central da estrutura
+---@field y number Coordenada Y central da estrutura
+---@field imageId number ID da imagem da estrutura (índice em structureImages)
+---@field id number ID único da estrutura
 
 ---@class RoadPoint
 ---@field x number
@@ -32,6 +32,8 @@ local colors = require("src.ui.colors")
 ---@field roads RoadData[] Lista de estradas conectando estruturas
 ---@field isGenerating boolean Se o mapa está sendo gerado
 ---@field isGeneratingRoads boolean Se as estradas estão sendo geradas
+---@field continentReadyForProcessing boolean Se o continente está pronto para processamento
+---@field structuresGenerated boolean Garante que estruturas sejam geradas apenas uma vez
 ---@field generationCoroutine thread|nil Corrotina para geração do continente
 ---@field roadGenerationCoroutine thread|nil Corrotina para geração de estradas
 ---@field cameraOffset Vector2D Offset da câmera isométrica
@@ -97,6 +99,8 @@ function LobbyMapPortals:new()
     }
     instance.isGenerating = false
     instance.isGeneratingRoads = false
+    instance.continentReadyForProcessing = false -- NOVO: Estado para controlar o fluxo
+    instance.structuresGenerated = false         -- NOVO: Garante que estruturas sejam geradas apenas uma vez
     instance.generationCoroutine = nil
     instance.roadGenerationCoroutine = nil
     instance.frameCounter = 0
@@ -245,21 +249,9 @@ function LobbyMapPortals:_subdivideContinent()
     Logger.info("lobby_map_portals._subdivideContinent.complete",
         "[LobbyMapPortals] Subdivisão concluída. Pontos finais: " .. (#self.continentPoints / 2))
 
-    -- Ancorar câmera após geração do continente final
-    self:_anchorCamera()
-
-    -- Gerar estruturas após continente finalizado E câmera posicionada
-    -- IMPORTANTE: ordem garantida - só gera estruturas depois da câmera estar ancorada
-    -- para que as estruturas apareçam apenas na área de visão da câmera
-    self:_generateStructures()
-
-    -- Iniciar geração de estradas
-    if #self.structures > 1 then
-        self.roadGenerationCoroutine = coroutine.create(function() self:_generateRoads() end)
-        self.isGeneratingRoads = true
-        Logger.info("lobby_map_portals._subdivideContinent.roads",
-            "[LobbyMapPortals] Iniciando geração de estradas")
-    end
+    -- A corrotina agora apenas sinaliza que terminou. A função update()
+    -- será responsável por chamar os próximos passos na ordem correta.
+    self.continentReadyForProcessing = true
 end
 
 --- Ancora a câmera numa posição otimizada do continente
@@ -693,75 +685,123 @@ function LobbyMapPortals:_generateStructures()
     -- Aumentar tentativas pois a área é menor e pode haver mais colisões
     local maxAttempts = CONFIG.STRUCTURE_COUNT * CONFIG.STRUCTURE_GENERATION_ATTEMPTS_MULTIPLIER
 
-    -- Obter os limites da câmera em coordenadas do mundo
-    local screenW = ResolutionUtils.getGameWidth()
-    local screenH = ResolutionUtils.getGameHeight()
-    local mapScale = self.currentZoom -- Geralmente 1.0 nesta fase
-    local mapDrawX = self.cameraOffset.x
-    local mapDrawY = self.cameraOffset.y
+    -- Obter os limites do CONTINENTE para garantir que as estruturas fiquem nele
+    local continentMinX, continentMaxX = math.huge, -math.huge
+    local continentMinY, continentMaxY = math.huge, -math.huge
+    if #self.continentPoints > 0 then
+        for i = 1, #self.continentPoints, 2 do
+            if self.continentPoints[i] < continentMinX then continentMinX = self.continentPoints[i] end
+            if self.continentPoints[i] > continentMaxX then continentMaxX = self.continentPoints[i] end
+            if self.continentPoints[i + 1] < continentMinY then continentMinY = self.continentPoints[i + 1] end
+            if self.continentPoints[i + 1] > continentMaxY then continentMaxY = self.continentPoints[i + 1] end
+        end
+    else
+        Logger.warn("lobby_map_portals._generateStructures.no_continent",
+            "[LobbyMapPortals] Continente sem pontos, não é possível gerar estruturas.")
+        return
+    end
 
-    -- Converter os cantos da tela para coordenadas do mundo
-    local world_tl_x, world_tl_y = self:_fromIso(0, 0, mapScale, mapDrawX, mapDrawY)
-    local world_tr_x, world_tr_y = self:_fromIso(screenW, 0, mapScale, mapDrawX, mapDrawY)
-    local world_bl_x, world_bl_y = self:_fromIso(0, screenH, mapScale, mapDrawX, mapDrawY)
-    local world_br_x, world_br_y = self:_fromIso(screenW, screenH, mapScale, mapDrawX, mapDrawY)
-
-    -- Determinar o BBox (bounding box) da visão no mundo
-    local viewMinX = math.min(world_tl_x, world_tr_x, world_bl_x, world_br_x)
-    local viewMaxX = math.max(world_tl_x, world_tr_x, world_bl_x, world_br_x)
-    local viewMinY = math.min(world_tl_y, world_tr_y, world_bl_y, world_br_y)
-    local viewMaxY = math.max(world_tl_y, world_tr_y, world_bl_y, world_br_y)
-
-    print("DEBUG: Visão da câmera em coordenadas do mundo:")
-    print("  View Min: (" .. math.floor(viewMinX) .. ", " .. math.floor(viewMinY) .. ")")
-    print("  View Max: (" .. math.floor(viewMaxX) .. ", " .. math.floor(viewMaxY) .. ")")
-
-    local insideViewAndContinentCount = 0
+    local structuresValidated = 0
 
     while #self.structures < CONFIG.STRUCTURE_COUNT and attempts < maxAttempts do
         attempts = attempts + 1
 
-        -- Gerar posição aleatória dentro da visão da câmera
-        local x = viewMinX + love.math.random() * (viewMaxX - viewMinX)
-        local y = viewMinY + love.math.random() * (viewMaxY - viewMinY)
+        -- 1. PRIMEIRO: Escolher uma imagem da estrutura
+        local imageId = love.math.random(1, #self.structureImages)
+        local img = self.structureImages[imageId]
 
-        -- Verificar se está DENTRO DO CONTINENTE
-        if self:_pointInPolygon(x, y, self.continentPoints) then
-            insideViewAndContinentCount = insideViewAndContinentCount + 1
+        if not img then
+            Logger.warn("lobby_map_portals._generateStructures.missing_image",
+                "[LobbyMapPortals] Imagem não encontrada para imageId: " .. imageId)
+            goto continue
+        end
 
-            -- Verificar distância mínima de outras estruturas
+        -- 2. SEGUNDO: Obter dimensões da imagem escolhida
+        local imgWidth, imgHeight = img:getDimensions()
+        local scaledWidth = imgWidth * CONFIG.STRUCTURE_SCALE
+        local scaledHeight = imgHeight * CONFIG.STRUCTURE_SCALE
+
+        -- 3. TERCEIRO: Gerar uma posição GARANTIDA DENTRO DO CONTINENTE
+        local centerX, centerY
+        local positionAttempts = 0
+        repeat
+            positionAttempts = positionAttempts + 1
+            -- Gerar posição dentro do bounding box do continente
+            local candidateX = continentMinX + love.math.random() * (continentMaxX - continentMinX)
+            local candidateY = continentMinY + love.math.random() * (continentMaxY - continentMinY)
+
+            -- Validar se o centro está no continente
+            if self:_pointInPolygon(candidateX, candidateY, self.continentPoints) then
+                centerX = candidateX
+                centerY = candidateY
+            end
+        until centerX or positionAttempts > 200 -- Tentar até 200 vezes encontrar um ponto
+
+        if not centerX then
+            goto continue -- Não foi possível encontrar um ponto válido no continente
+        end
+
+        -- 4. QUARTO: Verificar se a ÁREA COMPLETA da estrutura está dentro do continente
+        local structureValid = self:_validateStructureArea(centerX, centerY, scaledWidth, scaledHeight)
+
+        if structureValid then
+            -- 5. QUINTO: Verificar distância mínima de outras estruturas (considerando dimensões)
             local tooClose = false
             for _, existingStructure in ipairs(self.structures) do
-                local dist = self:_distance(x, y, existingStructure.x, existingStructure.y)
-                if dist < CONFIG.MIN_STRUCTURE_DISTANCE then
+                -- Calcular distância considerando as áreas das estruturas
+                local existingImg = self.structureImages[existingStructure.imageId]
+                local existingWidth, existingHeight = 0, 0
+                if existingImg then
+                    existingWidth, existingHeight = existingImg:getDimensions()
+                    existingWidth = existingWidth * CONFIG.STRUCTURE_SCALE
+                    existingHeight = existingHeight * CONFIG.STRUCTURE_SCALE
+                end
+
+                local dist = self:_distance(centerX, centerY, existingStructure.x, existingStructure.y)
+                local minRequiredDistance = CONFIG.MIN_STRUCTURE_DISTANCE +
+                    (math.max(scaledWidth, scaledHeight) + math.max(existingWidth, existingHeight)) / 4
+
+                if dist < minRequiredDistance then
                     tooClose = true
                     break
                 end
             end
 
+            -- 6. SEXTO: Se passou em todas as validações, adicionar estrutura
             if not tooClose then
                 table.insert(self.structures, {
-                    x = x,
-                    y = y,
-                    imageId = love.math.random(1, #self.structureImages),
+                    x = centerX,
+                    y = centerY,
+                    imageId = imageId, -- Imagem já escolhida no início
                     id = #self.structures + 1
                 })
+                structuresValidated = structuresValidated + 1
+
+                Logger.debug("lobby_map_portals._generateStructures.structure_placed",
+                    "[LobbyMapPortals] Estrutura " .. #self.structures .. " posicionada em (" ..
+                    math.floor(centerX) .. ", " .. math.floor(centerY) .. ") com imagem " .. imageId ..
+                    " (dimensões: " .. math.floor(scaledWidth) .. "x" .. math.floor(scaledHeight) .. ")")
             end
         end
+
+        ::continue::
     end
 
     -- Debug aprimorado
-    print("DEBUG: Geração otimizada:")
+    print("DEBUG: Geração de estruturas finalizada:")
     print("  Total tentativas: " .. attempts)
-    print("  Pontos gerados dentro da visão e do continente: " .. insideViewAndContinentCount)
-    print("  Estruturas criadas com sucesso: " .. #self.structures)
+    print("  Estruturas validadas e posicionadas: " .. structuresValidated)
+
     if #self.structures < CONFIG.STRUCTURE_COUNT then
         print("AVISO: Não foi possível gerar todas as " ..
-            CONFIG.STRUCTURE_COUNT .. " estruturas. Área visível pode ser pequena ou muito recortada.")
+            CONFIG.STRUCTURE_COUNT .. " estruturas. Possíveis causas:")
+        print("  - Continente muito pequeno ou com formato complexo")
+        print("  - Distância mínima muito alta (" .. CONFIG.MIN_STRUCTURE_DISTANCE .. ")")
+        print("  - Estruturas muito grandes para a área disponível")
     end
 
     Logger.info("lobby_map_portals._generateStructures.complete",
-        "[LobbyMapPortals] " .. #self.structures .. " estruturas geradas na área visível")
+        "[LobbyMapPortals] " .. #self.structures .. " estruturas geradas respeitando dimensões das imagens")
 end
 
 --- Gera estradas conectando estruturas
@@ -858,6 +898,7 @@ function LobbyMapPortals:update(dt)
             Logger.warn("lobby_map_portals.update.continent",
                 "[LobbyMapPortals] Corrotina de continente morreu inesperadamente")
             self.isGenerating = false
+            self.continentReadyForProcessing = true -- Garantir que o processo continue
             return
         end
 
@@ -866,6 +907,27 @@ function LobbyMapPortals:update(dt)
             Logger.error("lobby_map_portals.update.continent_error",
                 "[LobbyMapPortals] Erro na corrotina de continente: " .. tostring(err))
             self.isGenerating = false
+        end
+    end
+
+    -- NOVO: Fluxo de geração controlado pelo update
+    -- Uma vez que o continente está pronto, executa os próximos passos em ordem.
+    if self.continentReadyForProcessing and not self.structuresGenerated then
+        Logger.info("lobby_map_portals.update.processing_continent",
+            "[LobbyMapPortals] Continente finalizado. Iniciando pós-processamento...")
+
+        -- 1. Ancorar câmera com base no continente final
+        self:_anchorCamera()
+
+        -- 2. Gerar estruturas
+        self:_generateStructures()
+        self.structuresGenerated = true -- Marcar como concluído
+
+        -- 3. Iniciar geração de estradas (se houver estruturas)
+        if #self.structures > 1 then
+            self.roadGenerationCoroutine = coroutine.create(function() self:_generateRoads() end)
+            self.isGeneratingRoads = true
+            Logger.info("lobby_map_portals.update.starting_roads", "[LobbyMapPortals] Iniciando geração de estradas")
         end
     end
 
@@ -1227,6 +1289,61 @@ end
 ---@return number distance Distância entre os pontos
 function LobbyMapPortals:_distance(x1, y1, x2, y2)
     return math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
+end
+
+--- Valida se toda a área de uma estrutura está dentro do continente
+---@param centerX number Coordenada X central da estrutura
+---@param centerY number Coordenada Y central da estrutura
+---@param width number Largura da estrutura (já escalada)
+---@param height number Altura da estrutura (já escalada)
+---@return boolean isValid Se toda a área da estrutura está dentro do continente
+function LobbyMapPortals:_validateStructureArea(centerX, centerY, width, height)
+    local halfWidth = width / 2
+    local halfHeight = height / 2
+
+    local topLeft = { x = centerX - halfWidth, y = centerY - halfHeight }
+    local topRight = { x = centerX + halfWidth, y = centerY - halfHeight }
+    local bottomLeft = { x = centerX - halfWidth, y = centerY + halfHeight }
+    local bottomRight = { x = centerX + halfWidth, y = centerY + halfHeight }
+
+    -- 1. Verificação rápida dos 4 cantos. Se algum estiver fora, já falha.
+    local corners = { topLeft, topRight, bottomLeft, bottomRight }
+    for _, corner in ipairs(corners) do
+        if not self:_pointInPolygon(corner.x, corner.y, self.continentPoints) then
+            return false
+        end
+    end
+
+    -- 2. Verificação rigorosa do perímetro para garantir que nenhuma parte "vaze".
+    local step = 10 -- Verificar a cada 10 pixels ao longo da borda
+    local perimeterPoints = {}
+
+    -- Borda superior (da esquerda para a direita)
+    for x = topLeft.x, topRight.x, step do
+        table.insert(perimeterPoints, { x = x, y = topLeft.y })
+    end
+    -- Borda inferior (da esquerda para a direita)
+    for x = bottomLeft.x, bottomRight.x, step do
+        table.insert(perimeterPoints, { x = x, y = bottomLeft.y })
+    end
+    -- Borda esquerda (de cima para baixo)
+    for y = topLeft.y, bottomLeft.y, step do
+        table.insert(perimeterPoints, { x = topLeft.x, y = y })
+    end
+    -- Borda direita (de cima para baixo)
+    for y = topRight.y, bottomRight.y, step do
+        table.insert(perimeterPoints, { x = topRight.x, y = y })
+    end
+
+    -- Verificar se TODOS os pontos do perímetro estão dentro do continente
+    for _, point in ipairs(perimeterPoints) do
+        if not self:_pointInPolygon(point.x, point.y, self.continentPoints) then
+            return false -- Se qualquer ponto do perímetro estiver fora, a estrutura não é válida
+        end
+    end
+
+    -- Se todos os cantos e o perímetro passaram, a estrutura é válida
+    return true
 end
 
 --- Encontra caminho entre dois pontos com perturbação de relevo
