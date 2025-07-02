@@ -2,6 +2,7 @@ local SceneManager = require("src.core.scene_manager")
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local LobbyMapPortals = require("src.ui.components.lobby_map_portals")
+local portalDefinitions = require("src.data.portals.portal_definitions")
 
 --- Módulo para gerenciar a tela de Portais no Lobby.
 ---@class PortalScreen
@@ -235,16 +236,51 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
     -- 1. Verificar cliques nos botões do modal primeiro (prioridade)
     if self.selectedPortal then
         if self.modalButtonEnterHover then
-            Logger.info("portal_screen.handleMousePress.enter",
-                "[PortalScreen] Entrando no portal '" .. self.selectedPortal.name .. "'")
+            local portalId = self.selectedPortal.id
+            local fullDefinition = portalDefinitions[portalId]
 
-            -- Preparar dados para transição para GameplayScene
-            local gameplayArgs = {
-                portalData = self.selectedPortal,
-                hunterData = self.hunterManager:getCurrentHunterData()
-            }
 
-            SceneManager.switchScene("gameplay", gameplayArgs)
+            if not fullDefinition then
+                self.selectedPortal = nil -- Cancela seleção
+                self.isZoomedIn = false
+                return true               -- Consome clique, mas não avança
+            end
+            if fullDefinition then
+                print("Horde Config found in definition:", fullDefinition.hordeConfig ~= nil)
+                if fullDefinition.hordeConfig then
+                    -- Tenta imprimir alguns campos chave para verificar estrutura
+                    print("  - mvpConfig exists:", fullDefinition.hordeConfig.mvpConfig ~= nil)
+                    print("  - cycles exists:", fullDefinition.hordeConfig.cycles ~= nil)
+                    if fullDefinition.hordeConfig.cycles then
+                        print("  - cycles count:", #fullDefinition.hordeConfig.cycles)
+                        if #fullDefinition.hordeConfig.cycles > 0 then
+                            print("    - cycle[1].majorSpawn exists:",
+                                fullDefinition.hordeConfig.cycles[1].majorSpawn ~= nil)
+                            print("    - cycle[1].minorSpawn exists:",
+                                fullDefinition.hordeConfig.cycles[1].minorSpawn ~= nil)
+                        end
+                    end
+                end
+            end
+            print("-------------------------------------------------")
+
+            local hordeConfig = fullDefinition.hordeConfig
+            local activeHunterId = self.hunterManager:getActiveHunterId()
+            local activeHunterFinalStats = self.hunterManager:getActiveHunterFinalStats()
+
+            if not activeHunterId then
+                print("Erro: Nenhum caçador ativo selecionado.")
+            elseif not hordeConfig then
+                print(string.format("Erro: Portal '%s' (Definição) não possui hordeConfig definida!", portalId))
+            else
+                -- Inicia a cena de combate passando a hordeConfig correta
+                SceneManager.switchScene("game_loading_scene", {
+                    portalId = portalId,
+                    hordeConfig = hordeConfig,
+                    hunterId = activeHunterId,
+                    hunterFinalStats = activeHunterFinalStats
+                })
+            end
             return true
         elseif self.modalButtonCancelHover then
             Logger.info("portal_screen.handleMousePress.cancel", "[PortalScreen] Portal desmarcado")
@@ -335,14 +371,15 @@ function PortalScreen:_drawPortalModal(screenW, screenH)
     currentY = currentY + lineH * 1.5
 
     -- Botões do Modal
-    local enterColor = self.modalButtonEnterHover and colors.button_primary_hover or colors.button_primary
-    local cancelColor = self.modalButtonCancelHover and colors.button_secondary_hover or colors.button_secondary
+    local enterColor = self.modalButtonEnterHover and colors.button_primary.hoverColor or colors.button_primary.bgColor
+    local cancelColor = self.modalButtonCancelHover and colors.button_secondary.hoverColor or
+        colors.button_secondary.bgColor
 
     -- Botão Entrar
     love.graphics.setColor(enterColor)
     love.graphics.rectangle("fill", self.modalBtnEnterRect.x, self.modalBtnEnterRect.y, self.modalBtnEnterRect.w,
         self.modalBtnEnterRect.h)
-    love.graphics.setColor(colors.button_text)
+    love.graphics.setColor(colors.button_primary_text)
     love.graphics.setFont(modalFont)
     love.graphics.printf("Entrar", self.modalBtnEnterRect.x, self.modalBtnEnterRect.y + 10, self.modalBtnEnterRect.w,
         "center")
