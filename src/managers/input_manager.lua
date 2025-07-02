@@ -182,7 +182,6 @@ function InputManager:mousepressed(x, y, button, isGamePaused) -- Recebe estado 
     -- Log de debug removido para evitar spam
     -- 1. Verifica se as UIs visíveis querem tratar o clique (usa ItemDetailsModal direto)
     if ItemDetailsModal.isVisible and ItemDetailsModal:mousepressed(x, y, button) then return true end
-    if InventoryScreen.isVisible and InventoryScreen.handleMousePress(x, y, button) then return true end
     if LevelUpModal.visible and LevelUpModal:mousepressed(x, y, button) then return true end
     if RuneChoiceModal.visible and RuneChoiceModal:mousepressed(x, y, button) then return true end
 

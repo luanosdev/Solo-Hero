@@ -580,13 +580,8 @@ function GameplayScene:mousepressed(x, y, button, istouch, presses)
     end
 
     if InventoryScreen.isVisible then
-        -- Converte coordenadas físicas do mouse para coordenadas virtuais
-        local virtualX, virtualY = ResolutionUtils.toGame(x, y)
-        if not virtualX or not virtualY then
-            virtualX, virtualY = 0, 0 -- Fallback se o mouse estiver fora da área do jogo
-        end
-
-        local consumed, dragStartData, useItemData = InventoryScreen.handleMousePress(virtualX, virtualY, button)
+        -- As coordenadas x, y já são virtuais, convertidas pelo main.lua
+        local consumed, dragStartData, useItemData = InventoryScreen.handleMousePress(x, y, button)
 
         if consumed and dragStartData then
             self.inventoryDragState.isDragging = true; self.inventoryDragState.draggedItem = dragStartData.item; self.inventoryDragState.sourceGridId =
