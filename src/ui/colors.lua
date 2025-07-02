@@ -122,6 +122,14 @@ local colors = {
             text = { 1.0, 0.839, 0.839, 1.0 },            -- #FFD6D6
             gradientStart = { 0.545, 0.102, 0.102, 1.0 }, -- #8B1A1A
             gradientEnd = { 1.0, 0.29, 0.29, 1.0 }        -- #FF4A4A
+        },
+        -- Ranking TEST (para portais de desenvolvimento/teste)
+        -- Gradiente: #FF00FF → #FFAAFF
+        -- Texto: #FFFFFF
+        TEST = {
+            text = { 1.0, 1.0, 1.0, 1.0 },          -- #FFFFFF (branco puro)
+            gradientStart = { 1.0, 0.0, 1.0, 1.0 }, -- #FF00FF (magenta)
+            gradientEnd = { 1.0, 0.667, 1.0, 1.0 }  -- #FFAAFF (magenta claro)
         }
     },
 

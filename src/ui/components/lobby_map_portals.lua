@@ -105,7 +105,7 @@ function LobbyMapPortals:new()
 
     -- Carregar imagens das estruturas
     instance.structureImages = {}
-    for i = 1, 200 do
+    for i = 1, 11 do
         local path = string.format("assets/images/buildings/build-%d.png", i)
         local ok, img = pcall(love.graphics.newImage, path)
         if ok then
@@ -1007,7 +1007,7 @@ function LobbyMapPortals:draw(screenW, screenH)
                 love.graphics.setColor(mapColors.structure)
                 local w, h = img:getDimensions()
                 local scale = CONFIG.STRUCTURE_SCALE
-                love.graphics.draw(img, isoX, isoY, 0, scale, scale, w / 2, h)
+                love.graphics.draw(img, isoX, isoY + h, 0, scale, scale, w / 2, h / 2)
 
                 -- Desenhar o número de identificação
                 -- love.graphics.setColor(colors.white)

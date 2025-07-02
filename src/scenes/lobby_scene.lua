@@ -291,6 +291,9 @@ function LobbyScene:load(args)
     -- Obter dimensões do mapa procedural
     local mapW, mapH = self.portalScreen.proceduralMap:getMapDimensions()
 
+    -- Definir a referência do mapa procedural no Portal Manager
+    self.portalManager:setProceduralMap(self.portalScreen.proceduralMap)
+
     -- Inicializar o Portal Manager com as dimensões do mapa procedural
     self.portalManager:initialize(mapW, mapH)
 
@@ -334,6 +337,9 @@ function LobbyScene:load(args)
     end
 
     print("LobbyScene: Tab ativo inicial:", self.activeTabIndex, tabs[self.activeTabIndex].text)
+
+    -- Expor manager de portais globalmente para debug
+    _G.DebugPortals = self.portalManager
 end
 
 --- Atualiza a lógica da cena (verificação de hover, animação de zoom/pan).
