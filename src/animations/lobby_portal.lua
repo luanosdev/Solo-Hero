@@ -5,21 +5,21 @@ LobbyPortal.__index = LobbyPortal
 
 --- Configuração padrão de uma instância de portal
 ---@class PortalAnimationConfig
----@field position Vector2D Posição do portal no mundo
----@field scale number Escala do portal
----@field color table Cor RGB para aplicar sobre as texturas (formato LÖVE 0-1)
----@field alpha number Transparência (0-1)
----@field animation table Configurações de animação
+---@field position? Vector2D Posição do portal no mundo
+---@field scale? number Escala do portal
+---@field color? table Cor RGB para aplicar sobre as texturas (formato LÖVE 0-1)
+---@field alpha? number Transparência (0-1)
+---@field animation? table Configurações de animação
 
 LobbyPortal.defaultConfig = {
     position = { x = 0, y = 0 },
-    scale = 0.2,
+    scale = 0.5,
     color = { 1, 1, 1 }, -- Branco por padrão (sem alteração)
-    alpha = 1.0,
+    alpha = 0.5,
     animation = {
         currentFrame = 1,
         timer = 0,
-        frameTime = 0.05, -- Tempo entre frames (em segundos)
+        frameTime = 0.1,  -- Tempo entre frames (em segundos)
         totalFrames = 10, -- 2 linhas x 5 colunas = 10 frames
         rows = 2,
         cols = 5,
