@@ -134,6 +134,10 @@ function LobbyMapPortals:new()
     instance.isZoomedIn = false
     instance.zoomTarget = nil
 
+    -- Canvas para renderização estática
+    instance.staticMapCanvas = nil ---@type love.Canvas|nil
+    instance.isMapRenderedToCanvas = false ---@type boolean
+
     return instance
 end
 
@@ -928,6 +932,9 @@ function LobbyMapPortals:update(dt)
             self.roadGenerationCoroutine = coroutine.create(function() self:_generateRoads() end)
             self.isGeneratingRoads = true
             Logger.info("lobby_map_portals.update.starting_roads", "[LobbyMapPortals] Iniciando geração de estradas")
+        else
+            -- Se não há estradas para gerar, o mapa está pronto para ser renderizado
+            self:_renderStaticMapToCanvas()
         end
     end
 
@@ -938,6 +945,8 @@ function LobbyMapPortals:update(dt)
             Logger.info("lobby_map_portals.update.roads",
                 "[LobbyMapPortals] Geração de estradas concluída")
             self.isGeneratingRoads = false
+            -- Estradas concluídas, renderizar para o canvas
+            self:_renderStaticMapToCanvas()
             return
         end
 
@@ -946,6 +955,8 @@ function LobbyMapPortals:update(dt)
             Logger.error("lobby_map_portals.update.roads_error",
                 "[LobbyMapPortals] Erro na geração de estradas: " .. tostring(err))
             self.isGeneratingRoads = false
+            -- Mesmo com erro, tentar renderizar o que temos
+            self:_renderStaticMapToCanvas()
         end
     end
 
@@ -964,19 +975,18 @@ function LobbyMapPortals:update(dt)
     end
 end
 
---- Renderiza o mapa procedural
----@param screenW number Largura da tela
----@param screenH number Altura da tela
-function LobbyMapPortals:draw(screenW, screenH)
-    -- Calcular parâmetros de renderização baseados no estado interno da câmera
-    local mapScale = self.currentZoom
-    local mapDrawX = self.cameraOffset.x
-    local mapDrawY = self.cameraOffset.y
+--- Renderiza o mapa procedural para um canvas estático para otimização
+function LobbyMapPortals:_renderStaticMapToCanvas()
+    if self.isMapRenderedToCanvas then return end
 
-    -- Armazenar variáveis de desenho para debug
-    self.mapScale = mapScale
-    self.mapDrawX = mapDrawX
-    self.mapDrawY = mapDrawY
+    Logger.info("lobby_map_portals.renderStaticMap", "[LobbyMapPortals] Renderizando mapa estático para o Canvas...")
+
+    local mapW, mapH = self:getMapDimensions()
+
+    -- Criar canvas se não existir
+    if not self.staticMapCanvas then
+        self.staticMapCanvas = love.graphics.newCanvas(mapW, mapH)
+    end
 
     -- Cores do tema (convertidas para LÖVE 0-1)
     local mapColors = {
@@ -986,66 +996,63 @@ function LobbyMapPortals:draw(screenW, screenH)
         structure = { 35 / 255, 55 / 255, 85 / 255 },
         road = { 33 / 255, 75 / 255, 160 / 255, 0.3 },
         roadOutline = { 15 / 255, 25 / 255, 40 / 255, 0.1 },
-        structureConnection = { 45 / 255, 85 / 255, 140 / 255, 0.4 }, -- Conexões de estruturas
+        structureConnection = { 45 / 255, 85 / 255, 140 / 255, 0.4 },
         structureConnectionOutline = { 20 / 255, 35 / 255, 50 / 255, 0.15 }
     }
 
-    -- 1. Desenhar fundo
-    love.graphics.setColor(mapColors.background)
-    love.graphics.rectangle('fill', 0, 0, screenW, screenH)
+    love.graphics.setCanvas(self.staticMapCanvas)
+    love.graphics.clear()
 
-    -- 2. Desenhar continente se gerado
+    -- ATENÇÃO: A partir daqui, todas as coordenadas são relativas ao canvas (mapa virtual)
+    -- Para centralizar o desenho no canvas, o offset de desenho deve ser o centro do canvas.
+    local canvasDrawX = mapW / 2
+    local canvasDrawY = mapH / 2
+
+    -- 1. Desenhar fundo (não precisa, o clear já pode fazer isso, mas por segurança)
+    love.graphics.setColor(mapColors.background)
+    love.graphics.rectangle('fill', 0, 0, mapW, mapH)
+
+    -- 2. Desenhar continente
     if #self.continentPoints > 0 then
         love.graphics.setColor(mapColors.continent)
         local isoPoints = {}
         for i = 1, #self.continentPoints, 2 do
-            local isoX, isoY = self:_toIso(self.continentPoints[i], self.continentPoints[i + 1], mapScale, mapDrawX,
-                mapDrawY)
+            local isoX, isoY = self:_toIso(self.continentPoints[i], self.continentPoints[i + 1], 1.0, canvasDrawX,
+                canvasDrawY)
             table.insert(isoPoints, isoX)
             table.insert(isoPoints, isoY)
         end
-
-        if #isoPoints >= 6 then -- Mínimo para um polígono
+        if #isoPoints >= 6 then
             love.graphics.polygon('fill', isoPoints)
         end
     end
 
-    -- 3. Desenhar estradas se geradas
+    -- 3. Desenhar estradas
     if #self.roads.paths > 0 then
         for _, path in ipairs(self.roads.paths) do
             if #path.points > 1 then
-                -- Escolher cores baseado no tipo de estrada
-                local roadColor, outlineColor
-                if path.isStructureConnection then
-                    roadColor = mapColors.structureConnection
-                    outlineColor = mapColors.structureConnectionOutline
-                else
-                    roadColor = mapColors.road
-                    outlineColor = mapColors.roadOutline
-                end
+                local roadColor = path.isStructureConnection and mapColors.structureConnection or mapColors.road
+                local outlineColor = path.isStructureConnection and mapColors.structureConnectionOutline or
+                    mapColors.roadOutline
 
-                -- Contorno da estrada
                 love.graphics.setColor(outlineColor)
                 love.graphics.setLineWidth(path.isStructureConnection and 1 or 1)
                 for i = 1, #path.points - 1 do
-                    local point1, point2 = path.points[i], path.points[i + 1]
-                    if self:_pointInPolygon(point1.x, point1.y, self.continentPoints) and
-                        self:_pointInPolygon(point2.x, point2.y, self.continentPoints) then
-                        local x1, y1 = self:_toIso(point1.x, point1.y, mapScale, mapDrawX, mapDrawY)
-                        local x2, y2 = self:_toIso(point2.x, point2.y, mapScale, mapDrawX, mapDrawY)
+                    local p1, p2 = path.points[i], path.points[i + 1]
+                    if self:_pointInPolygon(p1.x, p1.y, self.continentPoints) and self:_pointInPolygon(p2.x, p2.y, self.continentPoints) then
+                        local x1, y1 = self:_toIso(p1.x, p1.y, 1.0, canvasDrawX, canvasDrawY)
+                        local x2, y2 = self:_toIso(p2.x, p2.y, 1.0, canvasDrawX, canvasDrawY)
                         love.graphics.line(x1, y1, x2, y2)
                     end
                 end
 
-                -- Estrada principal
                 love.graphics.setColor(roadColor)
                 love.graphics.setLineWidth(path.isStructureConnection and 1.5 or 2)
                 for i = 1, #path.points - 1 do
-                    local point1, point2 = path.points[i], path.points[i + 1]
-                    if self:_pointInPolygon(point1.x, point1.y, self.continentPoints) and
-                        self:_pointInPolygon(point2.x, point2.y, self.continentPoints) then
-                        local x1, y1 = self:_toIso(point1.x, point1.y, mapScale, mapDrawX, mapDrawY)
-                        local x2, y2 = self:_toIso(point2.x, point2.y, mapScale, mapDrawX, mapDrawY)
+                    local p1, p2 = path.points[i], path.points[i + 1]
+                    if self:_pointInPolygon(p1.x, p1.y, self.continentPoints) and self:_pointInPolygon(p2.x, p2.y, self.continentPoints) then
+                        local x1, y1 = self:_toIso(p1.x, p1.y, 1.0, canvasDrawX, canvasDrawY)
+                        local x2, y2 = self:_toIso(p2.x, p2.y, 1.0, canvasDrawX, canvasDrawY)
                         love.graphics.line(x1, y1, x2, y2)
                     end
                 end
@@ -1053,27 +1060,16 @@ function LobbyMapPortals:draw(screenW, screenH)
         end
     end
 
-    -- 4. Desenhar estruturas se geradas
+    -- 4. Desenhar estruturas
     if #self.structures > 0 then
-        -- Debug apenas uma vez quando as estruturas estão prontas
-        if not self._debugPrinted and self:isGenerationComplete() then
-            self:_debugStructurePositions()
-            self._debugPrinted = true
-        end
-
         for _, structure in ipairs(self.structures) do
-            local isoX, isoY = self:_toIso(structure.x, structure.y, mapScale, mapDrawX, mapDrawY)
+            local isoX, isoY = self:_toIso(structure.x, structure.y, 1.0, canvasDrawX, canvasDrawY)
             local img = self.structureImages[structure.imageId]
-
             if img then
                 love.graphics.setColor(mapColors.structure)
                 local w, h = img:getDimensions()
                 local scale = CONFIG.STRUCTURE_SCALE
-                love.graphics.draw(img, isoX, isoY + h, 0, scale, scale, w / 2, h / 2)
-
-                -- Desenhar o número de identificação
-                -- love.graphics.setColor(colors.white)
-                -- love.graphics.printf(tostring(_), isoX - 25, isoY - (h * scale) - 20, 50, 'center')
+                love.graphics.draw(img, isoX, isoY, 0, scale, scale, w / 2, h / 2)
             end
         end
     end
@@ -1081,31 +1077,69 @@ function LobbyMapPortals:draw(screenW, screenH)
     -- 5. Desenhar grade tática
     love.graphics.setColor(mapColors.grid)
     love.graphics.setLineWidth(1)
-
     local gridSize = CONFIG.GRID_SIZE
     local range = CONFIG.GRID_RANGE
-    local halfW = CONFIG.VIRTUAL_MAP_WIDTH / 2
-    local halfH = CONFIG.VIRTUAL_MAP_HEIGHT / 2
-
     for i = -range, range do
-        local p1_h_x, p1_h_y = self:_toIso(i * gridSize + halfW, -range * gridSize + halfH, mapScale, mapDrawX, mapDrawY)
-        local p2_h_x, p2_h_y = self:_toIso(i * gridSize + halfW, range * gridSize + halfH, mapScale, mapDrawX, mapDrawY)
+        local p1_h_x, p1_h_y = self:_toIso(i * gridSize + mapW / 2, -range * gridSize + mapH / 2, 1.0, canvasDrawX,
+            canvasDrawY)
+        local p2_h_x, p2_h_y = self:_toIso(i * gridSize + mapW / 2, range * gridSize + mapH / 2, 1.0, canvasDrawX,
+            canvasDrawY)
         love.graphics.line(p1_h_x, p1_h_y, p2_h_x, p2_h_y)
 
-        local p1_v_x, p1_v_y = self:_toIso(-range * gridSize + halfW, i * gridSize + halfH, mapScale, mapDrawX, mapDrawY)
-        local p2_v_x, p2_v_y = self:_toIso(range * gridSize + halfW, i * gridSize + halfH, mapScale, mapDrawX, mapDrawY)
+        local p1_v_x, p1_v_y = self:_toIso(-range * gridSize + mapW / 2, i * gridSize + mapH / 2, 1.0, canvasDrawX,
+            canvasDrawY)
+        local p2_v_x, p2_v_y = self:_toIso(range * gridSize + mapW / 2, i * gridSize + mapH / 2, 1.0, canvasDrawX,
+            canvasDrawY)
         love.graphics.line(p1_v_x, p1_v_y, p2_v_x, p2_v_y)
     end
 
+    -- Finalizar renderização no canvas
+    love.graphics.setCanvas()
+    self.isMapRenderedToCanvas = true
+    Logger.info("lobby_map_portals.renderStaticMap",
+        "[LobbyMapPortals] Mapa estático renderizado com sucesso para o Canvas.")
+end
+
+--- Renderiza o mapa procedural
+---@param screenW number Largura da tela
+---@param screenH number Altura da tela
+function LobbyMapPortals:draw(screenW, screenH)
+    -- Cores de fundo (usado antes do canvas estar pronto)
+    local mapColors = {
+        background = { 11 / 255, 4 / 255, 11 / 255 },
+    }
+
+    -- 1. Desenhar fundo
+    love.graphics.setColor(mapColors.background)
+    love.graphics.rectangle('fill', 0, 0, screenW, screenH)
+
+    if self.isMapRenderedToCanvas and self.staticMapCanvas then
+        -- OTIMIZADO: Desenha o canvas pré-renderizado
+        love.graphics.setColor(1, 1, 1, 1)
+
+        -- O centro do canvas (mapa) deve ser alinhado com o centro do mundo (0,0) na projeção isométrica.
+        -- O cameraOffset já contém o deslocamento necessário da tela.
+        -- A escala (zoom) é aplicada no desenho do canvas.
+        local mapW, mapH = self:getMapDimensions()
+        love.graphics.draw(self.staticMapCanvas, self.cameraOffset.x, self.cameraOffset.y, 0, self.currentZoom,
+            self.currentZoom, mapW / 2, mapH / 2)
+    elseif self.isGenerating or self.isGeneratingRoads then
+        -- Opcional: Mostrar texto de carregamento enquanto o canvas não está pronto
+        love.graphics.setColor(colors.white)
+        love.graphics.printf("Gerando mapa...", 0, screenH / 2, screenW, "center")
+    end
+
+
+    -- 2. Debug de FPS (pode ser mantido aqui)
     love.graphics.setColor(1, 1, 1)
-    local statusText = "Geração concluída - " .. (#self.continentPoints / 2) .. " pontos do continente"
-    if #self.structures > 0 then
-        statusText = statusText ..
-            " | " ..
-            #self.structures ..
-            " estruturas visíveis | " .. #self.roads.paths .. " estradas suavizadas | FPS: " .. love.timer.getFPS()
+    local statusText = "FPS: " .. love.timer.getFPS()
+    if not self.isMapRenderedToCanvas then
+        statusText = "Gerando... | " .. statusText
+    else
+        statusText = "Canvas | " .. statusText
     end
     love.graphics.print(statusText, 10, 90)
+
 
     love.graphics.setColor(colors.white)
     love.graphics.setLineWidth(1)
@@ -1209,7 +1243,6 @@ function LobbyMapPortals:_toIso(x, y, mapScale, mapDrawX, mapDrawY)
     local isoX = (cartesianX - cartesianY) * 0.7 * CONFIG.ISO_SCALE
     local isoY = (cartesianX + cartesianY) * 0.35 * CONFIG.ISO_SCALE
 
-    -- CORREÇÃO: Remover dupla aplicação do cameraOffset (já está incluído em mapDrawX/mapDrawY)
     return (isoX * mapScale) + mapDrawX, (isoY * mapScale) + mapDrawY
 end
 
@@ -1226,21 +1259,16 @@ function LobbyMapPortals:_fromIso(isoX, isoY, mapScale, mapDrawX, mapDrawY)
     local scaledIsoX = (isoX - mapDrawX) / mapScale
     local scaledIsoY = (isoY - mapDrawY) / mapScale
 
-    -- Constantes da projeção (devem ser as mesmas que em _toIso)
+    -- Inverter a projeção para encontrar coordenadas cartesianas relativas ao centro do mapa
     local A = 0.7 * CONFIG.ISO_SCALE
     local B = 0.35 * CONFIG.ISO_SCALE
 
-    -- Resolver sistema linear para coordenadas cartesianas
-    -- isoX/A = cX - cY
-    -- isoY/B = cX + cY
-    -- Adicionando: isoX/A + isoY/B = 2*cX  => cX = (isoX/A + isoY/B)/2
-    -- Subtraindo: isoY/B - isoX/A = 2*cY  => cY = (isoY/B - isoX/A)/2
-    local cartesianX = (scaledIsoX / A + scaledIsoY / B) / 2
-    local cartesianY = (scaledIsoY / B - scaledIsoX / A) / 2
+    local cartX = (scaledIsoX / A + scaledIsoY / B) / 2
+    local cartY = (scaledIsoY / B - scaledIsoX / A) / 2
 
     -- Reverter para coordenadas do mundo
-    local worldX = cartesianX + CONFIG.VIRTUAL_MAP_WIDTH / 2
-    local worldY = cartesianY + CONFIG.VIRTUAL_MAP_HEIGHT / 2
+    local worldX = cartX + CONFIG.VIRTUAL_MAP_WIDTH / 2
+    local worldY = cartY + CONFIG.VIRTUAL_MAP_HEIGHT / 2
 
     return worldX, worldY
 end
@@ -2360,6 +2388,21 @@ end
 ---@return boolean isZoomedIn Se está em modo zoom
 function LobbyMapPortals:isInZoomMode()
     return self.isZoomedIn
+end
+
+--- Converte coordenadas do mundo para a projeção isométrica e aplica a transformação da câmera
+-- Esta função é para obter a posição final na tela, considerando zoom e pan.
+---@param worldX number
+---@param worldY number
+---@return number screenX
+---@return number screenY
+function LobbyMapPortals:getScreenPositionFromWorld(worldX, worldY)
+    local mapScale = self.currentZoom
+    local mapDrawX = self.cameraOffset.x
+    local mapDrawY = self.cameraOffset.y
+
+    local isoX, isoY = self:_toIso(worldX, worldY, mapScale, mapDrawX, mapDrawY)
+    return isoX, isoY
 end
 
 return LobbyMapPortals
