@@ -156,7 +156,7 @@ local portalDefinitions = {
         assetPack = nil
     },
     portal_teste_one_enemy = {
-        name = "TESTE: Um Inimigo",
+        name = "TESTE: Luta com o Rotten Immortal",
         rank = "TEST",
         map = "plains",
         requiredUnitTypes = { "zombie_walker_male_1", "the_rotten_immortal" },
@@ -200,14 +200,15 @@ local portalDefinitions = {
     -- END TESTS --
 
     portal_ranking_e_placeholder = {
-        name = "Portal Placeholder Rank E",
+        name = "[Recomendado] Mortos Vivos Rank E",
         rank = "E",
-        map = "plains",
+        map = math.random(1, 2) == 1 and "plains" or "dungeon",
         requiredUnitTypes = {
             "zombie_walker_male_1",
             "zombie_walker_female_1",
             "zombie_runner_male_1",
             "zombie_runner_female_1",
+            "the_rotten_immortal",
         },
         hordeConfig = {
             mapRank = "E",

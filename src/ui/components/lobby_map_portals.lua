@@ -1131,15 +1131,16 @@ function LobbyMapPortals:draw(screenW, screenH)
 
 
     -- 2. Debug de FPS (pode ser mantido aqui)
-    love.graphics.setColor(1, 1, 1)
-    local statusText = "FPS: " .. love.timer.getFPS()
-    if not self.isMapRenderedToCanvas then
-        statusText = "Gerando... | " .. statusText
-    else
-        statusText = "Canvas | " .. statusText
+    if DEV then
+        love.graphics.setColor(1, 1, 1)
+        local statusText = "FPS: " .. love.timer.getFPS()
+        if not self.isMapRenderedToCanvas then
+            statusText = "Gerando... | " .. statusText
+        else
+            statusText = "Canvas | " .. statusText
+        end
+        love.graphics.print(statusText, 10, 90)
     end
-    love.graphics.print(statusText, 10, 90)
-
 
     love.graphics.setColor(colors.white)
     love.graphics.setLineWidth(1)

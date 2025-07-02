@@ -451,7 +451,7 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
                 -- Desenhar texto "Portal Ranking X" acima do portal (somente se NÃO selecionado)
                 if not isSelected then
                     local textY = portal.screenY - checkRadius - portalFontHeight - 5
-                    local portalText = string.format("Portal Rank %s", portal.rank)
+                    local portalText = portal.name
                     local textWidth = portalFont:getWidth(portalText)
                     local textX = portal.screenX - textWidth / 2
 
