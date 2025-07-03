@@ -23,493 +23,514 @@
 --   - Modificadores 'percentage' daqui vão para o argumento 'percentage'.
 --   - Modificadores 'fixed' e 'fixed_percentage_as_fraction' daqui vão para o argumento 'fixed'.
 
+local Colors = require("src.ui.colors")
+
+---@class BonusPerLevel
+---@field stat_key string
+---@field stat string
+---@field type "fixed" | "percentage" | "fixed_percentage_as_fraction"
+---@field value number
+
+---@class LevelUpBonus
+---@field id string
+---@field name string
+---@field description string
+---@field image_path string
+---@field max_level number
+---@field modifiers_per_level BonusPerLevel[]
+---@field color Color
+
+---@class LevelUpBonusesData
+---@field Bonuses LevelUpBonus[]
+---@field KeywordColors table<string, table>
+---@field CategoryColors table<string, table>
+---@field GetBonusColor fun(bonusData: LevelUpBonus): table
 local LevelUpBonusesData = {}
+local tempIconPath = "assets/images/skills/attack.png"
+
+-- Cores por categoria de melhoria
+
+-- Cores para palavras-chave nas descrições (estilo LoL)
+LevelUpBonusesData.KeywordColors = {
+    -- Stats principais
+    ["Vida Máxima"] = Colors.attribute_colors.max_health,
+    ["Defesa"] = Colors.attribute_colors.defense,
+    ["Força"] = Colors.attribute_colors.strength,
+    ["Dano"] = Colors.attribute_colors.damage,
+    ["Velocidade de Ataque"] = Colors.attribute_colors.attack_speed,
+    ["Velocidade de Movimento"] = Colors.attribute_colors.move_speed,
+
+    -- Stats avançados
+    ["Chance de Crítico"] = Colors.attribute_colors.crit_chance,
+    ["Dano Crítico"] = Colors.attribute_colors.crit_damage,
+    ["Ataques Múltiplos"] = Colors.attribute_colors.multi_attack_chance,
+    ["Regeneração de Vida"] = Colors.attribute_colors.health_regen,
+    ["Sorte"] = Colors.attribute_colors.luck,
+    ["Área"] = Colors.attribute_colors.attack_area,
+    ["Alcance"] = Colors.attribute_colors.range,
+    ["Bonus de Experiência"] = Colors.attribute_colors.exp_bonus,
+    ["Raio de Coleta"] = Colors.attribute_colors.pickup_radius,
+    ["Recarga de Habilidades"] = Colors.attribute_colors.cooldown_reduction,
+    ["Bônus de Cura"] = Colors.attribute_colors.healing_bonus,
+
+    -- Sistemas especiais
+    ["Recarga do Dash"] = Colors.attribute_colors.dash_cooldown,
+    ["Carga de Dash"] = Colors.attribute_colors.dash_charges,
+    ["Distância do Dash"] = Colors.attribute_colors.dash_distance,
+    ["Frasco de Poção"] = Colors.attribute_colors.potion_flasks,
+    ["Cura da Poção"] = Colors.attribute_colors.potion_heal_amount,
+    ["Velocidade de Preenchimento dos Frascos"] = Colors.attribute_colors.potion_fill_rate,
+
+    -- Valores numéricos
+    ["positivo"] = Colors.attribute_colors.positive,
+    ["negativo"] = Colors.attribute_colors.negative,
+    ["neutro"] = Colors.attribute_colors.neutral,
+}
 
 LevelUpBonusesData.Bonuses = {
     -- Bônus de Vida
     vitality_1_fixed = {
         id = "vitality_1_fixed",
         name = "Vigor",
-        description_template = "Aumenta a Vida Máxima em 30.",
+        description = "Aumenta a |Vida Máxima| em |30| pontos.",
+        image_path = tempIconPath,
         icon = "H+",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "health", type = "fixed", value = 30 } -- +15 HP fixo por nível
+            { stat = "health", type = "fixed", value = 30 }
         },
-        tags = { "defensivo", "vida", "fixo" }
+        color = Colors.attribute_colors.max_health
     },
     vitality_2_percent = {
         id = "vitality_2_percent",
         name = "Fortitude",
-        description_template = "Aumenta a Vida Máxima em 10%.",
-        icon = "H%",
+        description = "Aumenta a |Vida Máxima| em |10%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            { stat = "health", type = "percentage", value = 10 } -- +10% HP por nível (para levelBonus)
+            { stat = "health", type = "percentage", value = 10 }
         },
-        tags = { "defensivo", "vida", "percentual" }
+        color = Colors.attribute_colors.max_health
     },
     vitality_3_combo = {
         id = "vitality_3_combo",
         name = "Robustez",
-        description_template = "Aumenta Vida Máx. em 5% e Defesa em 10.",
-        icon = "H*",
+        description = "Aumenta |Vida Máxima| em |5%| e |Defesa| em |10| pontos.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
-            { stat = "health",  type = "percentage", value = 5 },
-            { stat = "defense", type = "fixed",      value = 10 }
+            { stat = "health", type = "percentage", value = 5 },
+            { stat = "defense", type = "fixed", value = 10 }
         },
-        tags = { "defensivo", "vida", "defesa", "combo" }
+        color = Colors.attribute_colors.max_health
     },
     risky_vitality_1 = {
         id = "risky_vitality_1",
         name = "Pacto de Sangue",
-        description_template = "Aumenta a Vida Máxima em 50 e reduz a Defesa em -5%.",
-        icon = "H!",
+        description = "Aumenta a |Vida Máxima| em |50| pontos, mas reduz a |Defesa| em |-15%|.",
+        image_path = tempIconPath,
         max_level = 3,
         modifiers_per_level = {
-            { stat = "health",  type = "fixed",      value = 50 },
-            { stat = "defense", type = "percentage", value = -5 } -- -5% Defesa por nível (para levelBonus)
+            { stat = "health", type = "fixed", value = 50 },
+            { stat = "defense", type = "percentage", value = -5 }
         },
-        tags = { "defensivo", "vida", "risco", "negativo" }
+        color = Colors.attribute_colors.max_health
     },
 
-    -- Bônus de Força (NOVA SEÇÃO)
+    -- Bônus de Força
     strength_training_1_fixed = {
         id = "strength_training_1_fixed",
         name = "Treino de Força",
-        description_template = "Aumenta a Força em 10.",
-        icon = "STR+",
+        description = "Aumenta a |Força| em |10| pontos.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            { stat = "strength", type = "fixed", value = 10 } -- +2 Força fixa por nível
+            { stat = "strength", type = "fixed", value = 10 }
         },
-        tags = { "ofensivo", "forca", "fixo" }
+        color = Colors.attribute_colors.strength
     },
     strength_might_1_percent = {
         id = "strength_might_1_percent",
         name = "Poderio Crescente",
-        description_template = "Aumenta a Força em 10%.",
-        icon = "STR%",
+        description = "Aumenta a |Força| em |10%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            { stat = "strength", type = "percentage", value = 10 } -- +10% Força por nível (para levelBonus)
+            { stat = "strength", type = "percentage", value = 10 }
         },
-        tags = { "ofensivo", "forca", "percentual" }
+        color = Colors.attribute_colors.strength
     },
     strength_burst_1_combo = {
         id = "strength_burst_1_combo",
         name = "Explosão de Força",
-        description_template = "Aumenta Força em 5 e a Defesa em 5.",
-        icon = "STR*",
+        description = "Aumenta |Força| em |5| e |Defesa| em |5| pontos.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
             { stat = "strength", type = "fixed", value = 5 },
-            { stat = "defense",  type = "fixed", value = 5 }
+            { stat = "defense", type = "fixed", value = 5 }
         },
-        tags = { "ofensivo", "forca", "dano", "combo" }
+        color = Colors.attribute_colors.strength
     },
 
     -- Bônus de Dano/Ataque
     strength_1_percent = {
         id = "strength_1_percent",
         name = "Raiva",
-        description_template = "Aumenta o Dano em 10%.", -- Assumindo que dano é percentual em levelBonus
-        icon = "D%",
+        description = "Aumenta o |Dano| em |10%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            { stat = "damageMultiplier", type = "percentage", value = 10 } -- +10% para levelBonus.damageMultiplier
+            { stat = "damageMultiplier", type = "percentage", value = 10 }
         },
-        tags = { "ofensivo", "dano", "percentual" }
+        color = Colors.attribute_colors.damage
     },
     speed_attack_1_percent = {
         id = "speed_attack_1_percent",
         name = "Agilidade",
-        description_template = "Aumenta a Velocidade de Ataque em 5%.",
-        icon = "A%",
+        description = "Aumenta a |Velocidade de Ataque| em |3%|.",
+        image_path = tempIconPath,
         max_level = 8,
         modifiers_per_level = {
-            { stat = "attackSpeed", type = "percentage", value = 5 } -- +5% para levelBonus.attackSpeed
+            { stat = "attackSpeed", type = "percentage", value = 3 }
         },
-        tags = { "ofensivo", "velocidade_ataque", "percentual" }
+        color = Colors.attribute_colors.attack_speed
     },
     glass_cannon_1 = {
         id = "glass_cannon_1",
         name = "Canhão de Vidro",
-        description_template = "Aumenta Dano em 10% e Vel. Ataque em 10%, mas reduz Vida Máx. em -10%.",
-        icon = "D!",
+        description = "Aumenta |Dano| em |10%| e |Velocidade de Ataque| em |5%|, mas reduz |Vida Máxima| em |-10%|.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
             { stat = "damageMultiplier", type = "percentage", value = 10 },
-            { stat = "attackSpeed",      type = "percentage", value = 10 },
-            { stat = "health",           type = "percentage", value = -10 }
+            { stat = "attackSpeed", type = "percentage", value = 5 },
+            { stat = "health", type = "percentage", value = -10 }
         },
-        tags = { "ofensivo", "dano", "velocidade_ataque", "vida", "risco", "negativo" }
+        color = Colors.attribute_colors.damage
     },
 
     -- Bônus Crítico
     precision_1_fixed_fraction = {
         id = "precision_1_fixed_fraction",
         name = "Precisão Afiada",
-        description_template = "Aumenta a Chance de Crítico em 10%.", -- {value} será value*100 na UI
-        icon = "C+",
+        description = "Aumenta a |Chance de Crítico| em |10%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            -- Intenção: +0.5% de chance crítica fixa por nível.
-            -- PlayerState.fixedBonus.critChance armazena isso como a fração 0.005.
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.010 }
+            { stat = "critChance", type = "percentage", value = 10 }
         },
-        tags = { "ofensivo", "critico", "chance_critica", "fixo" }
+        color = Colors.attribute_colors.crit_chance
     },
     lethality_1_fixed_multiplier = {
         id = "lethality_1_fixed_multiplier",
         name = "Golpe Devastador",
-        description_template = "Aumenta o Dano Crítico em 0.10.",
+        description = "Aumenta o |Dano Crítico| em |0.1x|.",
+        image_path = "assets/imagens/skills/crit_damage.png",
         icon = "M+",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.1 } -- +0.05x Dano Crítico por nível (para fixedBonus)
+            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.1 }
         },
-        tags = { "ofensivo", "critico", "dano_critico", "fixo" }
+        color = Colors.attribute_colors.crit_damage
     },
     gamblers_strike_1 = {
         id = "gamblers_strike_1",
         name = "Aposta Arriscada",
-        description_template =
-        "Aumenta Chance (0.10) e Dano Crítico (+0.20x), mas reduz Dano base em -10%.",
-        icon = "C!",
+        description = "Aumenta |Chance de Crítico| em |10%| e |Dano Crítico| em |0.2x|, mas reduz |Dano| base em |-10%|.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
-            { stat = "critChance",       type = "fixed_percentage_as_fraction", value = 0.10 },
-            { stat = "critDamage",       type = "fixed_percentage_as_fraction", value = 0.20 },
-            { stat = "damageMultiplier", type = "percentage",                   value = -10 }
+            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.10 },
+            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.20 },
+            { stat = "damageMultiplier", type = "percentage", value = -10 }
         },
-        tags = { "ofensivo", "critico", "risco", "negativo" }
+        color = Colors.attribute_colors.crit_damage
     },
 
     -- Bônus de Mobilidade
     celerity_1_percent = {
         id = "celerity_1_percent",
         name = "Passos Velozes",
-        description_template = "Aumenta a Velocidade de Movimento em 5%.",
-        icon = "S%",
+        description = "Aumenta a |Velocidade de Movimento| em |5%|.",
+        image_path = tempIconPath,
         max_level = 8,
         modifiers_per_level = {
-            { stat = "moveSpeed", type = "percentage", value = 5 } -- +5% Vel. Mov. por nível (para levelBonus)
+            { stat = "moveSpeed", type = "percentage", value = 5 }
         },
-        tags = { "mobilidade", "velocidade", "percentual" }
+        color = Colors.attribute_colors.move_speed
     },
     haste_1_fixed = {
         id = "haste_1_fixed",
         name = "Ímpeto",
-        description_template = "Aumenta a Velocidade de Movimento em 10.",
-        icon = "S+",
+        description = "Aumenta a |Velocidade de Movimento| em |3| pontos.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
-            { stat = "moveSpeed", type = "fixed", value = 10 }
+            { stat = "moveSpeed", type = "fixed", value = 3 }
         },
-        tags = { "mobilidade", "velocidade", "fixo" }
+        color = Colors.attribute_colors.move_speed
     },
     unburdened_1 = {
         id = "unburdened_1",
         name = "Peso Pena",
-        description_template = "Aumenta Vel. Movimento em 5%, mas reduz a Defesa em -5 pts.",
-        icon = "S!",
+        description = "Aumenta |Velocidade de Movimento| em |5%|, mas reduz a |Defesa| em |-5| pontos.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
             { stat = "moveSpeed", type = "percentage", value = 5 },
-            { stat = "defense",   type = "fixed",      value = -5 }
+            { stat = "defense", type = "fixed", value = -5 }
         },
-        tags = { "mobilidade", "velocidade", "defesa", "risco", "negativo" }
+        color = Colors.attribute_colors.move_speed
     },
 
     -- Bônus de Defesa
     protection_1_fixed = {
         id = "protection_1_fixed",
         name = "Guarda Menor",
-        description_template = "Aumenta a Defesa em 10 pontos.",
-        icon = "DEF+",
+        description = "Aumenta a |Defesa| em |10| pontos.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
             { stat = "defense", type = "fixed", value = 10 }
         },
-        tags = { "defensivo", "defesa", "fixo" }
+        color = Colors.attribute_colors.defense
     },
     resilience_1_percent = {
         id = "resilience_1_percent",
         name = "Tenacidade",
-        description_template = "Aumenta a Defesa em 10%.",
-        icon = "DEF%",
+        description = "Aumenta a |Defesa| em |10%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            { stat = "defense", type = "percentage", value = 10 } -- +10% Defesa por nível (para levelBonus)
+            { stat = "defense", type = "percentage", value = 10 }
         },
-        tags = { "defensivo", "defesa", "percentual" }
+        color = Colors.attribute_colors.defense
     },
 
     -- Bônus de Regeneração e Coleta
     regeneration_1_fixed = {
         id = "regeneration_1_fixed",
         name = "Recuperação Rápida",
-        description_template = "Aumenta Regeneração de Vida em +0.5 HP/s.",
-        icon = "R+",
+        description = "Aumenta |Regeneração de Vida| em |0.5| HP/s.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
-            { stat = "healthPerTick", type = "fixed", value = 0.5 } -- Para fixedBonus.healthPerTick
+            { stat = "healthPerTick", type = "fixed", value = 0.5 }
         },
-        tags = { "defensivo", "regeneracao", "fixo" }
+        color = Colors.attribute_colors.health_per_tick
     },
     regen_delay_1_reduction = {
         id = "regen_delay_1_reduction",
         name = "Prontidão",
-        description_template = "Reduz o Delay de Regeneração de Vida em 0.5s.",
-        icon = "RD-",
+        description = "Reduz o delay de |Regeneração de Vida| em |0.5| segundos.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
-            -- PlayerState.fixedBonus.healthRegenDelay é um valor que é SUBTRAÍDO.
-            { stat = "healthRegenDelay", type = "fixed", value = 0.5 } -- Reduz em 0.5s (PlayerState aplica como subtração)
+            { stat = "healthRegenDelay", type = "fixed", value = 0.5 }
         },
-        tags = { "defensivo", "regeneracao", "delay", "fixo" }
+        color = Colors.attribute_colors.health_regen_delay
     },
     scavenger_1_fixed = {
         id = "scavenger_1_fixed",
         name = "Magnetismo",
-        description_template = "Aumenta o Raio de Coleta em 10 unidades.",
-        icon = "P+",
+        description = "Aumenta o |Raio de Coleta| em |10| unidades.",
+        image_path = tempIconPath,
         max_level = 8,
         modifiers_per_level = {
             { stat = "pickupRadius", type = "fixed", value = 10 }
         },
-        tags = { "utilidade", "coleta", "fixo" }
+        color = Colors.attribute_colors.pickup_radius
     },
 
     -- Bônus Utilitários / Avançados
     chronomancer_1_percent = {
         id = "chronomancer_1_percent",
         name = "Dobra Temporal Menor",
-        description_template = "Reduz a Recarga de Habilidades em 5%.",
-        icon = "CD%",
+        description = "Reduz a |Recarga de Habilidades| em |5%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            -- PlayerState.levelBonus.cooldownReduction é um percentual de REDUÇÃO.
-            { stat = "cooldownReduction", type = "percentage", value = 5 } -- +5% de REDUÇÃO por nível (para levelBonus)
+            { stat = "cooldownReduction", type = "percentage", value = 5 }
         },
-        tags = { "utilidade", "cooldown", "percentual" }
+        color = Colors.attribute_colors.cooldown_reduction
     },
     lucky_star_1_percent = {
         id = "lucky_star_1_percent",
         name = "Estrela da Sorte",
-        description_template = "Aumenta a Sorte em 5%.",
-        icon = "L%",
+        description = "Aumenta a |Sorte| em |5%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            { stat = "luck", type = "percentage", value = 5 } -- +3% Sorte por nível (para levelBonus)
+            { stat = "luck", type = "percentage", value = 5 }
         },
-        tags = { "utilidade", "sorte", "percentual" }
+        color = Colors.attribute_colors.luck
     },
     scholarly_pursuit_1 = {
         id = "scholarly_pursuit_1",
         name = "Busca Acadêmica",
-        description_template = "Aumenta Bônus de Exp. em 20% mas e Vel. Ataque em -5%.",
-        icon = "XP!",
+        description = "Aumenta |Bônus de Experiência| em |10%|.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
-            { stat = "expBonus",    type = "percentage", value = 20 },
-            { stat = "attackSpeed", type = "percentage", value = -5 }
+            { stat = "expBonus", type = "percentage", value = 10 }
         },
-        tags = { "utilidade", "experiencia", "risco", "negativo" }
+        color = Colors.attribute_colors.exp_bonus
     },
 
     --- Area e alcance
     area_1_percent = {
         id = "area_1_percent",
         name = "Área",
-        description_template = "Aumenta a Área de Ataque em 10%.",
-        icon = "A%",
+        description = "Aumenta a |Área| em |10%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
             { stat = "attackArea", type = "percentage", value = 10 }
         },
-        tags = { "utilidade", "alcance", "percentual" }
+        color = Colors.attribute_colors.attack_area
     },
     area_3_combo = {
         id = "area_3_combo",
         name = "Área Mortal",
-        description_template = "Aumenta Área em 8% e Dano em 8%.",
-        icon = "A*",
+        description = "Aumenta |Área| em |8%| e |Dano| em |5%|.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
             { stat = "attackArea",       type = "percentage", value = 8 },
-            { stat = "damageMultiplier", type = "percentage", value = 8 }
+            { stat = "damageMultiplier", type = "percentage", value = 5 }
         },
-        tags = { "utilidade", "alcance", "dano", "combo" }
+        color = Colors.attribute_colors.attack_area
     },
     range_1_percent = {
         id = "range_1_percent",
         name = "Alcance",
-        description_template = "Aumenta o Alcance em 10%.",
-        icon = "A%",
+        description = "Aumenta o |Alcance| em |10%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
             { stat = "range", type = "percentage", value = 10 }
         },
-        tags = { "utilidade", "alcance", "percentual" }
+        color = Colors.attribute_colors.range
     },
     range_3_combo = {
         id = "range_3_combo",
         name = "Alcance Mortal",
-        description_template = "Aumenta Alcance em 8% e Dano em 8%.",
-        icon = "A*",
+        description = "Aumenta |Alcance| em |8%| e |Dano| em |5%|.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
             { stat = "range",            type = "percentage", value = 8 },
-            { stat = "damageMultiplier", type = "percentage", value = 8 }
+            { stat = "damageMultiplier", type = "percentage", value = 5 }
         },
-        tags = { "utilidade", "alcance", "dano", "combo" }
+        color = Colors.attribute_colors.range
     },
 
     -- Bônus de Ataque Múltiplo
     multi_attack_chance_1 = {
         id = "multi_attack_chance_1",
         name = "Golpes Ecoantes",
-        description_template = "Aumenta a Chance de Ataque Múltiplo em 10%.",
-        icon = "MA+",
+        description = "Aumenta a chance de |Ataques Múltiplos| em |10%|.",
+        image_path = tempIconPath,
         max_level = 10,
         modifiers_per_level = {
-            { stat = "multiAttackChance", type = "fixed_percentage_as_fraction", value = 0.10 }
+            { stat = "multiAttackChance", type = "percentage", value = 10 }
         },
-        tags = { "ofensivo", "multi_ataque", "chance" }
+        color = Colors.attribute_colors.multi_attack_chance
     },
     multi_attack_frenzy_1 = {
         id = "multi_attack_frenzy_1",
         name = "Frenesi de Golpes",
-        description_template = "Aumenta a Chance de Ataque Múltiplo em 10%, mas reduz a Chance de Crítico em 5%.",
-        icon = "MA!",
+        description = "Aumenta a chance de |Ataques Múltiplos| em |0.1x|.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
             { stat = "multiAttackChance", type = "fixed_percentage_as_fraction", value = 0.10 },
-            { stat = "critChance",        type = "fixed_percentage_as_fraction", value = -0.05 }
         },
-        tags = { "ofensivo", "multi_ataque", "chance", "risco", "negativo" }
+        color = Colors.attribute_colors.multi_attack_chance
     },
 
     -- Bônus de Dash
     dash_cooldown_reduction_1 = {
         id = "dash_cooldown_reduction_1",
         name = "Passo Rápido",
-        description_template = "Reduz a Recarga do Dash em 8%.",
-        icon = "DSH-",
+        description = "Reduz a |Recarga do Dash| em |8%|.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
             { stat = "dashCooldown", type = "percentage", value = -8 }
         },
-        tags = { "mobilidade", "dash", "cooldown" }
+        color = Colors.attribute_colors.dash_cooldown
     },
     dash_distance_increase_1 = {
         id = "dash_distance_increase_1",
         name = "Salto Longo",
-        description_template = "Aumenta a Distância do Dash em 15%.",
-        icon = "DSH+",
+        description = "Aumenta a |Distância do Dash| em |15%|.",
+        image_path = tempIconPath,
         max_level = 5,
         modifiers_per_level = {
             { stat = "dashDistance", type = "percentage", value = 15 }
         },
-        tags = { "mobilidade", "dash", "distancia" }
+        color = Colors.attribute_colors.dash_distance
     },
     dash_extra_charge_1 = {
         id = "dash_extra_charge_1",
         name = "Carga Extra",
-        description_template = "Adiciona +1 Carga de Dash.",
-        icon = "DSH*",
+        description = "Adiciona |1| |Carga de Dash|.",
+        image_path = tempIconPath,
         max_level = 2, -- Máximo de 2 cargas extras por este bônus
         modifiers_per_level = {
             { stat = "dashCharges", type = "fixed", value = 1 }
         },
-        tags = { "mobilidade", "dash", "cargas" }
+        color = Colors.attribute_colors.dash_charges
     },
 
     -- Bônus do Sistema de Poções
     potion_capacity_1 = {
         id = "potion_capacity_1",
         name = "Capacidade Expandida",
-        description_template = "Adiciona +1 Frasco de Poção.",
-        icon = "POT+",
-        max_level = 3, -- Máximo de 3 frascos extras
+        description = "Adiciona |1| |Frasco de Poção|.",
+        image_path = tempIconPath,
+        max_level = 3,
         modifiers_per_level = {
             { stat = "potionFlasks", type = "fixed", value = 1 }
         },
-        tags = { "defensivo", "pocoes", "capacidade" }
+        color = Colors.attribute_colors.potion_flasks
     },
     potion_potency_1_fixed = {
         id = "potion_potency_1_fixed",
         name = "Poções Concentradas",
-        description_template = "Aumenta a cura das poções em +15 HP.",
-        icon = "POT*",
+        description = "Aumenta a |Cura da Poção| em |15| HP.",
+        image_path = tempIconPath,
         max_level = 8,
         modifiers_per_level = {
-            { stat = "potionHealAmount", type = "fixed", value = 15 }
+            { stat_key = "potion_heal", stat = "potionHealAmount", type = "fixed", value = 15 }
         },
-        tags = { "defensivo", "pocoes", "cura", "fixo" }
+        color = Colors.attribute_colors.potion_heal_amount
     },
     potion_speed_1 = {
         id = "potion_speed_1",
         name = "Destilação Rápida",
-        description_template = "Frascos enchem 25% mais rápido.",
-        icon = "POT>",
+        description = "Aumenta a |Velocidade de Preenchimento dos Frascos| em |25%|.",
+        image_path = tempIconPath,
         max_level = 8,
         modifiers_per_level = {
             { stat = "potionFillRate", type = "fixed_percentage_as_fraction", value = 0.25 }
         },
-        tags = { "defensivo", "pocoes", "velocidade" }
-    },
-    potion_combo_1 = {
-        id = "potion_combo_1",
-        name = "Mestre Alquimista",
-        description_template = "Poções curam 15% mais e enchem 15% mais rápido.",
-        icon = "POT&",
-        max_level = 5,
-        modifiers_per_level = {
-            { stat = "potionHealAmount", type = "percentage",                   value = 15 },
-            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 0.15 }
-        },
-        tags = { "defensivo", "pocoes", "cura", "velocidade", "combo" }
+        color = Colors.attribute_colors.potion_fill_rate
     },
     potion_healing_synergy_1 = {
         id = "potion_healing_synergy_1",
         name = "Sinergia Curativa",
-        description_template = "Poções curam 10% mais e aumenta Bônus de Cura em 8%.",
-        icon = "POT+",
+        description = "Aumenta a |Cura da Poção| em |10%| e a |Bônus de Cura| em |8%|.",
+        image_path = tempIconPath,
         max_level = 6,
         modifiers_per_level = {
             { stat = "potionHealAmount", type = "percentage", value = 10 },
             { stat = "healingBonus",     type = "percentage", value = 8 }
         },
-        tags = { "defensivo", "pocoes", "cura", "healing_bonus", "combo" }
+        color = Colors.attribute_colors.potion_heal_amount
     },
-    potion_risk_reward_1 = {
-        id = "potion_risk_reward_1",
-        name = "Elixir Instável",
-        description_template = "Poções curam 40% mais, mas frascos enchem 20% mais devagar.",
-        icon = "POT!",
-        max_level = 4,
-        modifiers_per_level = {
-            { stat = "potionHealAmount", type = "percentage",                   value = 40 },
-            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = -0.20 }
-        },
-        tags = { "defensivo", "pocoes", "cura", "velocidade", "risco", "negativo" }
-    },
-    potion_quantity_over_quality_1 = {
-        id = "potion_quantity_over_quality_1",
-        name = "Quantidade sobre Qualidade",
-        description_template = "Ganha +1 Frasco, mas cada poção cura 25% menos.",
-        icon = "POT#",
-        max_level = 2,
-        modifiers_per_level = {
-            { stat = "potionFlasks",     type = "fixed",      value = 1 },
-            { stat = "potionHealAmount", type = "percentage", value = -25 }
-        },
-        tags = { "defensivo", "pocoes", "capacidade", "cura", "risco", "negativo" }
-    }
 }
 
 --- Função auxiliar para aplicar modificadores ao PlayerStateController

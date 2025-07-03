@@ -2,6 +2,8 @@ local elements = require("src.ui.ui_elements")
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
+local Formatters = require("src.utils.formatters")
+local lume = require("src.libs.lume")
 
 ---@class LevelUpModal
 ---@field visible boolean
@@ -10,53 +12,522 @@ local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
 ---@field playerManager PlayerManager|nil
 ---@field inputManager InputManager|nil
 ---@field hoveredOption number|nil
----@field choiceDelay number
 ---@field onCloseCallback function|nil
+---@field cards table<number, LevelUpCard>
+---@field scales table<number, number>
+---@field backgroundColors table<number, {number, number, number}>
+---@field cardAnimationTimer number
+---@field cardsAnimated number
+---@field canChoose boolean
+---@field appearanceSequenceCompleted boolean
+---@field loadedImages table<string, love.Image>
 local LevelUpModal = {
     visible = false,
-    options = {},                  -- Agora vai armazenar as definições completas dos bônus de LevelUpBonusesData
-    selectedOption = nil,          -- Para seleção por teclado, resetado ao mostrar
+    options = {},
+    selectedOption = nil,
     playerManager = nil,
-    inputManager = nil,            -- Para obter a posição do mouse
-    hoveredOption = nil,           -- Para feedback visual do mouse hover
-
-    choiceDelay = 1.0,             -- Segundos de delay antes de poder escolher
-    currentChoiceDelayTimer = 0.0, -- Timer regressivo para o delay
-    canChoose = false,             -- Flag que permite a escolha após o delay
-    onCloseCallback = nil,         -- Callback chamado quando o modal é fechado
+    inputManager = nil,
+    hoveredOption = nil,
+    onCloseCallback = nil,
+    cards = {},
+    scales = {},
+    backgroundColors = {},
+    cardAnimationTimer = 0.0,
+    cardsAnimated = 0,
+    canChoose = false,
+    appearanceSequenceCompleted = false,
+    loadedImages = {},
 }
+
+---@class LevelUpCard
+---@field rect {x: number, y: number, w: number, h: number}
+---@field optionData LevelUpBonus
+---@field alpha number
+---@field animationComplete boolean
+---@field skillImage love.Image|nil
+local LevelUpCard = {}
+LevelUpCard.__index = LevelUpCard
+
+function LevelUpCard:new(rect, optionData)
+    local instance = setmetatable({}, LevelUpCard)
+    instance.rect = rect
+    instance.optionData = optionData
+    instance.alpha = 0.0
+    instance.animationComplete = false
+    instance.skillImage = nil
+    return instance
+end
+
+function LevelUpCard:loadImage()
+    if self.optionData.image_path and love.filesystem.getInfo(self.optionData.image_path) then
+        local success, imageOrError = pcall(love.graphics.newImage, self.optionData.image_path)
+        if success then
+            self.skillImage = imageOrError
+            Logger.debug("level_up_card.load_image", "Imagem carregada: " .. self.optionData.image_path)
+        else
+            Logger.debug("level_up_card.load_image_error",
+                "Erro ao carregar: " .. self.optionData.image_path .. " - " .. tostring(imageOrError))
+        end
+    else
+        Logger.debug("level_up_card.load_image_missing",
+            "Arquivo não encontrado: " .. (self.optionData.image_path or "nil"))
+    end
+end
+
+function LevelUpCard:update(dt)
+    if not self.animationComplete then
+        -- Animação de fade-in
+        self.alpha = math.min(1.0, self.alpha + dt * 3.0)
+        if self.alpha >= 1.0 then
+            self.animationComplete = true
+        end
+    end
+end
+
+function LevelUpCard:draw(scale, bgColor, isHovered, isSelected, globalAlpha)
+    local rect = self.rect
+    local cardAlpha = self.alpha * globalAlpha
+
+    if cardAlpha <= 0 then return end
+
+    love.graphics.push()
+    love.graphics.translate(rect.x + rect.w / 2, rect.y + rect.h / 2)
+    love.graphics.scale(scale, scale)
+    love.graphics.translate(-(rect.x + rect.w / 2), -(rect.y + rect.h / 2))
+
+    -- Fundo do card
+    love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], cardAlpha * 0.9)
+    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
+
+    -- Borda do card
+    local categoryColor = self.optionData.color
+    local borderColor = categoryColor
+    local borderWidth = 1
+    if isSelected then
+        borderColor = colors.border_active
+        borderWidth = 3
+    elseif isHovered then
+        borderWidth = 0
+    end
+
+
+    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], cardAlpha)
+    love.graphics.setLineWidth(borderWidth)
+    love.graphics.rectangle("line", rect.x, rect.y, rect.w, rect.h)
+
+    -- Conteúdo do card
+    self:drawContent(cardAlpha)
+
+    love.graphics.pop()
+end
+
+function LevelUpCard:drawContent(alpha)
+    local rect = self.rect
+    local headerHeight = 72 -- Reduzido de 120 para 72 (40% menor)
+    local currentY = rect.y
+
+    -- Cabeçalho colorido
+    local categoryColor = self.optionData.color
+    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha * 0.8)
+    love.graphics.rectangle("fill", rect.x, currentY, rect.w, headerHeight)
+
+    -- Imagem da skill no cabeçalho
+    if self.skillImage then
+        love.graphics.setColor(1, 1, 1, alpha)
+        local imageSize = 96
+        local imageX = rect.x + (rect.w - imageSize) / 2
+        local imageY = currentY - imageSize / 2
+
+        local scaleX = imageSize / self.skillImage:getWidth()
+        local scaleY = imageSize / self.skillImage:getHeight()
+        love.graphics.draw(
+            self.skillImage,
+            imageX + imageSize / 2,
+            imageY + imageSize / 2,
+            0,
+            scaleX,
+            scaleY,
+            self.skillImage:getWidth() / 2,
+            self.skillImage:getHeight() / 2
+        )
+    else
+        -- Fallback: ícone de texto
+        love.graphics.setFont(fonts.hud)
+        love.graphics.setColor(1, 1, 1, alpha)
+        local iconText = "N/A"
+        love.graphics.printf(iconText, rect.x, currentY + 15, rect.w, "center")
+    end
+
+    -- Contador de nível dentro do cabeçalho
+    local currentLevel = self.optionData.current_level_for_display or 0
+    local maxLevel = self.optionData.max_level or 1
+    local nextLevel = currentLevel + 1
+
+    love.graphics.setFont(fonts.main_bold)
+    love.graphics.setColor(colors.white)
+    local progressText = string.format("%d/%d", nextLevel, maxLevel)
+    love.graphics.printf(progressText, rect.x + 8, currentY + headerHeight - 20, rect.w - 16, "right")
+
+    currentY = currentY + headerHeight
+
+    -- Barra de progresso (colada ao cabeçalho, largura total)
+    local progressBarHeight = 8
+    local progressBarPadding = 0
+    local progressBarX = rect.x + progressBarPadding
+    local progressBarWidth = rect.w - (progressBarPadding * 2)
+
+    -- Fundo da barra
+    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha * 0.5)
+    love.graphics.rectangle("fill", progressBarX, currentY, progressBarWidth, progressBarHeight)
+
+    -- Preenchimento da barra
+    local progress = currentLevel / maxLevel
+    local fillWidth = progressBarWidth * progress
+    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha)
+    love.graphics.rectangle("fill", progressBarX, currentY, fillWidth, progressBarHeight)
+
+    currentY = currentY + progressBarHeight + 10
+
+    -- Conteúdo principal com padding
+    local padding = 12
+    local contentX = rect.x + padding
+    local contentWidth = rect.w - (padding * 2)
+
+    -- Nome da melhoria (negrito)
+    love.graphics.setFont(fonts.title_large)
+    love.graphics.setColor(colors.text_title[1], colors.text_title[2], colors.text_title[3], alpha)
+    local nameText = self.optionData.name or "Melhoria Desconhecida"
+    love.graphics.printf(nameText, contentX, currentY, contentWidth, "center")
+    -- Adiciona sombra ao nome da melhoria
+    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha * 0.5)
+    love.graphics.printf(nameText, contentX + 1, currentY + 1, contentWidth, "center")
+    currentY = currentY + fonts.title_large:getHeight() + 2
+
+    -- Tipo de melhoria
+    love.graphics.setFont(fonts.main_small)
+    love.graphics.setColor(colors.text_muted[1], colors.text_muted[2], colors.text_muted[3], alpha)
+    local improvementType = self:getImprovementType()
+    love.graphics.printf(improvementType, contentX, currentY, contentWidth, "center")
+    currentY = currentY + fonts.main_small:getHeight() + 8
+
+    -- Descrição com palavras-chave coloridas
+    love.graphics.setFont(fonts.main_large)
+    currentY = currentY + self:drawColoredDescription(contentX, currentY, contentWidth, alpha)
+
+    -- Modificadores resumidos com cores
+    love.graphics.setFont(fonts.main_small_bold)
+    local modifiers = self:getModifiersData()
+    if modifiers and #modifiers > 0 then
+        currentY = currentY + self:drawColoredModifiers(contentX, currentY, contentWidth, modifiers, alpha)
+    end
+end
+
+function LevelUpCard:drawColoredModifiers(x, y, width, modifiers, alpha)
+    local lineHeight = fonts.main_small_bold:getHeight()
+    local currentY = 0
+
+    for _, modifier in ipairs(modifiers) do
+        -- Define a cor baseada no valor
+        if modifier.value >= 0 then
+            love.graphics.setColor(0.4, 1.0, 0.4, alpha) -- Verde para positivos
+        else
+            love.graphics.setColor(1.0, 0.4, 0.4, alpha) -- Vermelho para negativos
+        end
+
+        love.graphics.printf(modifier.text, x, y + currentY, width, "left")
+        currentY = currentY + lineHeight
+    end
+
+    return currentY
+end
+
+function LevelUpCard:getModifiersData()
+    local modifiers = {}
+    if self.optionData.modifiers_per_level then
+        for _, mod in ipairs(self.optionData.modifiers_per_level) do
+            local valueString = ""
+            local prefix = (mod.value >= 0) and "+" or ""
+
+            if mod.type == "fixed" then
+                valueString = prefix .. string.format("%.1f", mod.value):gsub("%.0$", "")
+            elseif mod.type == "percentage" then
+                valueString = prefix .. string.format("%.1f", mod.value):gsub("%.0$", "") .. "%"
+            elseif mod.type == "fixed_percentage_as_fraction" then
+                valueString = prefix .. string.format("%.1f", mod.value * 100):gsub("%.0$", "") .. "%"
+            else
+                valueString = prefix .. tostring(mod.value)
+            end
+
+            if mod.stat then
+                -- Usa o Formatters para traduzir o nome do stat
+                local statName = Formatters.getStatDisplayName(mod.stat) or mod.stat
+                -- Se não encontrou no Formatters, tenta formatar manualmente
+                if statName == mod.stat then
+                    statName = mod.stat:gsub("_", " "):gsub("(%a)(%w*)", function(a, b) return a:upper() .. b end)
+                end
+
+                table.insert(modifiers, {
+                    text = valueString .. " " .. statName,
+                    value = mod.value
+                })
+            end
+        end
+    end
+    return modifiers
+end
+
+function LevelUpCard:getImprovementType()
+    -- Determina o tipo baseado no ID ou outros campos
+    local bonusId = self.optionData.id or ""
+    if string.find(bonusId, "rune") then
+        return "Melhoria de Runa"
+    elseif string.find(bonusId, "weapon") then
+        return "Melhoria de Arma"
+    else
+        return "Melhoria de Nível"
+    end
+end
+
+function LevelUpCard:drawColoredDescription(x, y, width, alpha)
+    local description = self.optionData.description or ""
+    local fontNormal = fonts.main_large
+    local fontBold = fonts.main_large_bold
+    local lineHeight = math.max(fontNormal:getHeight(), fontBold:getHeight())
+    local currentY = 0
+
+    -- Parse do texto para encontrar palavras-chave entre |palavra|
+    local segments = {}
+    local currentPos = 1
+
+    while currentPos <= #description do
+        local pipeStart = description:find("|", currentPos)
+        if not pipeStart then
+            -- Resto do texto sem formatação
+            if currentPos <= #description then
+                table.insert(segments, {
+                    text = description:sub(currentPos),
+                    colored = false
+                })
+            end
+            break
+        end
+
+        -- Texto antes da primeira pipe
+        if pipeStart > currentPos then
+            table.insert(segments, {
+                text = description:sub(currentPos, pipeStart - 1),
+                colored = false
+            })
+        end
+
+        -- Procura a pipe de fechamento
+        local pipeEnd = description:find("|", pipeStart + 1)
+        if not pipeEnd then
+            -- Pipe sem fechamento, trata como texto normal
+            table.insert(segments, {
+                text = description:sub(pipeStart),
+                colored = false
+            })
+            break
+        end
+
+        -- Palavra-chave entre pipes
+        local keyword = description:sub(pipeStart + 1, pipeEnd - 1)
+        table.insert(segments, {
+            text = keyword,
+            colored = true,
+            keyword = keyword
+        })
+
+        currentPos = pipeEnd + 1
+    end
+
+    -- Renderiza os segmentos com quebra de linha
+    local currentLine = ""
+    local lineSegments = {}
+
+    for _, segment in ipairs(segments) do
+        local words = {}
+        for word in segment.text:gmatch("%S+") do
+            table.insert(words, word)
+        end
+
+        for i, word in ipairs(words) do
+            -- Calcula a largura da palavra usando a fonte apropriada
+            local wordFont = segment.colored and fontBold or fontNormal
+            local wordWidth = wordFont:getWidth(word)
+
+            -- Testa se a linha atual + nova palavra cabe na largura
+            local testLineWidth = 0
+            local testSegments = {}
+
+            -- Copia segmentos atuais
+            for _, seg in ipairs(lineSegments) do
+                table.insert(testSegments, seg)
+            end
+
+            -- Adiciona a nova palavra
+            if #testSegments > 0 and testSegments[#testSegments].colored == segment.colored then
+                -- Mesmo tipo de formatação - junta na mesma segment
+                local lastSeg = testSegments[#testSegments]
+                lastSeg.text = lastSeg.text .. " " .. word
+            else
+                -- Novo segmento
+                table.insert(testSegments, {
+                    text = (#currentLine > 0 and " " or "") .. word,
+                    colored = segment.colored,
+                    keyword = segment.keyword
+                })
+            end
+
+            -- Calcula largura total da linha de teste
+            for _, seg in ipairs(testSegments) do
+                local segFont = seg.colored and fontBold or fontNormal
+                testLineWidth = testLineWidth + segFont:getWidth(seg.text)
+            end
+
+            if testLineWidth > width and #currentLine > 0 then
+                -- Quebra a linha
+                self:renderColoredLine(x, y + currentY, lineSegments, alpha)
+                currentY = currentY + lineHeight
+                currentLine = word
+                lineSegments = { { text = word, colored = segment.colored, keyword = segment.keyword } }
+            else
+                currentLine = currentLine .. (#currentLine > 0 and " " or "") .. word
+                lineSegments = testSegments
+            end
+        end
+
+        -- Adiciona espaço entre segmentos se necessário
+        --if segment ~= segments[#segments] then
+        --    currentLine = currentLine .. " "
+        --    if #lineSegments > 0 then
+        --        lineSegments[#lineSegments].text = lineSegments[#lineSegments].text .. " "
+        --    end
+        --end
+    end
+
+    -- Renderiza a última linha
+    if #lineSegments > 0 then
+        self:renderColoredLine(x, y + currentY, lineSegments, alpha)
+        currentY = currentY + lineHeight
+    end
+
+    return currentY + 8 -- Adiciona espaçamento
+end
+
+function LevelUpCard:renderColoredLine(x, y, segments, alpha)
+    local currentX = x
+    local fontNormal = fonts.main
+    local fontBold = fonts.main_bold
+
+    for _, segment in ipairs(segments) do
+        local segmentFont = segment.colored and fontBold or fontNormal
+        love.graphics.setFont(segmentFont)
+
+        if segment.colored then
+            -- Primeiro verifica se é um número (prioridade sobre palavras-chave)
+            local isNumber = false
+            local text = segment.text or ""
+
+            -- Verifica padrões de números
+            if text:match("^[%+%-]?%d") or text:match("^%d") or text:match("%%$") or text:match("^%-") then
+                isNumber = true
+                -- Cor baseada no valor numérico
+                if text:match("^%-") or text:find("%-") then
+                    -- Valores negativos (começam com - ou contêm -)
+                    love.graphics.setColor(1.0, 0.4, 0.4, alpha) -- Vermelho
+                else
+                    -- Valores positivos
+                    love.graphics.setColor(0.4, 1.0, 0.4, alpha) -- Verde
+                end
+            end
+
+            if not isNumber then
+                -- Se não é número, verifica palavras-chave
+                local keywordColor = LevelUpBonusesData.KeywordColors[segment.keyword]
+                if keywordColor then
+                    love.graphics.setColor(keywordColor[1], keywordColor[2], keywordColor[3], alpha)
+                else
+                    -- Fallback: branco para palavras-chave não encontradas
+                    love.graphics.setColor(1.0, 1.0, 1.0, alpha)
+                end
+            end
+        else
+            -- Cor normal do texto
+            love.graphics.setColor(colors.text_main[1], colors.text_main[2], colors.text_main[3], alpha)
+        end
+
+        love.graphics.print(segment.text, currentX, y)
+        currentX = currentX + segmentFont:getWidth(segment.text)
+    end
+end
+
+function LevelUpCard:getModifiersSummary()
+    local summary = {}
+    if self.optionData.modifiers_per_level then
+        for _, mod in ipairs(self.optionData.modifiers_per_level) do
+            local valueString = ""
+            local prefix = (mod.value >= 0) and "+" or ""
+
+            if mod.type == "fixed" then
+                valueString = prefix .. string.format("%.1f", mod.value):gsub("%.0$", "")
+            elseif mod.type == "percentage" then
+                valueString = prefix .. string.format("%.1f", mod.value):gsub("%.0$", "") .. "%"
+            elseif mod.type == "fixed_percentage_as_fraction" then
+                valueString = prefix .. string.format("%.1f", mod.value * 100):gsub("%.0$", "") .. "%"
+            else
+                valueString = prefix .. tostring(mod.value)
+            end
+
+            if mod.stat then
+                -- Usa o Formatters para traduzir o nome do stat
+                local statName = Formatters.getStatDisplayName(mod.stat) or mod.stat
+                -- Se não encontrou no Formatters, tenta formatar manualmente
+                if statName == mod.stat then
+                    statName = mod.stat:gsub("_", " "):gsub("(%a)(%w*)", function(a, b) return a:upper() .. b end)
+                end
+                table.insert(summary, valueString .. " " .. statName)
+            end
+        end
+    end
+    return table.concat(summary, "\n")
+end
 
 --- Inicializa o LevelUpModal.
 --- @param playerManager PlayerManager Instância do PlayerManager.
 --- @param inputManager InputManager Instância do InputManager.
 function LevelUpModal:init(playerManager, inputManager)
     self.playerManager = playerManager
-    self.inputManager = inputManager -- Armazena a referência ao inputManager
-    print("[LevelUpModal] Inicializado com PlayerManager:", playerManager and "OK" or "NULO", "InputManager:",
-        inputManager and "OK" or "NULO")
+    self.inputManager = inputManager
+    Logger.debug("level_up_modal.init", "[LevelUpModal] Inicializado")
 end
 
 function LevelUpModal:show(onCloseCallback)
     self.visible = true
-    self.selectedOption = nil                       -- Reseta a opção selecionada por teclado
-    self.hoveredOption = nil                        -- Reseta a opção com hover do mouse
-    self.currentChoiceDelayTimer = self.choiceDelay -- Inicia o timer de delay
-    self.canChoose = false                          -- Desabilita a escolha inicialmente
-    self.onCloseCallback = onCloseCallback          -- Armazena o callback de fechamento
-    self:generateOptions()                          -- Gera as opções de bônus
-    print(string.format("[LevelUpModal:show] Modal aberto. Delay de %.1fs iniciado.", self.choiceDelay))
+    self.selectedOption = nil
+    self.hoveredOption = nil
+    self.canChoose = false
+    self.appearanceSequenceCompleted = false
+    self.cardAnimationTimer = 0.0
+    self.cardsAnimated = 0
+    self.onCloseCallback = onCloseCallback
+    self.cards = {}
+    self.scales = {}
+    self.backgroundColors = {}
+
+    self:generateOptions()
+    self:createCards()
+
+    Logger.debug("level_up_modal.show", "[LevelUpModal] Modal aberto com animação sequencial")
 end
 
 function LevelUpModal:hide()
     self.visible = false
-    love.graphics.setFont(fonts.main) -- Reseta a fonte para o padrão do jogo
+    love.graphics.setFont(fonts.main)
 
-    -- Chama o callback de fechamento se existir
     if self.onCloseCallback then
-        Logger.debug(
-            "level_up_modal.hide.callback",
-            "[LevelUpModal:hide] Chamando callback de fechamento"
-        )
+        Logger.debug("level_up_modal.hide.callback", "[LevelUpModal] Chamando callback de fechamento")
         self.onCloseCallback()
         self.onCloseCallback = nil
     end
@@ -95,70 +566,122 @@ function LevelUpModal:generateOptions()
     end
 
     if #self.options == 0 then
-        print("AVISO [LevelUpModal:generateOptions]: Nenhuma opção de bônus disponível.")
-        -- TODO: Considerar adicionar uma opção padrão como "Pegar Ouro" ou "Pular"
-        -- Por agora, se não houver opções, o modal pode ficar vazio ou fechar automaticamente.
-        -- Para este exemplo, vamos permitir que ele apareça vazio, mas o ideal seria ter um fallback.
+        Logger.debug("level_up_modal.generate_options.no_options", "Nenhuma opção de bônus disponível")
     end
 end
 
-function LevelUpModal:update(dt) -- dt é delta time
+function LevelUpModal:createCards()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
+    local numOptions = #self.options
+
+    if numOptions == 0 then return end
+
+    -- Configurações dos cards
+    local cardWidth = 400
+    local cardHeight = 600
+    local cardGap = 40
+    local totalWidth = (cardWidth * numOptions) + (cardGap * (numOptions - 1))
+    local startX = (screenW - totalWidth) / 2
+    local startY = (screenH - cardHeight) / 2
+
+    for i, optionData in ipairs(self.options) do
+        local cardX = startX + (i - 1) * (cardWidth + cardGap)
+        local cardRect = {
+            x = cardX,
+            y = startY,
+            w = cardWidth,
+            h = cardHeight
+        }
+
+        local card = LevelUpCard:new(cardRect, optionData)
+        card:loadImage() -- Carrega a imagem da skill
+        self.cards[i] = card
+        self.scales[i] = 1.0
+        local r, g, b = unpack(colors.window_bg)
+        self.backgroundColors[i] = { r, g, b }
+    end
+end
+
+function LevelUpModal:update(dt)
     if not self.visible then return end
 
-    if self.currentChoiceDelayTimer > 0 then
-        self.currentChoiceDelayTimer = self.currentChoiceDelayTimer - dt
-        if self.currentChoiceDelayTimer <= 0 then
+    -- Animação sequencial de aparição dos cards
+    if not self.appearanceSequenceCompleted then
+        self.cardAnimationTimer = self.cardAnimationTimer + dt
+
+        local cardAppearanceDelay = 0.15
+        local targetCardsAnimated = math.floor(self.cardAnimationTimer / cardAppearanceDelay) + 1
+
+        for i = self.cardsAnimated + 1, math.min(targetCardsAnimated, #self.cards) do
+            -- Inicia a animação do card i
+            self.cardsAnimated = i
+            Logger.debug("level_up_modal.card_animation", string.format("Iniciando animação do card %d", i))
+        end
+
+        -- Verifica se todas as animações completaram
+        local allAnimated = true
+        for i = 1, self.cardsAnimated do
+            if self.cards[i] then
+                self.cards[i]:update(dt)
+                if not self.cards[i].animationComplete then
+                    allAnimated = false
+                end
+            end
+        end
+
+        if self.cardsAnimated >= #self.cards and allAnimated then
+            self.appearanceSequenceCompleted = true
             self.canChoose = true
-            self.currentChoiceDelayTimer = 0 -- Garante que não fique negativo
-            print("[LevelUpModal:update] Delay concluído. Escolha habilitada.")
+            Logger.debug("level_up_modal.animation_complete", "Animação sequencial completa, cliques habilitados")
         end
     end
 
-    if self.canChoose then
-        if self.inputManager then
-            local mouseX, mouseY = self.inputManager:getMousePosition()
-            self.hoveredOption = self:getOptionAtPosition(mouseX, mouseY)
-        else
-            self.hoveredOption = nil
+    if self.canChoose and self.inputManager then
+        -- Hover detection e animações
+        local mouseX, mouseY = self.inputManager:getMousePosition()
+        self.hoveredOption = self:getCardAtPosition(mouseX, mouseY)
+
+        -- Anima escalas e cores
+        local lerpFactor = dt * 8.0
+        for i = 1, #self.cards do
+            local targetScale = (i == self.hoveredOption) and 1.1 or 1.0
+            self.scales[i] = lume.lerp(self.scales[i], targetScale, lerpFactor)
+
+            local targetColor = (i == self.hoveredOption) and colors.slot_hover_bg or colors.window_bg
+            local currentColor = self.backgroundColors[i]
+            currentColor[1] = lume.lerp(currentColor[1], targetColor[1], lerpFactor)
+            currentColor[2] = lume.lerp(currentColor[2], targetColor[2], lerpFactor)
+            currentColor[3] = lume.lerp(currentColor[3], targetColor[3], lerpFactor)
         end
-    else
-        self.hoveredOption = nil
+    end
+
+    -- Sempre atualiza os cards visíveis
+    for i = 1, self.cardsAnimated do
+        if self.cards[i] then
+            self.cards[i]:update(dt)
+        end
     end
 end
 
--- Unificada para usar as dimensões de draw()
-function LevelUpModal:getOptionAtPosition(x, y)
-    local modalWidth = 550
-    local modalHeight = 512 -- Altura total do modal, MODIFICADO: Era 450
-    local modalX = (ResolutionUtils.getGameWidth() - modalWidth) / 2
-    local modalY = (ResolutionUtils.getGameHeight() - modalHeight) / 2
+function LevelUpModal:getCardAtPosition(x, y)
+    for i, card in ipairs(self.cards) do
+        if i <= self.cardsAnimated and card then
+            local rect = card.rect
+            local scale = self.scales[i] or 1.0
 
-    local titleAreaHeight = 45        -- Altura estimada da área do título (sem a linha divisória)
-    local dividerHeight = 2           -- Altura da linha divisória
-    local progressBarVisualHeight = 3 -- Altura da linha de progresso
-    local paddingBelowProgressBar = 5
+            -- Calcula bounds com escala
+            local scaledWidth = rect.w * scale
+            local scaledHeight = rect.h * scale
+            local scaledX = rect.x + rect.w / 2 - scaledWidth / 2
+            local scaledY = rect.y + rect.h / 2 - scaledHeight / 2
 
-    local optionBlockStartY = modalY + titleAreaHeight + dividerHeight
-    if self.currentChoiceDelayTimer > 0 then
-        optionBlockStartY = optionBlockStartY + progressBarVisualHeight + paddingBelowProgressBar
-    else
-        optionBlockStartY = optionBlockStartY + paddingBelowProgressBar -- Só o padding se a barra sumiu
-    end
-
-    local optionVisualHeight = 100
-    local optionGap = 15
-
-    for i, _ in ipairs(self.options) do
-        local currentOptionY = optionBlockStartY + (i - 1) * (optionVisualHeight + optionGap)
-        local optionActualX = modalX + 20
-        local optionActualWidth = modalWidth - 40
-
-        if x >= optionActualX and x <= optionActualX + optionActualWidth and
-            y >= currentOptionY and y <= currentOptionY + optionVisualHeight then
-            return i -- Retorna o índice da opção (1, 2 ou 3)
+            if x >= scaledX and x <= scaledX + scaledWidth and
+                y >= scaledY and y <= scaledY + scaledHeight then
+                return i
+            end
         end
     end
-    return nil -- Nenhuma opção na posição do mouse
+    return nil
 end
 
 function LevelUpModal:applyUpgrade(optionData)
@@ -183,7 +706,7 @@ function LevelUpModal:applyUpgrade(optionData)
         gameStatsManager:registerLevelUpChoice(learnedBonuses[bonusId], choiceText)
     end
 
-    print(string.format("[LevelUpModal:applyUpgrade] Bônus '%s' (ID: %s) aplicado. Novo nível: %d",
+    Logger.debug("level_up_modal.apply_upgrade", string.format("Bônus '%s' (ID: %s) aplicado. Novo nível: %d",
         optionData.name, bonusId, learnedBonuses[bonusId]))
 end
 
@@ -191,146 +714,56 @@ function LevelUpModal:draw()
     if not self.visible then return end
 
     -- Fundo escuro semi-transparente
-    love.graphics.setColor(colors.window_bg[1], colors.window_bg[2], colors.window_bg[3], 0.8)
+    love.graphics.setColor(0, 0, 0, 0.8)
     local gameW, gameH = ResolutionUtils.getGameDimensions()
     love.graphics.rectangle("fill", 0, 0, gameW, gameH)
 
-    -- Calcula posição central do modal
-    local modalWidth = 550
-    local modalHeight = 512 -- MODIFICADO: Era 450
-    local modalX = (gameW - modalWidth) / 2
-    local modalY = (gameH - modalHeight) / 2
+    -- Desenha apenas os cards que já começaram a animação
+    for i = 1, self.cardsAnimated do
+        local card = self.cards[i]
+        if card then
+            local scale = self.scales[i] or 1.0
+            local bgColor = self.backgroundColors[i]
+            local isHovered = (i == self.hoveredOption)
+            local isSelected = (i == self.selectedOption)
+            local globalAlpha = self.canChoose and 1.0 or 0.8
 
-    -- Desenha o frame do modal
-    elements.drawWindowFrame(modalX, modalY, modalWidth, modalHeight, "Level Up!")
-
-    -- Estimativas para o posicionamento da barra de progresso em relação ao frame
-    local titleAreaHeight = 45                        -- Altura da área do título (onde "Level Up!" é desenhado)
-    local dividerLineY = modalY + titleAreaHeight + 2 -- Posição Y da linha divisória (estimativa)
-    local dividerThickness = 2
-
-    local progressBarWidth = modalWidth - 20
-    local progressBarX = modalX + 10
-    local progressBarLineThickness = 3
-    -- Posiciona a barra de progresso colada à linha divisória (ou onde ela estaria)
-    local progressBarY = dividerLineY + dividerThickness
-
-    if self.currentChoiceDelayTimer > 0 then
-        love.graphics.setColor(colors.bar_border or { 0.3, 0.3, 0.35, 0.8 })
-        love.graphics.rectangle("fill", progressBarX, progressBarY, progressBarWidth, progressBarLineThickness)
-        local progress = self.currentChoiceDelayTimer / self.choiceDelay
-        progress = math.max(0, math.min(1, progress)) -- Garante que o progresso fique entre 0 e 1
-        local currentBarWidth = progressBarWidth * progress
-        love.graphics.setColor(colors.xp_fill or { 0.8, 0.6, 0.2, 1 })
-        love.graphics.rectangle("fill", progressBarX, progressBarY, currentBarWidth, progressBarLineThickness)
+            card:draw(scale, bgColor, isHovered, isSelected, globalAlpha)
+        end
     end
 
-    local optionBlockStartY = progressBarY + progressBarLineThickness +
-        5 -- Opções começam abaixo da barra de progresso
-    local optionVisualHeight = 100
-    local optionGap = 15
-    local iconWrapWidth = 55
-    local iconPaddingRight = 10
-
-    for i, optionData in ipairs(self.options) do
-        local currentOptionY = optionBlockStartY + (i - 1) * (optionVisualHeight + optionGap)
-        local optionActualX = modalX + 20
-        local optionActualWidth = modalWidth - 40
-
-        local isSelectedByKey = (i == self.selectedOption)
-        local isHoveredByMouse = (i == self.hoveredOption)
-
-        local bgColor = nil -- MODIFICADO: Sem cor de fundo por padrão
-        local textColor = colors.text_main
-        local nameColor = colors.text_highlight
-        local globalAlpha = self.canChoose and 1.0 or 0.5
-
-        if isSelectedByKey and self.canChoose then
-            elements.drawRarityBorderAndGlow('S', optionActualX, currentOptionY, optionActualWidth, optionVisualHeight,
-                globalAlpha)
-            bgColor = { colors.window_border[1], colors.window_border[2], colors.window_border[3], 0.3 * globalAlpha }
-            textColor = colors.text_highlight
-        elseif isHoveredByMouse and self.canChoose then
-            bgColor = { colors.slot_hover_bg[1], colors.slot_hover_bg[2], colors.slot_hover_bg[3], 0.6 * globalAlpha }
-            textColor = colors.text_highlight
-        end
-
-        local originalR, originalG, originalB, originalA = love.graphics.getColor()
-        -- Desenha o fundo SOMENTE se bgColor estiver definido
-        if bgColor then
-            love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 0.7 * globalAlpha)
-            love.graphics.rectangle("fill", optionActualX, currentOptionY, optionActualWidth, optionVisualHeight, 5, 5)
-        end
-
-        love.graphics.setFont(fonts.title)
-        love.graphics.setColor(textColor[1], textColor[2], textColor[3], (textColor[4] or 1.0) * globalAlpha)
-
-        local iconX = optionActualX + 15
-        love.graphics.printf(optionData.icon or "?", iconX,
-            currentOptionY + optionVisualHeight / 2 - fonts.title:getHeight() / 2, iconWrapWidth, "center")
-
-        local textStartX = iconX + iconWrapWidth + iconPaddingRight
-        local textAvailableWidth = optionActualWidth - (textStartX - optionActualX) - 15
-
-        love.graphics.setFont(fonts.hud)
-        love.graphics.setColor(nameColor[1], nameColor[2], nameColor[3], (nameColor[4] or 1.0) * globalAlpha)
-        local currentDisplayLevel = (optionData.current_level_for_display or 0)
-        local nextLevel = currentDisplayLevel + 1
-        local nameText = string.format("%s (Nv. %d/%d)", optionData.name, nextLevel, optionData.max_level)
-        love.graphics.printf(nameText, textStartX, currentOptionY + 10, textAvailableWidth, "left")
-
-        love.graphics.setFont(fonts.main_small)
-        love.graphics.setColor(textColor[1], textColor[2], textColor[3], (textColor[4] or 1.0) * globalAlpha)
-        local description = optionData.description_template or ""
-        if optionData.modifiers_per_level then
-            for idx, mod in ipairs(optionData.modifiers_per_level) do
-                local valueString = ""
-                if mod.type == "fixed" then
-                    valueString = string.format("%.1f", mod.value):gsub("%.0$", "")
-                elseif mod.type == "percentage" then
-                    valueString = string.format("%.1f", mod.value):gsub("%.0$", "") .. "%"
-                elseif mod.type == "fixed_percentage_as_fraction" then
-                    valueString = string.format("%.1f", mod.value * 100):gsub("%.0$", "") .. "%"
-                else
-                    valueString = tostring(mod.value)
-                end
-                local placeholder = "{value" .. (idx > 1 and tostring(idx) or "") .. "}"
-                description = string.gsub(description, placeholder, valueString)
-            end
-        end
-        description = string.gsub(description, "{value[1-9]?}", "?")
-        love.graphics.printf(description, textStartX, currentOptionY + 35, textAvailableWidth, "left", 0, 1, 1)
-        love.graphics.setColor(originalR, originalG, originalB, originalA)
+    -- Texto de instrução se ainda não pode escolher
+    if not self.canChoose then
+        love.graphics.setFont(fonts.main)
+        love.graphics.setColor(colors.text_default[1], colors.text_default[2], colors.text_default[3], 0.8)
+        love.graphics.printf("Aguarde...", 0, gameH - 50, gameW, "center")
     end
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function LevelUpModal:mousepressed(x, y, button)
-    if not self.visible then return false end
-    if not self.canChoose then
-        -- print("[LevelUpModal:mousepressed] Escolha desabilitada (delay ativo).") -- Comentado para reduzir spam no log
+    if not self.visible or not self.canChoose or button ~= 1 then
         return false
     end
 
-    local clickedOptionIndex = self:getOptionAtPosition(x, y)
-    if clickedOptionIndex then
-        self.selectedOption = clickedOptionIndex
-        self:applyUpgrade(self.options[clickedOptionIndex])
+    local clickedCardIndex = self:getCardAtPosition(x, y)
+    if clickedCardIndex then
+        self.selectedOption = clickedCardIndex
+        self:applyUpgrade(self.options[clickedCardIndex])
         self:hide()
-        print(string.format("[LevelUpModal:mousepressed] Opção %d clicada e aplicada.", clickedOptionIndex))
+        Logger.debug("level_up_modal.mouse_click", string.format("Card %d clicado e aplicado", clickedCardIndex))
         return true
     end
     return false
 end
 
 function LevelUpModal:keypressed(key)
-    if not self.visible then return false end
-
-    if not self.canChoose then
-        -- print("[LevelUpModal:keypressed] Escolha desabilitada (delay ativo).") -- Comentado para reduzir spam no log
+    if not self.visible or not self.canChoose then
         return false
     end
 
-    if key == "up" or key == "w" then
+    if key == "left" or key == "a" then
         if #self.options > 0 then
             if self.selectedOption == nil then
                 self.selectedOption = #self.options
@@ -338,10 +771,10 @@ function LevelUpModal:keypressed(key)
                 self.selectedOption = math.max(1, self.selectedOption - 1)
             end
             self.hoveredOption = nil
-            print("[LevelUpModal:keypressed] Navegou para Cima. Índice Selecionado:", self.selectedOption)
+            Logger.debug("level_up_modal.keyboard_nav", "Navegou para esquerda. Índice: " .. self.selectedOption)
         end
         return true
-    elseif key == "down" or key == "s" then
+    elseif key == "right" or key == "d" then
         if #self.options > 0 then
             if self.selectedOption == nil then
                 self.selectedOption = 1
@@ -349,22 +782,17 @@ function LevelUpModal:keypressed(key)
                 self.selectedOption = math.min(#self.options, self.selectedOption + 1)
             end
             self.hoveredOption = nil
-            print("[LevelUpModal:keypressed] Navegou para Baixo. Índice Selecionado:", self.selectedOption)
+            Logger.debug("level_up_modal.keyboard_nav", "Navegou para direita. Índice: " .. self.selectedOption)
         end
         return true
     elseif key == "return" or key == "kpenter" or key == "space" then
         if self.selectedOption and self.options[self.selectedOption] then
-            print("[LevelUpModal:keypressed] Enter/Space pressionado. Aplicando opção índice:", self.selectedOption)
+            Logger.debug("level_up_modal.keyboard_confirm", "Confirmando opção: " .. self.selectedOption)
             self:applyUpgrade(self.options[self.selectedOption])
             self:hide()
             return true
-        else
-            print("[LevelUpModal:keypressed] Enter/Space pressionado, mas nenhuma opção válida selecionada:",
-                self.selectedOption)
-            if #self.options > 0 and self.options[1] then
-            end
-            return true
         end
+        return true
     end
     return false
 end

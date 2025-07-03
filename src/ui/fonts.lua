@@ -1,8 +1,10 @@
 ---@class Fonts
 ---@field main_small love.Font
+---@field main_small_bold love.Font
 ---@field main love.Font
 ---@field main_bold love.Font
 ---@field main_large love.Font
+---@field main_large_bold love.Font
 ---@field title love.Font
 ---@field title_large love.Font
 ---@field resource_value love.Font
@@ -25,9 +27,11 @@ function fonts.load()
     if not love.filesystem.getInfo(bold_font_file) then bold_font_file = fallback_font end
 
     fonts.main_small = love.graphics.newFont(main_font_file, 14)
+    fonts.main_small_bold = love.graphics.newFont(bold_font_file, 14)
     fonts.main = love.graphics.newFont(main_font_file, 16)
     fonts.main_bold = love.graphics.newFont(bold_font_file, 16) -- Versão bold do main
     fonts.main_large = love.graphics.newFont(main_font_file, 18)
+    fonts.main_large_bold = love.graphics.newFont(bold_font_file, 18)
     fonts.title = love.graphics.newFont(bold_font_file, 24)
     fonts.title_large = love.graphics.newFont(bold_font_file, 32)
     fonts.resource_value = love.graphics.newFont(bold_font_file, 30)

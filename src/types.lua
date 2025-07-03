@@ -26,3 +26,5 @@
 ---@class ArchetypeId
 
 ---@class StatKey
+
+---@alias Color table<number, number>

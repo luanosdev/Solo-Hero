@@ -226,6 +226,61 @@ local colors = {
         warm = { 0.89, 0.73, 0.57, 1.0 },         -- Tom quente com uma base laranja/vermelha bem definida.
         cool = { 0.96, 0.85, 0.80, 1.0 },         -- Tom frio com uma base rosada/avermelhada mais perceptível.
     },
+
+    -- Cores para identificar atributos de personagem
+    attribute_colors = {
+        -- ==== 1. Atributos Fundamentais (Rosa do Dragão: #FF00FF) ====
+        max_health            = { 1.0, 0.0, 1.0, 1.0 },
+        defense               = { 1.0, 0.0, 1.0, 1.0 },
+
+        -- ==== 2. Recuperação e Vitalidade (Verde-Esmeralda: #00FF80) ====
+        health_per_tick       = { 0.0, 1.0, 0.5, 1.0 },
+        health_regen_cooldown = { 0.0, 1.0, 0.5, 1.0 },
+        health_regen_delay    = { 0.0, 1.0, 0.5, 1.0 },
+
+        -- ==== 3. Poder de Ataque Direto (Vermelho-Sangue: #E60026) ====
+        damage                = { 0.9, 0.0, 0.15, 1.0 },
+
+        -- ==== 4. Golpes Decisivos (Dourado do Monarca: #FFD700) ====
+        crit_chance           = { 1.0, 0.84, 0.0, 1.0 },
+        crit_damage           = { 1.0, 0.84, 0.0, 1.0 },
+
+        -- ==== 5. Cadência de Ataque (Laranja Meteoro: #FF8C00) ====
+        attack_speed          = { 1.0, 0.55, 0.0, 1.0 },
+        multi_attack_chance   = { 1.0, 0.55, 0.0, 1.0 },
+
+        -- ==== 6. Controle e Alcance (Azul Tático: #2471A3) ====
+        range                 = { 0.14, 0.44, 0.64, 1.0 },
+        attack_area           = { 0.14, 0.44, 0.64, 1.0 },
+        strength              = { 0.14  , 0.44, 0.64, 1.0 },
+
+        -- ==== 7. Mobilidade e Agilidade (Ciano Elétrico: #00FFFF) ====
+        move_speed            = { 0.0, 1.0, 1.0, 1.0 },
+        dash_charges          = { 0.0, 1.0, 1.0, 1.0 },
+        dash_cooldown         = { 0.0, 1.0, 1.0, 1.0 },
+        dash_distance         = { 0.0, 1.0, 1.0, 1.0 },
+        dash_duration         = { 0.0, 1.0, 1.0, 1.0 },
+
+        -- ==== 8. Arcano e Habilidades (Violeta Sombrio: #9400D3) ====
+        cooldown_reduction    = { 0.58, 0.0, 0.83, 1.0 },
+        healing_bonus         = { 0.58, 0.0, 0.83, 1.0 },
+        rune_slots            = { 0.58, 0.0, 0.83, 1.0 },
+
+        -- ==== 9. Sorte e Progressão (Verde do Dragão: #00FF00) ====
+        luck                  = { 0.0, 1.0, 0.0, 1.0 },
+        exp_bonus             = { 0.0, 1.0, 0.0, 1.0 },
+
+        -- ==== 10. Utilidades e Consumíveis (Couro do Artesão: #8B572A) ====
+        pickup_radius         = { 0.54, 0.34, 0.16, 1.0 },
+        potion_flasks         = { 0.54, 0.34, 0.16, 1.0 },
+        potion_heal_amount    = { 0.54, 0.34, 0.16, 1.0 },
+        potion_fill_rate      = { 0.54, 0.34, 0.16, 1.0 },
+
+        -- ==== 11. Cores de modificadores ====
+        positive = { 0.4, 1.0, 0.4, 1.0 },  -- #00FF00
+        negative = { 1.0, 0.4, 0.4, 1.0 },  -- #FF0000
+        neutral = { 1.0, 1.0, 1.0, 1.0 },   -- #FFFFFF
+    }
 }
 
 -- Cores para Botões (NOVO SISTEMA DE VARIANTES)
