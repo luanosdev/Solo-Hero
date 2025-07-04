@@ -1,34 +1,13 @@
--- src/data/level_up_bonuses_data.lua
+---------------------------------------------------------------------------------
 -- Define as possíveis melhorias que o jogador pode obter ao subir de nível.
-
--- CONVENÇÕES PARA VALORES DE MODIFICADORES:
--- type = "fixed":
---   O 'value' é um número absoluto que será somado diretamente ao atributo base ou ao fixedBonus existente.
---   Ex: { stat = "health", type = "fixed", value = 10 }  => Adiciona 10 HP.
---
--- type = "percentage":
---   O 'value' é um número que representa o percentual direto (ex: 5 para 5%, -2 para -2%).
---   Este valor é geralmente usado para modificar o 'levelBonus' no PlayerState, que o PlayerState
---   normalmente divide por 100 em seus cálculos (ex: 1 + levelBonus.stat / 100).
---   Ex: { stat = "health", type = "percentage", value = 5 } => Aumenta o levelBonus.health em 5 (resultando em +5% HP).
---
--- type = "fixed_percentage_as_fraction":
---   O 'value' DEVE ser a fração decimal correspondente ao percentual desejado.
---   Este valor é geralmente usado para modificar o 'fixedBonus' no PlayerState para atributos
---   que armazenam bônus percentuais como frações.
---   Ex: { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.01 } => Adiciona 0.01 (ou seja, +1%) ao fixedBonus.critChance.
---       (0.50 para 50%, 0.05 para 5%, 0.005 para 0.5%)
---
--- Ao chamar PlayerState:addAttributeBonus(attribute, percentage, fixed):
---   - Modificadores 'percentage' daqui vão para o argumento 'percentage'.
---   - Modificadores 'fixed' e 'fixed_percentage_as_fraction' daqui vão para o argumento 'fixed'.
+---------------------------------------------------------------------------------
 
 local Colors = require("src.ui.colors")
 
 ---@class BonusPerLevel
 ---@field stat_key string
 ---@field stat string
----@field type "fixed" | "percentage" | "fixed_percentage_as_fraction"
+---@field type "base" | "percentage"
 ---@field value number
 
 ---@class LevelUpBonus
@@ -89,218 +68,236 @@ LevelUpBonusesData.KeywordColors = {
 
 LevelUpBonusesData.Bonuses = {
     -- Bônus de Vida
-    vitality_1_fixed = {
-        id = "vitality_1_fixed",
-        name = "Vigor",
-        description = "Aumenta a |Vida Máxima| em |30| pontos.",
-        image_path = tempIconPath,
-        icon = "H+",
+    vitality_base = {
+        id = "vitality_base",
+        name = "Vitalidade",
+        description = "Aumenta a |Vida Máxima| base em |30|.",
+        image_path = "assets/images/skills/vitality.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "health", type = "fixed", value = 30 }
+            { stat = "maxHealth", type = "base", value = 30 }
         },
         color = Colors.attribute_colors.max_health
     },
-    vitality_2_percent = {
-        id = "vitality_2_percent",
+    vitality_percent = {
+        id = "vitality_percent",
         name = "Fortitude",
         description = "Aumenta a |Vida Máxima| em |10%|.",
-        image_path = tempIconPath,
-        max_level = 10,
-        modifiers_per_level = {
-            { stat = "health", type = "percentage", value = 10 }
-        },
-        color = Colors.attribute_colors.max_health
-    },
-    vitality_3_combo = {
-        id = "vitality_3_combo",
-        name = "Robustez",
-        description = "Aumenta |Vida Máxima| em |5%| e |Defesa| em |10| pontos.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/vitality.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "health", type = "percentage", value = 5 },
-            { stat = "defense", type = "fixed", value = 10 }
+            { stat = "maxHealth", type = "percentage", value = 10 }
         },
         color = Colors.attribute_colors.max_health
     },
-    risky_vitality_1 = {
-        id = "risky_vitality_1",
+    risky_vitality = {
+        id = "risky_vitality",
         name = "Pacto de Sangue",
-        description = "Aumenta a |Vida Máxima| em |50| pontos, mas reduz a |Defesa| em |-15%|.",
-        image_path = tempIconPath,
-        max_level = 3,
+        description = "Aumenta a |Vida Máxima| base em |50|, mas reduz a |Defesa| em |-15%|.",
+        image_path = "assets/images/skills/vitality.png",
+        max_level = 5,
         modifiers_per_level = {
-            { stat = "health", type = "fixed", value = 50 },
-            { stat = "defense", type = "percentage", value = -5 }
+            { stat = "maxHealth", type = "base",       value = 50 },
+            { stat = "defense",   type = "percentage", value = -5 }
         },
         color = Colors.attribute_colors.max_health
     },
 
     -- Bônus de Força
-    strength_training_1_fixed = {
-        id = "strength_training_1_fixed",
-        name = "Treino de Força",
-        description = "Aumenta a |Força| em |10| pontos.",
-        image_path = tempIconPath,
+    strength_base = {
+        id = "strength_base",
+        name = "Musculação",
+        description = "Aumenta a |Força| base em |10|.",
+        image_path = "assets/images/skills/strength.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "strength", type = "fixed", value = 10 }
+            { stat = "strength", type = "base", value = 10 }
         },
         color = Colors.attribute_colors.strength
     },
-    strength_might_1_percent = {
-        id = "strength_might_1_percent",
-        name = "Poderio Crescente",
+    strength_percent = {
+        id = "strength_percent",
+        name = "Calistenia",
         description = "Aumenta a |Força| em |10%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/strength.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "strength", type = "percentage", value = 10 }
         },
         color = Colors.attribute_colors.strength
     },
-    strength_burst_1_combo = {
-        id = "strength_burst_1_combo",
+    strength_combo = {
+        id = "strength_combo",
         name = "Explosão de Força",
-        description = "Aumenta |Força| em |5| e |Defesa| em |5| pontos.",
-        image_path = tempIconPath,
+        description = "Aumenta |Força| base em |5| e |Defesa| base em |5|.",
+        image_path = "assets/images/skills/strength_combo.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "strength", type = "fixed", value = 5 },
-            { stat = "defense", type = "fixed", value = 5 }
+            { stat = "strength", type = "base", value = 5 },
+            { stat = "defense",  type = "base", value = 5 }
         },
         color = Colors.attribute_colors.strength
     },
-
     -- Bônus de Dano/Ataque
-    strength_1_percent = {
-        id = "strength_1_percent",
+    damage_percent = {
+        id = "damage_percent",
         name = "Raiva",
         description = "Aumenta o |Dano| em |10%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/damage.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "damageMultiplier", type = "percentage", value = 10 }
+            { stat = "damage", type = "percentage", value = 10 }
         },
         color = Colors.attribute_colors.damage
     },
-    speed_attack_1_percent = {
-        id = "speed_attack_1_percent",
+    damage_base = {
+        id = "damage_base",
+        name = "Fúria",
+        description = "Aumenta o |Dano| base em |20|.",
+        image_path = "assets/images/skills/damage.png",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "damage", type = "base", value = 20 }
+        },
+        color = Colors.attribute_colors.damage
+    },
+    attack_speed_percent = {
+        id = "attack_speed_percent",
         name = "Agilidade",
         description = "Aumenta a |Velocidade de Ataque| em |3%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/attack_speed.png",
         max_level = 8,
         modifiers_per_level = {
             { stat = "attackSpeed", type = "percentage", value = 3 }
         },
         color = Colors.attribute_colors.attack_speed
     },
-    glass_cannon_1 = {
-        id = "glass_cannon_1",
-        name = "Canhão de Vidro",
-        description = "Aumenta |Dano| em |10%| e |Velocidade de Ataque| em |5%|, mas reduz |Vida Máxima| em |-10%|.",
-        image_path = tempIconPath,
+    attack_speed_base = {
+        id = "attack_speed_base",
+        name = "Destreza",
+        description = "Aumenta a |Velocidade de Ataque| base em |0.2|.",
+        image_path = "assets/images/skills/attack_speed.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "damageMultiplier", type = "percentage", value = 10 },
+            { stat = "attackSpeed", type = "base", value = 0.2 }
+        },
+        color = Colors.attribute_colors.attack_speed
+    },
+    glass_cannon = {
+        id = "glass_cannon",
+        name = "Canhão de Vidro",
+        description = "Aumenta |Dano| em |10%| e |Velocidade de Ataque| em |5%|, mas reduz |Vida Máxima| em |-10%|.",
+        image_path = "assets/images/skills/glass_cannon.png",
+        max_level = 5,
+        modifiers_per_level = {
+            { stat = "damage",      type = "percentage", value = 10 },
             { stat = "attackSpeed", type = "percentage", value = 5 },
-            { stat = "health", type = "percentage", value = -10 }
+            { stat = "maxHealth",   type = "percentage", value = -10 }
         },
         color = Colors.attribute_colors.damage
     },
-
     -- Bônus Crítico
-    precision_1_fixed_fraction = {
-        id = "precision_1_fixed_fraction",
+    crit_chance_percent = {
+        id = "crit_chance_percent",
         name = "Precisão Afiada",
         description = "Aumenta a |Chance de Crítico| em |10%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/crit_chance.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "critChance", type = "percentage", value = 10 }
         },
         color = Colors.attribute_colors.crit_chance
     },
-    lethality_1_fixed_multiplier = {
-        id = "lethality_1_fixed_multiplier",
-        name = "Golpe Devastador",
-        description = "Aumenta o |Dano Crítico| em |0.1x|.",
-        image_path = "assets/imagens/skills/crit_damage.png",
-        icon = "M+",
+    crit_chance_base = {
+        id = "crit_chance_base",
+        name = "Precisão",
+        description = "Aumenta a |Chance de Crítico| base em |0.1|.",
+        image_path = "assets/images/skills/crit_chance.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.1 }
+            { stat = "critChance", type = "base", value = 0.1 }
+        },
+        color = Colors.attribute_colors.crit_chance
+    },
+    crit_damage_base = {
+        id = "crit_damage_base",
+        name = "Golpe Devastador",
+        description = "Aumenta o |Dano Crítico| base em |0.1|.",
+        image_path = "assets/imagens/skills/crit_damage.png",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "critDamage", type = "base", value = 0.1 }
         },
         color = Colors.attribute_colors.crit_damage
     },
-    gamblers_strike_1 = {
-        id = "gamblers_strike_1",
+    gamblers_strike = {
+        id = "gamblers_strike",
         name = "Aposta Arriscada",
-        description = "Aumenta |Chance de Crítico| em |10%| e |Dano Crítico| em |0.2x|, mas reduz |Dano| base em |-10%|.",
-        image_path = tempIconPath,
+        description =
+        "Aumenta |Chance de Crítico| base em |0.2| e |Dano Crítico| base em |0.2|, mas reduz |Dano| em |-10%|.",
+        image_path = "assets/images/skills/gamblers_strike.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.10 },
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.20 },
-            { stat = "damageMultiplier", type = "percentage", value = -10 }
+            { stat = "critChance", type = "base",       value = 0.2 },
+            { stat = "critDamage", type = "base",       value = 0.2 },
+            { stat = "damage",     type = "percentage", value = -10 }
         },
         color = Colors.attribute_colors.crit_damage
     },
 
     -- Bônus de Mobilidade
-    celerity_1_percent = {
-        id = "celerity_1_percent",
+    move_speed_percent = {
+        id = "move_speed_percent",
         name = "Passos Velozes",
         description = "Aumenta a |Velocidade de Movimento| em |5%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/move_speed.png",
         max_level = 8,
         modifiers_per_level = {
             { stat = "moveSpeed", type = "percentage", value = 5 }
         },
         color = Colors.attribute_colors.move_speed
     },
-    haste_1_fixed = {
-        id = "haste_1_fixed",
+    move_speed_base = {
+        id = "move_speed_base",
         name = "Ímpeto",
-        description = "Aumenta a |Velocidade de Movimento| em |3| pontos.",
-        image_path = tempIconPath,
+        description = "Aumenta a |Velocidade de Movimento| base em |0.2|m/s.",
+        image_path = "assets/images/skills/move_speed.png",
         max_level = 5,
         modifiers_per_level = {
             { stat = "moveSpeed", type = "fixed", value = 3 }
         },
         color = Colors.attribute_colors.move_speed
     },
-    unburdened_1 = {
-        id = "unburdened_1",
+    unburdened = {
+        id = "unburdened",
         name = "Peso Pena",
-        description = "Aumenta |Velocidade de Movimento| em |5%|, mas reduz a |Defesa| em |-5| pontos.",
-        image_path = tempIconPath,
+        description = "Aumenta |Velocidade de Movimento| em |10%|, mas reduz a |Defesa| em |-10%|.",
+        image_path = "assets/images/skills/unburdened.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "moveSpeed", type = "percentage", value = 5 },
-            { stat = "defense", type = "fixed", value = -5 }
+            { stat = "moveSpeed", type = "percentage", value = 10 },
+            { stat = "defense",   type = "percentage", value = -10 }
         },
         color = Colors.attribute_colors.move_speed
     },
 
     -- Bônus de Defesa
-    protection_1_fixed = {
-        id = "protection_1_fixed",
-        name = "Guarda Menor",
-        description = "Aumenta a |Defesa| em |10| pontos.",
-        image_path = tempIconPath,
+    defense_base = {
+        id = "defense_base",
+        name = "Constituição",
+        description = "Aumenta a |Defesa| base em |10|.",
+        image_path = "assets/images/skills/defense.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "defense", type = "fixed", value = 10 }
+            { stat = "defense", type = "base", value = 10 }
         },
         color = Colors.attribute_colors.defense
     },
-    resilience_1_percent = {
-        id = "resilience_1_percent",
+    defense_percent = {
+        id = "defense_percent",
         name = "Tenacidade",
         description = "Aumenta a |Defesa| em |10%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/defense.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "defense", type = "percentage", value = 10 }
@@ -309,68 +306,79 @@ LevelUpBonusesData.Bonuses = {
     },
 
     -- Bônus de Regeneração e Coleta
-    regeneration_1_fixed = {
-        id = "regeneration_1_fixed",
+    regeneration_fixed = {
+        id = "regeneration_fixed",
         name = "Recuperação Rápida",
         description = "Aumenta |Regeneração de Vida| em |0.5| HP/s.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/regeneration_fixed.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "healthPerTick", type = "fixed", value = 0.5 }
+            { stat = "healthPerTick", type = "base", value = 0.5 }
         },
         color = Colors.attribute_colors.health_per_tick
     },
-    regen_delay_1_reduction = {
-        id = "regen_delay_1_reduction",
+    regen_delay_reduction = {
+        id = "regen_delay_reduction",
         name = "Prontidão",
         description = "Reduz o delay de |Regeneração de Vida| em |0.5| segundos.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/regen_delay_reduction.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "healthRegenDelay", type = "fixed", value = 0.5 }
+            { stat = "healthRegenDelay", type = "base", value = 0.5 }
         },
         color = Colors.attribute_colors.health_regen_delay
     },
-    scavenger_1_fixed = {
-        id = "scavenger_1_fixed",
+    pickup_radius_base = {
+        id = "pickup_radius_base",
         name = "Magnetismo",
-        description = "Aumenta o |Raio de Coleta| em |10| unidades.",
-        image_path = tempIconPath,
-        max_level = 8,
+        description = "Aumenta o |Raio de Coleta| em  |1.0|m.",
+        image_path = "assets/images/skills/scavenger.png",
+        max_level = 10,
         modifiers_per_level = {
-            { stat = "pickupRadius", type = "fixed", value = 10 }
+            { stat = "pickupRadius", type = "base", value = 1.0 }
+        },
+        color = Colors.attribute_colors.pickup_radius
+    },
+    pickup_radius_percent = {
+        id = "pickup_radius_percent",
+        name = "Magnetismo",
+        description = "Aumenta o |Raio de Coleta| em |10%|.",
+        image_path = "assets/images/skills/scavenger.png",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "pickupRadius", type = "percentage", value = 10 }
         },
         color = Colors.attribute_colors.pickup_radius
     },
 
     -- Bônus Utilitários / Avançados
-    chronomancer_1_percent = {
-        id = "chronomancer_1_percent",
-        name = "Dobra Temporal Menor",
+    cooldown_reduction = {
+        id = "cooldown_reduction",
+        name = "Dobra Temporal",
         description = "Reduz a |Recarga de Habilidades| em |5%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/cooldown_reduction.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "cooldownReduction", type = "percentage", value = 5 }
         },
         color = Colors.attribute_colors.cooldown_reduction
     },
-    lucky_star_1_percent = {
-        id = "lucky_star_1_percent",
+    luck_percent = {
+        id = "luck_percent",
         name = "Estrela da Sorte",
         description = "Aumenta a |Sorte| em |5%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/luck.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "luck", type = "percentage", value = 5 }
         },
         color = Colors.attribute_colors.luck
     },
-    scholarly_pursuit_1 = {
-        id = "scholarly_pursuit_1",
+    exp_bonus_percent = {
+        id = "exp_bonus_percent",
         name = "Busca Acadêmica",
         description = "Aumenta |Bônus de Experiência| em |10%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/exp_bonus.png",
         max_level = 5,
         modifiers_per_level = {
             { stat = "expBonus", type = "percentage", value = 10 }
@@ -379,132 +387,132 @@ LevelUpBonusesData.Bonuses = {
     },
 
     --- Area e alcance
-    area_1_percent = {
-        id = "area_1_percent",
+    attack_area_percent = {
+        id = "attack_area_percent",
         name = "Área",
         description = "Aumenta a |Área| em |10%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/area.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "attackArea", type = "percentage", value = 10 }
         },
         color = Colors.attribute_colors.attack_area
     },
-    area_3_combo = {
-        id = "area_3_combo",
+    attack_area_combo = {
+        id = "attack_area_combo",
         name = "Área Mortal",
-        description = "Aumenta |Área| em |8%| e |Dano| em |5%|.",
-        image_path = tempIconPath,
+        description = "Aumenta |Área| em |8%| e |Dano| base em |10|.",
+        image_path = "assets/images/skills/area.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "attackArea",       type = "percentage", value = 8 },
-            { stat = "damageMultiplier", type = "percentage", value = 5 }
+            { stat = "attackArea", type = "percentage", value = 8 },
+            { stat = "damage",     type = "base",       value = 10 }
         },
         color = Colors.attribute_colors.attack_area
     },
-    range_1_percent = {
-        id = "range_1_percent",
+    range_percent = {
+        id = "range_percent",
         name = "Alcance",
         description = "Aumenta o |Alcance| em |10%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/range.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "range", type = "percentage", value = 10 }
         },
         color = Colors.attribute_colors.range
     },
-    range_3_combo = {
-        id = "range_3_combo",
+    range_combo = {
+        id = "range_combo",
         name = "Alcance Mortal",
-        description = "Aumenta |Alcance| em |8%| e |Dano| em |5%|.",
-        image_path = tempIconPath,
+        description = "Aumenta |Alcance| em |8%| e |Dano| base em |10|.",
+        image_path = "assets/images/skills/range.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "range",            type = "percentage", value = 8 },
-            { stat = "damageMultiplier", type = "percentage", value = 5 }
+            { stat = "range",  type = "percentage", value = 8 },
+            { stat = "damage", type = "base",       value = 10 }
         },
         color = Colors.attribute_colors.range
     },
 
     -- Bônus de Ataque Múltiplo
-    multi_attack_chance_1 = {
-        id = "multi_attack_chance_1",
+    multi_attack_chance_percent = {
+        id = "multi_attack_chance_percent",
         name = "Golpes Ecoantes",
         description = "Aumenta a chance de |Ataques Múltiplos| em |10%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/multi_attack_chance.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "multiAttackChance", type = "percentage", value = 10 }
         },
         color = Colors.attribute_colors.multi_attack_chance
     },
-    multi_attack_frenzy_1 = {
-        id = "multi_attack_frenzy_1",
+    multi_attack_frenzy_percent = {
+        id = "multi_attack_frenzy_percent",
         name = "Frenesi de Golpes",
-        description = "Aumenta a chance de |Ataques Múltiplos| em |0.1x|.",
-        image_path = tempIconPath,
+        description = "Aumenta a chance de |Ataques Múltiplos| base em |0.1|.",
+        image_path = "assets/images/skills/multi_attack_frenzy.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "multiAttackChance", type = "fixed_percentage_as_fraction", value = 0.10 },
+            { stat = "multiAttackChance", type = "base", value = 0.1 },
         },
         color = Colors.attribute_colors.multi_attack_chance
     },
 
     -- Bônus de Dash
-    dash_cooldown_reduction_1 = {
-        id = "dash_cooldown_reduction_1",
+    dash_cooldown_reduction = {
+        id = "dash_cooldown_reduction",
         name = "Passo Rápido",
         description = "Reduz a |Recarga do Dash| em |8%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/dash_cooldown_reduction.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "dashCooldown", type = "percentage", value = -8 }
+            { stat = "dashCooldown", type = "percentage", value = 8 }
         },
         color = Colors.attribute_colors.dash_cooldown
     },
-    dash_distance_increase_1 = {
-        id = "dash_distance_increase_1",
+    dash_distance_increase = {
+        id = "dash_distance_increase",
         name = "Salto Longo",
         description = "Aumenta a |Distância do Dash| em |15%|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/dash_distance_increase.png",
         max_level = 5,
         modifiers_per_level = {
             { stat = "dashDistance", type = "percentage", value = 15 }
         },
         color = Colors.attribute_colors.dash_distance
     },
-    dash_extra_charge_1 = {
-        id = "dash_extra_charge_1",
+    dash_extra_charge = {
+        id = "dash_extra_charge",
         name = "Carga Extra",
         description = "Adiciona |1| |Carga de Dash|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/dash_extra_charge.png",
         max_level = 2, -- Máximo de 2 cargas extras por este bônus
         modifiers_per_level = {
-            { stat = "dashCharges", type = "fixed", value = 1 }
+            { stat = "dashCharges", type = "base", value = 1 }
         },
         color = Colors.attribute_colors.dash_charges
     },
 
     -- Bônus do Sistema de Poções
-    potion_capacity_1 = {
-        id = "potion_capacity_1",
+    potion_flasks_base = {
+        id = "potion_flasks_base",
         name = "Capacidade Expandida",
         description = "Adiciona |1| |Frasco de Poção|.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/potion_flasks.png",
         max_level = 3,
         modifiers_per_level = {
-            { stat = "potionFlasks", type = "fixed", value = 1 }
+            { stat = "potionFlasks", type = "base", value = 1 }
         },
         color = Colors.attribute_colors.potion_flasks
     },
-    potion_potency_1_fixed = {
-        id = "potion_potency_1_fixed",
+    potion_heal_amount_base = {
+        id = "potion_heal_amount_base",
         name = "Poções Concentradas",
         description = "Aumenta a |Cura da Poção| em |15| HP.",
-        image_path = tempIconPath,
+        image_path = "assets/images/skills/potion_heal_amount.png",
         max_level = 8,
         modifiers_per_level = {
-            { stat_key = "potion_heal", stat = "potionHealAmount", type = "fixed", value = 15 }
+            { stat = "potionHealAmount", type = "base", value = 15 }
         },
         color = Colors.attribute_colors.potion_heal_amount
     },
@@ -519,17 +527,612 @@ LevelUpBonusesData.Bonuses = {
         },
         color = Colors.attribute_colors.potion_fill_rate
     },
-    potion_healing_synergy_1 = {
-        id = "potion_healing_synergy_1",
-        name = "Sinergia Curativa",
-        description = "Aumenta a |Cura da Poção| em |10%| e a |Bônus de Cura| em |8%|.",
-        image_path = tempIconPath,
-        max_level = 6,
+    -- ========================================
+    -- MELHORIAS ULTIMATE - RANK S
+    -- ========================================
+    -- Melhorias especiais desbloqueadas quando o jogador atinge max level em uma melhoria específica (um-para-um)
+
+    -- Ultimates de Vida
+    ultimate_vitality_base = {
+        id = "ultimate_vitality_base",
+        name = "Vigor Supremo",
+        description =
+        "O domínio absoluto da vitalidade. Aumenta a |Vida Máxima| base em |100| e a |Regeneração de Vida| base em |2|.",
+        image_path = "assets/images/skills/ultimate_vitality_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "vitality_base" },
         modifiers_per_level = {
-            { stat = "potionHealAmount", type = "percentage", value = 10 },
-            { stat = "healingBonus",     type = "percentage", value = 8 }
+            { stat = "health",        type = "base", value = 100 },
+            { stat = "healthPerTick", type = "base", value = 2 }
         },
-        color = Colors.attribute_colors.potion_heal_amount
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_vitality_percent = {
+        id = "ultimate_vitality_percent",
+        name = "Fortitude Eterna",
+        description =
+        "A resistência transcendente. Aumenta a |Vida Máxima| em |50%| e o |Bônus de Cura| em |30%|.",
+        image_path = "assets/images/skills/ultimate_vitality_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "vitality_percent" },
+        modifiers_per_level = {
+            { stat = "health",       type = "percentage", value = 50 },
+            { stat = "healingBonus", type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_risky_vitality = {
+        id = "ultimate_risky_vitality",
+        name = "Pacto Imortal",
+        description =
+        "O sangue derramado retorna como poder. Aumenta a |Vida Máxima| base em |150|, a |Defesa| em |50%| e o |Dano| em |30%|.",
+        image_path = "assets/images/skills/ultimate_risky_vitality.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "risky_vitality" },
+        modifiers_per_level = {
+            { stat = "health",           type = "base",       value = 150 },
+            { stat = "defense",          type = "percentage", value = 50 },
+            { stat = "damageMultiplier", type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S
+    },
+
+    -- Ultimates de Força
+    ultimate_strength_base = {
+        id = "ultimate_strength_base",
+        name = "Aptidão Física",
+        description =
+        "O ápice do condicionamento físico. Aumenta a |Força| base em |20| e a |Velocidade de Ataque| base em |1.0|.",
+        image_path = "assets/images/skills/ultimate_strength_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "strength_base" },
+        modifiers_per_level = {
+            { stat = "strength",    type = "base", value = 20 },
+            { stat = "attackSpeed", type = "base", value = 1.0 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_strength_percent = {
+        id = "ultimate_strength_percent",
+        name = "Força Suprema",
+        description = "A força sem limites. Aumenta a |Força| em |50%| e o |Dano| em |20%|.",
+        image_path = "assets/images/skills/ultimate_strength_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "strength_percent" },
+        modifiers_per_level = {
+            { stat = "strength", type = "percentage", value = 50 },
+            { stat = "damage",   type = "percentage", value = 20 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_strength_combo = {
+        id = "ultimate_strength_combo",
+        name = "Explosão Suprema",
+        description =
+        "A combinação perfeita de força e defesa. Aumenta a |Força| base em |30|, a |Defesa| base em |30| e o |Dano| em |25%|.",
+        image_path = "assets/images/skills/ultimate_strength_combo.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "strength_combo" },
+        modifiers_per_level = {
+            { stat = "strength", type = "base",       value = 30 },
+            { stat = "defense",  type = "base",       value = 30 },
+            { stat = "damage",   type = "percentage", value = 25 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Dano
+    ultimate_damage_percent = {
+        id = "ultimate_damage_percent",
+        name = "Odio Eterno",
+        description = "O ódio no seu mais puro aspecto. Aumenta o |Dano| em |50%| e a |Chance de Crítico| em |30%|.",
+        image_path = "assets/images/skills/ultimate_damage_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "damage_percent" },
+        modifiers_per_level = {
+            { stat = "damage",     type = "percentage", value = 50 },
+            { stat = "critChance", type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_damage_base = {
+        id = "ultimate_damage_base",
+        name = "Dia de Fúria",
+        description =
+        "A fúria que nunca se extingue. Aumenta o |Dano| base em |50| e a |Chance de Crítico| base em |0.5|.",
+        image_path = "assets/images/skills/ultimate_damage_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "damage_base" },
+        modifiers_per_level = {
+            { stat = "damage",     type = "base", value = 50 },
+            { stat = "critChance", type = "base", value = 0.5 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_speed_attack_percent = {
+        id = "ultimate_speed_attack_percent",
+        name = "Agilidade Suprema",
+        description =
+        "A velocidade transcendente. Aumenta a |Velocidade de Ataque| em |20%| e a |Velocidade de Movimento| em |30%|.",
+        image_path = "assets/images/skills/ultimate_speed_attack_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "speed_attack_percent" },
+        modifiers_per_level = {
+            { stat = "attackSpeed", type = "percentage", value = 20 },
+            { stat = "moveSpeed",   type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_speed_attack_base = {
+        id = "ultimate_speed_attack_base",
+        name = "Ataque Relâmpago",
+        description =
+        "Eu sou a velocidade. Aumenta a |Velocidade de Ataque| base em |2.0| e a |Velocidade de Movimento| em |30%|.",
+        image_path = "assets/images/skills/ultimate_speed_attack_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "speed_attack_base" },
+        modifiers_per_level = {
+            { stat = "attackSpeed", type = "base",       value = 2.0 },
+            { stat = "moveSpeed",   type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_glass_cannon = {
+        id = "ultimate_glass_cannon",
+        name = "Renascimento da Fênix",
+        description =
+        "O que não te mata, te torna mais forte. Aumenta o |Dano Crítico| em |+50%|, o |Dano| base em |100| e a |Vida Máxima| em |+200|.",
+        image_path = "assets/images/skills/ultimate_glass_cannon.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "glass_cannon" },
+        modifiers_per_level = {
+            { stat = "critDamage", type = "percentage", value = 50 },
+            { stat = "damage",     type = "base",       value = 100 },
+            { stat = "health",     type = "base",       value = 200 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates Crítico
+    ultimate_crit_chance_base = {
+        id = "ultimate_crit_chance_base",
+        name = "Visão Suprema",
+        description =
+        "A visão de caçador. Aumenta a |Chance de Crítico| base em |0.5| e a |Sorte| em |30%|.",
+        image_path = "assets/images/skills/ultimate_crit_chance_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "crit_chance_base" },
+        modifiers_per_level = {
+            { stat = "critChance", type = "base",       value = 0.5 },
+            { stat = "luck",       type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_crit_chance_percent = {
+        id = "ultimate_crit_chance_percent",
+        name = "Precisão Absoluta",
+        description =
+        "A mira perfeita. Aumenta a |Chance de Crítico| em |50%| e a |Velocidade de Ataque| em |30%|.",
+        image_path = "assets/images/skills/ultimate_crit_chance_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "crit_chance_percent" },
+        modifiers_per_level = {
+            { stat = "critChance",  type = "percentage", value = 50 },
+            { stat = "attackSpeed", type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_crit_damage_base = {
+        id = "ultimate_crit_damage_base",
+        name = "Golpe Mortal",
+        description =
+        "A forma definitiva de matar. Aumenta o |Dano Crítico| base em |0.5| e a |Chance de Crítico| base em |1.0|.",
+        image_path = "assets/images/skills/ultimate_crit_damage_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "crit_damage_base" },
+        modifiers_per_level = {
+            { stat = "critDamage", type = "base", value = 0.5 },
+            { stat = "critChance", type = "base", value = 1.0 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_gamblers_strike = {
+        id = "ultimate_gamblers_strike",
+        name = "Frio e Calculista",
+        description =
+        "Nunca se tratou apenas de sorte. Aumenta a |Chance de Crítico| base em |1.0|, o |Dano Crítico| base em |1.0| e o |Dano| em |50%|.",
+        image_path = "assets/images/skills/ultimate_gamblers_strike.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "gamblers_strike_1" },
+        modifiers_per_level = {
+            { stat = "critChance", type = "base",       value = 1.0 },
+            { stat = "critDamage", type = "base",       value = 1.0 },
+            { stat = "damage",     type = "percentage", value = 50 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Mobilidade
+    ultimate_move_speed_percent = {
+        id = "ultimate_move_speed_percent",
+        name = "Aquiles",
+        description =
+        "A velocidade divina. Aumenta a |Velocidade de Movimento| em |25%| e adiciona |2| |Cargas de Dash|.",
+        image_path = "assets/images/skills/ultimate_move_speed_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "move_speed_percent" },
+        modifiers_per_level = {
+            { stat = "moveSpeed",   type = "percentage", value = 25 },
+            { stat = "dashCharges", type = "base",       value = 2 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_move_speed_base = {
+        id = "ultimate_move_speed_base",
+        name = "Ímpeto Supremo",
+        description =
+        "A pressa absoluta. Aumenta a |Velocidade de Movimento| base em |5|m/s e a |Recarga do Dash| em |-30%|.",
+        image_path = "assets/images/skills/ultimate_move_speed_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "move_speed_base" },
+        modifiers_per_level = {
+            { stat = "moveSpeed",    type = "base",       value = 15 },
+            { stat = "dashCooldown", type = "percentage", value = -30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_unburdened = {
+        id = "ultimate_unburdened",
+        name = "Arcanjo do Vento",
+        description =
+        "Liberdade absoluta do peso. Aumenta a |Velocidade de Movimento| em |30%|, a |Defesa| base em |30| e a |Velocidade de Ataque| em |25%|.",
+        image_path = "assets/images/skills/ultimate_unburdened.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "unburdened_1" },
+        modifiers_per_level = {
+            { stat = "moveSpeed",   type = "percentage", value = 30 },
+            { stat = "defense",     type = "base",       value = 30 },
+            { stat = "attackSpeed", type = "percentage", value = 25 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Defesa
+    ultimate_defense_base = {
+        id = "ultimate_defense_base",
+        name = "Guarda Suprema",
+        description = "A proteção absoluta. Aumenta a |Defesa| base em |50| e a |Vida Máxima| em |30%|.",
+        image_path = "assets/images/skills/ultimate_defense_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "defense_base" },
+        modifiers_per_level = {
+            { stat = "defense", type = "base",       value = 50 },
+            { stat = "health",  type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_defense_percent = {
+        id = "ultimate_defense_percent",
+        name = "Escudo Eterno",
+        description =
+        "A resistência infinita. Aumenta a |Defesa| em |50%| e a |Regeneração de Vida| em |50%|.",
+        image_path = "assets/images/skills/ultimate_defense_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "defense_percent" },
+        modifiers_per_level = {
+            { stat = "defense",       type = "percentage", value = 50 },
+            { stat = "healthPerTick", type = "percentage", value = 50 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Área e Alcance
+    ultimate_attack_area_percent = {
+        id = "ultimate_attack_area_percent",
+        name = "Golpe Impactante",
+        description = "Uma cratera no chão a cada golpe. Aumenta a |Área| em |50%| e o |Dano| em |25%|.",
+        image_path = "assets/images/skills/ultimate_attack_area_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "attack_area_percent" },
+        modifiers_per_level = {
+            { stat = "attackArea",       type = "percentage", value = 50 },
+            { stat = "damageMultiplier", type = "percentage", value = 25 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_attack_area_combo = {
+        id = "ultimate_attack_area_combo",
+        name = "Campo de Morte Supremo",
+        description =
+        "Os destroços não são o único resultado. Aumenta a |Área| em |40%|, o |Dano| em |30%| e a |Chance de Crítico| em |20%|.",
+        image_path = "assets/images/skills/ultimate_attack_area_combo.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "attack_area_combo" },
+        modifiers_per_level = {
+            { stat = "attackArea",       type = "percentage", value = 40 },
+            { stat = "damageMultiplier", type = "percentage", value = 30 },
+            { stat = "critChance",       type = "percentage", value = 20 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_range_percent = {
+        id = "ultimate_range_percent",
+        name = "Alcance Infinito",
+        description = "A distância transcendente. Aumenta o |Alcance| em |50%| e o |Dano| em |25%|.",
+        image_path = "assets/images/skills/ultimate_range_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "range_percent" },
+        modifiers_per_level = {
+            { stat = "range",            type = "percentage", value = 50 },
+            { stat = "damageMultiplier", type = "percentage", value = 25 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_range_combo = {
+        id = "ultimate_range_combo",
+        name = "Deus Atirador",
+        description =
+        "A precisão divina. Aumenta o |Alcance| em |40%|, o |Dano| em |30%| e a |Chance de Crítico| em |25%|.",
+        image_path = "assets/images/skills/ultimate_range_combo.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "range_combo" },
+        modifiers_per_level = {
+            { stat = "range",            type = "percentage", value = 40 },
+            { stat = "damageMultiplier", type = "percentage", value = 30 },
+            { stat = "critChance",       type = "percentage", value = 25 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Ataque Múltiplo
+    ultimate_multi_attack_chance_percent = {
+        id = "ultimate_multi_attack_chance_percent",
+        name = "Ecos Supremos",
+        description =
+        "Os golpes se multiplicam quase que infinitamente. Aumenta a |Chance de Ataques Múltiplos| em |50%| e a |Velocidade de Ataque| em |25%|.",
+        image_path = "assets/images/skills/ultimate_multi_attack_chance_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "multi_attack_chance_percent" },
+        modifiers_per_level = {
+            { stat = "multiAttackChance", type = "percentage", value = 50 },
+            { stat = "attackSpeed",       type = "percentage", value = 25 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_multi_attack_frenzy_percent = {
+        id = "ultimate_multi_attack_frenzy_percent",
+        name = "Chama Frenética",
+        description =
+        "O frenesi absoluto. Aumenta a |Chance de Ataques Múltiplos| base em |0.5| e o |Dano| em |30%|.",
+        image_path = "assets/images/skills/ultimate_multi_attack_frenzy_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "multi_attack_frenzy_percent" },
+        modifiers_per_level = {
+            { stat = "multiAttackChance", type = "base",       value = 0.5 },
+            { stat = "damage",            type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Utilitários
+    ultimate_cooldown_reduction_percent = {
+        id = "ultimate_cooldown_reduction_percent",
+        name = "Mago do Tempo",
+        description =
+        "Domínio temporal absoluto. Aumenta a |Recarga de Habilidades| base em |1.0|.",
+        image_path = "assets/images/skills/ultimate_cooldown_reduction_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "cooldown_reduction_percent" },
+        modifiers_per_level = {
+            { stat = "cooldownReduction", type = "base", value = 1.0 },
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_lucky_percent = {
+        id = "ultimate_lucky_percent",
+        name = "Herdeiro Rico",
+        description = "A sorte absoluta. Aumenta a |Sorte| em |50%| e o |Raio de Coleta| em |50%|.",
+        image_path = "assets/images/skills/ultimate_lucky_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "lucky_percent" },
+        modifiers_per_level = {
+            { stat = "luck",         type = "percentage", value = 50 },
+            { stat = "pickupRadius", type = "percentage", value = 50 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_exp_bonus_percent = {
+        id = "ultimate_exp_bonus_percent",
+        name = "Fruto Proibido",
+        description = "Distinção do que é o certo e do que é errado. Aumenta o |Bônus de Experiência| base em |1.0| e o |Raio de Coleta| em |5|m.",
+        image_path = "assets/images/skills/ultimate_exp_bonus_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "exp_bonus_percent" },
+        modifiers_per_level = {
+            { stat = "expBonus", type = "base", value = 1.0 },
+            { stat = "pickupRadius", type = "base", value = 5 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_pickup_radius_percent = {
+        id = "ultimate_pickup_radius_percent",
+        name = "Magnetismo Supremo",
+        description = "A atração absoluta. Aumenta o |Raio de Coleta| em |50%| e o |Bônus de Experiência| em |20%|.",
+        image_path = "assets/images/skills/ultimate_pickup_radius_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "pickup_radius_percent", "pickup_radius_base" },
+        modifiers_per_level = {
+            { stat = "pickupRadius", type = "percentage", value = 50 },
+            { stat = "expBonus",     type = "percentage", value = 20 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Dash
+    ultimate_dash_cooldown_reduction_1 = {
+        id = "ultimate_dash_cooldown_reduction_1",
+        name = "Passo Instantâneo",
+        description = "A velocidade absoluta. |-40%| |Recarga do Dash| e |+20%| |Velocidade de Movimento|. Como um raio.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "dash_cooldown_reduction_1" },
+        modifiers_per_level = {
+            { stat = "dashCooldown", type = "percentage", value = -40 },
+            { stat = "moveSpeed",    type = "percentage", value = 20 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_dash_distance_increase_1 = {
+        id = "ultimate_dash_distance_increase_1",
+        name = "Salto Dimensional",
+        description =
+        "A distância transcendente. |+75%| |Distância do Dash| e |+1| |Carga de Dash|. Atravesse dimensões.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "dash_distance_increase_1" },
+        modifiers_per_level = {
+            { stat = "dashDistance", type = "percentage", value = 75 },
+            { stat = "dashCharges",  type = "base",       value = 1 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_dash_extra_charge_1 = {
+        id = "ultimate_dash_extra_charge_1",
+        name = "Carga Infinita",
+        description = "Cargas ilimitadas. |+3| |Cargas de Dash| e |-20%| |Recarga do Dash|. A mobilidade perfeita.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "dash_extra_charge_1" },
+        modifiers_per_level = {
+            { stat = "dashCharges",  type = "base",       value = 3 },
+            { stat = "dashCooldown", type = "percentage", value = -20 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Poções
+    ultimate_potion_capacity_1 = {
+        id = "ultimate_potion_capacity_1",
+        name = "Capacidade Ilimitada",
+        description = "Frascos infinitos. |+3| |Frascos de Poção| e |+30%| |Cura da Poção|. Nunca fique sem recursos.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "potion_capacity_1" },
+        modifiers_per_level = {
+            { stat = "potionFlasks",     type = "base",       value = 3 },
+            { stat = "potionHealAmount", type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_potion_potency_1_fixed = {
+        id = "ultimate_potion_potency_1_fixed",
+        name = "Poções Divinas",
+        description = "A cura suprema. |+75| |Cura da Poção| e |+25%| |Bônus de Cura|. Elixires dos deuses.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "potion_potency_1_fixed" },
+        modifiers_per_level = {
+            { stat = "potionHealAmount", type = "base",       value = 75 },
+            { stat = "healingBonus",     type = "percentage", value = 25 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_potion_speed_1 = {
+        id = "ultimate_potion_speed_1",
+        name = "Destilação Instantânea",
+        description =
+        "A velocidade alquímica suprema. |+125%| |Velocidade de Preenchimento| e |+20%| |Cura da Poção|. Alquimia instantânea.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "potion_speed_1" },
+        modifiers_per_level = {
+            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 1.25 },
+            { stat = "potionHealAmount", type = "percentage",                   value = 20 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_potion_healing_synergy_1 = {
+        id = "ultimate_potion_healing_synergy_1",
+        name = "Sinergia Divina",
+        description =
+        "A harmonia curativa perfeita. |+50%| |Cura da Poção|, |+40%| |Bônus de Cura| e |+25%| |Regeneração de Vida|. A cura absoluta.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "potion_healing_synergy_1" },
+        modifiers_per_level = {
+            { stat = "potionHealAmount", type = "percentage", value = 50 },
+            { stat = "healingBonus",     type = "percentage", value = 40 },
+            { stat = "healthPerTick",    type = "percentage", value = 25 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+
+    -- Ultimates de Regeneração
+    ultimate_regeneration_1_fixed = {
+        id = "ultimate_regeneration_1_fixed",
+        name = "Recuperação Suprema",
+        description = "A regeneração divina. |+2.5| |Regeneração de Vida|/s e |+30%| |Vida Máxima|. A vida eterna.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "regeneration_1_fixed" },
+        modifiers_per_level = {
+            { stat = "healthPerTick", type = "base",       value = 2.5 },
+            { stat = "health",        type = "percentage", value = 30 }
+        },
+        color = Colors.rankDetails.S.text
+    },
+    ultimate_regen_delay_1_reduction = {
+        id = "ultimate_regen_delay_1_reduction",
+        name = "Prontidão Absoluta",
+        description =
+        "A resposta instantânea. |-2.5| segundos |Delay de Regeneração| e |+50%| |Regeneração de Vida|. A cura imediata.",
+        image_path = tempIconPath,
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "regen_delay_1_reduction" },
+        modifiers_per_level = {
+            { stat = "healthRegenDelay", type = "base",       value = -2.5 },
+            { stat = "healthPerTick",    type = "percentage", value = 50 }
+        },
+        color = Colors.rankDetails.S.text
     },
 }
 
@@ -549,7 +1152,11 @@ function LevelUpBonusesData.ApplyBonus(stateController, bonusId)
         return
     end
 
-    print("[LevelUpBonusesData.ApplyBonus] Aplicando bônus: " .. bonusData.name)
+    if bonusData.is_ultimate then
+        print("[LevelUpBonusesData.ApplyBonus] ✦ APLICANDO MELHORIA ULTIMATE: " .. bonusData.name .. " ✦")
+    else
+        print("[LevelUpBonusesData.ApplyBonus] Aplicando bônus: " .. bonusData.name)
+    end
 
     for _, modifier in ipairs(bonusData.modifiers_per_level) do
         local stat = modifier.stat
@@ -559,7 +1166,7 @@ function LevelUpBonusesData.ApplyBonus(stateController, bonusId)
         print(string.format("  - Modificador: stat=%s, type=%s, value=%s", tostring(stat), tostring(type),
             tostring(value)))
 
-        if type == "fixed" then
+        if type == "base" or type == "fixed" then
             stateController:addAttributeBonus(stat, 0, value)
         elseif type == "percentage" then
             -- Este 'percentage' vai para stateController.levelBonus[stat]

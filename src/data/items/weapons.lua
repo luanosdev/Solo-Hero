@@ -40,7 +40,7 @@
 
 ---@class HunterModifier
 ---@field stat string O atributo do caçador a ser modificado (e.g., "moveSpeed", "health").
----@field type "fixed"|"percentage"|"fixed_percentage_as_fraction" O tipo de modificador.
+---@field type "base"|"percentage" O tipo de modificador.
 ---@field value number O valor do modificador.
 
 ---@class CircularSmashWeapon : Weapon
@@ -101,10 +101,10 @@ local weapons = {
         animationType = "melee",
         animationFolderPath = "hammer_tier_1",
         modifiers = {
-            { stat = "moveSpeed",   type = "percentage",                   value = -20 },
-            { stat = "attackSpeed", type = "fixed_percentage_as_fraction", value = -0.2 },
-            { stat = "defense",     type = "fixed",                        value = 20 },
-            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.2 },
+            { stat = "moveSpeed",   type = "percentage", value = -20 },
+            { stat = "attackSpeed", type = "base",       value = -0.2 },
+            { stat = "defense",     type = "base",       value = 20 },
+            { stat = "critChance",  type = "base",       value = 0.2 },
         },
         value = 200,
     },
@@ -133,9 +133,9 @@ local weapons = {
         animationType = "melee",
         animationFolderPath = "sword_tier_1",
         modifiers = {
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.1 },
-            { stat = "force",      type = "fixed",                        value = 5 },
-            { stat = "health",     type = "fixed",                        value = 50 },
+            { stat = "critChance", type = "base", value = 0.1 },
+            { stat = "force",      type = "base", value = 5 },
+            { stat = "health",     type = "base", value = 50 },
         },
         value = 200,
     },
@@ -162,8 +162,8 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.LOW,
         knockbackForce = Constants.KNOCKBACK_FORCE.DUAL_DAGGERS,
         modifiers = {
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.2 },
-            { stat = "moveSpeed",  type = "fixed",                        value = 5 },
+            { stat = "critChance", type = "base", value = 0.2 },
+            { stat = "moveSpeed",  type = "base", value = 5 },
         },
         value = 100,
     },
@@ -194,8 +194,8 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.NONE, -- Sem knockback por partícula, pois é contínuo (mas projéteis individuais podem ter)
         knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
         modifiers = {
-            { stat = "defense",    type = "fixed",                        value = 10 },
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.5 },
+            { stat = "defense",    type = "base", value = 10 },
+            { stat = "critDamage", type = "base", value = 0.5 },
         },
         value = 200,
     },
@@ -228,8 +228,8 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.LOW,
         knockbackForce = Constants.KNOCKBACK_FORCE.BOW,
         modifiers = {
-            { stat = "moveSpeed",   type = "fixed",                        value = 5 },
-            { stat = "multiAttack", type = "fixed_percentage_as_fraction", value = 0.4 },
+            { stat = "moveSpeed",   type = "base", value = 5 },
+            { stat = "multiAttack", type = "base", value = 0.4 },
         },
         value = 200,
     },
@@ -258,7 +258,7 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.NONE,
         knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
         modifiers = {
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 1 },
+            { stat = "critDamage", type = "base", value = 1 },
         },
         value = 100,
     },
@@ -288,8 +288,8 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.MEDIUM,
         knockbackForce = Constants.KNOCKBACK_FORCE.BULLET,
         modifiers = {
-            { stat = "defense", type = "fixed", value = 10 },
-            { stat = "force",   type = "fixed", value = 15 },
+            { stat = "defense", type = "base", value = 10 },
+            { stat = "force",   type = "base", value = 15 },
         },
         value = 150,
     },
@@ -319,9 +319,9 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.VERY_LOW,
         knockbackForce = Constants.KNOCKBACK_FORCE.BULLET,
         modifiers = {
-            { stat = "moveSpeed",  type = "fixed",                        value = 5 },
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.1 },
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.5 },
+            { stat = "moveSpeed",  type = "base", value = 5 },
+            { stat = "critChance", type = "base", value = 0.1 },
+            { stat = "critDamage", type = "base", value = 0.5 },
         },
         value = 100,
     },

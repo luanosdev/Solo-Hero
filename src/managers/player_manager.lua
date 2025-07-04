@@ -205,7 +205,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
 
     -- Preenche a vida do player com o valor final de health
     local currentFinalStats = self.stateController:getCurrentFinalStats()
-    self.stateController:heal(currentFinalStats.health)
+    self.stateController:heal(currentFinalStats.maxHealth)
 end
 
 -- Atualiza o estado do player e da câmera

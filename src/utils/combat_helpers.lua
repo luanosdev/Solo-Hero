@@ -349,7 +349,7 @@ function CombatHelpers.applyHitEffects(
         playerManager.gameStatisticsManager:registerEnemiesHit(#enemies)
     end
 
-    local totalDamage = finalStats.damage + weaponInstance:getBaseData().damage
+    local totalDamage = finalStats.damage
     if not totalDamage then return end
 
     for i = 1, #enemies do
@@ -473,7 +473,7 @@ end
 
 --- Aplica efeitos em lote para melhor performance
 ---@param attackInstances table[] Lista de ataques a serem processados
----@param finalStats table Stats finais do jogador
+---@param finalStats FinalStats Stats finais do jogador
 ---@param playerManager PlayerManager Instância do PlayerManager
 ---@param weaponInstance BaseWeapon Instância da arma
 function CombatHelpers.applyBatchHitEffects(attackInstances, finalStats, playerManager, weaponInstance)

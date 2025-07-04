@@ -8,7 +8,7 @@
 local Constants = require("src.config.constants")
 
 ---@class BaseBonus Bônus base (flat) aplicados ao stat base
----@field health number Bônus base de vida (flat)
+---@field maxHealth number Bônus base de vida (flat)
 ---@field damage number Bônus base de dano (flat)
 ---@field defense number Bônus base de defesa (flat)
 ---@field moveSpeed number Bônus base de velocidade de movimento (flat)
@@ -37,7 +37,7 @@ local Constants = require("src.config.constants")
 ---@field potionFillRate number Bônus base de velocidade de preenchimento (flat)
 
 ---@class MultiplierBonus Bônus multiplicadores (%) aplicados ao stat base
----@field health number Bônus multiplicador de vida (%)
+---@field maxHealth number Bônus multiplicador de vida (%)
 ---@field damage number Bônus multiplicador de dano (%)
 ---@field defense number Bônus multiplicador de defesa (%)
 ---@field moveSpeed number Bônus multiplicador de velocidade de movimento (%)
@@ -83,7 +83,7 @@ local Constants = require("src.config.constants")
 ---@field [string] any Propriedades do modificador
 
 ---@class FinalStats Estatísticas finais calculadas do jogador
----@field health number Vida máxima final
+---@field maxHealth number Vida máxima final
 ---@field damage number Dano final
 ---@field defense number Defesa final
 ---@field moveSpeed number Velocidade de movimento final
@@ -209,7 +209,7 @@ function PlayerStateController:initializeBaseStats(initialStats)
     self.isAlive = true
 
     -- Atributos base (com fallbacks dos padrões)
-    self.health = initialStats and initialStats.health or defaultStats.health
+    self.maxHealth = initialStats and initialStats.maxHealth or defaultStats.maxHealth
     self.damage = 0 -- Caçador começa com 0 de dano base
     self.defense = initialStats and initialStats.defense or defaultStats.defense
     self.moveSpeed = initialStats and initialStats.moveSpeed or defaultStats.moveSpeed
@@ -251,12 +251,12 @@ function PlayerStateController:initializeBaseStats(initialStats)
     self.archetypeIds = initialStats and initialStats.archetypeIds or {}
 
     -- Inicializa vida atual
-    self.currentHealth = self.health
+    self.currentHealth = self.maxHealth
 
     Logger.info(
         "player_state_controller.init",
         string.format("[PlayerStateController:initializeBaseStats] Estado inicializado. HP: %.1f/%.1f",
-            self.currentHealth, self.health)
+            self.currentHealth, self.maxHealth)
     )
 end
 
@@ -292,7 +292,7 @@ function PlayerStateController:heal(amount)
 
     local effectiveAmount = amount * finalStats.healingBonus
     local oldHealth = self.currentHealth
-    self.currentHealth = math.floor(math.min(self.currentHealth + effectiveAmount, finalStats.health))
+    self.currentHealth = math.floor(math.min(self.currentHealth + effectiveAmount, finalStats.maxHealth))
 
     return math.floor(self.currentHealth - oldHealth)
 end
@@ -337,7 +337,7 @@ function PlayerStateController:addBaseBonus(attribute, amount)
 
     self.baseBonuses[attribute] = self.baseBonuses[attribute] + amount
 
-    if attribute == "health" then
+    if attribute == "maxHealth" then
         self:heal(amount)
     end
 
@@ -360,9 +360,9 @@ function PlayerStateController:addMultiplierBonus(attribute, percentage)
 
     self:invalidateStatsCache()
 
-    if attribute == "health" then
+    if attribute == "maxHealth" then
         -- calcula o valor a ser curado com base na porcentagem
-        local effectiveAmount = self.health * (percentage / 100)
+        local effectiveAmount = self.maxHealth * (percentage / 100)
         self:heal(effectiveAmount)
     end
 
@@ -454,17 +454,20 @@ function PlayerStateController:getCurrentFinalStats()
     local weaponInstance = self.equippedItems and self.equippedItems[Constants.SLOT_IDS.WEAPON]
     if weaponInstance and weaponInstance.itemBaseId and self.playerManager.itemDataManager then
         local weaponData = self.playerManager.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
-        if weaponData and weaponData.modifiers then
-            for _, mod in ipairs(weaponData.modifiers) do
-                local statName = mod.stat
-                local modValue = mod.value or 0
+        if weaponData then
+            allBaseBonuses["damage"] = (allBaseBonuses["damage"] or 0) + weaponData.damage
+            if weaponData.modifiers then
+                for _, mod in ipairs(weaponData.modifiers) do
+                    local statName = mod.stat
+                    local modValue = mod.value or 0
 
-                if mod.type == "base" then
-                    allBaseBonuses[statName] = (allBaseBonuses[statName] or 0) + modValue
-                elseif mod.type == "percentage" then
-                    allMultiplierBonuses[statName] = (allMultiplierBonuses[statName] or 0) + modValue
-                else
-                    error(string.format("Invalid modifier type: %s", mod.type))
+                    if mod.type == "base" then
+                        allBaseBonuses[statName] = (allBaseBonuses[statName] or 0) + modValue
+                    elseif mod.type == "percentage" then
+                        allMultiplierBonuses[statName] = (allMultiplierBonuses[statName] or 0) + modValue
+                    else
+                        error(string.format("Invalid modifier type: %s %s", mod.type, statName))
+                    end
                 end
             end
         end
@@ -476,7 +479,7 @@ function PlayerStateController:getCurrentFinalStats()
 
     -- Lista de todos os stats possíveis
     local allStats = {
-        "health", "damage", "defense", "moveSpeed", "attackSpeed", "critChance", "critDamage",
+        "maxHealth", "damage", "defense", "moveSpeed", "attackSpeed", "critChance", "critDamage",
         "healthRegen", "multiAttackChance", "runeSlots", "strength", "expBonus",
         "healingBonus", "pickupRadius", "healthRegenDelay", "range", "luck",
         "attackArea", "healthPerTick", "cooldownReduction", "healthRegenCooldown",
@@ -569,7 +572,7 @@ function PlayerStateController:getDebugInfo()
         experience = self.experience,
         experienceToNextLevel = self.experienceToNextLevel,
         currentHealth = self.currentHealth,
-        maxHealth = self.health,
+        maxHealth = self.maxHealth,
         isAlive = self.isAlive,
         kills = self.kills,
         gold = self.gold,

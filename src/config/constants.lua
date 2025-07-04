@@ -62,9 +62,9 @@ Constants.EQUIPMENT_SLOTS_ORDER = {
 
 --- Default Base Stats for New Hunters (Before Archetypes)
 Constants.HUNTER_DEFAULT_STATS = {
-    health = 300,
+    maxHealth = 300,
     attackSpeed = 1.0,         -- Attacks per second
-    moveSpeed = 1.4,           -- Metros por segundo (m/s) - convertido automaticamente para pixels
+    moveSpeed = 1.0,           -- Metros por segundo (m/s) - convertido automaticamente para pixels
     critChance = 0.10,         -- 10%
     critDamage = 1.5,          -- 150% Multiplier
     multiAttackChance = 0.1,   -- 20%

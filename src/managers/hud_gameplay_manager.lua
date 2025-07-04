@@ -79,7 +79,7 @@ function HUDGameplayManager:setupGameplay()
     local initialLevel = playerManager.stateController:getCurrentLevel()
     local initialXP = playerManager.stateController:getCurrentExperience()
     local initialHP = playerManager.stateController.currentHealth
-    local initialMaxHP = playerManager.stateController.finalStatsCache.health
+    local initialMaxHP = playerManager.stateController.finalStatsCache.maxHealth
     local initialName = hunterData.name
     local initialRank = hunterData.finalRankId
 
@@ -291,7 +291,7 @@ function HUDGameplayManager:update(dt)
 
     local newName = currentHunterInfo.name or self.lastPlayerName
     local newRank = currentHunterInfo.finalRankId or self.lastPlayerRank
-    local newMaxHP = finalStats.health
+    local newMaxHP = finalStats.maxHealth
     local newCurrentHP = playerManager.stateController.currentHealth or self.lastPlayerHP
 
     local needsHpBarReposition = false
@@ -422,7 +422,7 @@ function HUDGameplayManager:reset()
         end
 
         local playerHP = playerManager.stateController:getCurrentHealth()
-        local playerMaxHP = playerManager.stateController:getCurrentFinalStats().health
+        local playerMaxHP = playerManager.stateController:getCurrentFinalStats().maxHealth
         local playerName = hunterCurrentInfo.name or "Jogador"
         local playerRank = hunterCurrentInfo.finalRankId or "N/A"
 

@@ -47,7 +47,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "É mais rapido que outros, bom para fugir de inimigos.",
         modifiers = {
-            { stat = "moveSpeed", type = "fixed", value = 20 }
+            { stat = "moveSpeed", type = "base", value = 3 }
         }
     },
     alchemist_novice = {
@@ -56,7 +56,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Conhecimento básico em poções, frascos enchem um pouco mais rápido.",
         modifiers = {
-            { stat = "potionFillRate", type = "fixed_percentage_as_fraction", value = 0.1 } -- +10% velocidade preenchimento
+            { stat = "potionFillRate", type = "base", value = 1.1 } -- +10% velocidade preenchimento
         }
     },
     vigorous = {
@@ -65,7 +65,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Um pouco mais resistente que outros, bom para resistir aos ataques.",
         modifiers = {
-            { stat = "health", type = "fixed", value = 100 }
+            { stat = "health", type = "base", value = 50 }
         }
     },
     aprendiz_rapido = {
@@ -74,7 +74,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Ganha experiência um pouco mais rápido.",
         modifiers = {
-            { stat = "expBonus", type = "percentage", value = 5 }
+            { stat = "expBonus", type = "base", value = 0.1 }
         }
     },
     sortudo_pequeno = {
@@ -83,7 +83,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Um leve aumento na sorte geral.",
         modifiers = {
-            { stat = "luck", type = "percentage", value = 5 }
+            { stat = "luck", type = "base", value = 0.1 }
         }
     },
     bruto_pequeno = {
@@ -92,7 +92,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Um leve aumento na Força.",
         modifiers = {
-            { stat = "strength", type = "fixed", value = 3 }
+            { stat = "strength", type = "base", value = 5 }
         }
     },
     poison_resistant = {
@@ -101,8 +101,8 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Imune a toxinas, mas poções são menos eficazes devido à resistência natural.",
         modifiers = {
-            { stat = "potionHealAmount", type = "percentage", value = -20 },
-            { stat = "defense",          type = "fixed",      value = 20 }
+            { stat = "potionHealAmount", type = "base", value = 0.2 },
+            { stat = "defense",          type = "base", value = 5 }
         }
     },
     -- Rank D
@@ -112,7 +112,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Ataca com mais frequência.",
         modifiers = {
-            { stat = "attackSpeed", type = "fixed_percentage_as_fraction", value = 0.06 }
+            { stat = "attackSpeed", type = "base", value = 0.6 }
         }
     },
     field_medic = {
@@ -121,8 +121,8 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Especialista em primeiros socorros, poções curam mais e enchem mais rápido.",
         modifiers = {
-            { stat = "potionHealAmount", type = "fixed",                        value = 15 },
-            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 0.15 }
+            { stat = "potionHealAmount", type = "base", value = 0.15 },
+            { stat = "potionFillRate",   type = "base", value = 0.5 }
         }
     },
     cautious = {
@@ -131,7 +131,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Percebe itens de mais longe.",
         modifiers = {
-            { stat = "pickupRadius", type = "fixed", value = 50 }
+            { stat = "pickupRadius", type = "base", value = 5 }
         }
     },
     barreira_magica = {
@@ -140,7 +140,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Concede defesa extra, mas reduz levemente a velocidade de movimento.",
         modifiers = {
-            { stat = "defense",   type = "fixed",      value = 15 },
+            { stat = "defense",   type = "base",       value = 5 },
             { stat = "moveSpeed", type = "percentage", value = -5 }
         }
     },
@@ -150,7 +150,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "As habilidades recarregam um pouco mais rápido.",
         modifiers = {
-            { stat = "cooldownReduction", type = "percentage", value = 7 }
+            { stat = "cooldownReduction", type = "base", value = 0.3 }
         }
     },
     bottle_warrior = {
@@ -159,8 +159,8 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Carrega mais frascos que o normal, mas cada um cura menos.",
         modifiers = {
-            { stat = "potionFlasks",     type = "fixed",      value = 1 },
-            { stat = "potionHealAmount", type = "percentage", value = -15 }
+            { stat = "potionFlasks",     type = "base", value = 1 },
+            { stat = "potionHealAmount", type = "base", value = 0.15 }
         }
     },
     -- Rank C
@@ -170,7 +170,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Velocidade de ataque consistentemente maior.",
         modifiers = {
-            { stat = "attackSpeed", type = "percentage", value = 12 }
+            { stat = "attackSpeed", type = "base", value = 0.12 }
         }
     },
     alchemist_adept = {
@@ -179,8 +179,8 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Domínio intermediário em alquimia, ganha um frasco adicional e cura aprimorada.",
         modifiers = {
-            { stat = "potionFlasks",     type = "fixed",      value = 1 },
-            { stat = "potionHealAmount", type = "percentage", value = 25 }
+            { stat = "potionFlasks",     type = "base", value = 1 },
+            { stat = "potionHealAmount", type = "base", value = 0.25 }
         }
     },
     predestined = {
@@ -189,7 +189,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a Sorte.",
         modifiers = {
-            { stat = "luck", type = "fixed_percentage_as_fraction", value = 0.05 }
+            { stat = "luck", type = "base", value = 0.2 }
         }
     },
     guerreiro_nato = {
@@ -198,8 +198,8 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Força e Vida aumentadas.",
         modifiers = {
-            { stat = "strength", type = "fixed", value = 5 },
-            { stat = "health",   type = "fixed", value = 50 }
+            { stat = "strength", type = "base", value = 15 },
+            { stat = "health",   type = "base", value = 100 }
         }
     },
     blessed = {
@@ -208,7 +208,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a Quantidade de Slots Runa.",
         modifiers = {
-            { stat = "runeSlots", type = "fixed", value = 1 }
+            { stat = "runeSlots", type = "base", value = 1 }
         }
     },
     precise = {
@@ -217,7 +217,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a chance de acertos críticos.",
         modifiers = {
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.05 }
+            { stat = "critChance", type = "base", value = 0.3 }
         }
     },
     muralha = {
@@ -226,8 +226,8 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Vida significativamente aumentada, mas com penalidade na velocidade de movimento.",
         modifiers = {
-            { stat = "health",    type = "percentage", value = 35 },
-            { stat = "moveSpeed", type = "percentage", value = -15 }
+            { stat = "health",    type = "base", value = 100 },
+            { stat = "moveSpeed", type = "base", value = -1 }
         }
     },
     explorador_avancado = {
@@ -236,8 +236,8 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta o raio de coleta de itens e o ganho de experiência.",
         modifiers = {
-            { stat = "pickupRadius", type = "fixed",      value = 75 },
-            { stat = "expBonus",     type = "percentage", value = 100 }
+            { stat = "pickupRadius", type = "base", value = 7.5 },
+            { stat = "expBonus",     type = "base", value = 0.3 }
         }
     },
     evasivo = {
@@ -246,8 +246,8 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Recarrega o dash mais rápido e se move com mais agilidade.",
         modifiers = {
-            { stat = "dashCooldown", type = "percentage", value = -15 }, -- Reduz o cooldown em 15%
-            { stat = "moveSpeed",    type = "percentage", value = 10 }
+            { stat = "dashCooldown", type = "base", value = 0.15 }, -- Reduz o cooldown em 15%
+            { stat = "moveSpeed",    type = "base", value = 1 }
         }
     },
     -- Rank B
@@ -257,9 +257,9 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Chance crítica massiva ao custo de defesa.",
         modifiers = {
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.30 },
-            { stat = "defense",    type = "percentage",                   value = -10 },
-            { stat = "attackArea", type = "percentage",                   value = 30 }
+            { stat = "critChance", type = "base", value = 0.3 },
+            { stat = "defense",    type = "base", value = -5 },
+            { stat = "attackArea", type = "base", value = 3 }
         }
     },
     combat_pharmacist = {
@@ -268,9 +268,9 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Especialista em química médica, frascos enchem muito mais rápido e curam significativamente mais.",
         modifiers = {
-            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 0.5 }, -- +50% velocidade
-            { stat = "potionHealAmount", type = "fixed",                        value = 35 },
-            { stat = "healingBonus",     type = "percentage",                   value = 15 }
+            { stat = "potionFillRate",   type = "base", value = 0.5 }, -- +50% velocidade
+            { stat = "potionHealAmount", type = "base", value = 0.35 },
+            { stat = "healingBonus",     type = "base", value = 0.15 }
         }
     },
     atirador_elite = {
@@ -279,8 +279,8 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Aumenta consideravelmente o alcance dos ataques, com uma pequena redução na velocidade de ataque.",
         modifiers = {
-            { stat = "range",       type = "percentage", value = 35 },
-            { stat = "attackSpeed", type = "percentage", value = -5 }
+            { stat = "range",       type = "base", value = 3.5 },
+            { stat = "attackSpeed", type = "base", value = -0.5 }
         }
     },
     vampiro_menor = {
@@ -289,8 +289,8 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Melhora a regeneração de vida por segundo, mas diminui a vida máxima.",
         modifiers = {
-            { stat = "healthPerTick", type = "fixed",      value = 2 },
-            { stat = "health",        type = "percentage", value = -10 }
+            { stat = "healthPerTick", type = "base", value = 0.2 },
+            { stat = "health",        type = "base", value = -10 }
         }
     },
     ariete = {
@@ -299,8 +299,8 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Avança uma distância muito maior, mas o dash demora mais para recarregar.",
         modifiers = {
-            { stat = "dashDistance", type = "percentage", value = 100 },
-            { stat = "dashCooldown", type = "percentage", value = 25 } -- Aumenta o cooldown em 25%
+            { stat = "dashDistance", type = "base", value = 1 },
+            { stat = "dashCooldown", type = "base", value = 0.25 } -- Aumenta o cooldown em 25%
         }
     },
     -- Rank A
@@ -310,9 +310,9 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Dano crítico e velocidade de ataque aprimorados.",
         modifiers = {
-            { stat = "critDamage",  type = "fixed_percentage_as_fraction", value = 0.20 },
-            { stat = "critChance",  type = "fixed_percentage_as_fraction", value = 0.10 },
-            { stat = "attackSpeed", type = "percentage",                   value = 10 }
+            { stat = "critDamage",  type = "base", value = 0.4 },
+            { stat = "critChance",  type = "base", value = 0.4 },
+            { stat = "attackSpeed", type = "base", value = 0.4 }
         }
     },
     grand_alchemist = {
@@ -321,9 +321,9 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Mestre supremo da alquimia, ganha frascos extras e poções de qualidade superior.",
         modifiers = {
-            { stat = "potionFlasks",     type = "fixed",                        value = 2 },
-            { stat = "potionHealAmount", type = "percentage",                   value = 60 },
-            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 0.3 }
+            { stat = "potionFlasks",     type = "base", value = 2 },
+            { stat = "potionHealAmount", type = "base", value = 0.6 },
+            { stat = "potionFillRate",   type = "base", value = 0.3 }
         }
     },
     mestre_das_runas = {
@@ -333,7 +333,7 @@ ArchetypesData.Archetypes = {
         description = "Concede um slot de runa adicional e melhora a redução de recarga.",
         modifiers = {
             { stat = "runeSlots",         type = "fixed",      value = 1 },
-            { stat = "cooldownReduction", type = "percentage", value = 15 }
+            { stat = "cooldownReduction", type = "percentage", value = 40 }
         }
     },
     colosso = {
@@ -363,10 +363,10 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Transcendeu a alquimia comum, seus frascos são lendários e se regeneram quase instantaneamente.",
         modifiers = {
-            { stat = "potionFlasks",     type = "fixed",                        value = 3 },
-            { stat = "potionHealAmount", type = "percentage",                   value = 100 },
-            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 1.0 }, -- +100% velocidade
-            { stat = "healingBonus",     type = "percentage",                   value = 50 }
+            { stat = "potionFlasks",     type = "base",       value = 3 },
+            { stat = "potionHealAmount", type = "percentage", value = 100 },
+            { stat = "potionFillRate",   type = "base",       value = 1.0 }, -- +100% velocidade
+            { stat = "healingBonus",     type = "percentage", value = 50 }
         }
     },
     demon = {
@@ -375,9 +375,9 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Aumenta a chance de acertos críticos.",
         modifiers = {
-            { stat = "critChance", type = "fixed_percentage_as_fraction", value = 0.20 },
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.30 },
-            { stat = "health",     type = "percentage",                   value = -33 }
+            { stat = "critChance", type = "percentage", value = 0.666 },
+            { stat = "critDamage", type = "percentage", value = 0.666 },
+            { stat = "health",     type = "percentage", value = -33 }
         }
     },
     insane = {
@@ -386,8 +386,8 @@ ArchetypesData.Archetypes = {
         rank = "S",
         description = "Ataques múltiplos frequentes, mas muito vulnerável.",
         modifiers = {
-            { stat = "multiAttackChance", type = "fixed_percentage_as_fraction", value = 0.30 },
-            { stat = "defense",           type = "percentage",                   value = -50 }
+            { stat = "multiAttackChance", type = "percentage", value = 100 },
+            { stat = "defense",           type = "percentage", value = -50 }
         }
     },
     -- Rank E
@@ -397,7 +397,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Recupera vida ligeiramente mais rápido após sofrer dano.",
         modifiers = {
-            { stat = "healthRegenDelay", type = "fixed", value = 1.0 }
+            { stat = "healthRegenDelay", type = "base", value = 1.0 }
         }
     },
     collector = {
@@ -406,7 +406,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Aumenta levemente o alcance para coletar itens.",
         modifiers = {
-            { stat = "pickupRadius", type = "fixed", value = 20 }
+            { stat = "pickupRadius", type = "base", value = 5 }
         }
     },
     vigilant = {
@@ -415,7 +415,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Detecta itens de mais longe.",
         modifiers = {
-            { stat = "pickupRadius", type = "fixed", value = 30 }
+            { stat = "pickupRadius", type = "base", value = 5 }
         }
     },
 
@@ -426,7 +426,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Recuperação de vida constante melhorada.",
         modifiers = {
-            { stat = "healthPerTick", type = "fixed", value = 1 }
+            { stat = "healthPerTick", type = "base", value = 1 }
         }
     },
     focused = {
@@ -435,7 +435,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Reduz um pouco o tempo de recarga de habilidades.",
         modifiers = {
-            { stat = "cooldownReduction", type = "percentage", value = 5 }
+            { stat = "cooldownReduction", type = "base", value = 0.05 }
         }
     },
     shielded = {
@@ -444,7 +444,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Ganha uma pequena quantidade de defesa adicional.",
         modifiers = {
-            { stat = "defense", type = "fixed", value = 10 }
+            { stat = "defense", type = "base", value = 10 }
         }
     },
 
@@ -455,7 +455,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta a defesa.",
         modifiers = {
-            { stat = "defense", type = "fixed", value = 20 }
+            { stat = "defense", type = "base", value = 20 }
         }
     },
     healer = {
@@ -543,7 +543,7 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Aumenta o dano crítico após sofrer dano.",
         modifiers = {
-            { stat = "critDamage", type = "fixed_percentage_as_fraction", value = 0.25 }
+            { stat = "critDamage", type = "base", value = 0.25 }
         }
     },
 
@@ -596,10 +596,10 @@ ArchetypesData.Archetypes = {
         description =
         "Poder Arcano Imenso: Dano crítico, área de ataque e redução de recarga significativamente aumentados, mas com grande sacrifício de vida.",
         modifiers = {
-            { stat = "critDamage",        type = "fixed_percentage_as_fraction", value = 0.75 }, -- +75% Dano Crítico
-            { stat = "attackArea",        type = "percentage",                   value = 50 },   -- +50% Área
-            { stat = "cooldownReduction", type = "percentage",                   value = 30 },   -- +30% Redução Recarga
-            { stat = "health",            type = "percentage",                   value = -60 }   -- -60% Vida Máxima
+            { stat = "critDamage",        type = "base",       value = 0.75 },                 -- +75% Dano Crítico
+            { stat = "attackArea",        type = "percentage", value = 50 },                   -- +50% Área
+            { stat = "cooldownReduction", type = "percentage", value = 30 },                   -- +30% Redução Recarga
+            { stat = "health",            type = "percentage", value = -60 }                   -- -60% Vida Máxima
         }
     }
     -- Adicionar MUITOS outros arquétipos aqui para cada rank...

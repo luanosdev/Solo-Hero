@@ -87,6 +87,7 @@ end
 function LevelUpCard:draw(scale, bgColor, isHovered, isSelected, globalAlpha)
     local rect = self.rect
     local cardAlpha = self.alpha * globalAlpha
+    local isUltimate = self.optionData.is_ultimate
 
     if cardAlpha <= 0 then return end
 
@@ -95,21 +96,45 @@ function LevelUpCard:draw(scale, bgColor, isHovered, isSelected, globalAlpha)
     love.graphics.scale(scale, scale)
     love.graphics.translate(-(rect.x + rect.w / 2), -(rect.y + rect.h / 2))
 
+    -- Efeito especial para melhorias ultimate
+    if isUltimate then
+        self:drawUltimateEffects(rect, cardAlpha)
+    end
+
     -- Fundo do card
-    love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], cardAlpha * 0.9)
+    local finalBgColor = bgColor
+    if isUltimate then
+        -- Fundo especial para ultimate com gradiente dourado
+        finalBgColor = {
+            colors.rankDetails.S[1] * 0.15,
+            colors.rankDetails.S[2] * 0.15,
+            colors.rankDetails.S[3] * 0.15
+        }
+    end
+
+    love.graphics.setColor(finalBgColor[1], finalBgColor[2], finalBgColor[3], cardAlpha * 0.9)
     love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
 
     -- Borda do card
     local categoryColor = self.optionData.color
     local borderColor = categoryColor
     local borderWidth = 1
+
+    if isUltimate then
+        borderColor = colors.rankDetails.S
+        borderWidth = 3
+        -- Efeito de brilho na borda para ultimate
+        love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], cardAlpha * 0.5)
+        love.graphics.setLineWidth(borderWidth + 2)
+        love.graphics.rectangle("line", rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2)
+    end
+
     if isSelected then
         borderColor = colors.border_active
         borderWidth = 3
     elseif isHovered then
         borderWidth = 0
     end
-
 
     love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], cardAlpha)
     love.graphics.setLineWidth(borderWidth)
@@ -119,6 +144,59 @@ function LevelUpCard:draw(scale, bgColor, isHovered, isSelected, globalAlpha)
     self:drawContent(cardAlpha)
 
     love.graphics.pop()
+end
+
+function LevelUpCard:drawUltimateEffects(rect, cardAlpha)
+    local time = love.timer.getTime()
+
+    -- Efeito de brilho pulsante
+    local pulseIntensity = 0.5 + 0.3 * math.sin(time * 3)
+    local glowAlpha = cardAlpha * pulseIntensity * 0.8
+
+    -- Glow exterior
+    love.graphics.setColor(colors.rankDetails.S[1], colors.rankDetails.S[2], colors.rankDetails.S[3], glowAlpha * 0.3)
+    for i = 1, 3 do
+        local glowOffset = i * 3
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line",
+            rect.x - glowOffset, rect.y - glowOffset,
+            rect.w + glowOffset * 2, rect.h + glowOffset * 2)
+    end
+
+    -- Partículas de luz (efeito simulado)
+    local particleCount = 8
+    for i = 1, particleCount do
+        local angle = (time * 0.5 + i * (math.pi * 2 / particleCount)) % (math.pi * 2)
+        local particleX = rect.x + rect.w / 2 + math.cos(angle) * (rect.w / 2 + 20)
+        local particleY = rect.y + rect.h / 2 + math.sin(angle) * (rect.h / 2 + 20)
+        local particleAlpha = cardAlpha * (0.3 + 0.2 * math.sin(time * 2 + i))
+
+        love.graphics.setColor(colors.rankDetails.S[1], colors.rankDetails.S[2], colors.rankDetails.S[3], particleAlpha)
+        love.graphics.circle("fill", particleX, particleY, 2)
+    end
+
+    -- Efeito de raios de luz nos cantos
+    local rayAlpha = cardAlpha * (0.4 + 0.2 * math.sin(time * 4))
+    love.graphics.setColor(colors.rankDetails.S[1], colors.rankDetails.S[2], colors.rankDetails.S[3], rayAlpha)
+    love.graphics.setLineWidth(2)
+
+    -- Raios nos cantos
+    local cornerOffset = 15
+    -- Canto superior esquerdo
+    love.graphics.line(rect.x - cornerOffset, rect.y, rect.x, rect.y - cornerOffset)
+    love.graphics.line(rect.x, rect.y - cornerOffset, rect.x + cornerOffset, rect.y)
+
+    -- Canto superior direito
+    love.graphics.line(rect.x + rect.w - cornerOffset, rect.y, rect.x + rect.w, rect.y - cornerOffset)
+    love.graphics.line(rect.x + rect.w, rect.y - cornerOffset, rect.x + rect.w + cornerOffset, rect.y)
+
+    -- Canto inferior esquerdo
+    love.graphics.line(rect.x - cornerOffset, rect.y + rect.h, rect.x, rect.y + rect.h + cornerOffset)
+    love.graphics.line(rect.x, rect.y + rect.h + cornerOffset, rect.x + cornerOffset, rect.y + rect.h)
+
+    -- Canto inferior direito
+    love.graphics.line(rect.x + rect.w - cornerOffset, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h + cornerOffset)
+    love.graphics.line(rect.x + rect.w, rect.y + rect.h + cornerOffset, rect.x + rect.w + cornerOffset, rect.y + rect.h)
 end
 
 function LevelUpCard:drawContent(alpha)
@@ -193,9 +271,23 @@ function LevelUpCard:drawContent(alpha)
     local contentX = rect.x + padding
     local contentWidth = rect.w - (padding * 2)
 
+    -- Indicador ULTIMATE se aplicável
+    if self.optionData.is_ultimate then
+        love.graphics.setFont(fonts.main_small_bold)
+        love.graphics.setColor(colors.rankDetails.S[1], colors.rankDetails.S[2], colors.rankDetails.S[3], alpha)
+        local ultimateText = "✦ ULTIMATE ✦"
+        love.graphics.printf(ultimateText, contentX, currentY, contentWidth, "center")
+        -- Sombra dourada para o texto ULTIMATE
+        love.graphics.setColor(colors.rankDetails.S[1] * 0.7, colors.rankDetails.S[2] * 0.7,
+            colors.rankDetails.S[3] * 0.7, alpha * 0.8)
+        love.graphics.printf(ultimateText, contentX + 1, currentY + 1, contentWidth, "center")
+        currentY = currentY + fonts.main_small_bold:getHeight() + 4
+    end
+
     -- Nome da melhoria (negrito)
     love.graphics.setFont(fonts.title_large)
-    love.graphics.setColor(colors.text_title[1], colors.text_title[2], colors.text_title[3], alpha)
+    local nameColor = self.optionData.is_ultimate and colors.rankDetails.S or colors.text_title
+    love.graphics.setColor(nameColor[1], nameColor[2], nameColor[3], alpha)
     local nameText = self.optionData.name or "Melhoria Desconhecida"
     love.graphics.printf(nameText, contentX, currentY, contentWidth, "center")
     -- Adiciona sombra ao nome da melhoria
@@ -278,6 +370,10 @@ end
 
 function LevelUpCard:getImprovementType()
     -- Determina o tipo baseado no ID ou outros campos
+    if self.optionData.is_ultimate then
+        return "Melhoria Ultimate - Rank S"
+    end
+
     local bonusId = self.optionData.id or ""
     if string.find(bonusId, "rune") then
         return "Melhoria de Runa"
@@ -536,6 +632,7 @@ end
 function LevelUpModal:generateOptions()
     self.options = {}
     local availableBonuses = {}
+    local availableUltimates = {}
 
     if not self.playerManager or not self.playerManager.stateController or not self.playerManager.stateController:getLearnedLevelUpBonuses() then
         error(
@@ -544,18 +641,60 @@ function LevelUpModal:generateOptions()
 
     local learned = self.playerManager.stateController:getLearnedLevelUpBonuses()
 
+    -- Primeiro, coleta melhorias normais disponíveis
     for bonusId, bonusData in pairs(LevelUpBonusesData.Bonuses) do
-        local currentLevel = learned[bonusId] or 0
-        if currentLevel < bonusData.max_level then
-            local optionData = {}
-            for k, v in pairs(bonusData) do optionData[k] = v end
-            optionData.current_level_for_display = currentLevel
-            table.insert(availableBonuses, optionData)
+        if not bonusData.is_ultimate then
+            local currentLevel = learned[bonusId] or 0
+            if currentLevel < bonusData.max_level then
+                local optionData = {}
+                for k, v in pairs(bonusData) do optionData[k] = v end
+                optionData.current_level_for_display = currentLevel
+                table.insert(availableBonuses, optionData)
+            end
         end
     end
 
-    local numToSelect = math.min(4, #availableBonuses)
-    for i = 1, numToSelect do
+    -- Verifica se há melhorias ultimate disponíveis
+    for bonusId, bonusData in pairs(LevelUpBonusesData.Bonuses) do
+        if bonusData.is_ultimate then
+            local currentLevel = learned[bonusId] or 0
+            if currentLevel < bonusData.max_level then
+                -- Verifica se o jogador tem a melhoria base específica no nível máximo (sistema um-para-um)
+                local hasMaxedBaseBonuses = false
+                if bonusData.base_bonuses and #bonusData.base_bonuses == 1 then
+                    local baseBonusId = bonusData.base_bonuses[1]
+                    local baseBonusData = LevelUpBonusesData.Bonuses[baseBonusId]
+                    if baseBonusData then
+                        local baseBonusLevel = learned[baseBonusId] or 0
+                        if baseBonusLevel >= baseBonusData.max_level then
+                            hasMaxedBaseBonuses = true
+                        end
+                    end
+                end
+
+                if hasMaxedBaseBonuses then
+                    local optionData = {}
+                    for k, v in pairs(bonusData) do optionData[k] = v end
+                    optionData.current_level_for_display = currentLevel
+                    table.insert(availableUltimates, optionData)
+                end
+            end
+        end
+    end
+
+    -- Sempre inclui uma melhoria ultimate se disponível
+    local numUltimateSlots = 0
+    if #availableUltimates > 0 then
+        numUltimateSlots = 1
+        local randomUltimateIndex = love.math.random(1, #availableUltimates)
+        table.insert(self.options, availableUltimates[randomUltimateIndex])
+        Logger.debug("level_up_modal.generate_options.ultimate_added",
+            string.format("Melhoria ultimate adicionada: %s", availableUltimates[randomUltimateIndex].name))
+    end
+
+    -- Preenche o resto com melhorias normais
+    local numNormalSlots = math.min(4 - numUltimateSlots, #availableBonuses)
+    for i = 1, numNormalSlots do
         if #availableBonuses > 0 then
             local randomIndex = love.math.random(1, #availableBonuses)
             table.insert(self.options, availableBonuses[randomIndex])
@@ -567,6 +706,9 @@ function LevelUpModal:generateOptions()
 
     if #self.options == 0 then
         Logger.debug("level_up_modal.generate_options.no_options", "Nenhuma opção de bônus disponível")
+    else
+        Logger.debug("level_up_modal.generate_options.summary",
+            string.format("Opções geradas: %d normais, %d ultimate", #self.options - numUltimateSlots, numUltimateSlots))
     end
 end
 
