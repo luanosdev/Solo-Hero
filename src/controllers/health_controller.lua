@@ -15,6 +15,7 @@ local TablePool = require("src.utils.table_pool")
 ---@field accumulatedRegen number HP acumulado para regeneração
 ---@field isInvincible boolean Estado de invencibilidade do jogador
 ---@field lastDamageSource any|nil Última fonte de dano recebida
+---@field hasReceivedDamage boolean Se o jogador já recebeu dano alguma vez
 local HealthController = {}
 HealthController.__index = HealthController
 
@@ -36,6 +37,7 @@ function HealthController:new(playerManager)
     instance.accumulatedRegen = 0 -- HP acumulado para regeneração
     instance.isInvincible = false
     instance.lastDamageSource = nil
+    instance.hasReceivedDamage = false -- Flag para controlar se já recebeu dano
 
     return instance
 end
@@ -54,6 +56,11 @@ end
 ---@param dt number Delta time
 function HealthController:updateHealthRecovery(dt)
     if not self.playerManager.stateController then return end
+
+    -- Só permite regeneração se o jogador já tiver tomado dano pelo menos uma vez
+    if not self.hasReceivedDamage then
+        return
+    end
 
     local finalStats = self.playerManager:getCurrentFinalStats()
     local finalMaxHealth = finalStats.health
@@ -121,6 +128,9 @@ function HealthController:receiveDamage(amount, source)
     local reducedAmount = amount - damageTaken
 
     if damageTaken > 0 then
+        -- Marca que o jogador já recebeu dano (habilita regeneração)
+        self.hasReceivedDamage = true
+
         -- Registra estatísticas
         if self.playerManager.gameStatisticsManager then
             self.playerManager.gameStatisticsManager:registerDamageTaken(damageTaken, reducedAmount)
