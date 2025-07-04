@@ -1,67 +1,69 @@
 -------------------------------------------------------------------------
 -- Controlador unificado para estado e estatísticas do jogador.
 -- Integra gerenciamento de estado, cálculo de stats e progressão.
+-- Sistema de atributos baseado no modelo do Halls of Torment:
+-- Final Stat = (Base Stat + Base Bonus) × (100% + Multiplier Bonus)
 -------------------------------------------------------------------------
 
 local Constants = require("src.config.constants")
 
----@class LevelBonus Bônus percentuais ganhos por level up
----@field health number Bônus de vida por nível (%)
----@field damageMultiplier number Bônus de multiplicador de dano por nível (%)
----@field defense number Bônus de defesa por nível (%)
----@field moveSpeed number Bônus de velocidade de movimento por nível (%)
----@field attackSpeed number Bônus de velocidade de ataque por nível (%)
----@field critChance number Bônus de chance crítica por nível (%)
----@field critDamage number Bônus de dano crítico por nível (%)
----@field healthRegen number Bônus de regeneração de vida por nível (%)
----@field multiAttackChance number Bônus de chance de ataque múltiplo por nível (%)
----@field strength number Bônus de força por nível (%)
----@field expBonus number Bônus de experiência por nível (%)
----@field healingBonus number Bônus de cura recebida por nível (%)
----@field pickupRadius number Bônus de raio de coleta por nível (%)
----@field healthRegenDelay number Redução do atraso de regeneração por nível (%)
----@field range number Bônus de alcance por nível (%)
----@field luck number Bônus de sorte por nível (%)
----@field attackArea number Bônus de área de ataque por nível (%)
----@field healthPerTick number Bônus de vida por tick de regeneração por nível (%)
----@field cooldownReduction number Bônus de redução de cooldown por nível (%)
----@field healthRegenCooldown number Redução do cooldown de regeneração por nível (%)
----@field dashCharges number Cargas de dash adicionais por nível (fixo)
----@field dashCooldown number Redução do cooldown de dash por nível (%)
----@field dashDistance number Bônus de distância de dash por nível (%)
----@field dashDuration number Bônus de duração de dash por nível (%)
----@field potionFlasks number Frascos de poção adicionais por nível (fixo)
----@field potionHealAmount number Bônus de cura por poção por nível (%)
----@field potionFillRate number Bônus de velocidade de preenchimento por nível (%)
+---@class BaseBonus Bônus base (flat) aplicados ao stat base
+---@field health number Bônus base de vida (flat)
+---@field damage number Bônus base de dano (flat)
+---@field defense number Bônus base de defesa (flat)
+---@field moveSpeed number Bônus base de velocidade de movimento (flat)
+---@field attackSpeed number Bônus base de velocidade de ataque (flat)
+---@field critChance number Bônus base de chance crítica (flat)
+---@field critDamage number Bônus base de dano crítico (flat)
+---@field healthRegen number Bônus base de regeneração de vida (flat)
+---@field multiAttackChance number Bônus base de chance de ataque múltiplo (flat)
+---@field strength number Bônus base de força (flat)
+---@field expBonus number Bônus base de experiência (flat)
+---@field healingBonus number Bônus base de cura recebida (flat)
+---@field pickupRadius number Bônus base de raio de coleta (flat)
+---@field healthRegenDelay number Bônus base de atraso de regeneração (flat)
+---@field range number Bônus base de alcance (flat)
+---@field luck number Bônus base de sorte (flat)
+---@field attackArea number Bônus base de área de ataque (flat)
+---@field healthPerTick number Bônus base de vida por tick (flat)
+---@field cooldownReduction number Bônus base de redução de cooldown (flat)
+---@field healthRegenCooldown number Bônus base de cooldown de regeneração (flat)
+---@field dashCharges number Bônus base de cargas de dash (flat)
+---@field dashCooldown number Bônus base de cooldown de dash (flat)
+---@field dashDistance number Bônus base de distância de dash (flat)
+---@field dashDuration number Bônus base de duração de dash (flat)
+---@field potionFlasks number Bônus base de frascos de poção (flat)
+---@field potionHealAmount number Bônus base de cura por poção (flat)
+---@field potionFillRate number Bônus base de velocidade de preenchimento (flat)
 
----@class FixedBonus Bônus fixos aplicados de arquétipos ou outras fontes
----@field health number Bônus fixo de vida (aditivo)
----@field damageMultiplier number Bônus fixo de multiplicador de dano (percentual, ex: 0.1 = +10%)
----@field defense number Bônus fixo de defesa (aditivo)
----@field moveSpeed number Bônus fixo de velocidade de movimento (aditivo)
----@field attackSpeed number Bônus fixo de velocidade de ataque (percentual)
----@field critChance number Bônus fixo de chance crítica (percentual)
----@field critDamage number Bônus fixo de dano crítico (percentual)
----@field healthRegen number Bônus fixo de regeneração de vida (aditivo HP/s)
----@field multiAttackChance number Bônus fixo de chance de ataque múltiplo (percentual)
----@field strength number Bônus fixo de força (aditivo)
----@field expBonus number Bônus fixo de experiência (percentual)
----@field healingBonus number Bônus fixo de cura recebida (percentual)
----@field pickupRadius number Bônus fixo de raio de coleta (aditivo, pixels)
----@field healthRegenDelay number Bônus fixo de atraso de regeneração (aditivo, segundos)
----@field range number Bônus fixo de alcance (percentual)
----@field luck number Bônus fixo de sorte (percentual)
----@field attackArea number Bônus fixo de área de ataque (percentual)
----@field healthPerTick number Bônus fixo de vida por tick (aditivo HP)
----@field cooldownReduction number Bônus fixo de redução de cooldown (percentual)
----@field healthRegenCooldown number Bônus fixo de cooldown de regeneração (aditivo, segundos)
----@field dashCharges number Cargas de dash adicionais (aditivo)
----@field dashCooldown number Redução de cooldown de dash (aditivo, segundos)
----@field dashDistance number Bônus de distância de dash (aditivo, pixels)
----@field dashDuration number Bônus de duração de dash (aditivo, segundos)
----@field potionFlasks number Frascos de poção adicionais (aditivo)
----@field potionHealAmount number Bônus de cura por poção (aditivo)
----@field potionFillRate number Bônus de velocidade de preenchimento (percentual)
+---@class MultiplierBonus Bônus multiplicadores (%) aplicados ao stat base
+---@field health number Bônus multiplicador de vida (%)
+---@field damage number Bônus multiplicador de dano (%)
+---@field defense number Bônus multiplicador de defesa (%)
+---@field moveSpeed number Bônus multiplicador de velocidade de movimento (%)
+---@field attackSpeed number Bônus multiplicador de velocidade de ataque (%)
+---@field critChance number Bônus multiplicador de chance crítica (%)
+---@field critDamage number Bônus multiplicador de dano crítico (%)
+---@field healthRegen number Bônus multiplicador de regeneração de vida (%)
+---@field multiAttackChance number Bônus multiplicador de chance de ataque múltiplo (%)
+---@field strength number Bônus multiplicador de força (%)
+---@field expBonus number Bônus multiplicador de experiência (%)
+---@field healingBonus number Bônus multiplicador de cura recebida (%)
+---@field pickupRadius number Bônus multiplicador de raio de coleta (%)
+---@field healthRegenDelay number Bônus multiplicador de atraso de regeneração (%)
+---@field range number Bônus multiplicador de alcance (%)
+---@field luck number Bônus multiplicador de sorte (%)
+---@field attackArea number Bônus multiplicador de área de ataque (%)
+---@field healthPerTick number Bônus multiplicador de vida por tick (%)
+---@field cooldownReduction number Bônus multiplicador de redução de cooldown (%)
+---@field healthRegenCooldown number Bônus multiplicador de cooldown de regeneração (%)
+---@field dashCharges number Bônus multiplicador de cargas de dash (%)
+---@field dashCooldown number Bônus multiplicador de cooldown de dash (%)
+---@field dashDistance number Bônus multiplicador de distância de dash (%)
+---@field dashDuration number Bônus multiplicador de duração de dash (%)
+---@field potionFlasks number Bônus multiplicador de frascos de poção (%)
+---@field potionHealAmount number Bônus multiplicador de cura por poção (%)
+---@field potionFillRate number Bônus multiplicador de velocidade de preenchimento (%)
 
 ---@class LearnedLevelUpBonuses Bônus de level up aprendidos pelo jogador
 ---@field [string] number Mapeamento de ID do bônus para nível aprendido
@@ -82,7 +84,7 @@ local Constants = require("src.config.constants")
 
 ---@class FinalStats Estatísticas finais calculadas do jogador
 ---@field health number Vida máxima final
----@field damage number Dano base final
+---@field damage number Dano final
 ---@field defense number Defesa final
 ---@field moveSpeed number Velocidade de movimento final
 ---@field attackSpeed number Velocidade de ataque final
@@ -109,11 +111,8 @@ local Constants = require("src.config.constants")
 ---@field potionFlasks number Frascos de poção finais
 ---@field potionHealAmount number Cura por poção final
 ---@field potionFillRate number Velocidade de preenchimento final
----@field weaponDamage number Dano total da arma (base + multiplicadores)
----@field _baseWeaponDamage number Dano base da arma (apenas para referência)
----@field _playerDamageMultiplier number Multiplicador de dano do jogador
----@field _levelBonus LevelBonus Bônus de nível (para referência)
----@field _fixedBonus FixedBonus Bônus fixos (para referência)
+---@field _baseBonuses BaseBonus Bônus base (para referência)
+---@field _multiplierBonuses MultiplierBonus Bônus multiplicadores (para referência)
 ---@field _learnedLevelUpBonuses LearnedLevelUpBonuses Bônus aprendidos (para referência)
 ---@field equippedItems EquippedItems Itens equipados (para referência)
 ---@field archetypeIds ArchetypeInfo[] Arquétipos ativos (para referência)
@@ -130,7 +129,7 @@ local Constants = require("src.config.constants")
 ---@field kills number Número de inimigos eliminados
 ---@field gold number Quantidade de ouro possuída
 ---@field health number Vida base máxima
----@field damage number Dano base do jogador (não da arma)
+---@field damage number Dano base do jogador
 ---@field defense number Defesa base
 ---@field moveSpeed number Velocidade de movimento base
 ---@field attackSpeed number Multiplicador base de velocidade de ataque
@@ -157,8 +156,8 @@ local Constants = require("src.config.constants")
 ---@field potionFlasks number Quantidade base de frascos de poção
 ---@field potionHealAmount number Vida base recuperada por frasco
 ---@field potionFillRate number Multiplicador base de velocidade de preenchimento
----@field levelBonus LevelBonus Bônus percentuais ganhos por level up
----@field fixedBonus FixedBonus Bônus fixos de arquétipos e outras fontes
+---@field baseBonuses BaseBonus Bônus base (flat) de todas as fontes
+---@field multiplierBonuses MultiplierBonus Bônus multiplicadores (%) de todas as fontes
 ---@field statusModifiers StatusModifier[] Modificadores de status temporários
 ---@field learnedLevelUpBonuses LearnedLevelUpBonuses Bônus de level up aprendidos
 ---@field equippedItems EquippedItems Itens atualmente equipados
@@ -185,6 +184,10 @@ function PlayerStateController:new(playerManager, initialStats)
     -- Inicializa estado base
     instance:initializeBaseStats(initialStats)
 
+    -- Inicializa sistema de bônus
+    instance.baseBonuses = {}
+    instance.multiplierBonuses = {}
+
     -- Inicializa sistema de cache de stats
     instance.finalStatsCache = nil
     instance.statsNeedRecalculation = true
@@ -206,46 +209,42 @@ function PlayerStateController:initializeBaseStats(initialStats)
     self.isAlive = true
 
     -- Atributos base (com fallbacks dos padrões)
-    self.health = initialStats and initialStats.health or defaultStats.health or 100
-    self.defense = initialStats and initialStats.defense or defaultStats.defense or 10
-    self.moveSpeed = initialStats and initialStats.moveSpeed or defaultStats.moveSpeed or
-    Constants.HUNTER_DEFAULT_STATS.moveSpeed
-    self.attackSpeed = initialStats and initialStats.attackSpeed or defaultStats.attackSpeed or 1.0
-    self.critChance = initialStats and initialStats.critChance or defaultStats.critChance or 0.1
-    self.critDamage = initialStats and initialStats.critDamage or defaultStats.critDamage or 1.5
-    self.healthRegen = initialStats and initialStats.healthRegen or defaultStats.healthRegen or 0.5
-    self.multiAttackChance = initialStats and initialStats.multiAttackChance or defaultStats.multiAttackChance or 0
-    self.runeSlots = initialStats and initialStats.runeSlots or defaultStats.runeSlots or 1
-    self.strength = initialStats and initialStats.strength or defaultStats.strength or 1
+    self.health = initialStats and initialStats.health or defaultStats.health
+    self.damage = 0 -- Caçador começa com 0 de dano base
+    self.defense = initialStats and initialStats.defense or defaultStats.defense
+    self.moveSpeed = initialStats and initialStats.moveSpeed or defaultStats.moveSpeed
+    self.attackSpeed = initialStats and initialStats.attackSpeed or defaultStats.attackSpeed
+    self.critChance = initialStats and initialStats.critChance or defaultStats.critChance
+    self.critDamage = initialStats and initialStats.critDamage or defaultStats.critDamage
+    self.healthRegen = initialStats and initialStats.healthRegen or defaultStats.healthRegen
+    self.multiAttackChance = initialStats and initialStats.multiAttackChance or defaultStats.multiAttackChance
+    self.runeSlots = initialStats and initialStats.runeSlots or defaultStats.runeSlots
+    self.strength = initialStats and initialStats.strength or defaultStats.strength
 
     -- Atributos adicionais
-    self.expBonus = initialStats and initialStats.expBonus or defaultStats.expBonus or 1.0
-    self.healingBonus = initialStats and initialStats.healingBonus or defaultStats.healingBonus or 1.0
-    self.pickupRadius = initialStats and initialStats.pickupRadius or defaultStats.pickupRadius or
-    Constants.HUNTER_DEFAULT_STATS.pickupRadius
-    self.healthRegenDelay = initialStats and initialStats.healthRegenDelay or defaultStats.healthRegenDelay or 8.0
-    self.range = initialStats and initialStats.range or defaultStats.range or 0
-    self.luck = initialStats and initialStats.luck or defaultStats.luck or 1.0
-    self.attackArea = initialStats and initialStats.attackArea or defaultStats.attackArea or 0
-    self.healthPerTick = initialStats and initialStats.healthPerTick or defaultStats.healthPerTick or 1.0
-    self.cooldownReduction = initialStats and initialStats.cooldownReduction or defaultStats.cooldownReduction or 1.0
-    self.healthRegenCooldown = initialStats and initialStats.healthRegenCooldown or defaultStats.healthRegenCooldown or
-        1.0
+    self.expBonus = initialStats and initialStats.expBonus or defaultStats.expBonus
+    self.healingBonus = initialStats and initialStats.healingBonus or defaultStats.healingBonus
+    self.pickupRadius = initialStats and initialStats.pickupRadius or defaultStats.pickupRadius
+    self.healthRegenDelay = initialStats and initialStats.healthRegenDelay or defaultStats.healthRegenDelay
+    self.range = initialStats and initialStats.range or defaultStats.range
+    self.luck = initialStats and initialStats.luck or defaultStats.luck
+    self.attackArea = initialStats and initialStats.attackArea or defaultStats.attackArea
+    self.healthPerTick = initialStats and initialStats.healthPerTick or defaultStats.healthPerTick
+    self.cooldownReduction = initialStats and initialStats.cooldownReduction or defaultStats.cooldownReduction
+    self.healthRegenCooldown = initialStats and initialStats.healthRegenCooldown or defaultStats.healthRegenCooldown
 
     -- Atributos de dash
-    self.dashCharges = initialStats and initialStats.dashCharges or defaultStats.dashCharges or 0
-    self.dashCooldown = initialStats and initialStats.dashCooldown or defaultStats.dashCooldown or 0
-    self.dashDistance = initialStats and initialStats.dashDistance or defaultStats.dashDistance or 0
-    self.dashDuration = initialStats and initialStats.dashDuration or defaultStats.dashDuration or 0
+    self.dashCharges = initialStats and initialStats.dashCharges or defaultStats.dashCharges
+    self.dashCooldown = initialStats and initialStats.dashCooldown or defaultStats.dashCooldown
+    self.dashDistance = initialStats and initialStats.dashDistance or defaultStats.dashDistance
+    self.dashDuration = initialStats and initialStats.dashDuration or defaultStats.dashDuration
 
     -- Atributos de poções
-    self.potionFlasks = initialStats and initialStats.potionFlasks or defaultStats.potionFlasks or 1
-    self.potionHealAmount = initialStats and initialStats.potionHealAmount or defaultStats.potionHealAmount or 50
-    self.potionFillRate = initialStats and initialStats.potionFillRate or defaultStats.potionFillRate or 1.0
+    self.potionFlasks = initialStats and initialStats.potionFlasks or defaultStats.potionFlasks
+    self.potionHealAmount = initialStats and initialStats.potionHealAmount or defaultStats.potionHealAmount
+    self.potionFillRate = initialStats and initialStats.potionFillRate or defaultStats.potionFillRate
 
-    -- Inicializa estruturas de bônus
-    self.levelBonus = {}
-    self.fixedBonus = {}
+    -- Inicializa estruturas de dados
     self.statusModifiers = {}
     self.learnedLevelUpBonuses = {}
     self.equippedItems = initialStats and initialStats.equippedItems or {}
@@ -328,32 +327,67 @@ function PlayerStateController:addExperience(amount, finalExpBonus)
     return levelsGained
 end
 
---- Adiciona bônus a um atributo específico
----@param attribute StatKey Nome do atributo para adicionar o bônus
----@param percentage number Porcentagem de bônus para level bonus
----@param fixed number Valor fixo para fixed bonus
+--- Adiciona bônus base (flat) a um atributo
+---@param attribute StatKey Nome do atributo
+---@param amount number Valor do bônus base
+function PlayerStateController:addBaseBonus(attribute, amount)
+    if not self.baseBonuses[attribute] then
+        self.baseBonuses[attribute] = 0
+    end
+
+    self.baseBonuses[attribute] = self.baseBonuses[attribute] + amount
+
+    if attribute == "health" then
+        self:heal(amount)
+    end
+
+    self:invalidateStatsCache()
+
+    Logger.debug(
+        "player_state_controller.bonus.base",
+        string.format("[PlayerStateController:addBaseBonus] +%.2f %s (base)", amount, attribute)
+    )
+end
+
+--- Adiciona bônus multiplicador (%) a um atributo
+---@param attribute StatKey Nome do atributo
+---@param percentage number Valor do bônus em porcentagem (ex: 25 para +25%)
+function PlayerStateController:addMultiplierBonus(attribute, percentage)
+    if not self.multiplierBonuses[attribute] then
+        self.multiplierBonuses[attribute] = 0
+    end
+    self.multiplierBonuses[attribute] = self.multiplierBonuses[attribute] + percentage
+
+    self:invalidateStatsCache()
+
+    if attribute == "health" then
+        -- calcula o valor a ser curado com base na porcentagem
+        local effectiveAmount = self.health * (percentage / 100)
+        self:heal(effectiveAmount)
+    end
+
+    Logger.debug(
+        "player_state_controller.bonus.multiplier",
+        string.format("[PlayerStateController:addMultiplierBonus] +%.2f%% %s (multiplier)", percentage, attribute)
+    )
+end
+
+--- Método compatível com o sistema anterior (deprecated)
+---@param attribute StatKey Nome do atributo
+---@param percentage number Porcentagem de bônus (se > 0)
+---@param fixed number Valor fixo (se > 0)
 function PlayerStateController:addAttributeBonus(attribute, percentage, fixed)
-    percentage = percentage or 0
-    fixed = fixed or 0
+    Logger.warn(
+        "player_state_controller.deprecated",
+        "[PlayerStateController:addAttributeBonus] Método depreciado. Use addBaseBonus() ou addMultiplierBonus()"
+    )
 
-    local bonusApplied = false
-
-    -- Verifica se é bônus de Nível (geralmente percentual)
-    if percentage ~= 0 then
-        if not self.levelBonus[attribute] then self.levelBonus[attribute] = 0 end
-        self.levelBonus[attribute] = self.levelBonus[attribute] + percentage
-        bonusApplied = true
+    if fixed and fixed ~= 0 then
+        self:addBaseBonus(attribute, fixed)
     end
 
-    -- Verifica se é bônus Fixo
-    if fixed ~= 0 then
-        if not self.fixedBonus[attribute] then self.fixedBonus[attribute] = 0 end
-        self.fixedBonus[attribute] = self.fixedBonus[attribute] + fixed
-        bonusApplied = true
-    end
-
-    if bonusApplied then
-        self:invalidateStatsCache()
+    if percentage and percentage ~= 0 then
+        self:addMultiplierBonus(attribute, percentage)
     end
 end
 
@@ -366,7 +400,8 @@ function PlayerStateController:invalidateStatsCache()
     self.statsNeedRecalculation = true
 end
 
---- Retorna os stats finais calculados do jogador, utilizando cache quando possível
+--- Retorna os stats finais calculados usando a fórmula do Halls of Torment
+--- Formula: Final Stat = (Base Stat + Base Bonus) × (100% + Multiplier Bonus)
 ---@return FinalStats
 function PlayerStateController:getCurrentFinalStats()
     -- Retorna o cache se ele for válido
@@ -379,32 +414,20 @@ function PlayerStateController:getCurrentFinalStats()
         "[PlayerStateController:getCurrentFinalStats] Recalculando estatísticas finais..."
     )
 
-    -- 1. Pega os stats BASE
-    local baseStats = {}
-    local defaultStats = Constants.HUNTER_DEFAULT_STATS
-    for key, value in pairs(defaultStats) do
-        baseStats[key] = self[key] or value -- Usa valor atual ou padrão
+    -- 1. Coleta todos os bônus de todas as fontes
+    local allBaseBonuses = {}
+    local allMultiplierBonuses = {}
+
+    -- Copia os bônus aplicados diretamente
+    for stat, value in pairs(self.baseBonuses) do
+        allBaseBonuses[stat] = (allBaseBonuses[stat]) + value
     end
 
-    -- 2. Agrega BÔNUS (Level Up + Arquétipos + Armas)
-    local totalFixedBonuses = {}
-    local totalFixedFractionBonuses = {}
-    local totalPercentageBonuses = {}
-
-    -- 2a. Bônus de Level Up
-    for statKey, value in pairs(self.fixedBonus or {}) do
-        if self:isPercentageStat(statKey) then
-            totalFixedFractionBonuses[statKey] = (totalFixedFractionBonuses[statKey] or 0) + value
-        else
-            totalFixedBonuses[statKey] = (totalFixedBonuses[statKey] or 0) + value
-        end
+    for stat, value in pairs(self.multiplierBonuses) do
+        allMultiplierBonuses[stat] = (allMultiplierBonuses[stat]) + value
     end
 
-    for statKey, value in pairs(self.levelBonus or {}) do
-        totalPercentageBonuses[statKey] = (totalPercentageBonuses[statKey] or 0) + value
-    end
-
-    -- 2b. Bônus de Arquétipos
+    -- 2. Bônus de Arquétipos
     local hunterArchetypeIds = self.archetypeIds or {}
     if self.playerManager.hunterManager and self.playerManager.hunterManager.archetypeManager then
         for _, archIdInfo in ipairs(hunterArchetypeIds) do
@@ -414,19 +437,20 @@ function PlayerStateController:getCurrentFinalStats()
                 for _, mod in ipairs(archetypeData.modifiers) do
                     local statName = mod.stat
                     local modValue = mod.value or 0
-                    if mod.type == "fixed" then
-                        totalFixedBonuses[statName] = (totalFixedBonuses[statName] or 0) + modValue
-                    elseif mod.type == "fixed_percentage_as_fraction" then
-                        totalFixedFractionBonuses[statName] = (totalFixedFractionBonuses[statName] or 0) + modValue
+
+                    if mod.type == "base" then
+                        allBaseBonuses[statName] = (allBaseBonuses[statName] or 0) + modValue
                     elseif mod.type == "percentage" then
-                        totalPercentageBonuses[statName] = (totalPercentageBonuses[statName] or 0) + modValue
+                        allMultiplierBonuses[statName] = (allMultiplierBonuses[statName] or 0) + modValue
+                    else
+                        error(string.format("Invalid modifier type: %s", mod.type))
                     end
                 end
             end
         end
     end
 
-    -- 2c. Bônus da Arma Equipada
+    -- 3. Bônus da Arma Equipada
     local weaponInstance = self.equippedItems and self.equippedItems[Constants.SLOT_IDS.WEAPON]
     if weaponInstance and weaponInstance.itemBaseId and self.playerManager.itemDataManager then
         local weaponData = self.playerManager.itemDataManager:getBaseItemData(weaponInstance.itemBaseId)
@@ -434,110 +458,64 @@ function PlayerStateController:getCurrentFinalStats()
             for _, mod in ipairs(weaponData.modifiers) do
                 local statName = mod.stat
                 local modValue = mod.value or 0
-                if mod.type == "fixed" then
-                    totalFixedBonuses[statName] = (totalFixedBonuses[statName] or 0) + modValue
-                elseif mod.type == "fixed_percentage_as_fraction" then
-                    totalFixedFractionBonuses[statName] = (totalFixedFractionBonuses[statName] or 0) + modValue
+
+                if mod.type == "base" then
+                    allBaseBonuses[statName] = (allBaseBonuses[statName] or 0) + modValue
                 elseif mod.type == "percentage" then
-                    totalPercentageBonuses[statName] = (totalPercentageBonuses[statName] or 0) + modValue
+                    allMultiplierBonuses[statName] = (allMultiplierBonuses[statName] or 0) + modValue
+                else
+                    error(string.format("Invalid modifier type: %s", mod.type))
                 end
             end
         end
     end
 
-    -- 3. Calcula os Stats FINAIS aplicando bônus na ordem correta
+    -- 4. Aplica a fórmula do Halls of Torment: Final Stat = (Base Stat + Base Bonus) × (100% + Multiplier Bonus)
     ---@type FinalStats
     local calculatedStats = {}
-    for statKey, baseValue in pairs(baseStats) do
-        if statKey ~= "weaponDamage" then
-            local currentValue = baseValue
 
-            -- Aplica Fixed
-            currentValue = currentValue + (totalFixedBonuses[statKey] or 0)
+    -- Lista de todos os stats possíveis
+    local allStats = {
+        "health", "damage", "defense", "moveSpeed", "attackSpeed", "critChance", "critDamage",
+        "healthRegen", "multiAttackChance", "runeSlots", "strength", "expBonus",
+        "healingBonus", "pickupRadius", "healthRegenDelay", "range", "luck",
+        "attackArea", "healthPerTick", "cooldownReduction", "healthRegenCooldown",
+        "dashCharges", "dashCooldown", "dashDistance", "dashDuration",
+        "potionFlasks", "potionHealAmount", "potionFillRate"
+    }
 
-            -- Aplica Fixed Fraction (Aditivo)
-            currentValue = currentValue + (totalFixedFractionBonuses[statKey] or 0)
+    for _, statName in ipairs(allStats) do
+        local baseStat = self[statName] or 0
+        local baseBonus = allBaseBonuses[statName] or 0
+        local multiplierBonus = allMultiplierBonuses[statName] or 0
 
-            -- Aplica Percentage
-            currentValue = currentValue * (1 + (totalPercentageBonuses[statKey] or 0) / 100)
-            calculatedStats[statKey] = currentValue
-        end
+        -- Fórmula: Final Stat = (Base Stat + Base Bonus) × (100% + Multiplier Bonus)
+        local finalStat = (baseStat + baseBonus) * (1 + multiplierBonus / 100)
+        calculatedStats[statName] = finalStat
     end
 
-    -- 4. Calcula weaponDamage separadamente
-    local baseWeaponDamage = self:calculateWeaponDamage()
-    calculatedStats._baseWeaponDamage = baseWeaponDamage
-
-    -- Calcula o multiplicador de dano final
-    local damageMultiplierBase = 1.0
-    local damageMultiplierFixed = totalFixedBonuses["damageMultiplier"] or 0
-    local damageMultiplierFixedFraction = totalFixedFractionBonuses["damageMultiplier"] or 0
-    local damageMultiplierPercentage = totalPercentageBonuses["damageMultiplier"] or 0
-    local finalDamageMultiplier = (damageMultiplierBase + damageMultiplierFixed + damageMultiplierFixedFraction) *
-        (1 + damageMultiplierPercentage / 100)
-    calculatedStats._playerDamageMultiplier = finalDamageMultiplier
-    calculatedStats.weaponDamage = math.floor(baseWeaponDamage * finalDamageMultiplier)
-
     -- 5. Adiciona informações adicionais
-    calculatedStats._levelBonus = self.levelBonus
-    calculatedStats._fixedBonus = self.fixedBonus
+    calculatedStats._baseBonuses = allBaseBonuses
+    calculatedStats._multiplierBonuses = allMultiplierBonuses
     calculatedStats._learnedLevelUpBonuses = self.learnedLevelUpBonuses or {}
     calculatedStats.equippedItems = self.equippedItems or {}
     calculatedStats.archetypeIds = self.archetypeIds or {}
 
     -- 6. Aplica clamps finais
-    calculatedStats.runeSlots = math.max(0, math.floor(calculatedStats.runeSlots or 0))
-    calculatedStats.luck = math.max(0, calculatedStats.luck or 0)
+    calculatedStats.runeSlots = math.max(0, math.floor(calculatedStats.runeSlots))
+    calculatedStats.dashCharges = math.max(0, math.floor(calculatedStats.dashCharges))
+    calculatedStats.potionFlasks = math.max(0, math.floor(calculatedStats.potionFlasks))
 
     -- Armazena no cache e marca como atualizado
     self.finalStatsCache = calculatedStats
     self.statsNeedRecalculation = false
 
+    Logger.debug(
+        "player_state_controller.calculate.complete",
+        "[PlayerStateController:getCurrentFinalStats] Atualização de stats concluída"
+    )
+
     return self.finalStatsCache
-end
-
---- Calcula o dano base da arma equipada
----@return number
-function PlayerStateController:calculateWeaponDamage()
-    local baseWeaponDamage = 0
-    local weaponBaseId = nil
-
-    if self.playerManager.currentHunterId and self.playerManager.hunterManager and self.equippedItems then
-        local equippedHunterItems = self.playerManager.hunterManager:getEquippedItems(self.playerManager.currentHunterId)
-        if equippedHunterItems then
-            local weaponInstance = equippedHunterItems[Constants.SLOT_IDS.WEAPON]
-            if weaponInstance and weaponInstance.itemBaseId then
-                weaponBaseId = weaponInstance.itemBaseId
-            end
-        end
-    end
-
-    if weaponBaseId and self.playerManager.itemDataManager then
-        local weaponData = self.playerManager.itemDataManager:getBaseItemData(weaponBaseId)
-        if weaponData then
-            baseWeaponDamage = weaponData.damage or 0
-        end
-    end
-
-    return baseWeaponDamage
-end
-
---- Verifica se um stat é do tipo percentual/fração
----@param statKey string A chave do stat
----@return boolean
-function PlayerStateController:isPercentageStat(statKey)
-    local percentageStats = {
-        "critChance", "critDamage", "attackSpeed", "multiAttackChance",
-        "range", "attackArea", "luck", "expBonus", "healingBonus", "cooldownReduction"
-    }
-
-    for _, pStat in ipairs(percentageStats) do
-        if statKey == pStat then
-            return true
-        end
-    end
-
-    return false
 end
 
 --- Retorna todos os bônus de level up aprendidos
@@ -556,6 +534,12 @@ end
 ---@return number
 function PlayerStateController:getCurrentExperience()
     return self.experience
+end
+
+--- Retorna o dano final calculado do jogador
+---@return number
+function PlayerStateController:getCurrentDamage()
+    return self:getCurrentFinalStats().damage
 end
 
 --- Força um recálculo imediato dos stats finais
@@ -590,6 +574,10 @@ function PlayerStateController:getDebugInfo()
         kills = self.kills,
         gold = self.gold,
 
+        -- Sistema de bônus
+        baseBonuses = self.baseBonuses,
+        multiplierBonuses = self.multiplierBonuses,
+
         -- Cache de stats
         cacheValid = self:isCacheValid(),
         needsRecalculation = self.statsNeedRecalculation,
@@ -619,6 +607,30 @@ function PlayerStateController:updateArchetypes(newArchetypeIds)
         "player_state_controller.archetypes.update",
         "[PlayerStateController:updateArchetypes] Arquétipos atualizados"
     )
+end
+
+--- Limpa todos os bônus aplicados
+function PlayerStateController:clearAllBonuses()
+    self.baseBonuses = {}
+    self.multiplierBonuses = {}
+    self:invalidateStatsCache()
+
+    Logger.debug(
+        "player_state_controller.bonus.clear",
+        "[PlayerStateController:clearAllBonuses] Todos os bônus foram limpos"
+    )
+end
+
+--- Retorna os bônus base atuais
+---@return BaseBonus
+function PlayerStateController:getBaseBonuses()
+    return self.baseBonuses or {}
+end
+
+--- Retorna os bônus multiplicadores atuais
+---@return MultiplierBonus
+function PlayerStateController:getMultiplierBonuses()
+    return self.multiplierBonuses or {}
 end
 
 return PlayerStateController

@@ -328,8 +328,8 @@ function CombatHelpers.findEnemiesInLineArea(lineArea, requestingEntity)
 end
 
 --- Aplica dano e knockback a uma lista de inimigos.
---- @param enemies table Lista de inimigos a serem atingidos.
---- @param finalStats table Stats finais do jogador (para dano, crítico, força).
+--- @param enemies BaseEnemy[] Lista de inimigos a serem atingidos.
+--- @param finalStats FinalStats Stats finais do jogador (para dano, crítico, força).
 --- @param knockbackData {power: number, force: number, attackerPosition: Vector2D } Dados do knockback.
 --- @param enemiesKnockedBackInThisCast table Tabela para rastrear IDs de inimigos que já sofreram knockback.
 --- @param playerManager PlayerManager Instância do PlayerManager.
@@ -349,7 +349,7 @@ function CombatHelpers.applyHitEffects(
         playerManager.gameStatisticsManager:registerEnemiesHit(#enemies)
     end
 
-    local totalDamage = finalStats.weaponDamage
+    local totalDamage = finalStats.damage + weaponInstance:getBaseData().damage
     if not totalDamage then return end
 
     for i = 1, #enemies do

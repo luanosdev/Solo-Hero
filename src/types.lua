@@ -25,6 +25,6 @@
 
 ---@class ArchetypeId
 
----@class StatKey
+---@alias StatKey "moveSpeed" | "potionFillRate" | "health" | "defense" | "attackSpeed" | "critChance" | "critDamage" | "healthRegen" | "multiAttackChance" | "runeSlots" | "strength" | "expBonus" | "healingBonus" | "pickupRadius" | "healthRegenDelay" | "range" | "luck" | "attackArea" | "healthPerTick" | "cooldownReduction" | "healthRegenCooldown" | "dashCharges" | "dashCooldown" | "dashDistance" | "dashDuration" | "potionFlasks" | "potionHealAmount" | "potionFillRate"
 
 ---@alias Color table<number, number>
