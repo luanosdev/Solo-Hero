@@ -363,6 +363,11 @@ function PlayerStateController:addMultiplierBonus(attribute, percentage)
     if attribute == "maxHealth" then
         -- calcula o valor a ser curado com base na porcentagem
         local effectiveAmount = self.maxHealth * (percentage / 100)
+        Logger.debug(
+            "player_state_controller.bonus.multiplier.maxHealth",
+            string.format("[PlayerStateController:addMultiplierBonus] +%.2f%% %s (multiplier) curando %.2f", percentage,
+                attribute, effectiveAmount)
+        )
         self:heal(effectiveAmount)
     end
 
@@ -373,6 +378,7 @@ function PlayerStateController:addMultiplierBonus(attribute, percentage)
 end
 
 --- Método compatível com o sistema anterior (deprecated)
+---@deprecated Use addBaseBonus() ou addMultiplierBonus()
 ---@param attribute StatKey Nome do atributo
 ---@param percentage number Porcentagem de bônus (se > 0)
 ---@param fixed number Valor fixo (se > 0)
@@ -420,11 +426,19 @@ function PlayerStateController:getCurrentFinalStats()
 
     -- Copia os bônus aplicados diretamente
     for stat, value in pairs(self.baseBonuses) do
-        allBaseBonuses[stat] = (allBaseBonuses[stat]) + value
+        Logger.debug(
+            "player_state_controller.bonus.base",
+            string.format("[PlayerStateController:getCurrentFinalStats] +%.2f %s (base)", value, stat)
+        )
+        allBaseBonuses[stat] = (allBaseBonuses[stat] or 0) + value
     end
 
     for stat, value in pairs(self.multiplierBonuses) do
-        allMultiplierBonuses[stat] = (allMultiplierBonuses[stat]) + value
+        Logger.debug(
+            "player_state_controller.bonus.multiplier",
+            string.format("[PlayerStateController:getCurrentFinalStats] +%.2f%% %s (multiplier)", value, stat)
+        )
+        allMultiplierBonuses[stat] = (allMultiplierBonuses[stat] or 0) + value
     end
 
     -- 2. Bônus de Arquétipos

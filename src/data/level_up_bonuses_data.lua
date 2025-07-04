@@ -17,6 +17,7 @@ local Colors = require("src.ui.colors")
 ---@field image_path string
 ---@field max_level number
 ---@field modifiers_per_level BonusPerLevel[]
+---@field is_ultimate? boolean
 ---@field color Color
 
 ---@class LevelUpBonusesData
@@ -58,7 +59,7 @@ LevelUpBonusesData.KeywordColors = {
     ["Distância do Dash"] = Colors.attribute_colors.dash_distance,
     ["Frasco de Poção"] = Colors.attribute_colors.potion_flasks,
     ["Cura da Poção"] = Colors.attribute_colors.potion_heal_amount,
-    ["Velocidade de Preenchimento dos Frascos"] = Colors.attribute_colors.potion_fill_rate,
+    ["Velocidade de Preenchimento"] = Colors.attribute_colors.potion_fill_rate,
 
     -- Valores numéricos
     ["positivo"] = Colors.attribute_colors.positive,
@@ -264,7 +265,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = "assets/images/skills/move_speed.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "moveSpeed", type = "fixed", value = 3 }
+            { stat = "moveSpeed", type = "base", value = 0.2 }
         },
         color = Colors.attribute_colors.move_speed
     },
@@ -519,11 +520,11 @@ LevelUpBonusesData.Bonuses = {
     potion_speed_1 = {
         id = "potion_speed_1",
         name = "Destilação Rápida",
-        description = "Aumenta a |Velocidade de Preenchimento dos Frascos| em |25%|.",
-        image_path = tempIconPath,
+        description = "Aumenta a |Velocidade de Preenchimento| dos |Frasco de Poção| em |25%|.",
+        image_path = "assets/images/skills/potion_speed.png",
         max_level = 8,
         modifiers_per_level = {
-            { stat = "potionFillRate", type = "fixed_percentage_as_fraction", value = 0.25 }
+            { stat = "potionFillRate", type = "percentage", value = 25 }
         },
         color = Colors.attribute_colors.potion_fill_rate
     },
@@ -543,7 +544,7 @@ LevelUpBonusesData.Bonuses = {
         is_ultimate = true,
         base_bonuses = { "vitality_base" },
         modifiers_per_level = {
-            { stat = "health",        type = "base", value = 100 },
+            { stat = "maxHealth",     type = "base", value = 100 },
             { stat = "healthPerTick", type = "base", value = 2 }
         },
         color = Colors.rankDetails.S.text
@@ -558,7 +559,7 @@ LevelUpBonusesData.Bonuses = {
         is_ultimate = true,
         base_bonuses = { "vitality_percent" },
         modifiers_per_level = {
-            { stat = "health",       type = "percentage", value = 50 },
+            { stat = "maxHealth",    type = "percentage", value = 50 },
             { stat = "healingBonus", type = "percentage", value = 30 }
         },
         color = Colors.rankDetails.S.text
@@ -573,11 +574,11 @@ LevelUpBonusesData.Bonuses = {
         is_ultimate = true,
         base_bonuses = { "risky_vitality" },
         modifiers_per_level = {
-            { stat = "health",           type = "base",       value = 150 },
-            { stat = "defense",          type = "percentage", value = 50 },
-            { stat = "damageMultiplier", type = "percentage", value = 30 }
+            { stat = "maxHealth", type = "base",       value = 150 },
+            { stat = "defense",   type = "percentage", value = 50 },
+            { stat = "damage",    type = "percentage", value = 30 }
         },
-        color = Colors.rankDetails.S
+        color = Colors.rankDetails.S.text
     },
 
     -- Ultimates de Força
@@ -665,7 +666,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = "assets/images/skills/ultimate_speed_attack_percent.png",
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "speed_attack_percent" },
+        base_bonuses = { "attack_speed_percent" },
         modifiers_per_level = {
             { stat = "attackSpeed", type = "percentage", value = 20 },
             { stat = "moveSpeed",   type = "percentage", value = 30 }
@@ -680,7 +681,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = "assets/images/skills/ultimate_speed_attack_base.png",
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "speed_attack_base" },
+        base_bonuses = { "attack_speed_base" },
         modifiers_per_level = {
             { stat = "attackSpeed", type = "base",       value = 2.0 },
             { stat = "moveSpeed",   type = "percentage", value = 30 }
@@ -699,7 +700,7 @@ LevelUpBonusesData.Bonuses = {
         modifiers_per_level = {
             { stat = "critDamage", type = "percentage", value = 50 },
             { stat = "damage",     type = "base",       value = 100 },
-            { stat = "health",     type = "base",       value = 200 }
+            { stat = "maxHealth",  type = "base",       value = 200 }
         },
         color = Colors.rankDetails.S.text
     },
@@ -758,7 +759,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = "assets/images/skills/ultimate_gamblers_strike.png",
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "gamblers_strike_1" },
+        base_bonuses = { "gamblers_strike" },
         modifiers_per_level = {
             { stat = "critChance", type = "base",       value = 1.0 },
             { stat = "critDamage", type = "base",       value = 1.0 },
@@ -806,7 +807,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = "assets/images/skills/ultimate_unburdened.png",
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "unburdened_1" },
+        base_bonuses = { "unburdened" },
         modifiers_per_level = {
             { stat = "moveSpeed",   type = "percentage", value = 30 },
             { stat = "defense",     type = "base",       value = 30 },
@@ -825,8 +826,8 @@ LevelUpBonusesData.Bonuses = {
         is_ultimate = true,
         base_bonuses = { "defense_base" },
         modifiers_per_level = {
-            { stat = "defense", type = "base",       value = 50 },
-            { stat = "health",  type = "percentage", value = 30 }
+            { stat = "defense",   type = "base",       value = 50 },
+            { stat = "maxHealth", type = "percentage", value = 30 }
         },
         color = Colors.rankDetails.S.text
     },
@@ -856,8 +857,8 @@ LevelUpBonusesData.Bonuses = {
         is_ultimate = true,
         base_bonuses = { "attack_area_percent" },
         modifiers_per_level = {
-            { stat = "attackArea",       type = "percentage", value = 50 },
-            { stat = "damageMultiplier", type = "percentage", value = 25 }
+            { stat = "attackArea", type = "percentage", value = 50 },
+            { stat = "damage",     type = "percentage", value = 25 }
         },
         color = Colors.rankDetails.S.text
     },
@@ -871,9 +872,9 @@ LevelUpBonusesData.Bonuses = {
         is_ultimate = true,
         base_bonuses = { "attack_area_combo" },
         modifiers_per_level = {
-            { stat = "attackArea",       type = "percentage", value = 40 },
-            { stat = "damageMultiplier", type = "percentage", value = 30 },
-            { stat = "critChance",       type = "percentage", value = 20 }
+            { stat = "attackArea", type = "percentage", value = 40 },
+            { stat = "damage",     type = "percentage", value = 30 },
+            { stat = "critChance", type = "percentage", value = 20 }
         },
         color = Colors.rankDetails.S.text
     },
@@ -886,8 +887,8 @@ LevelUpBonusesData.Bonuses = {
         is_ultimate = true,
         base_bonuses = { "range_percent" },
         modifiers_per_level = {
-            { stat = "range",            type = "percentage", value = 50 },
-            { stat = "damageMultiplier", type = "percentage", value = 25 }
+            { stat = "range",  type = "percentage", value = 50 },
+            { stat = "damage", type = "percentage", value = 25 }
         },
         color = Colors.rankDetails.S.text
     },
@@ -901,9 +902,9 @@ LevelUpBonusesData.Bonuses = {
         is_ultimate = true,
         base_bonuses = { "range_combo" },
         modifiers_per_level = {
-            { stat = "range",            type = "percentage", value = 40 },
-            { stat = "damageMultiplier", type = "percentage", value = 30 },
-            { stat = "critChance",       type = "percentage", value = 25 }
+            { stat = "range",      type = "percentage", value = 40 },
+            { stat = "damage",     type = "percentage", value = 30 },
+            { stat = "critChance", type = "percentage", value = 25 }
         },
         color = Colors.rankDetails.S.text
     },
@@ -949,7 +950,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = "assets/images/skills/ultimate_cooldown_reduction_percent.png",
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "cooldown_reduction_percent" },
+        base_bonuses = { "cooldown_reduction" },
         modifiers_per_level = {
             { stat = "cooldownReduction", type = "base", value = 1.0 },
         },
@@ -962,7 +963,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = "assets/images/skills/ultimate_lucky_percent.png",
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "lucky_percent" },
+        base_bonuses = { "luck_percent" },
         modifiers_per_level = {
             { stat = "luck",         type = "percentage", value = 50 },
             { stat = "pickupRadius", type = "percentage", value = 50 }
@@ -972,13 +973,14 @@ LevelUpBonusesData.Bonuses = {
     ultimate_exp_bonus_percent = {
         id = "ultimate_exp_bonus_percent",
         name = "Fruto Proibido",
-        description = "Distinção do que é o certo e do que é errado. Aumenta o |Bônus de Experiência| base em |1.0| e o |Raio de Coleta| em |5|m.",
+        description =
+        "Distinção do que é o certo e do que é errado. Aumenta o |Bônus de Experiência| base em |1.0| e o |Raio de Coleta| em |5|m.",
         image_path = "assets/images/skills/ultimate_exp_bonus_percent.png",
         max_level = 1,
         is_ultimate = true,
         base_bonuses = { "exp_bonus_percent" },
         modifiers_per_level = {
-            { stat = "expBonus", type = "base", value = 1.0 },
+            { stat = "expBonus",     type = "base", value = 1.0 },
             { stat = "pickupRadius", type = "base", value = 5 }
         },
         color = Colors.rankDetails.S.text
@@ -1006,7 +1008,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "dash_cooldown_reduction_1" },
+        base_bonuses = { "dash_cooldown_reduction" },
         modifiers_per_level = {
             { stat = "dashCooldown", type = "percentage", value = -40 },
             { stat = "moveSpeed",    type = "percentage", value = 20 }
@@ -1021,7 +1023,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "dash_distance_increase_1" },
+        base_bonuses = { "dash_distance_increase" },
         modifiers_per_level = {
             { stat = "dashDistance", type = "percentage", value = 75 },
             { stat = "dashCharges",  type = "base",       value = 1 }
@@ -1035,7 +1037,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "dash_extra_charge_1" },
+        base_bonuses = { "dash_extra_charge" },
         modifiers_per_level = {
             { stat = "dashCharges",  type = "base",       value = 3 },
             { stat = "dashCooldown", type = "percentage", value = -20 }
@@ -1051,7 +1053,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "potion_capacity_1" },
+        base_bonuses = { "potion_flasks_base" },
         modifiers_per_level = {
             { stat = "potionFlasks",     type = "base",       value = 3 },
             { stat = "potionHealAmount", type = "percentage", value = 30 }
@@ -1065,7 +1067,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "potion_potency_1_fixed" },
+        base_bonuses = { "potion_heal_amount_base" },
         modifiers_per_level = {
             { stat = "potionHealAmount", type = "base",       value = 75 },
             { stat = "healingBonus",     type = "percentage", value = 25 }
@@ -1076,33 +1078,18 @@ LevelUpBonusesData.Bonuses = {
         id = "ultimate_potion_speed_1",
         name = "Destilação Instantânea",
         description =
-        "A velocidade alquímica suprema. |+125%| |Velocidade de Preenchimento| e |+20%| |Cura da Poção|. Alquimia instantânea.",
+        "A velocidade alquímica suprema. |125%| |Velocidade de Preenchimento| e |20%| |Cura da Poção|. Alquimia instantânea.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
         base_bonuses = { "potion_speed_1" },
         modifiers_per_level = {
-            { stat = "potionFillRate",   type = "fixed_percentage_as_fraction", value = 1.25 },
-            { stat = "potionHealAmount", type = "percentage",                   value = 20 }
+            { stat = "potionFillRate",   type = "percentage", value = 125 },
+            { stat = "potionHealAmount", type = "percentage", value = 20 }
         },
         color = Colors.rankDetails.S.text
     },
-    ultimate_potion_healing_synergy_1 = {
-        id = "ultimate_potion_healing_synergy_1",
-        name = "Sinergia Divina",
-        description =
-        "A harmonia curativa perfeita. |+50%| |Cura da Poção|, |+40%| |Bônus de Cura| e |+25%| |Regeneração de Vida|. A cura absoluta.",
-        image_path = tempIconPath,
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "potion_healing_synergy_1" },
-        modifiers_per_level = {
-            { stat = "potionHealAmount", type = "percentage", value = 50 },
-            { stat = "healingBonus",     type = "percentage", value = 40 },
-            { stat = "healthPerTick",    type = "percentage", value = 25 }
-        },
-        color = Colors.rankDetails.S.text
-    },
+
 
     -- Ultimates de Regeneração
     ultimate_regeneration_1_fixed = {
@@ -1112,10 +1099,10 @@ LevelUpBonusesData.Bonuses = {
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "regeneration_1_fixed" },
+        base_bonuses = { "regeneration_fixed" },
         modifiers_per_level = {
             { stat = "healthPerTick", type = "base",       value = 2.5 },
-            { stat = "health",        type = "percentage", value = 30 }
+            { stat = "maxHealth",     type = "percentage", value = 30 }
         },
         color = Colors.rankDetails.S.text
     },
@@ -1127,7 +1114,7 @@ LevelUpBonusesData.Bonuses = {
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "regen_delay_1_reduction" },
+        base_bonuses = { "regen_delay_reduction" },
         modifiers_per_level = {
             { stat = "healthRegenDelay", type = "base",       value = -2.5 },
             { stat = "healthPerTick",    type = "percentage", value = 50 }
@@ -1143,19 +1130,23 @@ LevelUpBonusesData.Bonuses = {
 function LevelUpBonusesData.ApplyBonus(stateController, bonusId)
     local bonusData = LevelUpBonusesData.Bonuses[bonusId]
     if not bonusData then
-        print("ERRO [LevelUpBonusesData.ApplyBonus]: Bônus com ID '" .. tostring(bonusId) .. "' não encontrado.")
-        return
+        error("ERRO [LevelUpBonusesData.ApplyBonus]: Bônus com ID '" .. tostring(bonusId) .. "' não encontrado.")
     end
 
-    if not stateController or not stateController.addAttributeBonus then
-        print("ERRO [LevelUpBonusesData.ApplyBonus]: stateController inválido ou não possui addAttributeBonus.")
-        return
+    if not stateController then
+        error("ERRO [LevelUpBonusesData.ApplyBonus]: stateController inválido ou não possui addAttributeBonus.")
     end
 
     if bonusData.is_ultimate then
-        print("[LevelUpBonusesData.ApplyBonus] ✦ APLICANDO MELHORIA ULTIMATE: " .. bonusData.name .. " ✦")
+        Logger.info(
+            "level_up_bonuses_data.apply_bonus.ultimate",
+            "[LevelUpBonusesData.ApplyBonus] ✦ APLICANDO MELHORIA ULTIMATE: " .. bonusData.name .. " ✦"
+        )
     else
-        print("[LevelUpBonusesData.ApplyBonus] Aplicando bônus: " .. bonusData.name)
+        Logger.info(
+            "level_up_bonuses_data.apply_bonus.normal",
+            "[LevelUpBonusesData.ApplyBonus] Aplicando bônus: " .. bonusData.name
+        )
     end
 
     for _, modifier in ipairs(bonusData.modifiers_per_level) do
@@ -1163,21 +1154,20 @@ function LevelUpBonusesData.ApplyBonus(stateController, bonusId)
         local type = modifier.type
         local value = modifier.value
 
-        print(string.format("  - Modificador: stat=%s, type=%s, value=%s", tostring(stat), tostring(type),
-            tostring(value)))
+        Logger.info(
+            "level_up_bonuses_data.apply_bonus.modifier",
+            string.format("  - Modificador: stat=%s, type=%s, value=%s", tostring(stat), tostring(type),
+                tostring(value))
+        )
 
-        if type == "base" or type == "fixed" then
-            stateController:addAttributeBonus(stat, 0, value)
+        if type == "base" then
+            stateController:addBaseBonus(stat, value)
         elseif type == "percentage" then
             -- Este 'percentage' vai para stateController.levelBonus[stat]
             -- E levelBonus espera um valor como 5 para 5%
-            stateController:addAttributeBonus(stat, value, 0)
-        elseif type == "fixed_percentage_as_fraction" then
-            -- Este 'fixed' vai para stateController.fixedBonus[stat]
-            -- E fixedBonus para stats como critChance espera uma fração (ex: 0.01 para 1%)
-            stateController:addAttributeBonus(stat, 0, value)
+            stateController:addMultiplierBonus(stat, value)
         else
-            print("AVISO [LevelUpBonusesData.ApplyBonus]: Tipo de modificador desconhecido ('" ..
+            error("ERRO [LevelUpBonusesData.ApplyBonus]: Tipo de modificador desconhecido ('" ..
                 tostring(type) .. "') para o stat '" .. tostring(stat) .. "'.")
         end
     end

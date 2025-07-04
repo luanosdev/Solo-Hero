@@ -170,7 +170,7 @@ function LevelUpEffectController:applyLevelUpKnockback()
         end
     end
 
-    TablePool.release(enemiesInArea)
+    TablePool.releaseArray(enemiesInArea)
     self.knockbackApplied = true
 end
 

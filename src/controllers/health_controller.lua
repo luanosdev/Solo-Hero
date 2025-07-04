@@ -63,7 +63,7 @@ function HealthController:updateHealthRecovery(dt)
     end
 
     local finalStats = self.playerManager:getCurrentFinalStats()
-    local finalMaxHealth = finalStats.health
+    local finalMaxHealth = finalStats.maxHealth
     local finalHealthRegenPerSecond = finalStats.healthPerTick
 
     if self.playerManager.gameTime >= self.lastDamageTime + finalStats.healthRegenDelay then

@@ -188,6 +188,14 @@ end
 --- @param level number O nível em que a escolha foi feita.
 --- @param choiceText string A descrição da melhoria escolhida.
 function GameStatisticsManager:registerLevelUpChoice(level, choiceText)
+    -- verifica se a melhoria já existe, se existir, incrementa o nível
+    for _, choice in ipairs(self.stats.levelUpChoices) do
+        if choice.choice == choiceText then
+            choice.level = choice.level + 1
+            return
+        end
+    end
+
     table.insert(self.stats.levelUpChoices, { level = level, choice = choiceText })
 end
 
