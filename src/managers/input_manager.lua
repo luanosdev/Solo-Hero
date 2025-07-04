@@ -8,6 +8,7 @@ local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local InventoryScreen = require("src.ui.screens.inventory_screen")
 local ItemDetailsModal = require("src.ui._item_details_modal") -- Adicionado require direto
+local Constants = require("src.config.constants")
 
 InputManager.movementEnabled = true
 InputManager.actionsEnabled = true
@@ -63,14 +64,16 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
     self.keys.moveRight = love.keyboard.isDown("d") or love.keyboard.isDown("right")
 
     local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
-    if not playerManager or not playerManager.player then
+    local playerSprite = playerManager:getPlayerSprite()
+
+    if not playerManager or not playerSprite then
         return
     end
 
     -- Se a UI está bloqueando, o jogador não pode se mover. Zera a velocidade e retorna.
     if isUIBlockingInput or not self.movementEnabled then
-        playerManager.player.velocity.x = 0
-        playerManager.player.velocity.y = 0
+        playerSprite.velocity.x = 0
+        playerSprite.velocity.y = 0
         return
     end
 
@@ -91,16 +94,20 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
 
         -- Aplica o movimento
         local finalStats = playerManager:getCurrentFinalStats()
-        playerManager.player.position.x = playerManager.player.position.x + moveX * finalStats.moveSpeed * dt
-        playerManager.player.position.y = playerManager.player.position.y + moveY * finalStats.moveSpeed * dt
+        local moveSpeedInPixels = Constants.moveSpeedToPixels(finalStats.moveSpeed)
+        local playerPos = playerManager:getPlayerPosition()
+        playerManager.movementController:setPosition(
+            playerPos.x + moveX * moveSpeedInPixels * dt,
+            playerPos.y + moveY * moveSpeedInPixels * dt
+        )
 
         -- Atualiza o vetor de velocidade no playerManager para outros sistemas usarem
-        playerManager.player.velocity.x = moveX
-        playerManager.player.velocity.y = moveY
+        playerSprite.velocity.x = moveX
+        playerSprite.velocity.y = moveY
     else
         -- Se não houver input de movimento, zera a velocidade
-        playerManager.player.velocity.x = 0
-        playerManager.player.velocity.y = 0
+        playerSprite.velocity.x = 0
+        playerSprite.velocity.y = 0
     end
 end
 

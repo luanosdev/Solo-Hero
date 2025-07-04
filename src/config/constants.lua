@@ -1,6 +1,31 @@
 --- @class Constants
 local Constants = {}
 
+--[[
+    SISTEMA DE MEDIDAS DO JOGO
+    =========================
+
+    Baseado no conceito do Halls of Torment:
+    - 1 metro = 18 pixels
+    - moveSpeed é definido em metros por segundo (m/s)
+    - pickupRadius é definido em metros
+    - dashDistance é definido em metros
+
+    Conversões automáticas:
+    - Use Constants.metersToPixels(meters) para converter metros → pixels
+    - Use Constants.pixelsToMeters(pixels) para converter pixels → metros
+    - Use Constants.moveSpeedToPixels(m/s) para converter velocidade
+
+    Exemplos:
+    - moveSpeed = 1.4 m/s = 25.2 pixels/s
+    - pickupRadius = 5.5m = 99 pixels
+    - dashDistance = 5.5m = 99 pixels
+--]]
+
+-- Sistema de Medidas do Jogo
+-- Baseado no conceito do Halls of Torment: 1 metro = 18 pixels
+Constants.METER_TO_PIXELS = 18
+
 --- IDs constantes para as abas do Lobby.
 Constants.TabIds = {
     SHOPPING = 1,
@@ -39,7 +64,7 @@ Constants.EQUIPMENT_SLOTS_ORDER = {
 Constants.HUNTER_DEFAULT_STATS = {
     health = 300,
     attackSpeed = 1.0,         -- Attacks per second
-    moveSpeed = 25,
+    moveSpeed = 1.4,           -- Metros por segundo (m/s) - convertido automaticamente para pixels
     critChance = 0.10,         -- 10%
     critDamage = 1.5,          -- 150% Multiplier
     multiAttackChance = 0.1,   -- 20%
@@ -51,7 +76,7 @@ Constants.HUNTER_DEFAULT_STATS = {
     cooldownReduction = 1.0,   -- Multiplier (1.0 = no reduction)
     range = 1.0,               -- Multiplier (1.0 = base weapon/skill)
     attackArea = 1.0,          -- Multiplier (1.0 = base weapon/skill)
-    pickupRadius = 100,        -- Radius
+    pickupRadius = 5.5,        -- Metros - convertido automaticamente para pixels
     healingBonus = 1.0,        -- Multiplier (1.0 = 100% healing received)
     runeSlots = 3,             -- Number of rune slots
     luck = 1.0,                -- Multiplier (1.0 = 100% luck)
@@ -59,7 +84,7 @@ Constants.HUNTER_DEFAULT_STATS = {
     -- Atributos de Dash
     dashCharges = 1,           -- Quantidade de cargas de dash
     dashCooldown = 8.0,        -- Tempo em segundos para recuperar uma carga
-    dashDistance = 100,        -- Distância em pixels que o dash percorre
+    dashDistance = 5.5,        -- Distância em metros que o dash percorre
     dashDuration = 0.1,        -- Duração do dash em segundos
     -- Atributos de Poções
     potionFlasks = 1,          -- Quantidade de frascos de poção
@@ -158,5 +183,27 @@ Constants.SPAWN_OPTIMIZATION = {
     -- Limite máximo permitido para maxSpawnsPerFrame
     MAX_SPAWNS_PER_FRAME_LIMIT = 50,
 }
+
+-- Funções utilitárias para conversão de unidades
+--- Converte metros para pixels
+--- @param meters number Valor em metros
+--- @return number pixels Valor equivalente em pixels
+function Constants.metersToPixels(meters)
+    return meters * Constants.METER_TO_PIXELS
+end
+
+--- Converte pixels para metros
+--- @param pixels number Valor em pixels
+--- @return number meters Valor equivalente em metros
+function Constants.pixelsToMeters(pixels)
+    return pixels / Constants.METER_TO_PIXELS
+end
+
+--- Converte velocidade de m/s para pixels/s
+--- @param metersPerSecond number Velocidade em metros por segundo
+--- @return number pixelsPerSecond Velocidade equivalente em pixels por segundo
+function Constants.moveSpeedToPixels(metersPerSecond)
+    return metersPerSecond * Constants.METER_TO_PIXELS
+end
 
 return Constants

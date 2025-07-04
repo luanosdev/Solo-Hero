@@ -43,10 +43,11 @@ function MovementController:setupPlayerSprite(finalStats)
     -- Carrega recursos do player sprite se ainda não foram carregados
     SpritePlayer.load()
 
-    local finalSpeed = finalStats.moveSpeed
+    local finalSpeed = Constants.moveSpeedToPixels(finalStats.moveSpeed)
     Logger.info(
         "movement_controller.setup.speed",
-        string.format("[MovementController:setupPlayerSprite] Velocidade final do sprite: %.2f", finalSpeed)
+        string.format("[MovementController:setupPlayerSprite] Velocidade final do sprite: %.2f pixels/s (%.2f m/s)",
+            finalSpeed, finalStats.moveSpeed)
     )
 
     -- Obtém dados do caçador atual para configurar aparência
@@ -120,7 +121,8 @@ function MovementController:update(dt, targetPosition)
     if not self.player.animationPaused then
         -- Obtém a velocidade atual do jogador baseada nos stats finais
         local finalStats = self.playerManager:getCurrentFinalStats()
-        local currentSpeed = finalStats and finalStats.moveSpeed or Constants.HUNTER_DEFAULT_STATS.moveSpeed
+        local currentSpeed = finalStats and Constants.moveSpeedToPixels(finalStats.moveSpeed) or
+        Constants.moveSpeedToPixels(Constants.HUNTER_DEFAULT_STATS.moveSpeed)
 
         local distanceMoved = SpritePlayer.update(self.player, dt, targetPosition, currentSpeed)
 

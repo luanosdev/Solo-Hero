@@ -208,7 +208,8 @@ function PlayerStateController:initializeBaseStats(initialStats)
     -- Atributos base (com fallbacks dos padrões)
     self.health = initialStats and initialStats.health or defaultStats.health or 100
     self.defense = initialStats and initialStats.defense or defaultStats.defense or 10
-    self.moveSpeed = initialStats and initialStats.moveSpeed or defaultStats.moveSpeed or 40
+    self.moveSpeed = initialStats and initialStats.moveSpeed or defaultStats.moveSpeed or
+    Constants.HUNTER_DEFAULT_STATS.moveSpeed
     self.attackSpeed = initialStats and initialStats.attackSpeed or defaultStats.attackSpeed or 1.0
     self.critChance = initialStats and initialStats.critChance or defaultStats.critChance or 0.1
     self.critDamage = initialStats and initialStats.critDamage or defaultStats.critDamage or 1.5
@@ -220,7 +221,8 @@ function PlayerStateController:initializeBaseStats(initialStats)
     -- Atributos adicionais
     self.expBonus = initialStats and initialStats.expBonus or defaultStats.expBonus or 1.0
     self.healingBonus = initialStats and initialStats.healingBonus or defaultStats.healingBonus or 1.0
-    self.pickupRadius = initialStats and initialStats.pickupRadius or defaultStats.pickupRadius or 100
+    self.pickupRadius = initialStats and initialStats.pickupRadius or defaultStats.pickupRadius or
+    Constants.HUNTER_DEFAULT_STATS.pickupRadius
     self.healthRegenDelay = initialStats and initialStats.healthRegenDelay or defaultStats.healthRegenDelay or 8.0
     self.range = initialStats and initialStats.range or defaultStats.range or 0
     self.luck = initialStats and initialStats.luck or defaultStats.luck or 1.0

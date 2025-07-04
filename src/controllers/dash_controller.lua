@@ -6,6 +6,7 @@
 local TablePool = require("src.utils.table_pool")
 local RenderPipeline = require("src.core.render_pipeline")
 local SpritePlayer = require('src.animations.sprite_player')
+local Constants = require("src.config.constants")
 
 ---@class DashController
 ---@field playerManager PlayerManager
@@ -68,9 +69,10 @@ function DashController:tryDash()
 
         local moveVec = self.playerManager.inputManager:getMovementVector()
         if moveVec.x == 0 and moveVec.y == 0 then
+            local playerPos = self.playerManager:getPlayerPosition()
             local targetPos = self.playerManager:getTargetPosition()
-            local dx = targetPos.x - self.playerManager.player.position.x
-            local dy = targetPos.y - self.playerManager.player.position.y
+            local dx = targetPos.x - playerPos.x
+            local dy = targetPos.y - playerPos.y
             local mag = math.sqrt(dx * dx + dy * dy)
             if mag > 0 then
                 self.dashDirection = { x = dx / mag, y = dy / mag }
@@ -81,11 +83,9 @@ function DashController:tryDash()
             self.dashDirection = { x = moveVec.x, y = moveVec.y }
         end
 
-        self.dashSpeed = finalStats.dashDistance / finalStats.dashDuration
+        self.dashSpeed = Constants.metersToPixels(finalStats.dashDistance) / finalStats.dashDuration
         self.dashTimer = finalStats.dashDuration
-        if self.playerManager.player then
-            self.playerManager.player.animationPaused = true
-        end
+        self.playerManager:getPlayerSprite().animationPaused = true
 
         self.chargesUsed = self.chargesUsed + 1
     end
@@ -105,14 +105,12 @@ function DashController:updateDashMovement(dt)
     if self.dashTimer <= 0 then
         self.isDashing = false
         self.playerManager:setInvincible(false)
-        if self.playerManager.player then
-            self.playerManager.player.animationPaused = false
-        end
+        self.playerManager:getPlayerSprite().animationPaused = false
     else
         local moveX = self.dashDirection.x * self.dashSpeed * dt
         local moveY = self.dashDirection.y * self.dashSpeed * dt
-        self.playerManager.player.position.x = self.playerManager.player.position.x + moveX
-        self.playerManager.player.position.y = self.playerManager.player.position.y + moveY
+        local playerPos = self.playerManager:getPlayerPosition()
+        self.playerManager.movementController:setPosition(playerPos.x + moveX, playerPos.y + moveY)
     end
 end
 
@@ -140,11 +138,11 @@ end
 
 ---Adiciona uma parte do rastro do dash na posição atual do jogador.
 function DashController:addDashTrailPart()
-    if not self.playerManager.player then return end
+    if not self.playerManager:getPlayerSprite() then return end
 
     local trailPart = {
-        position = { x = self.playerManager.player.position.x, y = self.playerManager.player.position.y },
-        angle = self.playerManager.player.angle,
+        position = { x = self.playerManager:getPlayerPosition().x, y = self.playerManager:getPlayerPosition().y },
+        angle = self.playerManager:getPlayerSprite().angle,
         lifetime = 0.3,
         maxLifetime = 0.3,
         alpha = 0.5,
@@ -169,7 +167,9 @@ end
 ---@param renderPipeline RenderPipeline O pipeline de renderização.
 ---@param sortY number O valor de Y para ordenação.
 function DashController:collectRenderables(renderPipeline, sortY)
-    if not self.playerManager or not self.playerManager.player then return end
+    if not self.playerManager:getPlayerSprite() then return end
+    local playerSprite = self.playerManager:getPlayerSprite()
+    local playerPos = self.playerManager:getPlayerPosition()
 
     for _, trailPart in ipairs(self.dashTrail) do
         local trailRenderable = TablePool.get()
@@ -178,21 +178,21 @@ function DashController:collectRenderables(renderPipeline, sortY)
         trailRenderable.depth = RenderPipeline.DEPTH_ENTITIES
         trailRenderable.drawFunction = function()
             -- Salva estado original
-            local originalPos = { x = self.playerManager.player.position.x, y = self.playerManager.player.position.y }
-            local originalAlpha = self.playerManager.player.alpha or 1.0
-            local originalAngle = self.playerManager.player.angle
+            local originalPos = { x = playerPos.x, y = playerPos.y }
+            local originalAlpha = playerSprite.alpha or 1.0
+            local originalAngle = playerSprite.angle
 
             -- Define estado para o rastro
-            self.playerManager.player.position = trailPart.position
-            self.playerManager.player.alpha = trailPart.alpha
-            self.playerManager.player.angle = trailPart.angle
+            playerSprite.position = trailPart.position
+            playerSprite.alpha = trailPart.alpha
+            playerSprite.angle = trailPart.angle
 
-            SpritePlayer.draw(self.playerManager.player)
+            SpritePlayer.draw(playerSprite)
 
             -- Restaura estado
-            self.playerManager.player.position = originalPos
-            self.playerManager.player.alpha = originalAlpha
-            self.playerManager.player.angle = originalAngle
+            playerSprite.position = originalPos
+            playerSprite.alpha = originalAlpha
+            playerSprite.angle = originalAngle
         end
         renderPipeline:add(trailRenderable)
     end

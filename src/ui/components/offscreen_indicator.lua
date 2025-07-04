@@ -1,6 +1,7 @@
 local AssetManager = require("src.managers.asset_manager")
 local Camera = require("src.config.camera")
 local Fonts = require("src.ui.fonts")
+local Constants = require("src.config.constants")
 
 ---@class OffscreenIndicator
 ---@field targetId string
@@ -113,7 +114,7 @@ function OffscreenIndicator:draw()
     love.graphics.setColor(1, 1, 1, 1)
     local font = Fonts.main_small
     love.graphics.setFont(font)
-    local distanceText = string.format("%dm", self.distance / 32)
+    local distanceText = string.format("%dm", Constants.pixelsToMeters(self.distance))
     local textWidth = font:getWidth(distanceText)
     local textHeight = font:getHeight()
     love.graphics.print(distanceText, self.screenX - textWidth / 2, self.screenY - textHeight / 2)

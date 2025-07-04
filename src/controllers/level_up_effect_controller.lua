@@ -5,6 +5,7 @@
 local CombatHelpers = require("src.utils.combat_helpers")
 local LevelUpEffect = require("src.effects.level_up_effect")
 local TablePool = require("src.utils.table_pool")
+local Constants = require("src.config.constants")
 
 ---@class LevelUpEffectController
 ---@field playerManager PlayerManager
@@ -114,14 +115,15 @@ function LevelUpEffectController:applyLevelUpKnockback()
     end
 
     local finalStats = self.playerManager:getCurrentFinalStats()
-    local knockbackRadius = finalStats.pickupRadius
+    local knockbackRadius = Constants.metersToPixels(finalStats.pickupRadius)
     local playerPosition = self.playerManager:getPlayerPosition()
 
     Logger.debug(
         "level_up_effect_controller.knockback.radius",
         string.format(
-            "[LevelUpEffectController:applyLevelUpKnockback] Aplicando knockback em raio de %.1f pixels",
-            knockbackRadius
+            "[LevelUpEffectController:applyLevelUpKnockback] Aplicando knockback em raio de %.1f pixels (%.1f metros)",
+            knockbackRadius,
+            finalStats.pickupRadius
         )
     )
 

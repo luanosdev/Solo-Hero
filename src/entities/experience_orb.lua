@@ -4,6 +4,7 @@
 ]]
 
 local ManagerRegistry = require("src.managers.manager_registry")
+local Constants = require("src.config.constants")
 
 local ExperienceOrb = {
     position = {
@@ -81,16 +82,15 @@ function ExperienceOrb:update(dt)
 
     local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
 
-    local playerPosition = playerManager:getPlayerPosition()
-    -- Calcula a distância até o jogador
-    local dx = playerPosition.x - self.position.x
-    local dy = playerPosition.y - (self.position.y + levitationOffset)
+    local playerPos = playerManager:getPlayerPosition()
+    local dx = playerPos.x - self.position.x
+    local dy = playerPos.y - self.position.y
     local distance = math.sqrt(dx * dx + dy * dy)
 
     local currentFinalStats = playerManager:getCurrentFinalStats()
-    -- Se estiver dentro do raio de coleta do jogador
-    if distance <= currentFinalStats.pickupRadius then
-        -- Considera o toque se a distância for menor/igual ao raio do orbe
+    local pickupRadiusInPixels = Constants.metersToPixels(currentFinalStats.pickupRadius)
+    if distance <= pickupRadiusInPixels then
+        -- Considera o toque se a distância for menor/igual ao raio do orb
         local immediateCollectionThreshold = self.radius
         if distance <= immediateCollectionThreshold then
             self.collected = true
@@ -107,9 +107,9 @@ function ExperienceOrb:update(dt)
 
         -- Atualiza a posição com a animação
         self.position.x = self.initialPosition.x +
-            (playerPosition.x - self.initialPosition.x) * easeOutQuad
+            (playerPos.x - self.initialPosition.x) * easeOutQuad
         self.position.y = self.initialPosition.y +
-            (playerPosition.y - self.initialPosition.y) * easeOutQuad
+            (playerPos.y - self.initialPosition.y) * easeOutQuad
 
         -- Se a animação terminou
         if self.collectionProgress >= 1 then

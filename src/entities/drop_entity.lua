@@ -4,6 +4,7 @@
 ]]
 
 local runeAnimation = require("src.animations.rune_animation")
+local Constants = require("src.config.constants")
 
 ---@class DropEntity
 local DropEntity = {
@@ -103,7 +104,8 @@ function DropEntity:update(dt, playerManager)
     local distance = math.sqrt(dx * dx + dy * dy)
 
     local currentFinalStats = playerManager:getCurrentFinalStats()
-    if distance <= currentFinalStats.pickupRadius then
+    local pickupRadiusInPixels = Constants.metersToPixels(currentFinalStats.pickupRadius)
+    if distance <= pickupRadiusInPixels then
         -- Considera o toque se a distância for menor/igual ao raio do drop
         local immediateCollectionThreshold = self.radius
         if distance <= immediateCollectionThreshold then
