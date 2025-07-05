@@ -64,7 +64,7 @@ Constants.EQUIPMENT_SLOTS_ORDER = {
 Constants.HUNTER_DEFAULT_STATS = {
     maxHealth = 300,
     attackSpeed = 1.0,         -- Attacks per second
-    moveSpeed = 1.0,           -- Metros por segundo (m/s) - convertido automaticamente para pixels
+    moveSpeed = 2.0,           -- Metros por segundo (m/s) - convertido automaticamente para pixels
     critChance = 0.10,         -- 10%
     critDamage = 1.5,          -- 150% Multiplier
     multiAttackChance = 0.1,   -- 20%
@@ -76,7 +76,7 @@ Constants.HUNTER_DEFAULT_STATS = {
     cooldownReduction = 1.0,   -- Multiplier (1.0 = no reduction)
     range = 1.0,               -- Multiplier (1.0 = base weapon/skill)
     attackArea = 1.0,          -- Multiplier (1.0 = base weapon/skill)
-    pickupRadius = 5.5,        -- Metros - convertido automaticamente para pixels
+    pickupRadius = 3,          -- Metros - convertido automaticamente para pixels
     healingBonus = 1.0,        -- Multiplier (1.0 = 100% healing received)
     runeSlots = 3,             -- Number of rune slots
     luck = 1.0,                -- Multiplier (1.0 = 100% luck)
