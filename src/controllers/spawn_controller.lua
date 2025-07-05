@@ -1,3 +1,67 @@
+-- src/controllers/spawn_controller.lua
+--[[
+    SISTEMA DE CONTROLE DE SPAWN POR BOSS
+
+    O SpawnController agora implementa um sistema inteligente de controle de spawns baseado na presença de bosses:
+
+    ✨ FUNCIONALIDADES PRINCIPAIS:
+
+    1. PAUSA AUTOMÁTICA DE SPAWNS
+       - Quando um boss é spawnado, todos os spawns (major, minor, MVP) são pausados
+       - A fila de spawns continua sendo processada para não perder inimigos já na fila
+       - Novos spawns não são adicionados à fila enquanto há boss ativo
+
+    2. CONTROLE DE TEMPO DE PAUSA
+       - O sistema registra quando a pausa começou (pauseStartTime)
+       - Calcula o tempo total de pausa acumulado (totalPauseTime)
+       - Ajusta todos os timers de spawn baseado no tempo pausado
+
+    3. DETECÇÃO DE ÚLTIMO BOSS
+       - Verifica se é o último boss configurado no worldConfig.bossConfig.spawnTimes
+       - Se for o último boss, após sua morte os spawns são pausados permanentemente
+       - Se não for o último boss, os spawns são retomados com timers ajustados
+
+    4. SISTEMA DE LOGS
+       - Registra quando spawns são pausados/retomados
+       - Informa se é o último boss
+       - Mostra tempo de pausa e ajustes nos timers
+
+    5. FUNÇÕES DE DEBUG
+       - getSpawnQueueInfo() retorna estado completo do sistema
+       - testBossSpawnControl() permite testar a funcionalidade
+       - EnemyManager:getDebugInfo() mostra informações dos bosses ativos
+
+    ⚙️ CONFIGURAÇÃO:
+
+    Para usar o sistema, configure os bosses no worldConfig.bossConfig.spawnTimes:
+
+    bossConfig = {
+        spawnTimes = {
+            { time = 300, class = BossClass1, unitType = "boss_type_1", rank = "E" },
+            { time = 600, class = BossClass2, unitType = "boss_type_2", rank = "D" },
+            -- ... mais bosses
+        }
+    }
+
+    🔧 VARIÁVEIS DE CONTROLE:
+
+    - isSpawnPaused: Boolean que indica se spawns estão pausados temporariamente
+    - isPermanentlyPaused: Boolean que indica se spawns estão pausados permanentemente
+    - pauseStartTime: Timestamp quando a pausa atual começou
+    - totalPauseTime: Tempo total acumulado de todas as pausas
+    - nextBossIndex: Índice do próximo boss a ser spawnado
+
+    🎯 COMPORTAMENTO ESPERADO:
+
+    1. Jogo inicia com spawns normais
+    2. Primeiro boss spawna → spawns pausam
+    3. Boss morre → spawns retomam com timers ajustados
+    4. Segundo boss spawna → spawns pausam novamente
+    5. Segundo boss morre → spawns retomam (se não for último)
+    6. Último boss spawna → spawns pausam
+    7. Último boss morre → spawns pausam PERMANENTEMENTE
+]]
+
 local Camera = require("src.config.camera")
 local Logger = require("src.libs.logger")
 local Constants = require("src.config.constants")
@@ -21,6 +85,10 @@ local Constants = require("src.config.constants")
 ---@field nextBossIndex number
 ---@field spawnQueue SpawnRequest[] Fila de spawns pendentes para distribuir ao longo de múltiplos frames
 ---@field maxSpawnsPerFrame number Número máximo de inimigos a spawnar por frame
+---@field isSpawnPaused boolean Indica se os spawns estão pausados devido a boss ativo
+---@field pauseStartTime number Tempo quando a pausa começou
+---@field totalPauseTime number Tempo total acumulado de pausa
+---@field isPermanentlyPaused boolean Indica se os spawns foram pausados permanentemente (último boss)
 local SpawnController = {}
 SpawnController.__index = SpawnController
 
@@ -48,6 +116,12 @@ function SpawnController:new(enemyManager, playerManager, mapManager)
     -- Sistema de Spawn Distribuído
     instance.spawnQueue = {}
     instance.maxSpawnsPerFrame = Constants.SPAWN_OPTIMIZATION.MAX_SPAWNS_PER_FRAME
+
+    -- Controle de Pausa por Boss
+    instance.isSpawnPaused = false
+    instance.pauseStartTime = 0
+    instance.totalPauseTime = 0
+    instance.isPermanentlyPaused = false
 
     return instance
 end
@@ -90,23 +164,45 @@ function SpawnController:update(dt)
     self.gameTimer = self.gameTimer + dt
     self.timeInCurrentCycle = self.timeInCurrentCycle + dt
 
-    -- Processa a fila de spawn distribuído PRIMEIRO
+    -- Verifica se há boss ativo e ajusta o estado de pausa
+    self:updateBossSpawnControl()
+
+    -- Se os spawns estão pausados permanentemente, não executa nada
+    if self.isPermanentlyPaused then
+        return
+    end
+
+    -- Processa a fila de spawn distribuído PRIMEIRO (mesmo em pausa, para não perder spawns já na fila)
     self:processSpawnQueue()
 
+    -- Se spawns estão pausados, não executa novos spawns
+    if self.isSpawnPaused then
+        return
+    end
+
+    -- MVP Spawn
     if self.gameTimer >= self.nextMVPSpawnTime then
         self:spawnMVP()
         self.nextMVPSpawnTime = self.gameTimer + self.worldConfig.mvpConfig.spawnInterval
     end
 
+    -- Boss Spawn
     if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
         local nextBoss = self.worldConfig.bossConfig.spawnTimes[self.nextBossIndex]
         if nextBoss and self.gameTimer >= nextBoss.time then
             local spawnX, spawnY = self:calculateSpawnPosition()
-            self.enemyManager:spawnBoss(nextBoss, { x = spawnX, y = spawnY }) -- Delegado para o EnemyManager
+            self.enemyManager:spawnBoss(nextBoss, { x = spawnX, y = spawnY })
             self.nextBossIndex = self.nextBossIndex + 1
+
+            -- Verifica se é o último boss
+            if self.nextBossIndex > #self.worldConfig.bossConfig.spawnTimes then
+                Logger.info("[SpawnController:update]",
+                    "Último boss spawnado. Spawns serão pausados permanentemente após sua morte.")
+            end
         end
     end
 
+    -- Lógica de Ciclos
     local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
     if not currentCycle then
         return
@@ -119,15 +215,18 @@ function SpawnController:update(dt)
         Logger.info("[SpawnController]",
             string.format("Entrando no Ciclo %d no tempo %.2f", self.currentCycleIndex, self.gameTimer))
 
+        -- Ajusta os timers considerando o tempo de pausa
         self.nextMajorSpawnTime = self.gameTimer + currentCycle.majorSpawn.interval
         self.nextMinorSpawnTime = self.gameTimer + self:calculateMinorSpawnInterval(currentCycle)
     end
 
+    -- Major Spawn
     if self.gameTimer >= self.nextMajorSpawnTime then
         self:handleMajorSpawn(currentCycle)
         self.nextMajorSpawnTime = self.gameTimer + currentCycle.majorSpawn.interval
     end
 
+    -- Minor Spawn
     if self.gameTimer >= self.nextMinorSpawnTime then
         self:handleMinorSpawn(currentCycle)
         local nextInterval = self:calculateMinorSpawnInterval(currentCycle)
@@ -328,13 +427,135 @@ function SpawnController:setMaxSpawnsPerFrame(newLimit)
     end
 end
 
+--- Verifica se há boss ativo e controla o estado de pausa dos spawns
+function SpawnController:updateBossSpawnControl()
+    -- Verifica se há boss ativo
+    local hasBossActive = false
+    for _, enemy in ipairs(self.enemyManager.enemies) do
+        if enemy.isBoss and enemy.isAlive then
+            hasBossActive = true
+            break
+        end
+    end
+
+    -- Se há boss ativo e não estava pausado, inicia a pausa
+    if hasBossActive and not self.isSpawnPaused then
+        self:pauseSpawns()
+        -- Se não há boss ativo e estava pausado, retoma os spawns
+    elseif not hasBossActive and self.isSpawnPaused then
+        self:resumeSpawns()
+    end
+end
+
+--- Pausa os spawns devido a boss ativo
+function SpawnController:pauseSpawns()
+    self.isSpawnPaused = true
+    self.pauseStartTime = self.gameTimer
+
+    Logger.info("[SpawnController:pauseSpawns]",
+        string.format("Spawns pausados devido a boss ativo no tempo %.2f", self.gameTimer))
+end
+
+--- Retoma os spawns após boss morrer
+function SpawnController:resumeSpawns()
+    if self.isPermanentlyPaused then
+        return -- Não retoma se estiver permanentemente pausado
+    end
+
+    -- Calcula o tempo de pausa
+    local pauseDuration = self.gameTimer - self.pauseStartTime
+    self.totalPauseTime = self.totalPauseTime + pauseDuration
+
+    -- Verifica se é o último boss (não há mais bosses para spawnar)
+    local isLastBoss = true
+    if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
+        isLastBoss = self.nextBossIndex > #self.worldConfig.bossConfig.spawnTimes
+    end
+
+    if isLastBoss then
+        -- Último boss morreu, pausa permanentemente
+        self.isPermanentlyPaused = true
+        self.isSpawnPaused = false -- Reseta o flag temporário
+
+        Logger.info("[SpawnController:resumeSpawns]",
+            string.format("Último boss morreu. Spawns pausados permanentemente após %.2f segundos de pausa total.",
+                pauseDuration))
+    else
+        -- Ajusta os timers de spawn baseado no tempo de pausa
+        self.nextMajorSpawnTime = self.nextMajorSpawnTime + pauseDuration
+        self.nextMinorSpawnTime = self.nextMinorSpawnTime + pauseDuration
+        self.nextMVPSpawnTime = self.nextMVPSpawnTime + pauseDuration
+
+        self.isSpawnPaused = false
+
+        Logger.info("[SpawnController:resumeSpawns]",
+            string.format(
+                "Spawns retomados após %.2f segundos de pausa. Timers ajustados. Pausa total acumulada: %.2f segundos.",
+                pauseDuration, self.totalPauseTime))
+    end
+end
+
 --- Retorna informações sobre o estado atual da fila de spawn
----@return table Estado da fila contendo: count (número de spawns pendentes), maxPerFrame (limite por frame)
+---@return table Estado da fila contendo: count (número de spawns pendentes), maxPerFrame (limite por frame), isPaused (se spawns estão pausados), isPermanentlyPaused (se pausados permanentemente)
 function SpawnController:getSpawnQueueInfo()
     return {
         count = #self.spawnQueue,
-        maxPerFrame = self.maxSpawnsPerFrame
+        maxPerFrame = self.maxSpawnsPerFrame,
+        isPaused = self.isSpawnPaused,
+        isPermanentlyPaused = self.isPermanentlyPaused,
+        totalPauseTime = self.totalPauseTime
     }
+end
+
+--- Função de teste para verificar funcionalidade do controle de spawn por boss
+---@param forceSpawnBoss boolean Se true, força o spawn de um boss para teste
+function SpawnController:testBossSpawnControl(forceSpawnBoss)
+    if forceSpawnBoss then
+        -- Força o spawn de um boss para teste
+        local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
+        if currentCycle and currentCycle.allowedEnemies and #currentCycle.allowedEnemies > 0 then
+            local enemyClass = currentCycle.allowedEnemies[1].class
+            local spawnX, spawnY = self:calculateSpawnPosition()
+
+            -- Cria um boss temporário para teste
+            local testBoss = {
+                time = self.gameTimer + 5, -- Spawn em 5 segundos
+                class = enemyClass,
+                unitType = currentCycle.allowedEnemies[1].unitType,
+                rank = self.worldConfig.mapRank or "E"
+            }
+
+            Logger.info("[SpawnController:testBossSpawnControl]",
+                "Forçando spawn de boss para teste em 5 segundos...")
+
+            -- Simula o spawn do boss
+            self.enemyManager:spawnBoss(testBoss, { x = spawnX, y = spawnY })
+        end
+    end
+
+    -- Retorna informações de debug
+    local debugInfo = {
+        isSpawnPaused = self.isSpawnPaused,
+        isPermanentlyPaused = self.isPermanentlyPaused,
+        totalPauseTime = self.totalPauseTime,
+        gameTimer = self.gameTimer,
+        spawnQueueCount = #self.spawnQueue,
+        nextBossIndex = self.nextBossIndex
+    }
+
+    if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
+        debugInfo.totalBossesConfigured = #self.worldConfig.bossConfig.spawnTimes
+        debugInfo.bossesRemaining = #self.worldConfig.bossConfig.spawnTimes - (self.nextBossIndex - 1)
+    end
+
+    Logger.info("[SpawnController:testBossSpawnControl]",
+        string.format("Estado atual: Pausado=%s, PermanentePausado=%s, TempoPausa=%.2f, FilaSpawn=%d",
+            tostring(debugInfo.isSpawnPaused),
+            tostring(debugInfo.isPermanentlyPaused),
+            debugInfo.totalPauseTime,
+            debugInfo.spawnQueueCount))
+
+    return debugInfo
 end
 
 return SpawnController

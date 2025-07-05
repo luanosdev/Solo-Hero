@@ -786,4 +786,44 @@ function EnemyManager:repositionBossOrMvp(enemy)
     end
 end
 
+--- Retorna informações de debug sobre o estado do spawn
+---@return table Informações sobre spawns, bosses ativos, etc.
+function EnemyManager:getDebugInfo()
+    local activeBosses = {}
+    local activeMVPs = {}
+    local totalEnemies = #self.enemies
+
+    for _, enemy in ipairs(self.enemies) do
+        if enemy.isBoss and enemy.isAlive then
+            table.insert(activeBosses, {
+                id = enemy.id,
+                name = enemy.name,
+                health = enemy.currentHealth,
+                maxHealth = enemy.maxHealth,
+                rank = enemy.rank
+            })
+        elseif enemy.isMVP and enemy.isAlive then
+            table.insert(activeMVPs, {
+                id = enemy.id,
+                name = enemy.name,
+                properName = enemy.mvpProperName,
+                titleName = enemy.mvpTitleData and enemy.mvpTitleData.name or "N/A"
+            })
+        end
+    end
+
+    local spawnInfo = {}
+    if self.spawnController then
+        spawnInfo = self.spawnController:getSpawnQueueInfo()
+    end
+
+    return {
+        totalEnemies = totalEnemies,
+        activeBosses = activeBosses,
+        activeMVPs = activeMVPs,
+        spawnInfo = spawnInfo,
+        gameTimer = self.gameTimer
+    }
+end
+
 return EnemyManager
