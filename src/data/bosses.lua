@@ -32,6 +32,7 @@ local Constants = require("src.config.constants")
 ---@field name string Nome de exibição do boss.
 ---@field maxHealth number
 ---@field experienceValue number
+---@field damage number
 ---@field speed number
 ---@field size number
 ---@field knockbackResistance number
@@ -64,7 +65,7 @@ local bosses = {
         name = "O Imortal Apodrecido",
 
         -- Stats
-        maxHealth = 10000,
+        maxHealth = 30000,
         experienceValue = 1000,
         damage = 200,
         speed = 60,

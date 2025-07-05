@@ -181,7 +181,7 @@ Constants.SPAWN_OPTIMIZATION = {
     -- Limite mínimo permitido para maxSpawnsPerFrame
     MIN_SPAWNS_PER_FRAME = 1,
     -- Limite máximo permitido para maxSpawnsPerFrame
-    MAX_SPAWNS_PER_FRAME_LIMIT = 50,
+    MAX_SPAWNS_PER_FRAME_LIMIT = 20,
 }
 
 -- Funções utilitárias para conversão de unidades

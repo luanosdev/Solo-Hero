@@ -154,9 +154,16 @@ function SpawnController:setup(hordeConfig)
     self.nextMVPSpawnTime = self.worldConfig.mvpConfig.spawnInterval
 
     local mapRank = self.worldConfig.mapRank or "E"
-    Logger.info("[SpawnController]",
-        string.format("SpawnController inicializado com Horda Config. Rank Mapa: %s. %d ciclo(s). Max spawns/frame: %d.",
-            mapRank, #self.worldConfig.cycles, self.maxSpawnsPerFrame))
+    Logger.info(
+        "[SpawnController]",
+        string.format(
+            "SpawnController inicializado com Horda Config. Rank Mapa: %s. %d ciclo(s). Max spawns/frame: %d. Bosses: %d",
+            mapRank,
+            #self.worldConfig.cycles,
+            self.maxSpawnsPerFrame,
+            #self.worldConfig.bossConfig.spawnTimes
+        )
+    )
 end
 
 ---@param dt number
@@ -196,8 +203,10 @@ function SpawnController:update(dt)
 
             -- Verifica se é o último boss
             if self.nextBossIndex > #self.worldConfig.bossConfig.spawnTimes then
-                Logger.info("[SpawnController:update]",
-                    "Último boss spawnado. Spawns serão pausados permanentemente após sua morte.")
+                Logger.info(
+                    "[SpawnController:update]",
+                    "Último boss spawnado. Spawns serão pausados permanentemente após sua morte."
+                )
             end
         end
     end
@@ -212,8 +221,10 @@ function SpawnController:update(dt)
         self.currentCycleIndex = self.currentCycleIndex + 1
         self.timeInCurrentCycle = self.timeInCurrentCycle - currentCycle.duration
         currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
-        Logger.info("[SpawnController]",
-            string.format("Entrando no Ciclo %d no tempo %.2f", self.currentCycleIndex, self.gameTimer))
+        Logger.info(
+            "[SpawnController]",
+            string.format("Entrando no Ciclo %d no tempo %.2f", self.currentCycleIndex, self.gameTimer)
+        )
 
         -- Ajusta os timers considerando o tempo de pausa
         self.nextMajorSpawnTime = self.gameTimer + currentCycle.majorSpawn.interval
@@ -256,9 +267,10 @@ function SpawnController:processSpawnQueue()
     end
 
     if spawnsThisFrame > 0 then
-        Logger.debug("[SpawnController:processSpawnQueue]",
-            string.format("Processados %d spawns. %d restantes na fila.",
-                spawnsThisFrame, #self.spawnQueue))
+        Logger.debug(
+            "[SpawnController:processSpawnQueue]",
+            string.format("Processados %d spawns. %d restantes na fila.", spawnsThisFrame, #self.spawnQueue)
+        )
     end
 end
 
@@ -281,9 +293,16 @@ function SpawnController:handleMajorSpawn(currentCycle)
     local countToSpawn = math.floor(spawnConfig.baseCount +
         (spawnConfig.baseCount * spawnConfig.countScalePerMin * minutesPassed))
 
-    Logger.debug("[SpawnController:handleMajorSpawn]", string.format(
-        "Major Spawn (Ciclo %d) no tempo %.2f: Adicionando %d inimigos à fila de spawn.",
-        self.currentCycleIndex, self.gameTimer, countToSpawn))
+    Logger.debug(
+        "[SpawnController:handleMajorSpawn]",
+        string.format(
+            "Major Spawn (Ciclo %d) no tempo %.2f: Adicionando %d inimigos à fila de spawn. %d restantes na fila.",
+            self.currentCycleIndex,
+            self.gameTimer,
+            countToSpawn,
+            #self.spawnQueue
+        )
+    )
 
     -- Adiciona spawns à fila ao invés de spawnar imediatamente
     for _ = 1, countToSpawn do
@@ -368,7 +387,8 @@ end
 
 function SpawnController:calculateSpawnPosition()
     local camX, camY, camWidth, camHeight = Camera:getViewPort()
-    local playerVel = self.playerManager.player and self.playerManager.player.velocity
+    local sprite = self.playerManager:getPlayerSprite()
+    local playerVel = sprite.velocity
     local buffer = 150
 
     local spawnZones = {

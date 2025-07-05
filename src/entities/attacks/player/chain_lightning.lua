@@ -292,7 +292,7 @@ function ChainLightning:applyChainDamageOptimized(targetsHit)
         local critChance = stats.critChance
         local critBonus = stats.critDamage - 1 -- Converte multiplicador para bônus
         local finalDamage, isCritical, isSuperCritical, critStacks = CombatHelpers.calculateSuperCriticalDamage(
-            stats.weaponDamage,
+            stats.damage,
             critChance,
             critBonus
         )

@@ -203,6 +203,7 @@ function HunterManager:_calculateFinalStats(hunterId)
     finalStats._playerDamageMultiplier = finalDamageMultiplier -- Salva para tooltip
 
     -- Calcula dano final
+    ---@deprecated
     finalStats.weaponDamage = math.floor(baseWeaponDamage * finalDamageMultiplier)
 
     -- 4. Finaliza: Garante valores mínimos/máximos, formata IDs de itens equipados
