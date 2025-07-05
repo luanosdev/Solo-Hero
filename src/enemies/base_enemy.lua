@@ -121,7 +121,7 @@ local BaseEnemy = {
 
     -- Constants
     RADIUS_SIZE_DELTA = 0.5,
-    SEPARATION_STRENGTH = 30.0,
+    SEPARATION_STRENGTH = 15.0,
 }
 
 --- Constructor

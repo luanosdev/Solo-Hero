@@ -101,19 +101,11 @@ function LevelUpCard:draw(scale, bgColor, isHovered, isSelected, globalAlpha)
         self:drawUltimateEffects(rect, cardAlpha)
     end
 
-    -- Fundo do card
-    local finalBgColor = bgColor
-    if isUltimate then
-        -- Fundo especial para ultimate com gradiente dourado
-        finalBgColor = {
-            colors.rankDetails.S[1] * 0.15,
-            colors.rankDetails.S[2] * 0.15,
-            colors.rankDetails.S[3] * 0.15
-        }
+    -- Fundo do card (apenas para não-ultimate, ultimate tem fundo animado)
+    if not isUltimate then
+        love.graphics.setColor(bgColor[1], bgColor[2], bgColor[3], cardAlpha * 0.9)
+        love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
     end
-
-    love.graphics.setColor(finalBgColor[1], finalBgColor[2], finalBgColor[3], cardAlpha * 0.9)
-    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
 
     -- Borda do card
     local categoryColor = self.optionData.color
@@ -121,10 +113,10 @@ function LevelUpCard:draw(scale, bgColor, isHovered, isSelected, globalAlpha)
     local borderWidth = 1
 
     if isUltimate then
-        borderColor = colors.rankDetails.S
+        borderColor = categoryColor -- Usa a cor da categoria ao invés do rank S
         borderWidth = 3
         -- Efeito de brilho na borda para ultimate
-        love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], cardAlpha * 0.5)
+        love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], cardAlpha * 0.7)
         love.graphics.setLineWidth(borderWidth + 2)
         love.graphics.rectangle("line", rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2)
     end
@@ -149,54 +141,62 @@ end
 function LevelUpCard:drawUltimateEffects(rect, cardAlpha)
     local time = love.timer.getTime()
 
-    -- Efeito de brilho pulsante
-    local pulseIntensity = 0.5 + 0.3 * math.sin(time * 3)
-    local glowAlpha = cardAlpha * pulseIntensity * 0.8
+    -- Usa a cor específica da melhoria
+    local categoryColor = self.optionData.color
+    local ultimateGlow = categoryColor
+    local ultimateBright = { categoryColor[1] * 1.2, categoryColor[2] * 1.2, categoryColor[3] * 1.2, 1.0 }
+    local ultimateIntense = { categoryColor[1] * 1.5, categoryColor[2] * 1.5, categoryColor[3] * 1.5, 1.0 }
 
-    -- Glow exterior
-    love.graphics.setColor(colors.rankDetails.S[1], colors.rankDetails.S[2], colors.rankDetails.S[3], glowAlpha * 0.3)
-    for i = 1, 3 do
-        local glowOffset = i * 3
-        love.graphics.setLineWidth(2)
+    -- Fundo animado com a cor da melhoria
+    local bgPulse = 0.2 + 0.1 * math.sin(time * 2) -- Oscila entre 20% e 30%
+    local bgAlpha = cardAlpha * bgPulse
+    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], bgAlpha)
+    love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
+
+    -- Efeito de brilho pulsante
+    local pulseIntensity = 0.5 + 0.4 * math.sin(time * 3)
+    local glowAlpha = cardAlpha * pulseIntensity
+
+    -- Glow exterior múltiplo (aura)
+    love.graphics.setColor(ultimateGlow[1], ultimateGlow[2], ultimateGlow[3], glowAlpha * 0.6)
+    for i = 1, 5 do
+        local glowOffset = i * 2
+        love.graphics.setLineWidth(1 + i * 0.5)
         love.graphics.rectangle("line",
             rect.x - glowOffset, rect.y - glowOffset,
             rect.w + glowOffset * 2, rect.h + glowOffset * 2)
     end
 
-    -- Partículas de luz (efeito simulado)
-    local particleCount = 8
+    -- Partículas subindo verticalmente
+    local particleCount = 15
     for i = 1, particleCount do
-        local angle = (time * 0.5 + i * (math.pi * 2 / particleCount)) % (math.pi * 2)
-        local particleX = rect.x + rect.w / 2 + math.cos(angle) * (rect.w / 2 + 20)
-        local particleY = rect.y + rect.h / 2 + math.sin(angle) * (rect.h / 2 + 20)
-        local particleAlpha = cardAlpha * (0.3 + 0.2 * math.sin(time * 2 + i))
+        -- Cada partícula tem um ciclo de vida diferente
+        local particleLife = (time * 0.5 + i * 0.1) % 2 -- Ciclo de 2 segundos
+        local particleProgress = particleLife / 2       -- 0 a 1
 
-        love.graphics.setColor(colors.rankDetails.S[1], colors.rankDetails.S[2], colors.rankDetails.S[3], particleAlpha)
-        love.graphics.circle("fill", particleX, particleY, 2)
+        -- Posição X aleatória baseada no índice
+        local particleX = rect.x + (rect.w * ((i * 0.618) % 1)) -- Distribuição áurea
+        -- Posição Y: começa na parte inferior e sobe
+        local particleY = rect.y + rect.h - (particleProgress * (rect.h + 50))
+
+        -- Alpha diminui conforme sobe
+        local particleAlpha = cardAlpha * (1 - particleProgress) * 0.8
+        local particleSize = 5 * (1 - particleProgress)
+
+        if particleAlpha > 0.1 then
+            love.graphics.setColor(ultimateBright[1], ultimateBright[2], ultimateBright[3], particleAlpha)
+            love.graphics.circle("fill", particleX, particleY, particleSize)
+        end
     end
 
-    -- Efeito de raios de luz nos cantos
-    local rayAlpha = cardAlpha * (0.4 + 0.2 * math.sin(time * 4))
-    love.graphics.setColor(colors.rankDetails.S[1], colors.rankDetails.S[2], colors.rankDetails.S[3], rayAlpha)
+    -- Efeito de pulso interno
+    local pulseSize = 4 + 3 * math.sin(time * 4)
+    local pulseAlpha = cardAlpha * (0.3 + 0.2 * math.sin(time * 6))
+    love.graphics.setColor(ultimateGlow[1], ultimateGlow[2], ultimateGlow[3], pulseAlpha)
     love.graphics.setLineWidth(2)
-
-    -- Raios nos cantos
-    local cornerOffset = 15
-    -- Canto superior esquerdo
-    love.graphics.line(rect.x - cornerOffset, rect.y, rect.x, rect.y - cornerOffset)
-    love.graphics.line(rect.x, rect.y - cornerOffset, rect.x + cornerOffset, rect.y)
-
-    -- Canto superior direito
-    love.graphics.line(rect.x + rect.w - cornerOffset, rect.y, rect.x + rect.w, rect.y - cornerOffset)
-    love.graphics.line(rect.x + rect.w, rect.y - cornerOffset, rect.x + rect.w + cornerOffset, rect.y)
-
-    -- Canto inferior esquerdo
-    love.graphics.line(rect.x - cornerOffset, rect.y + rect.h, rect.x, rect.y + rect.h + cornerOffset)
-    love.graphics.line(rect.x, rect.y + rect.h + cornerOffset, rect.x + cornerOffset, rect.y + rect.h)
-
-    -- Canto inferior direito
-    love.graphics.line(rect.x + rect.w - cornerOffset, rect.y + rect.h, rect.x + rect.w, rect.y + rect.h + cornerOffset)
-    love.graphics.line(rect.x + rect.w, rect.y + rect.h + cornerOffset, rect.x + rect.w + cornerOffset, rect.y + rect.h)
+    love.graphics.rectangle("line",
+        rect.x - pulseSize, rect.y - pulseSize,
+        rect.w + pulseSize * 2, rect.h + pulseSize * 2)
 end
 
 function LevelUpCard:drawContent(alpha)
@@ -243,7 +243,7 @@ function LevelUpCard:drawContent(alpha)
 
     love.graphics.setFont(fonts.main_bold)
     love.graphics.setColor(colors.white)
-    local progressText = string.format("%d/%d", nextLevel, maxLevel)
+    local progressText = string.format("%d/%d", currentLevel, maxLevel)
     love.graphics.printf(progressText, rect.x + 8, currentY + headerHeight - 20, rect.w - 16, "right")
 
     currentY = currentY + headerHeight
@@ -255,7 +255,7 @@ function LevelUpCard:drawContent(alpha)
     local progressBarWidth = rect.w - (progressBarPadding * 2)
 
     -- Fundo da barra
-    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha * 0.5)
+    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha * 0.3)
     love.graphics.rectangle("fill", progressBarX, currentY, progressBarWidth, progressBarHeight)
 
     -- Preenchimento da barra
@@ -271,33 +271,47 @@ function LevelUpCard:drawContent(alpha)
     local contentX = rect.x + padding
     local contentWidth = rect.w - (padding * 2)
 
-    -- Indicador ULTIMATE se aplicável
-    if self.optionData.is_ultimate then
-        love.graphics.setFont(fonts.main_small_bold)
-        love.graphics.setColor(colors.rankDetails.S[1], colors.rankDetails.S[2], colors.rankDetails.S[3], alpha)
-        local ultimateText = "✦ ULTIMATE ✦"
-        love.graphics.printf(ultimateText, contentX, currentY, contentWidth, "center")
-        -- Sombra dourada para o texto ULTIMATE
-        love.graphics.setColor(colors.rankDetails.S[1] * 0.7, colors.rankDetails.S[2] * 0.7,
-            colors.rankDetails.S[3] * 0.7, alpha * 0.8)
-        love.graphics.printf(ultimateText, contentX + 1, currentY + 1, contentWidth, "center")
-        currentY = currentY + fonts.main_small_bold:getHeight() + 4
-    end
 
     -- Nome da melhoria (negrito)
     love.graphics.setFont(fonts.title_large)
-    local nameColor = self.optionData.is_ultimate and colors.rankDetails.S or colors.text_title
-    love.graphics.setColor(nameColor[1], nameColor[2], nameColor[3], alpha)
     local nameText = self.optionData.name or "Melhoria Desconhecida"
+
+    if self.optionData.is_ultimate then
+        -- Brilho animado para melhorias ultimate
+        local time = love.timer.getTime()
+        local glowIntensity = 0.6 + 0.4 * math.sin(time * 3)
+
+        -- Múltiplas camadas de glow usando a cor da categoria
+        for i = 1, 3 do
+            local glowOffset = i * 0.5
+            local glowAlpha = alpha * glowIntensity * (0.3 / i)
+            love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], glowAlpha)
+            love.graphics.printf(nameText, contentX - glowOffset, currentY - glowOffset, contentWidth, "center")
+            love.graphics.printf(nameText, contentX + glowOffset, currentY - glowOffset, contentWidth, "center")
+            love.graphics.printf(nameText, contentX - glowOffset, currentY + glowOffset, contentWidth, "center")
+            love.graphics.printf(nameText, contentX + glowOffset, currentY + glowOffset, contentWidth, "center")
+        end
+
+        -- Texto principal com cor da categoria mais brilhante
+        local brightColor = { categoryColor[1] * 1.3, categoryColor[2] * 1.3, categoryColor[3] * 1.3, 1.0 }
+        love.graphics.setColor(brightColor[1], brightColor[2], brightColor[3], alpha)
+    else
+        -- Cor normal para melhorias não-ultimate
+        love.graphics.setColor(colors.text_title[1], colors.text_title[2], colors.text_title[3], alpha)
+    end
+
     love.graphics.printf(nameText, contentX, currentY, contentWidth, "center")
-    -- Adiciona sombra ao nome da melhoria
-    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha * 0.5)
-    love.graphics.printf(nameText, contentX + 1, currentY + 1, contentWidth, "center")
+
+    -- Sombra sutil
+    if not self.optionData.is_ultimate then
+        love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha * 0.5)
+        love.graphics.printf(nameText, contentX + 1, currentY + 1, contentWidth, "center")
+    end
     currentY = currentY + fonts.title_large:getHeight() + 2
 
     -- Tipo de melhoria
     love.graphics.setFont(fonts.main_small)
-    love.graphics.setColor(colors.text_muted[1], colors.text_muted[2], colors.text_muted[3], alpha)
+    love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha)
     local improvementType = self:getImprovementType()
     love.graphics.printf(improvementType, contentX, currentY, contentWidth, "center")
     currentY = currentY + fonts.main_small:getHeight() + 8
@@ -369,9 +383,8 @@ function LevelUpCard:getModifiersData()
 end
 
 function LevelUpCard:getImprovementType()
-    -- Determina o tipo baseado no ID ou outros campos
     if self.optionData.is_ultimate then
-        return "Melhoria Ultimate - Rank S"
+        return "MELHORIA ULTIMATE"
     end
 
     local bonusId = self.optionData.id or ""

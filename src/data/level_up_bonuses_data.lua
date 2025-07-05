@@ -1001,10 +1001,10 @@ LevelUpBonusesData.Bonuses = {
     },
 
     -- Ultimates de Dash
-    ultimate_dash_cooldown_reduction_1 = {
-        id = "ultimate_dash_cooldown_reduction_1",
+    ultimate_dash_cooldown_reduction = {
+        id = "ultimate_dash_cooldown_reduction",
         name = "Passo Instantâneo",
-        description = "A velocidade absoluta. |-40%| |Recarga do Dash| e |+20%| |Velocidade de Movimento|. Como um raio.",
+        description = "A velocidade absoluta. Aumenta a |Recarga do Dash| em |-40%| e a |Velocidade de Movimento| em |20%|. Como um raio.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1015,11 +1015,11 @@ LevelUpBonusesData.Bonuses = {
         },
         color = Colors.rankDetails.S.text
     },
-    ultimate_dash_distance_increase_1 = {
-        id = "ultimate_dash_distance_increase_1",
+    ultimate_dash_distance_increase = {
+        id = "ultimate_dash_distance_increase",
         name = "Salto Dimensional",
         description =
-        "A distância transcendente. |+75%| |Distância do Dash| e |+1| |Carga de Dash|. Atravesse dimensões.",
+        "A distância transcendente. Aumenta a |Distância do Dash| em |75%| e a |Carga de Dash| base em |1|. Atravesse dimensões.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1030,10 +1030,10 @@ LevelUpBonusesData.Bonuses = {
         },
         color = Colors.rankDetails.S.text
     },
-    ultimate_dash_extra_charge_1 = {
-        id = "ultimate_dash_extra_charge_1",
+    ultimate_dash_extra_charge = {
+        id = "ultimate_dash_extra_charge",
         name = "Carga Infinita",
-        description = "Cargas ilimitadas. |+3| |Cargas de Dash| e |-20%| |Recarga do Dash|. A mobilidade perfeita.",
+        description = "Cargas ilimitadas. Aumenta a |Cargas de Dash| base em |3| e a |Recarga do Dash| em |-20%|. A mobilidade perfeita.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1046,10 +1046,10 @@ LevelUpBonusesData.Bonuses = {
     },
 
     -- Ultimates de Poções
-    ultimate_potion_capacity_1 = {
-        id = "ultimate_potion_capacity_1",
+    ultimate_potion_capacity_base = {
+        id = "ultimate_potion_capacity_base",
         name = "Capacidade Ilimitada",
-        description = "Frascos infinitos. |+3| |Frascos de Poção| e |+30%| |Cura da Poção|. Nunca fique sem recursos.",
+        description = "Frascos infinitos. Aumenta a |Capacidade de Poção| base em |3| e o |Bônus de Cura| em |30%|. Nunca fique sem recursos.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1060,10 +1060,10 @@ LevelUpBonusesData.Bonuses = {
         },
         color = Colors.rankDetails.S.text
     },
-    ultimate_potion_potency_1_fixed = {
-        id = "ultimate_potion_potency_1_fixed",
+    ultimate_potion_potency_base = {
+        id = "ultimate_potion_potency_base",
         name = "Poções Divinas",
-        description = "A cura suprema. |+75| |Cura da Poção| e |+25%| |Bônus de Cura|. Elixires dos deuses.",
+        description = "A cura suprema. Aumenta a |Cura da Poção| base em |75| HP e o |Bônus de Cura| em |25%|. Elixires dos deuses.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1074,15 +1074,15 @@ LevelUpBonusesData.Bonuses = {
         },
         color = Colors.rankDetails.S.text
     },
-    ultimate_potion_speed_1 = {
-        id = "ultimate_potion_speed_1",
+    ultimate_potion_speed = {
+        id = "ultimate_potion_speed",
         name = "Destilação Instantânea",
         description =
-        "A velocidade alquímica suprema. |125%| |Velocidade de Preenchimento| e |20%| |Cura da Poção|. Alquimia instantânea.",
+        "A velocidade alquímica suprema. Aumenta a |Velocidade de Preenchimento| em |125%| e a |Cura da Poção| em |20%|. Alquimia instantânea.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
-        base_bonuses = { "potion_speed_1" },
+        base_bonuses = { "potion_speed" },
         modifiers_per_level = {
             { stat = "potionFillRate",   type = "percentage", value = 125 },
             { stat = "potionHealAmount", type = "percentage", value = 20 }
@@ -1092,10 +1092,10 @@ LevelUpBonusesData.Bonuses = {
 
 
     -- Ultimates de Regeneração
-    ultimate_regeneration_1_fixed = {
-        id = "ultimate_regeneration_1_fixed",
+    ultimate_regeneration_base = {
+        id = "ultimate_regeneration_base",
         name = "Recuperação Suprema",
-        description = "A regeneração divina. |+2.5| |Regeneração de Vida|/s e |+30%| |Vida Máxima|. A vida eterna.",
+        description = "A regeneração divina. Aumenta a |Regeneração de Vida| base em |2.5| e a |Vida Máxima| em |30%|. A vida eterna.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1106,11 +1106,11 @@ LevelUpBonusesData.Bonuses = {
         },
         color = Colors.rankDetails.S.text
     },
-    ultimate_regen_delay_1_reduction = {
-        id = "ultimate_regen_delay_1_reduction",
+    ultimate_regen_delay_reduction = {
+        id = "ultimate_regen_delay_reduction",
         name = "Prontidão Absoluta",
         description =
-        "A resposta instantânea. |-2.5| segundos |Delay de Regeneração| e |+50%| |Regeneração de Vida|. A cura imediata.",
+        "A resposta instantânea. Aumenta o |Delay de Regeneração| em |-2.5| segundos e a |Regeneração de Vida| em |50%|. A cura imediata.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
