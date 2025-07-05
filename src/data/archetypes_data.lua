@@ -47,7 +47,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "É mais rapido que outros, bom para fugir de inimigos.",
         modifiers = {
-            { stat = "moveSpeed", type = "base", value = 3 }
+            { stat = "moveSpeed", type = "base", value = 0.5 }
         }
     },
     alchemist_novice = {
@@ -56,7 +56,7 @@ ArchetypesData.Archetypes = {
         rank = "E",
         description = "Conhecimento básico em poções, frascos enchem um pouco mais rápido.",
         modifiers = {
-            { stat = "potionFillRate", type = "base", value = 1.1 } -- +10% velocidade preenchimento
+            { stat = "potionFillRate", type = "base", value = 0.1 } -- +10% velocidade preenchimento
         }
     },
     vigorous = {
@@ -131,7 +131,7 @@ ArchetypesData.Archetypes = {
         rank = "D",
         description = "Percebe itens de mais longe.",
         modifiers = {
-            { stat = "pickupRadius", type = "base", value = 5 }
+            { stat = "pickupRadius", type = "base", value = 2 }
         }
     },
     barreira_magica = {
@@ -236,7 +236,7 @@ ArchetypesData.Archetypes = {
         rank = "C",
         description = "Aumenta o raio de coleta de itens e o ganho de experiência.",
         modifiers = {
-            { stat = "pickupRadius", type = "base", value = 7.5 },
+            { stat = "pickupRadius", type = "base", value = 5 },
             { stat = "expBonus",     type = "base", value = 0.3 }
         }
     },
@@ -259,7 +259,7 @@ ArchetypesData.Archetypes = {
         modifiers = {
             { stat = "critChance", type = "base", value = 0.3 },
             { stat = "defense",    type = "base", value = -5 },
-            { stat = "attackArea", type = "base", value = 3 }
+            { stat = "attackArea", type = "base", value = 0.2 }
         }
     },
     combat_pharmacist = {
@@ -279,7 +279,7 @@ ArchetypesData.Archetypes = {
         rank = "B",
         description = "Aumenta consideravelmente o alcance dos ataques, com uma pequena redução na velocidade de ataque.",
         modifiers = {
-            { stat = "range",       type = "base", value = 3.5 },
+            { stat = "range",       type = "base", value = 0.5 },
             { stat = "attackSpeed", type = "base", value = -0.5 }
         }
     },
@@ -290,7 +290,7 @@ ArchetypesData.Archetypes = {
         description = "Melhora a regeneração de vida por segundo, mas diminui a vida máxima.",
         modifiers = {
             { stat = "healthPerTick", type = "base", value = 0.2 },
-            { stat = "health",        type = "base", value = -10 }
+            { stat = "health",        type = "base", value = -100 }
         }
     },
     ariete = {
