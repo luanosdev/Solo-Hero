@@ -55,7 +55,7 @@ local CONFIG = {
     VIRTUAL_MAP_WIDTH = 3000,     -- Largura virtual do mapa gerado
     VIRTUAL_MAP_HEIGHT = 2000,    -- Altura virtual do mapa gerado
     MAX_POINTS = 1280,            -- Máximo de pontos do continente
-    STRUCTURE_COUNT = 20,         -- Número de estruturas
+    STRUCTURE_COUNT = 30,         -- Número de estruturas
     MIN_STRUCTURE_DISTANCE = 200, -- Distância mínima entre estruturas
     STRUCTURE_SCALE = 0.5,        -- Escala das estruturas desenhadas
     GRID_SIZE = 25,               -- Tamanho da grade tática
@@ -2383,11 +2383,11 @@ end
 ---@return number mapDrawX Posição X de desenho
 ---@return number mapDrawY Posição Y de desenho
 function LobbyMapPortals:getRenderInfo()
-    -- Retornar valores consistentes com o sistema de coordenadas do canvas
-    -- O canvas é desenhado com offset da câmera, então o mapDrawX/Y deve ser 0 para portais
+    -- Retornar valores consistentes com getScreenPositionFromWorld
+    -- Para que _fromIso seja o inverso correto de getScreenPositionFromWorld
     local mapScale = self.currentZoom
-    local mapDrawX = 0
-    local mapDrawY = 0
+    local mapDrawX = self.cameraOffset.x
+    local mapDrawY = self.cameraOffset.y
 
     return mapScale, mapDrawX, mapDrawY
 end
@@ -2415,15 +2415,6 @@ function LobbyMapPortals:zoomToPosition(x, y, zoomLevel)
     local isoX = (cartesianX - cartesianY) * 0.7 * CONFIG.ISO_SCALE
     local isoY = (cartesianX + cartesianY) * 0.35 * CONFIG.ISO_SCALE
 
-    -- Debug: verificar posição atual antes do zoom
-    local currentScreenX, currentScreenY = self:getScreenPositionFromWorld(x, y)
-    print("=== ZOOM DEBUG ===")
-    print("Portal mundo: (" .. math.floor(x) .. ", " .. math.floor(y) .. ")")
-    print("Portal tela antes: (" .. math.floor(currentScreenX) .. ", " .. math.floor(currentScreenY) .. ")")
-    print("Target zoom: " .. self.targetZoom)
-    print("Desired screen: (" .. math.floor(desiredScreenX) .. ", " .. math.floor(desiredScreenY) .. ")")
-    print("ISO coords: (" .. math.floor(isoX) .. ", " .. math.floor(isoY) .. ")")
-
     -- Como o canvas é desenhado com love.graphics.draw(canvas, cameraOffset.x, cameraOffset.y, 0, zoom, zoom, mapW/2, mapH/2)
     -- O ponto (cameraOffset.x, cameraOffset.y) representa onde o CENTRO do canvas aparece na tela
     -- Para centralizar um ponto específico, o centro do canvas deve ser deslocado pela diferença entre
@@ -2432,11 +2423,6 @@ function LobbyMapPortals:zoomToPosition(x, y, zoomLevel)
         x = desiredScreenX - isoX * self.targetZoom,
         y = desiredScreenY - isoY * self.targetZoom
     }
-
-    print("Target camera offset: (" ..
-        math.floor(self.targetCameraOffset.x) .. ", " .. math.floor(self.targetCameraOffset.y) .. ")")
-    print("Current camera offset: (" .. math.floor(self.cameraOffset.x) .. ", " .. math.floor(self.cameraOffset.y) .. ")")
-    print("==================")
 
     Logger.info("lobby_map_portals.zoomToPosition",
         "[LobbyMapPortals] Zoom para posição (" .. math.floor(x) .. ", " .. math.floor(y) ..

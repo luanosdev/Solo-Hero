@@ -117,7 +117,7 @@ function LobbyPortalManager:_generatePortalPositions()
             -- Gerar posição aleatória dentro dos limites do mapa virtual
             -- Priorizar área visível da câmera para garantir que portais sejam visíveis
             local x, y
-            if attempts <= maxAttempts * 0.7 then -- 70% das tentativas na área visível
+            if attempts <= maxAttempts * 0.95 then -- 95% das tentativas na área visível
                 x, y = self:_generateVisiblePosition()
             else
                 x = love.math.random() * self.mapW
@@ -134,53 +134,51 @@ function LobbyPortalManager:_generatePortalPositions()
                     if self:_isValidPortalDistance(x, y) then
                         -- Verificar distância mínima das estruturas
                         if self:_isValidStructureDistance(x, y) then
-                            local portalInstance = {
-                                id = portalId,
-                                name = definition.name,
-                                rank = definition.rank,
-                                theme = definition.theme or "default",
-                                mapX = x,
-                                mapY = y,
-                                screenX = 0, -- Será calculado antes da criação da animação
-                                screenY = 0, -- Será calculado antes da criação da animação
-                                color = colors.rankDetails[definition.rank] and colors.rankDetails[definition.rank].text or
-                                    colors.white,
-                                radius = LobbyPortalManager.PORTAL_INTERACT_RADIUS,
-                                isHovering = false,
-                                isScreenSpace = false, -- Marcar como portal do mapa
-                            }
+                            -- Verificar se realmente estará visível na tela
+                            if self:_isPositionVisibleOnScreen(x, y) then
+                                local portalInstance = {
+                                    id = portalId,
+                                    name = definition.name,
+                                    rank = definition.rank,
+                                    theme = definition.theme or "default",
+                                    mapX = x,
+                                    mapY = y,
+                                    screenX = 0, -- Será calculado antes da criação da animação
+                                    screenY = 0, -- Será calculado antes da criação da animação
+                                    color = colors.rankDetails[definition.rank] and
+                                        colors.rankDetails[definition.rank].text or
+                                        colors.white,
+                                    radius = LobbyPortalManager.PORTAL_INTERACT_RADIUS,
+                                    isHovering = false,
+                                    isScreenSpace = false, -- Marcar como portal do mapa
+                                }
 
-                            -- Calcular posição de tela ANTES de criar a animação
-                            if self.proceduralMap then
-                                portalInstance.screenX, portalInstance.screenY = self.proceduralMap
-                                    :getScreenPositionFromWorld(x, y)
+                                -- Calcular posição de tela ANTES de criar a animação
+                                if self.proceduralMap then
+                                    portalInstance.screenX, portalInstance.screenY = self.proceduralMap
+                                        :getScreenPositionFromWorld(x, y)
+                                else
+                                    portalInstance.screenX = x
+                                    portalInstance.screenY = y
+                                end
+
+                                table.insert(self.activePortals, portalInstance)
+
+                                -- Criar animação para o portal com posição de tela correta
+                                self:_createPortalAnimation(portalInstance)
+
+                                portalPlaced = true
+                                portalCount = portalCount + 1
+
+                                Logger.info("lobby_portal_manager._generatePortalPositions.portal",
+                                    string.format(
+                                        "[LobbyPortalManager] Portal '%s' (%s) posicionado em (%.0f, %.0f) após %d tentativas",
+                                        portalInstance.name, portalInstance.rank, x, y, attempts))
                             else
-                                portalInstance.screenX = x
-                                portalInstance.screenY = y
-                            end
-
-                            table.insert(self.activePortals, portalInstance)
-
-                            -- Criar animação para o portal com posição de tela correta
-                            self:_createPortalAnimation(portalInstance)
-
-                            portalPlaced = true
-                            portalCount = portalCount + 1
-
-                            Logger.info("lobby_portal_manager._generatePortalPositions.portal",
-                                string.format(
-                                    "[LobbyPortalManager] Portal '%s' (%s) posicionado em (%.0f, %.0f) após %d tentativas",
-                                    portalInstance.name, portalInstance.rank, x, y, attempts))
-
-                            -- Debug: testar conversão para coordenadas de tela
-                            if self.proceduralMap then
-                                local screenX, screenY = self.proceduralMap:getScreenPositionFromWorld(x, y)
-                                print("DEBUG: Portal '" .. definition.name .. "' - Mundo: (" ..
-                                    math.floor(x) .. ", " .. math.floor(y) .. ") -> Tela: (" ..
-                                    math.floor(screenX) .. ", " .. math.floor(screenY) .. ")")
+                                reason = "muito próximo de estrutura"
                             end
                         else
-                            reason = "muito próximo de estrutura"
+                            reason = "fora da área visível"
                         end
                     else
                         reason = "muito próximo de outro portal"
@@ -202,13 +200,6 @@ function LobbyPortalManager:_generatePortalPositions()
             Logger.warn("lobby_portal_manager._generatePortalPositions.failed",
                 "[LobbyPortalManager] Falha ao posicionar portal '" ..
                 portalId .. "' após " .. maxAttempts .. " tentativas")
-
-            -- Debug: mostrar algumas tentativas falhadas
-            print("DEBUG: Primeiras tentativas falhadas para " .. definition.name .. ":")
-            for i, attempt in ipairs(debugAttempts) do
-                print("  " ..
-                    i .. ". (" .. math.floor(attempt.x) .. ", " .. math.floor(attempt.y) .. ") - " .. attempt.reason)
-            end
         end
     end
 
@@ -225,32 +216,81 @@ function LobbyPortalManager:_generateVisiblePosition()
         return love.math.random() * self.mapW, love.math.random() * self.mapH
     end
 
-    -- Obter informações da câmera
-    local cameraOffset = self.proceduralMap.cameraOffset or { x = 0, y = 0 }
-    local currentZoom = self.proceduralMap.currentZoom or 1.0
-
-    -- Calcular área visível baseada na câmera
+    -- Calcular área visível baseada na câmera ATUAL
     local screenW = ResolutionUtils.getGameWidth()
     local screenH = ResolutionUtils.getGameHeight()
 
-    -- Converter área visível da tela para coordenadas do mundo
-    -- Usar as dimensões do mapa definidas no manager
-    local visibleRange = {
-        centerX = self.mapW / 2,
-        centerY = self.mapH / 2,
-        width = screenW / (currentZoom * 0.7), -- Aproximação baseada na escala isométrica
-        height = screenH / (currentZoom * 0.7)
+    -- Usar método do mapa procedural para converter coordenadas de tela para mundo
+    -- Calcular os cantos da tela visível em coordenadas do mundo
+    local corners = {
+        topLeft = self:_screenToWorldPosition(0, 0),
+        topRight = self:_screenToWorldPosition(screenW, 0),
+        bottomLeft = self:_screenToWorldPosition(0, screenH),
+        bottomRight = self:_screenToWorldPosition(screenW, screenH)
     }
 
-    -- Gerar posição aleatória dentro da área visível
-    local x = visibleRange.centerX + (love.math.random() - 0.5) * visibleRange.width
-    local y = visibleRange.centerY + (love.math.random() - 0.5) * visibleRange.height
+    -- Calcular a área delimitadora (bounding box) da área visível
+    local minX = math.min(corners.topLeft.x, corners.topRight.x, corners.bottomLeft.x, corners.bottomRight.x)
+    local maxX = math.max(corners.topLeft.x, corners.topRight.x, corners.bottomLeft.x, corners.bottomRight.x)
+    local minY = math.min(corners.topLeft.y, corners.topRight.y, corners.bottomLeft.y, corners.bottomRight.y)
+    local maxY = math.max(corners.topLeft.y, corners.topRight.y, corners.bottomLeft.y, corners.bottomRight.y)
+
+    -- Adicionar margem robusta para garantir visibilidade total
+    local margin = 200 -- Margem maior para garantir visibilidade
+    minX = math.max(0, minX + margin)
+    maxX = math.min(self.mapW, maxX - margin)
+    minY = math.max(0, minY + margin)
+    maxY = math.min(self.mapH, maxY - margin)
+
+    -- Verificar se a área visível é válida
+    if minX >= maxX or minY >= maxY then
+        -- Fallback: usar posição aleatória no mapa inteiro
+        Logger.warn("lobby_portal_manager._generateVisiblePosition.fallback",
+            "[LobbyPortalManager] Área visível inválida, usando posição aleatória")
+        return love.math.random() * self.mapW, love.math.random() * self.mapH
+    end
+
+    -- Priorizar área central da tela (80% das vezes gera no centro, 20% nas bordas)
+    local x, y
+    if love.math.random() <= 0.8 then
+        -- Gerar no terço central da área visível
+        local centerMargin = (maxX - minX) * 0.25 -- 25% de margem de cada lado
+        local centerMinX = minX + centerMargin
+        local centerMaxX = maxX - centerMargin
+        local centerMinY = minY + centerMargin
+        local centerMaxY = maxY - centerMargin
+
+        x = centerMinX + love.math.random() * (centerMaxX - centerMinX)
+        y = centerMinY + love.math.random() * (centerMaxY - centerMinY)
+    else
+        -- Gerar na área visível completa
+        x = minX + love.math.random() * (maxX - minX)
+        y = minY + love.math.random() * (maxY - minY)
+    end
 
     -- Garantir que está dentro dos limites do mapa
     x = math.max(0, math.min(self.mapW, x))
     y = math.max(0, math.min(self.mapH, y))
 
     return x, y
+end
+
+--- Converte coordenadas de tela para coordenadas do mundo usando o método do mapa procedural
+---@param screenX number Coordenada X da tela
+---@param screenY number Coordenada Y da tela
+---@return table worldPos {x, y} Coordenadas do mundo
+function LobbyPortalManager:_screenToWorldPosition(screenX, screenY)
+    if not self.proceduralMap then
+        return { x = screenX, y = screenY }
+    end
+
+    -- Obter informações de renderização do mapa procedural
+    local mapScale, mapDrawX, mapDrawY = self.proceduralMap:getRenderInfo()
+
+    -- Usar o método existente do mapa procedural para conversão
+    local worldX, worldY = self.proceduralMap:_fromIso(screenX, screenY, mapScale, mapDrawX, mapDrawY)
+
+    return { x = worldX, y = worldY }
 end
 
 --- Verifica se a posição está segura das bordas do continente
@@ -311,6 +351,34 @@ function LobbyPortalManager:_isValidStructureDistance(x, y)
         end
     end
     return true
+end
+
+--- Verifica se uma posição será realmente visível na tela com margem de segurança
+---@param x number Coordenada X do mundo
+---@param y number Coordenada Y do mundo
+---@return boolean isVisible Se a posição está visível na tela
+function LobbyPortalManager:_isPositionVisibleOnScreen(x, y)
+    if not self.proceduralMap then
+        return true -- Se não há mapa procedural, aceitar
+    end
+
+    -- Converter para coordenadas de tela
+    local screenX, screenY = self.proceduralMap:getScreenPositionFromWorld(x, y)
+
+    -- Obter dimensões da tela
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
+
+    -- Margem de segurança para garantir que está bem visível
+    local safetyMargin = 100
+
+    -- Verificar se está dentro da área segura da tela
+    local isVisible = (screenX >= safetyMargin and
+        screenX <= screenW - safetyMargin and
+        screenY >= safetyMargin and
+        screenY <= screenH - safetyMargin)
+
+    return isVisible
 end
 
 --- Cria animação para um portal
