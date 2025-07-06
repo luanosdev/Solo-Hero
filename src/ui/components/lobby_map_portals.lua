@@ -982,6 +982,28 @@ function LobbyMapPortals:update(dt)
     if self.targetCameraOffset then
         self.cameraOffset.x = self.cameraOffset.x + (self.targetCameraOffset.x - self.cameraOffset.x) * factor
         self.cameraOffset.y = self.cameraOffset.y + (self.targetCameraOffset.y - self.cameraOffset.y) * factor
+
+        -- Debug durante zoom
+        if self.zoomTarget and math.abs(self.currentZoom - self.targetZoom) > 0.01 then
+            local currentScreenX, currentScreenY = self:getScreenPositionFromWorld(self.zoomTarget.x, self.zoomTarget.y)
+            local screenW = ResolutionUtils.getGameWidth()
+            local screenH = ResolutionUtils.getGameHeight()
+            local centerX, centerY = screenW / 2, screenH / 2
+
+            if love.timer.getTime() % 0.5 < dt then -- Log a cada 0.5 segundos
+                print("=== ZOOM UPDATE ===")
+                print("Target portal: (" .. math.floor(self.zoomTarget.x) .. ", " .. math.floor(self.zoomTarget.y) .. ")")
+                print("Current zoom: " ..
+                    string.format("%.2f", self.currentZoom) .. " -> " .. string.format("%.2f", self.targetZoom))
+                print("Camera offset: (" ..
+                    math.floor(self.cameraOffset.x) .. ", " .. math.floor(self.cameraOffset.y) .. ")")
+                print("Portal na tela: (" .. math.floor(currentScreenX) .. ", " .. math.floor(currentScreenY) .. ")")
+                print("Centro da tela: (" .. math.floor(centerX) .. ", " .. math.floor(centerY) .. ")")
+                print("Distância do centro: " ..
+                    math.floor(math.sqrt((currentScreenX - centerX) ^ 2 + (currentScreenY - centerY) ^ 2)))
+                print("===================")
+            end
+        end
     end
 end
 
@@ -2361,9 +2383,11 @@ end
 ---@return number mapDrawX Posição X de desenho
 ---@return number mapDrawY Posição Y de desenho
 function LobbyMapPortals:getRenderInfo()
+    -- Retornar valores consistentes com o sistema de coordenadas do canvas
+    -- O canvas é desenhado com offset da câmera, então o mapDrawX/Y deve ser 0 para portais
     local mapScale = self.currentZoom
-    local mapDrawX = self.cameraOffset.x
-    local mapDrawY = self.cameraOffset.y
+    local mapDrawX = 0
+    local mapDrawY = 0
 
     return mapScale, mapDrawX, mapDrawY
 end
@@ -2377,36 +2401,42 @@ function LobbyMapPortals:zoomToPosition(x, y, zoomLevel)
     self.targetZoom = zoomLevel or 3.0
     self.zoomTarget = { x = x, y = y }
 
-    -- Calcular posição final da câmera imediatamente
+    -- Calcular posição final da câmera considerando que o canvas é desenhado com origem no centro
     local screenW = ResolutionUtils.getGameWidth()
     local screenH = ResolutionUtils.getGameHeight()
 
-    -- Calcular onde queremos que o alvo apareça (centro da tela)
+    -- Onde queremos que o portal apareça (centro da tela)
     local desiredScreenX = screenW / 2
     local desiredScreenY = screenH / 2
 
-    -- Calcular posição alvo da câmera para centralizar no zoom final
+    -- Converter coordenadas do mundo para coordenadas do canvas (relativas ao centro do canvas)
     local cartesianX = (x - CONFIG.VIRTUAL_MAP_WIDTH / 2)
     local cartesianY = (y - CONFIG.VIRTUAL_MAP_HEIGHT / 2)
     local isoX = (cartesianX - cartesianY) * 0.7 * CONFIG.ISO_SCALE
     local isoY = (cartesianX + cartesianY) * 0.35 * CONFIG.ISO_SCALE
 
-    -- Calcular offset da câmera para que o ponto apareça no centro da tela
+    -- Debug: verificar posição atual antes do zoom
+    local currentScreenX, currentScreenY = self:getScreenPositionFromWorld(x, y)
+    print("=== ZOOM DEBUG ===")
+    print("Portal mundo: (" .. math.floor(x) .. ", " .. math.floor(y) .. ")")
+    print("Portal tela antes: (" .. math.floor(currentScreenX) .. ", " .. math.floor(currentScreenY) .. ")")
+    print("Target zoom: " .. self.targetZoom)
+    print("Desired screen: (" .. math.floor(desiredScreenX) .. ", " .. math.floor(desiredScreenY) .. ")")
+    print("ISO coords: (" .. math.floor(isoX) .. ", " .. math.floor(isoY) .. ")")
+
+    -- Como o canvas é desenhado com love.graphics.draw(canvas, cameraOffset.x, cameraOffset.y, 0, zoom, zoom, mapW/2, mapH/2)
+    -- O ponto (cameraOffset.x, cameraOffset.y) representa onde o CENTRO do canvas aparece na tela
+    -- Para centralizar um ponto específico, o centro do canvas deve ser deslocado pela diferença entre
+    -- o ponto que queremos centralizar e o centro do canvas, multiplicado pelo zoom
     self.targetCameraOffset = {
         x = desiredScreenX - isoX * self.targetZoom,
         y = desiredScreenY - isoY * self.targetZoom
     }
 
-    -- Debug: usar método detalhado para testar conversões
-    print("=== ZOOM TO POSITION DEBUG ===")
-    print("Portal World Coordinates: (" .. math.floor(x) .. ", " .. math.floor(y) .. ")")
-    print("Target Zoom Level: " .. self.targetZoom)
-    print("Target Camera Offset: (" ..
+    print("Target camera offset: (" ..
         math.floor(self.targetCameraOffset.x) .. ", " .. math.floor(self.targetCameraOffset.y) .. ")")
-
-    -- Usar método de debug para conversões detalhadas
-    self:debugCoordinateConversion(x, y)
-    print("==============================")
+    print("Current camera offset: (" .. math.floor(self.cameraOffset.x) .. ", " .. math.floor(self.cameraOffset.y) .. ")")
+    print("==================")
 
     Logger.info("lobby_map_portals.zoomToPosition",
         "[LobbyMapPortals] Zoom para posição (" .. math.floor(x) .. ", " .. math.floor(y) ..
@@ -2432,88 +2462,6 @@ function LobbyMapPortals:isInZoomMode()
     return self.isZoomedIn
 end
 
---- Método auxiliar para debug - testa conversões de coordenadas
----@param worldX number Coordenada X do mundo
----@param worldY number Coordenada Y do mundo
-function LobbyMapPortals:debugCoordinateConversion(worldX, worldY)
-    print("=== DEBUG COORDINATE CONVERSION ===")
-    print("Input World Coords: (" .. math.floor(worldX) .. ", " .. math.floor(worldY) .. ")")
-
-    -- Método atual do getScreenPositionFromWorld
-    local screenX, screenY = self:getScreenPositionFromWorld(worldX, worldY)
-    print("Screen Position: (" .. math.floor(screenX) .. ", " .. math.floor(screenY) .. ")")
-
-    -- Informações da câmera
-    print("Camera Offset: (" .. math.floor(self.cameraOffset.x) .. ", " .. math.floor(self.cameraOffset.y) .. ")")
-    print("Current Zoom: " .. math.floor(self.currentZoom * 100) / 100)
-    print("Original Camera: (" ..
-        math.floor(self.originalCameraOffset.x) .. ", " .. math.floor(self.originalCameraOffset.y) .. ")")
-
-    -- Conversão manual para verificar
-    local cartesianX = (worldX - CONFIG.VIRTUAL_MAP_WIDTH / 2)
-    local cartesianY = (worldY - CONFIG.VIRTUAL_MAP_HEIGHT / 2)
-    local isoX = (cartesianX - cartesianY) * 0.7 * CONFIG.ISO_SCALE
-    local isoY = (cartesianX + cartesianY) * 0.35 * CONFIG.ISO_SCALE
-
-    print("Manual Conversion:")
-    print("  Cartesian: (" .. math.floor(cartesianX) .. ", " .. math.floor(cartesianY) .. ")")
-    print("  Isometric: (" .. math.floor(isoX) .. ", " .. math.floor(isoY) .. ")")
-    print("  Final: (" ..
-        math.floor(self.cameraOffset.x + isoX * self.currentZoom) ..
-        ", " .. math.floor(self.cameraOffset.y + isoY * self.currentZoom) .. ")")
-    print("===================================")
-end
-
---- Função para testar o zoom em coordenadas específicas (pode ser usada no console)
----@param x number Coordenada X do mundo
----@param y number Coordenada Y do mundo
-function LobbyMapPortals:testZoomToCoordinates(x, y)
-    print("=== TESTE DE ZOOM PARA COORDENADAS ===")
-    print("Testando zoom para: (" .. math.floor(x) .. ", " .. math.floor(y) .. ")")
-
-    -- Salvar estado atual
-    local oldZoom = self.currentZoom
-    local oldTarget = self.zoomTarget
-    local oldIsZoomedIn = self.isZoomedIn
-
-    -- Fazer zoom de teste
-    self:zoomToPosition(x, y, 2.0)
-
-    -- Aguardar um pouco para ver os logs
-    print("Zoom aplicado! Verifique os logs acima.")
-    print("Para voltar ao normal, use: PortalMapComponent:zoomOut()")
-    print("=====================================")
-end
-
---- Função para testar zoom no centro do mapa
-function LobbyMapPortals:testZoomCenter()
-    local centerX = CONFIG.VIRTUAL_MAP_WIDTH / 2
-    local centerY = CONFIG.VIRTUAL_MAP_HEIGHT / 2
-    self:testZoomToCoordinates(centerX, centerY)
-end
-
---- Função para testar zoom em cantos do mapa
-function LobbyMapPortals:testZoomCorners()
-    print("=== TESTE DE ZOOM NOS CANTOS ===")
-    print("Testando 4 cantos do mapa virtual...")
-
-    -- Testar cada canto
-    local corners = {
-        { x = 500,                            y = 500,                             name = "Canto Superior-Esquerdo" },
-        { x = CONFIG.VIRTUAL_MAP_WIDTH - 500, y = 500,                             name = "Canto Superior-Direito" },
-        { x = 500,                            y = CONFIG.VIRTUAL_MAP_HEIGHT - 500, name = "Canto Inferior-Esquerdo" },
-        { x = CONFIG.VIRTUAL_MAP_WIDTH - 500, y = CONFIG.VIRTUAL_MAP_HEIGHT - 500, name = "Canto Inferior-Direito" }
-    }
-
-    for i, corner in ipairs(corners) do
-        print(i .. ". " .. corner.name .. ": (" .. corner.x .. ", " .. corner.y .. ")")
-    end
-
-    print("Para testar, use: PortalMapComponent:testZoomToCoordinates(x, y)")
-    print("Exemplo: PortalMapComponent:testZoomToCoordinates(500, 500)")
-    print("================================")
-end
-
 --- Converte coordenadas do mundo para a projeção isométrica e aplica a transformação da câmera
 -- Esta função é para obter a posição final na tela, considerando zoom e pan.
 ---@param worldX number
@@ -2521,13 +2469,15 @@ end
 ---@return number screenX
 ---@return number screenY
 function LobbyMapPortals:getScreenPositionFromWorld(worldX, worldY)
-    -- Converter coordenadas do mundo para coordenadas isométricas
+    -- Converter coordenadas do mundo para coordenadas isométricas relativas ao centro do canvas
     local cartesianX = (worldX - CONFIG.VIRTUAL_MAP_WIDTH / 2)
     local cartesianY = (worldY - CONFIG.VIRTUAL_MAP_HEIGHT / 2)
     local isoX = (cartesianX - cartesianY) * 0.7 * CONFIG.ISO_SCALE
     local isoY = (cartesianX + cartesianY) * 0.35 * CONFIG.ISO_SCALE
 
-    -- Aplicar transformação da câmera (zoom e posição)
+    -- Como o canvas é desenhado com love.graphics.draw(canvas, cameraOffset.x, cameraOffset.y, 0, zoom, zoom, mapW/2, mapH/2)
+    -- A posição na tela é: cameraOffset + (coordenada_no_canvas - centro_do_canvas) * zoom
+    -- Mas como já convertemos para coordenadas relativas ao centro, aplicamos apenas zoom e offset da câmera
     local screenX = self.cameraOffset.x + isoX * self.currentZoom
     local screenY = self.cameraOffset.y + isoY * self.currentZoom
 

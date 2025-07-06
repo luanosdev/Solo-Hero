@@ -141,8 +141,8 @@ function LobbyPortalManager:_generatePortalPositions()
                                 theme = definition.theme or "default",
                                 mapX = x,
                                 mapY = y,
-                                screenX = 0, -- Será calculado no update/draw
-                                screenY = 0, -- Será calculado no update/draw
+                                screenX = 0, -- Será calculado antes da criação da animação
+                                screenY = 0, -- Será calculado antes da criação da animação
                                 color = colors.rankDetails[definition.rank] and colors.rankDetails[definition.rank].text or
                                     colors.white,
                                 radius = LobbyPortalManager.PORTAL_INTERACT_RADIUS,
@@ -150,9 +150,18 @@ function LobbyPortalManager:_generatePortalPositions()
                                 isScreenSpace = false, -- Marcar como portal do mapa
                             }
 
+                            -- Calcular posição de tela ANTES de criar a animação
+                            if self.proceduralMap then
+                                portalInstance.screenX, portalInstance.screenY = self.proceduralMap
+                                    :getScreenPositionFromWorld(x, y)
+                            else
+                                portalInstance.screenX = x
+                                portalInstance.screenY = y
+                            end
+
                             table.insert(self.activePortals, portalInstance)
 
-                            -- Criar animação para o portal
+                            -- Criar animação para o portal com posição de tela correta
                             self:_createPortalAnimation(portalInstance)
 
                             portalPlaced = true
@@ -317,9 +326,11 @@ function LobbyPortalManager:_createPortalAnimation(portalInstance)
         return
     end
 
+
+
     ---@type PortalAnimationConfig
     local portalAnimationConfig = {
-        position = { x = portalInstance.mapX, y = portalInstance.mapY },
+        position = { x = portalInstance.screenX, y = portalInstance.screenY },
         color = {
             portalInstance.color[1] or 1,
             portalInstance.color[2] or 1,
@@ -456,15 +467,16 @@ function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDr
 
     -- Atualizar animações dos portais
     local animCount = 0
+    local currentZoom = self.proceduralMap and self.proceduralMap.currentZoom or 1.0
+
     for portalId, animConfig in pairs(self.portalAnimations) do
         animCount = animCount + 1
         LobbyPortal.update(animConfig, dt)
-    end
 
-    -- Log periódico das animações
-    if love.timer.getTime() % 3 < 0.016 and animCount > 0 then -- A cada 3 segundos
-        Logger.info("lobby_portal_manager.update.animations",
-            string.format("[LobbyPortalManager] Atualizando %d animações de portais", animCount))
+        -- Aplicar escala baseada no zoom da câmera
+        local baseScale = 1.0
+        local zoomScale = math.max(0.5, math.min(2.0, currentZoom)) -- Limitar escala entre 0.5x e 2.0x
+        animConfig.scale = baseScale * zoomScale
     end
 
     -- SEMPRE atualizar coordenadas de tela dos portais (independente do hover)
@@ -493,9 +505,10 @@ function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDr
     -- Atualizar hover apenas se permitido
     if allowPortalHover then
         for i, portal in ipairs(self.activePortals) do
-            -- Raio de hover também precisa ser ajustado
+            -- Raio de hover também precisa ser ajustado com escala dinâmica
             local hoverScale = portal.isScreenSpace and 1.0 or mapScale
-            local effectiveRadius = 30 * hoverScale
+            local zoomScale = math.max(0.5, math.min(2.0, currentZoom))
+            local effectiveRadius = 30 * hoverScale * zoomScale
             local distSq = (mx - portal.screenX) ^ 2 + (my - portal.screenY) ^ 2
             portal.isHovering = distSq <= (effectiveRadius * effectiveRadius)
         end
@@ -565,14 +578,6 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
         end
 
         if animConfig then
-            -- Log detalhado das coordenadas para debug
-            if love.timer.getTime() % 1 < 0.016 then -- Log a cada 1 segundo
-                Logger.info("lobby_portal_manager.draw.coords_debug",
-                    string.format(
-                        "[LobbyPortalManager] Portal '%s': mapX=%.0f, mapY=%.0f, screenX=%.0f, screenY=%.0f, mapScale=%.3f, drawX=%.0f, drawY=%.0f",
-                        portal.id, portal.mapX, portal.mapY, portal.screenX, portal.screenY, mapScale, mapDrawX, mapDrawY))
-            end
-
             -- Otimização: verificar se está visível na tela
             -- Durante zoom, expandir área de visibilidade para evitar portais desaparecendo
             local checkRadius = (portal.isScreenSpace and 50) or (60 * mapScale) -- Raio estimado da animação
@@ -583,21 +588,20 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
                 portal.screenY <= screenH + checkRadius + visibilityBuffer
 
             if isVisible then
-                -- Salvar valores originais da animação se ainda não foram salvos
+                -- Salvar valores originais da animação se ainda não foram salvos (apenas alpha, scale é dinâmica)
                 if not portal.originalAnimationValues then
                     portal.originalAnimationValues = {
-                        alpha = animConfig.alpha or 1.0,
-                        scale = animConfig.scale or 1.0
+                        alpha = animConfig.alpha or 1.0
                     }
                 end
 
                 -- Ajustar transparência e escala se selecionado (sem modificar permanentemente)
                 local drawAlpha = portal.originalAnimationValues.alpha
-                local drawScale = portal.originalAnimationValues.scale
+                local drawScale = animConfig.scale -- Usar escala atual (que já inclui zoom)
 
                 if isSelected then
                     drawAlpha = 1.0
-                    drawScale = portal.originalAnimationValues.scale * 1.2
+                    drawScale = animConfig.scale * 1.2 -- Amplificar escala atual (que já inclui zoom)
                 end
 
                 -- Aplicar temporariamente os valores para desenho
@@ -605,6 +609,8 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
                 local originalScale = animConfig.scale
                 animConfig.alpha = drawAlpha
                 animConfig.scale = drawScale
+
+
 
                 -- Desenhar animação do portal
                 local success, error = pcall(LobbyPortal.draw, animConfig)
@@ -647,13 +653,6 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
         end
     end
 
-    -- Log ocasional dos resultados apenas se interessante
-    if love.timer.getTime() % 5 < 0.016 and (portalsDrawn > 0 or portalsSkipped ~= #self.activePortals) then
-        Logger.info("lobby_portal_manager.draw.results",
-            string.format("[LobbyPortalManager] Renderização: %d portais desenhados, %d fora da tela",
-                portalsDrawn, portalsSkipped))
-    end
-
     -- Resetar cor
     love.graphics.setColor(colors.white)
 end
@@ -673,7 +672,12 @@ function LobbyPortalManager:_drawPortalsPlaceholder(mapScale, mapDrawX, mapDrawY
     for i, portal in ipairs(self.activePortals) do
         local isSelected = selectedPortalData and (portal.id == selectedPortalData.id)
         local baseRadius = isSelected and 25 or 20
-        local checkRadius = baseRadius * mapScale
+
+        -- Aplicar escala baseada no zoom da câmera
+        local currentZoom = self.proceduralMap and self.proceduralMap.currentZoom or 1.0
+        local zoomScale = math.max(0.5, math.min(2.0, currentZoom))
+        local finalRadius = baseRadius * zoomScale
+        local checkRadius = finalRadius * mapScale
 
         -- Só desenha se visível (com buffer para transições)
         local visibilityBuffer = self:_calculateVisibilityBuffer() -- Buffer dinâmico baseado no estado de zoom
@@ -681,12 +685,14 @@ function LobbyPortalManager:_drawPortalsPlaceholder(mapScale, mapDrawX, mapDrawY
             portal.screenY >= -checkRadius - visibilityBuffer and portal.screenY <= screenH + checkRadius + visibilityBuffer then
             local r, g, b = portal.color[1], portal.color[2], portal.color[3]
 
+
+
             -- Círculo placeholder
             love.graphics.setColor(r, g, b, 0.7)
-            love.graphics.circle("fill", portal.screenX, portal.screenY, baseRadius * mapScale)
+            love.graphics.circle("fill", portal.screenX, portal.screenY, finalRadius * mapScale)
             love.graphics.setColor(r * 1.2, g * 1.2, b * 1.2, 1.0)
             love.graphics.setLineWidth(2)
-            love.graphics.circle("line", portal.screenX, portal.screenY, baseRadius * mapScale)
+            love.graphics.circle("line", portal.screenX, portal.screenY, finalRadius * mapScale)
 
             -- Texto
             if not isSelected then
@@ -735,23 +741,14 @@ function LobbyPortalManager:handleMouseClick(x, y, mapScale, mapDrawX, mapDrawY)
             end
         end
 
-        -- Verifica clique usando raio da animação completa
+        -- Verifica clique usando raio da animação completa com escala dinâmica
         local clickScale = portal.isScreenSpace and 1.0 or mapScale
-        local animationRadius = 50 * clickScale
+        local currentZoom = self.proceduralMap and self.proceduralMap.currentZoom or 1.0
+        local zoomScale = math.max(0.5, math.min(2.0, currentZoom))
+        local animationRadius = 50 * clickScale * zoomScale
         local distSq = (x - currentScreenX) ^ 2 + (y - currentScreenY) ^ 2
 
         if distSq <= (animationRadius * animationRadius) then
-            -- Debug: imprimir coordenadas do portal clicado
-            print("=== PORTAL CLICK DEBUG ===")
-            print("Portal Name: " .. portal.name)
-            print("Portal Map Coordinates: (" .. math.floor(portal.mapX) .. ", " .. math.floor(portal.mapY) .. ")")
-            print("Portal Screen Coordinates: (" ..
-                math.floor(currentScreenX) .. ", " .. math.floor(currentScreenY) .. ")")
-            print("Mouse Click: (" .. math.floor(x) .. ", " .. math.floor(y) .. ")")
-            print("Map Scale: " .. math.floor(mapScale * 100) / 100)
-            print("Map Draw Offset: (" .. math.floor(mapDrawX) .. ", " .. math.floor(mapDrawY) .. ")")
-            print("==========================")
-
             -- Verificar se a animação do portal está intacta
             local animConfig = self.portalAnimations[portal.id]
             if not animConfig then

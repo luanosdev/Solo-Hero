@@ -197,6 +197,8 @@ function LobbyPortal.draw(config)
 
     local frame = config.animation.currentFrame
 
+
+
     -- Ordem de desenho: back -> middle -> front
     local drawOrder = { "back", "middle", "front" }
 
@@ -213,10 +215,10 @@ function LobbyPortal.draw(config)
                 config.alpha or 1
             )
 
-            -- Calcular offset para centralizar o frame
+            -- Calcular offset para centralizar o frame (usar dimensões ORIGINAIS, sem escala)
             local _, _, frameWidth, frameHeight = quad:getViewport()
-            local offsetX = frameWidth * config.scale / 2
-            local offsetY = frameHeight * config.scale / 2
+            local offsetX = frameWidth / 2
+            local offsetY = frameHeight / 2
 
             -- Desenhar a camada
             love.graphics.draw(
