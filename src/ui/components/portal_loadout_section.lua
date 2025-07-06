@@ -17,7 +17,7 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 
 ---@class PortalLoadoutSectionConfig
----@field targetX number Posição X alvo onde a seção deve aparecer
+---@field targetX? number Posição X alvo onde a seção deve aparecer
 ---@field animationSpeed number? Velocidade da animação (padrão: 10.0)
 ---@field sectionWidth number? Largura da seção (padrão: 400)
 ---@field sectionHeight number? Altura da seção (padrão: 600)
@@ -34,9 +34,9 @@ function PortalLoadoutSection.new(config)
     instance.sectionHeight = config.sectionHeight or 600
     instance.padding = config.padding or 20
 
-    -- Começa fora da tela à esquerda e vai para a direita
+    -- Começa fora da tela à esquerda e vai para a esquerda (posição final)
     instance.animationX = -instance.sectionWidth
-    instance.targetX = config.targetX or (1920 - instance.sectionWidth - 50)
+    instance.targetX = config.targetX or 50
     instance.animationSpeed = config.animationSpeed or 10.0
 
     -- Dados do portal

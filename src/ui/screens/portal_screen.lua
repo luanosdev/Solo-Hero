@@ -4,6 +4,7 @@ local colors = require("src.ui.colors")
 local LobbyMapPortals = require("src.ui.components.lobby_map_portals")
 local PortalTitleSection = require("src.ui.components.portal_title_section")
 local PortalLoadoutSection = require("src.ui.components.portal_loadout_section")
+local PortalEventsSection = require("src.ui.components.portal_events_section")
 local portalDefinitions = require("src.data.portals.portal_definitions")
 
 --- Módulo para gerenciar a tela de Portais no Lobby.
@@ -21,6 +22,7 @@ local portalDefinitions = require("src.data.portals.portal_definitions")
 ---@field selectedPortal PortalData|nil Portal atualmente selecionado
 ---@field titleSection PortalTitleSection Seção do título do portal
 ---@field loadoutSection PortalLoadoutSection Seção de loadout/informações do portal
+---@field eventsSection PortalEventsSection Seção de eventos aleatórios do portal
 ---@field targetZoomLevel number Nível de zoom para portais selecionados
 ---@field loadingAnimationTime number Tempo acumulado para animação de carregamento
 ---@field scannerRotation number Rotação atual do scanner radar
@@ -71,7 +73,14 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
 
     -- Criar seção de loadout do portal
     instance.loadoutSection = PortalLoadoutSection.new({
-        targetX = 50,
+        animationSpeed = 10.0,
+        sectionWidth = 400,
+        sectionHeight = 600,
+        padding = 20
+    })
+
+    -- Criar seção de eventos aleatórios do portal
+    instance.eventsSection = PortalEventsSection.new({
         animationSpeed = 10.0,
         sectionWidth = 400,
         sectionHeight = 600,
@@ -182,6 +191,9 @@ function PortalScreen:update(dt, mx, my, allowHover)
     if self.loadoutSection then
         self.loadoutSection:update(dt)
     end
+    if self.eventsSection then
+        self.eventsSection:update(dt)
+    end
 
     -- 5. Atualizar Portal Manager (obtendo informações de renderização do mapa procedural)
     local allowPortalHoverInternal = allowHover
@@ -237,6 +249,9 @@ function PortalScreen:draw(screenW, screenH)
     end
     if self.loadoutSection then
         self.loadoutSection:draw(screenW, screenH)
+    end
+    if self.eventsSection then
+        self.eventsSection:draw(screenW, screenH)
     end
 end
 
@@ -299,6 +314,20 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
                 end
             end
 
+            -- Atualizar e exibir seção de eventos
+            if self.eventsSection then
+                local portalDefinition = portalDefinitions[clickedPortal.id]
+                if portalDefinition then
+                    self.eventsSection:updatePortalData(portalDefinition.name, portalDefinition.map)
+                    self.eventsSection:show()
+                else
+                    Logger.warn(
+                        "portal_screen.handleMousePress",
+                        "[PortalScreen] Definição não encontrada para portal de eventos: " .. clickedPortal.id
+                    )
+                end
+            end
+
             return true
         end
     end
@@ -316,6 +345,9 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
         end
         if self.loadoutSection then
             self.loadoutSection:hide()
+        end
+        if self.eventsSection then
+            self.eventsSection:hide()
         end
 
         -- Limpar estado de seleção da animação
