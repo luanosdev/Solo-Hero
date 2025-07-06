@@ -135,7 +135,7 @@ local weapons = {
         modifiers = {
             { stat = "critChance", type = "base", value = 0.1 },
             { stat = "force",      type = "base", value = 5 },
-            { stat = "health",     type = "base", value = 50 },
+            { stat = "maxHealth",  type = "base", value = 50 },
         },
         value = 200,
     },
@@ -163,7 +163,7 @@ local weapons = {
         knockbackForce = Constants.KNOCKBACK_FORCE.DUAL_DAGGERS,
         modifiers = {
             { stat = "critChance", type = "base", value = 0.2 },
-            { stat = "moveSpeed",  type = "base", value = 5 },
+            { stat = "moveSpeed",  type = "base", value = 0.5 },
         },
         value = 100,
     },
@@ -228,7 +228,7 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.LOW,
         knockbackForce = Constants.KNOCKBACK_FORCE.BOW,
         modifiers = {
-            { stat = "moveSpeed",   type = "base", value = 5 },
+            { stat = "moveSpeed",   type = "base", value = 0.5 },
             { stat = "multiAttack", type = "base", value = 0.4 },
         },
         value = 200,
@@ -319,7 +319,7 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.VERY_LOW,
         knockbackForce = Constants.KNOCKBACK_FORCE.BULLET,
         modifiers = {
-            { stat = "moveSpeed",  type = "base", value = 5 },
+            { stat = "moveSpeed",  type = "base", value = 0.5 },
             { stat = "critChance", type = "base", value = 0.1 },
             { stat = "critDamage", type = "base", value = 0.5 },
         },
@@ -445,7 +445,7 @@ local weapons = {
         knockbackForce = Constants.KNOCKBACK_FORCE.DUAL_DAGGERS,
         -- Modificadores de Atributos do Caçador
         modifiers = {
-            { stat = "moveSpeed", type = "percentage", value = 5 } -- +5% de velocidade de movimento
+            { stat = "moveSpeed", type = "percentage", value = 0.5 } -- +5% de velocidade de movimento
         }
     },
     ---@type FlameStreamWeapon
