@@ -129,15 +129,23 @@ function PortalActionSection:update(dt, mx, my)
     end
 
     -- Atualizar posição do botão para detecção de hover
+    -- Usar largura de referência fixa 1920 (resolução virtual configurada no push)
     local buttonX = (1920 - self.buttonWidth) / 2
     local buttonY = self.animationY
 
     self.buttonRect.x = buttonX
     self.buttonRect.y = buttonY
+    self.buttonRect.width = self.buttonWidth
+    self.buttonRect.height = self.buttonHeight
 
-    -- Verificar hover do botão
-    self.isButtonHovered = mx >= buttonX and mx <= buttonX + self.buttonWidth and
-        my >= buttonY and my <= buttonY + self.buttonHeight
+    -- Verificar hover do botão com validações adicionais
+    -- Garantir que as coordenadas do mouse são válidas
+    if mx and my and type(mx) == "number" and type(my) == "number" then
+        self.isButtonHovered = mx >= buttonX and mx <= (buttonX + self.buttonWidth) and
+            my >= buttonY and my <= (buttonY + self.buttonHeight)
+    else
+        self.isButtonHovered = false
+    end
 end
 
 --- Desenha a seção de ação
@@ -149,8 +157,8 @@ function PortalActionSection:draw(screenW, screenH)
     -- Fonte para texto
     local titleFont = fonts.main_bold or fonts.main
 
-    -- Botão centralizado na tela
-    local buttonX = (screenW - self.buttonWidth) / 2
+    -- Botão centralizado na tela - usar mesma referência do update() (1920)
+    local buttonX = (1920 - self.buttonWidth) / 2
     local buttonY = self.animationY
 
     -- Cor do botão baseada no rank e hover
@@ -203,8 +211,16 @@ end
 function PortalActionSection:isButtonClicked(mx, my)
     if not self.isVisible then return false end
 
-    return mx >= self.buttonRect.x and mx <= self.buttonRect.x + self.buttonWidth and
-        my >= self.buttonRect.y and my <= self.buttonRect.y + self.buttonHeight
+    -- Usar a mesma lógica de detecção do hover para consistência
+    if not mx or not my or type(mx) ~= "number" or type(my) ~= "number" then
+        return false
+    end
+
+    local buttonX = (1920 - self.buttonWidth) / 2
+    local buttonY = self.animationY
+
+    return mx >= buttonX and mx <= (buttonX + self.buttonWidth) and
+        my >= buttonY and my <= (buttonY + self.buttonHeight)
 end
 
 --- Obtém os dados do portal para iniciar a missão

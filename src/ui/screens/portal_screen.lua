@@ -308,8 +308,49 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
             portalData.name .. " (Rank " .. portalData.rank .. ")"
         )
 
-        -- TODO: Implementar lógica para iniciar o portal/mapa
-        -- Exemplo: SceneManager.changeScene("gameplay", { portalId = self.selectedPortal.id })
+        -- Implementar lógica para iniciar o portal/mapa
+        if self.selectedPortal and self.hunterManager then
+            local hunterId = self.hunterManager:getActiveHunterId()
+            local portalId = self.selectedPortal.id
+
+            if hunterId and portalId then
+                -- Verificar se o portal existe em portalDefinitions
+                local portalDefinition = portalDefinitions[portalId]
+                if portalDefinition then
+                    local sceneArgs = {
+                        portalId = portalId,
+                        hunterId = hunterId,
+                        hordeConfig = portalDefinition.hordeConfig -- Opcional, será usado o do portal se não fornecido
+                    }
+
+                    Logger.info(
+                        "portal_screen.handleMousePress.start_mission",
+                        string.format(
+                            "[PortalScreen] Iniciando missão - Portal: %s, Hunter: %s",
+                            portalId, hunterId
+                        )
+                    )
+
+                    SceneManager.switchScene("game_loading_scene", sceneArgs)
+                else
+                    Logger.warn(
+                        "portal_screen.handleMousePress.invalid_portal",
+                        "[PortalScreen] Portal ID '" .. portalId .. "' não encontrado em portalDefinitions"
+                    )
+                end
+            else
+                Logger.warn(
+                    "portal_screen.handleMousePress.missing_data",
+                    "[PortalScreen] Dados incompletos - hunterId: " ..
+                    tostring(hunterId) .. ", portalId: " .. tostring(portalId)
+                )
+            end
+        else
+            Logger.warn(
+                "portal_screen.handleMousePress.no_selection",
+                "[PortalScreen] Nenhum portal selecionado ou hunterManager indisponível"
+            )
+        end
 
         return true
     end
