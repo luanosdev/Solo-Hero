@@ -2,7 +2,7 @@ local SceneManager = require("src.core.scene_manager")
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local LobbyMapPortals = require("src.ui.components.lobby_map_portals")
-local portalDefinitions = require("src.data.portals.portal_definitions")
+local PortalTitleSection = require("src.ui.components.portal_title_section")
 
 --- Módulo para gerenciar a tela de Portais no Lobby.
 ---@class PortalScreen
@@ -16,12 +16,8 @@ local portalDefinitions = require("src.data.portals.portal_definitions")
 ---@field fogShader love.Shader|nil Shader de névoa para o mapa
 ---@field fogShaderPath string Caminho para o shader de névoa
 ---@field noiseTime number Tempo acumulado para animação da névoa
----@field selectedPortal PortalData|nil Portal atualmente selecionado (para modal)
----@field modalRect table Retângulo do modal de portal
----@field modalBtnEnterRect table Retângulo do botão "Entrar" do modal
----@field modalBtnCancelRect table Retângulo do botão "Cancelar" do modal
----@field modalButtonEnterHover boolean Se o botão "Entrar" está em hover
----@field modalButtonCancelHover boolean Se o botão "Cancelar" está em hover
+---@field selectedPortal PortalData|nil Portal atualmente selecionado
+---@field titleSection PortalTitleSection Seção do título do portal
 ---@field targetZoomLevel number Nível de zoom para portais selecionados
 ---@field loadingAnimationTime number Tempo acumulado para animação de carregamento
 ---@field scannerRotation number Rotação atual do scanner radar
@@ -57,23 +53,18 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
     instance.fogShaderPath = "assets/shaders/fog_noise.fs"
     instance.noiseTime = 0
 
-    -- Estado da interface (modal de portais)
+    -- Estado da interface
     instance.selectedPortal = nil
     instance.targetZoomLevel = 3.0 -- Nível de zoom para quando seleciona portais
 
-    -- Estado do Modal
-    local screenW = ResolutionUtils.getGameWidth()
-    local screenH = ResolutionUtils.getGameHeight()
-    local modalW = 350
-    local modalMarginX = 20
-    local modalMarginY = 20
-    local tabBarHeight = 50
-    local modalH = screenH - (modalMarginY * 2) - tabBarHeight
-    instance.modalRect = { x = screenW - modalW - modalMarginX, y = modalMarginY, w = modalW, h = modalH }
-    instance.modalBtnEnterRect = { x = 0, y = 0, w = 120, h = 40 }
-    instance.modalBtnCancelRect = { x = 0, y = 0, w = 120, h = 40 }
-    instance.modalButtonEnterHover = false
-    instance.modalButtonCancelHover = false
+    -- Criar seção do título do portal
+    instance.titleSection = PortalTitleSection.new({
+        portalName = "Portal Desconhecido",
+        portalRank = "E",
+        targetY = 120,
+        animationSpeed = 8.0,
+        shadowOffset = 4
+    })
 
     -- Configs da Névoa
     instance.fogNoiseScale = 4.0
@@ -88,7 +79,6 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
     instance.loadingDots = ""
 
     instance:_loadAssets()
-    instance:_calculateModalLayout()
 
     -- Configurar integração entre sistemas
     instance:_setupProceduralMapIntegration()
@@ -128,17 +118,6 @@ function PortalScreen:_loadAssets()
     else
         Logger.info("portal_screen._loadAssets.shader", "[PortalScreen] Shader de névoa carregado")
     end
-end
-
---- Calcula o layout dos botões do modal.
-function PortalScreen:_calculateModalLayout()
-    local modal = self.modalRect
-    local btnW, btnH = self.modalBtnEnterRect.w, self.modalBtnEnterRect.h
-    local btnPadding = 20
-    self.modalBtnEnterRect.x = modal.x + (modal.w / 2) - btnW - (btnPadding / 2)
-    self.modalBtnEnterRect.y = modal.y + modal.h - btnH - btnPadding
-    self.modalBtnCancelRect.x = modal.x + (modal.w / 2) + (btnPadding / 2)
-    self.modalBtnCancelRect.y = modal.y + modal.h - btnH - btnPadding
 end
 
 --- Atualiza a lógica da tela de portais.
@@ -184,28 +163,13 @@ function PortalScreen:update(dt, mx, my, allowHover)
         return
     end
 
-    -- 4. Lógica do Modal (se visível)
-    self.modalButtonEnterHover = false
-    self.modalButtonCancelHover = false
-    local modalHoverHandled = false
-    if self.selectedPortal then
-        -- Verifica hover nos botões do modal (só se hover geral for permitido)
-        if allowHover then
-            local mrE = self.modalBtnEnterRect
-            local mrC = self.modalBtnCancelRect
-            self.modalButtonEnterHover = (mx >= mrE.x and mx <= mrE.x + mrE.w and my >= mrE.y and my <= mrE.y + mrE.h)
-            self.modalButtonCancelHover = (mx >= mrC.x and mx <= mrC.x + mrC.w and my >= mrC.y and my <= mrC.y + mrC.h)
-
-            -- Verifica hover sobre a área do modal
-            local m = self.modalRect
-            if (mx >= m.x and mx <= m.x + m.w and my >= m.y and my <= m.y + m.h) or self.modalButtonEnterHover or self.modalButtonCancelHover then
-                modalHoverHandled = true
-            end
-        end
+    -- 4. Atualizar seção do título do portal
+    if self.titleSection then
+        self.titleSection:update(dt)
     end
 
     -- 5. Atualizar Portal Manager (obtendo informações de renderização do mapa procedural)
-    local allowPortalHoverInternal = allowHover and not modalHoverHandled
+    local allowPortalHoverInternal = allowHover
     if self.lobbyPortalManager and self.proceduralMap then
         local mapScale, mapDrawX, mapDrawY = self.proceduralMap:getRenderInfo()
         self.lobbyPortalManager:update(dt, mx, my, allowPortalHoverInternal, mapScale, mapDrawX, mapDrawY)
@@ -252,9 +216,9 @@ function PortalScreen:draw(screenW, screenH)
     end
     love.graphics.setColor(colors.white)
 
-    -- 4. Desenhar Modal (se portal selecionado)
-    if self.selectedPortal then
-        self:_drawPortalModal(screenW, screenH)
+    -- 4. Desenhar seção do título do portal
+    if self.titleSection then
+        self.titleSection:draw(screenW, screenH)
     end
 end
 
@@ -284,71 +248,7 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
         return false
     end
 
-    -- 1. Verificar cliques nos botões do modal primeiro (prioridade)
-    if self.selectedPortal then
-        if self.modalButtonEnterHover then
-            local portalId = self.selectedPortal.id
-            local fullDefinition = portalDefinitions[portalId]
-
-
-            if not fullDefinition then
-                self.selectedPortal = nil -- Cancela seleção
-                self.isZoomedIn = false
-                return true               -- Consome clique, mas não avança
-            end
-            if fullDefinition then
-                print("Horde Config found in definition:", fullDefinition.hordeConfig ~= nil)
-                if fullDefinition.hordeConfig then
-                    -- Tenta imprimir alguns campos chave para verificar estrutura
-                    print("  - mvpConfig exists:", fullDefinition.hordeConfig.mvpConfig ~= nil)
-                    print("  - cycles exists:", fullDefinition.hordeConfig.cycles ~= nil)
-                    if fullDefinition.hordeConfig.cycles then
-                        print("  - cycles count:", #fullDefinition.hordeConfig.cycles)
-                        if #fullDefinition.hordeConfig.cycles > 0 then
-                            print("    - cycle[1].majorSpawn exists:",
-                                fullDefinition.hordeConfig.cycles[1].majorSpawn ~= nil)
-                            print("    - cycle[1].minorSpawn exists:",
-                                fullDefinition.hordeConfig.cycles[1].minorSpawn ~= nil)
-                        end
-                    end
-                end
-            end
-            print("-------------------------------------------------")
-
-            local hordeConfig = fullDefinition.hordeConfig
-            local activeHunterId = self.hunterManager:getActiveHunterId()
-            local activeHunterFinalStats = self.hunterManager:getActiveHunterFinalStats()
-
-            if not activeHunterId then
-                print("Erro: Nenhum caçador ativo selecionado.")
-            elseif not hordeConfig then
-                print(string.format("Erro: Portal '%s' (Definição) não possui hordeConfig definida!", portalId))
-            else
-                -- Inicia a cena de combate passando a hordeConfig correta
-                SceneManager.switchScene("game_loading_scene", {
-                    portalId = portalId,
-                    hordeConfig = hordeConfig,
-                    hunterId = activeHunterId,
-                    hunterFinalStats = activeHunterFinalStats
-                })
-            end
-            return true
-        elseif self.modalButtonCancelHover then
-            Logger.info("portal_screen.handleMousePress.cancel", "[PortalScreen] Portal desmarcado")
-            local portalId = self.selectedPortal.id
-            self.selectedPortal = nil
-            -- Limpar estado de seleção da animação
-            if self.lobbyPortalManager then
-                self.lobbyPortalManager:_clearPortalSelectionState(portalId)
-            end
-            if self.proceduralMap then
-                self.proceduralMap:zoomOut()
-            end
-            return true
-        end
-    end
-
-    -- 2. Verificar cliques em portais (só se não há modal ou clique fora dele)
+    -- 1. Verificar cliques em portais
     if self.lobbyPortalManager and self.proceduralMap then
         local mapScale, mapDrawX, mapDrawY = self.proceduralMap:getRenderInfo()
         local clickedPortal = self.lobbyPortalManager:handleMouseClick(x, y, mapScale, mapDrawX, mapDrawY)
@@ -360,16 +260,29 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
             -- Configurar estado de zoom/seleção no mapa procedural
             self.proceduralMap:zoomToPosition(clickedPortal.mapX, clickedPortal.mapY, self.targetZoomLevel)
             self.selectedPortal = clickedPortal
+
+            -- Atualizar e exibir seção do título
+            if self.titleSection then
+                self.titleSection:updatePortalInfo(clickedPortal.name, clickedPortal.rank)
+                self.titleSection:show()
+            end
+
             return true
         end
     end
 
-    -- 3. Clique em área vazia - desmarcar portal se houver
+    -- 2. Clique em área vazia - desmarcar portal se houver
     if self.selectedPortal then
         Logger.info("portal_screen.handleMousePress.deselect",
             "[PortalScreen] Portal desmarcado (clique em área vazia)")
         local portalId = self.selectedPortal.id
         self.selectedPortal = nil
+
+        -- Ocultar seção do título
+        if self.titleSection then
+            self.titleSection:hide()
+        end
+
         -- Limpar estado de seleção da animação
         if self.lobbyPortalManager then
             self.lobbyPortalManager:_clearPortalSelectionState(portalId)
@@ -482,79 +395,6 @@ function PortalScreen:_drawLoadingScreen(screenW, screenH)
     love.graphics.line(screenW - 20, screenH - 20, screenW - 20, screenH - 60)
 
     love.graphics.setLineWidth(1)
-    love.graphics.setColor(colors.white)
-end
-
---- Desenha o modal de portal
----@param screenW number Largura da tela
----@param screenH number Altura da tela
-function PortalScreen:_drawPortalModal(screenW, screenH)
-    local modal = self.modalRect
-    local portal = self.selectedPortal
-    local modalFont = fonts.main_small or fonts.main
-    local modalFontLarge = fonts.main or fonts.main
-
-    -- Fundo
-    love.graphics.setColor(colors.modal_bg[1], colors.modal_bg[2], colors.modal_bg[3], 0.9)
-    love.graphics.rectangle("fill", modal.x, modal.y, modal.w, modal.h)
-    love.graphics.setColor(colors.modal_border)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", modal.x, modal.y, modal.w, modal.h)
-    love.graphics.setLineWidth(1)
-
-    -- Conteúdo
-    love.graphics.setFont(modalFontLarge)
-    love.graphics.setColor(portal.color or colors.white)
-    love.graphics.printf(portal.name, modal.x + 10, modal.y + 15, modal.w - 20, "center")
-    love.graphics.setFont(modalFont)
-    love.graphics.setColor(colors.white)
-
-    local lineH = modalFont:getHeight() * 1.3
-    local currentY = modal.y + 55
-    love.graphics.printf("Rank: " .. portal.rank, modal.x + 15, currentY, modal.w - 30, "left")
-    currentY = currentY + lineH
-    love.graphics.printf("Tema: " .. (portal.theme or "Desconhecido"), modal.x + 15, currentY, modal.w - 30, "left")
-    currentY = currentY + lineH * 1.5
-
-    love.graphics.printf("Bioma: Floresta Sombria", modal.x + 15, currentY, modal.w - 30, "left")
-    currentY = currentY + lineH
-    love.graphics.printf("Inimigos Comuns: Goblins da Noite, Lobos Espectrais", modal.x + 15, currentY, modal.w - 30,
-        "left")
-    currentY = currentY + lineH
-    love.graphics.printf("Chefe: Rei Goblin Ancião", modal.x + 15, currentY, modal.w - 30, "left")
-    currentY = currentY + lineH * 1.5
-
-    love.graphics.printf("Recompensas:", modal.x + 15, currentY, modal.w - 30, "left")
-    currentY = currentY + lineH
-    love.graphics.printf("• Gold: 500-1200", modal.x + 25, currentY, modal.w - 40, "left")
-    currentY = currentY + lineH
-    love.graphics.printf("• EXP: 300-800", modal.x + 25, currentY, modal.w - 40, "left")
-    currentY = currentY + lineH
-    love.graphics.printf("• Itens Únicos: 15%", modal.x + 25, currentY, modal.w - 40, "left")
-    currentY = currentY + lineH * 1.5
-
-    -- Botões do Modal
-    local enterColor = self.modalButtonEnterHover and colors.button_primary.hoverColor or colors.button_primary.bgColor
-    local cancelColor = self.modalButtonCancelHover and colors.button_secondary.hoverColor or
-        colors.button_secondary.bgColor
-
-    -- Botão Entrar
-    love.graphics.setColor(enterColor)
-    love.graphics.rectangle("fill", self.modalBtnEnterRect.x, self.modalBtnEnterRect.y, self.modalBtnEnterRect.w,
-        self.modalBtnEnterRect.h)
-    love.graphics.setColor(colors.button_primary_text)
-    love.graphics.setFont(modalFont)
-    love.graphics.printf("Entrar", self.modalBtnEnterRect.x, self.modalBtnEnterRect.y + 10, self.modalBtnEnterRect.w,
-        "center")
-
-    -- Botão Cancelar
-    love.graphics.setColor(cancelColor)
-    love.graphics.rectangle("fill", self.modalBtnCancelRect.x, self.modalBtnCancelRect.y, self.modalBtnCancelRect.w,
-        self.modalBtnCancelRect.h)
-    love.graphics.setColor(colors.button_primary_text)
-    love.graphics.printf("Cancelar", self.modalBtnCancelRect.x, self.modalBtnCancelRect.y + 10,
-        self.modalBtnCancelRect.w, "center")
-
     love.graphics.setColor(colors.white)
 end
 
