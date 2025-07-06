@@ -41,6 +41,7 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
 
     -- Expor globalmente para testes/debug (console)
     _G.PortalMapComponent = instance.proceduralMap
+    _G.LobbyPortalManager = instance.lobbyPortalManager
 
     -- Estado do Mapa (DEPRECIADOS - mantidos para compatibilidade)
     instance.mapImage = nil
@@ -284,7 +285,12 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
             return true
         elseif self.modalButtonCancelHover then
             Logger.info("portal_screen.handleMousePress.cancel", "[PortalScreen] Portal desmarcado")
+            local portalId = self.selectedPortal.id
             self.selectedPortal = nil
+            -- Limpar estado de seleção da animação
+            if self.lobbyPortalManager then
+                self.lobbyPortalManager:_clearPortalSelectionState(portalId)
+            end
             if self.proceduralMap then
                 self.proceduralMap:zoomOut()
             end
@@ -312,7 +318,12 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
     if self.selectedPortal then
         Logger.info("portal_screen.handleMousePress.deselect",
             "[PortalScreen] Portal desmarcado (clique em área vazia)")
+        local portalId = self.selectedPortal.id
         self.selectedPortal = nil
+        -- Limpar estado de seleção da animação
+        if self.lobbyPortalManager then
+            self.lobbyPortalManager:_clearPortalSelectionState(portalId)
+        end
         if self.proceduralMap then
             self.proceduralMap:zoomOut()
         end
@@ -401,6 +412,7 @@ function PortalScreen:unload()
 
     -- Limpar referências globais
     _G.PortalMapComponent = nil
+    _G.LobbyPortalManager = nil
 
     self.proceduralMap = nil
     self.mapImage = nil

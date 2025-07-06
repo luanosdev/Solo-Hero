@@ -109,13 +109,22 @@ function LobbyPortalManager:_generatePortalPositions()
 
         local portalPlaced = false
         local attempts = 0
+        local debugAttempts = {}
 
         while not portalPlaced and attempts < maxAttempts do
             attempts = attempts + 1
 
             -- Gerar posição aleatória dentro dos limites do mapa virtual
-            local x = love.math.random() * self.mapW
-            local y = love.math.random() * self.mapH
+            -- Priorizar área visível da câmera para garantir que portais sejam visíveis
+            local x, y
+            if attempts <= maxAttempts * 0.7 then -- 70% das tentativas na área visível
+                x, y = self:_generateVisiblePosition()
+            else
+                x = love.math.random() * self.mapW
+                y = love.math.random() * self.mapH
+            end
+
+            local reason = "unknown"
 
             -- Verificar se está dentro do continente
             if self.proceduralMap:isPointInContinent(x, y) then
@@ -138,6 +147,7 @@ function LobbyPortalManager:_generatePortalPositions()
                                     colors.white,
                                 radius = LobbyPortalManager.PORTAL_INTERACT_RADIUS,
                                 isHovering = false,
+                                isScreenSpace = false, -- Marcar como portal do mapa
                             }
 
                             table.insert(self.activePortals, portalInstance)
@@ -152,9 +162,30 @@ function LobbyPortalManager:_generatePortalPositions()
                                 string.format(
                                     "[LobbyPortalManager] Portal '%s' (%s) posicionado em (%.0f, %.0f) após %d tentativas",
                                     portalInstance.name, portalInstance.rank, x, y, attempts))
+
+                            -- Debug: testar conversão para coordenadas de tela
+                            if self.proceduralMap then
+                                local screenX, screenY = self.proceduralMap:getScreenPositionFromWorld(x, y)
+                                print("DEBUG: Portal '" .. definition.name .. "' - Mundo: (" ..
+                                    math.floor(x) .. ", " .. math.floor(y) .. ") -> Tela: (" ..
+                                    math.floor(screenX) .. ", " .. math.floor(screenY) .. ")")
+                            end
+                        else
+                            reason = "muito próximo de estrutura"
                         end
+                    else
+                        reason = "muito próximo de outro portal"
                     end
+                else
+                    reason = "muito próximo da borda do continente"
                 end
+            else
+                reason = "fora do continente"
+            end
+
+            -- Coletar estatísticas de debug
+            if attempts <= 10 then
+                table.insert(debugAttempts, { x = x, y = y, reason = reason })
             end
         end
 
@@ -162,11 +193,55 @@ function LobbyPortalManager:_generatePortalPositions()
             Logger.warn("lobby_portal_manager._generatePortalPositions.failed",
                 "[LobbyPortalManager] Falha ao posicionar portal '" ..
                 portalId .. "' após " .. maxAttempts .. " tentativas")
+
+            -- Debug: mostrar algumas tentativas falhadas
+            print("DEBUG: Primeiras tentativas falhadas para " .. definition.name .. ":")
+            for i, attempt in ipairs(debugAttempts) do
+                print("  " ..
+                    i .. ". (" .. math.floor(attempt.x) .. ", " .. math.floor(attempt.y) .. ") - " .. attempt.reason)
+            end
         end
     end
 
     Logger.info("lobby_portal_manager._generatePortalPositions.complete",
         "[LobbyPortalManager] " .. portalCount .. " portais posicionados no continente procedural")
+end
+
+--- Gera uma posição dentro da área visível da câmera
+---@return number x Coordenada X
+---@return number y Coordenada Y
+function LobbyPortalManager:_generateVisiblePosition()
+    if not self.proceduralMap then
+        -- Fallback para posição aleatória se não há mapa procedural
+        return love.math.random() * self.mapW, love.math.random() * self.mapH
+    end
+
+    -- Obter informações da câmera
+    local cameraOffset = self.proceduralMap.cameraOffset or { x = 0, y = 0 }
+    local currentZoom = self.proceduralMap.currentZoom or 1.0
+
+    -- Calcular área visível baseada na câmera
+    local screenW = ResolutionUtils.getGameWidth()
+    local screenH = ResolutionUtils.getGameHeight()
+
+    -- Converter área visível da tela para coordenadas do mundo
+    -- Usar as dimensões do mapa definidas no manager
+    local visibleRange = {
+        centerX = self.mapW / 2,
+        centerY = self.mapH / 2,
+        width = screenW / (currentZoom * 0.7), -- Aproximação baseada na escala isométrica
+        height = screenH / (currentZoom * 0.7)
+    }
+
+    -- Gerar posição aleatória dentro da área visível
+    local x = visibleRange.centerX + (love.math.random() - 0.5) * visibleRange.width
+    local y = visibleRange.centerY + (love.math.random() - 0.5) * visibleRange.height
+
+    -- Garantir que está dentro dos limites do mapa
+    x = math.max(0, math.min(self.mapW, x))
+    y = math.max(0, math.min(self.mapH, y))
+
+    return x, y
 end
 
 --- Verifica se a posição está segura das bordas do continente
@@ -254,6 +329,9 @@ function LobbyPortalManager:_createPortalAnimation(portalInstance)
 
     -- Criar configuração da animação com cor baseada no rank
     self.portalAnimations[portalInstance.id] = LobbyPortal.createInstance(portalAnimationConfig)
+
+    -- Resetar valores originais salvos para garantir estado limpo
+    portalInstance.originalAnimationValues = nil
 end
 
 --- Fallback para posicionamento baseado em tela (quando mapa procedural não está disponível)
@@ -287,11 +365,11 @@ function LobbyPortalManager:_generatePortalsScreenBased()
             name = definition.name,
             rank = definition.rank,
             theme = definition.theme or "default",
-            mapX = 0,
-            mapY = 0,
+            mapX = 0, -- TEMPORÁRIO: Será reposicionado quando mapa estiver pronto
+            mapY = 0, -- TEMPORÁRIO: Será reposicionado quando mapa estiver pronto
             screenX = screenPos.x,
             screenY = screenPos.y,
-            isScreenSpace = true, -- Flag para ignorar transformações do mapa
+            isScreenSpace = true, -- TEMPORÁRIO: Flag para marcar como portal de fallback
             color = (colors.rankDetails[definition.rank] and colors.rankDetails[definition.rank].text) or colors.white,
             radius = 50,          -- Raio de interação fixo para portais de tela
             isHovering = false,
@@ -318,10 +396,24 @@ function LobbyPortalManager:tryRepositionPortals()
         Logger.info("lobby_portal_manager.tryRepositionPortals",
             "[LobbyPortalManager] Reposicionando portais para o continente procedural")
 
-        -- Limpar animações antigas antes de reposicionar
+        -- Salvar IDs dos portais existentes para preservar as definições
+        local existingPortalIds = {}
+        for _, portal in ipairs(self.activePortals) do
+            table.insert(existingPortalIds, portal.id)
+        end
+
+        -- Limpar portais e animações antigas
+        self.activePortals = {}
         self.portalAnimations = {}
 
+        -- Regenerar portais usando as definições salvas e posicionamento no continente
+        Logger.info(
+            "lobby_portal_manager.tryRepositionPortals.regenerating",
+            "[LobbyPortalManager] Regenerando " .. #existingPortalIds .. " portais no continente"
+        )
+
         self:_generatePortalPositions()
+
         return true
     end
 
@@ -345,6 +437,23 @@ function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDr
         end
     end
 
+    -- Verificar se portais de fallback precisam ser reposicionados para o continente
+    if self.proceduralMap and self.proceduralMap:isGenerationComplete() then
+        local needsRepositioning = false
+        for _, portal in ipairs(self.activePortals) do
+            if portal.isScreenSpace or (portal.mapX == 0 and portal.mapY == 0) then
+                needsRepositioning = true
+                break
+            end
+        end
+
+        if needsRepositioning then
+            Logger.info("lobby_portal_manager.update.auto_reposition",
+                "[LobbyPortalManager] Mapa procedural pronto, reposicionando portais de fallback...")
+            self:tryRepositionPortals()
+        end
+    end
+
     -- Atualizar animações dos portais
     local animCount = 0
     for portalId, animConfig in pairs(self.portalAnimations) do
@@ -358,21 +467,32 @@ function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDr
             string.format("[LobbyPortalManager] Atualizando %d animações de portais", animCount))
     end
 
-    if allowPortalHover then
-        for i, portal in ipairs(self.activePortals) do
-            -- Apenas recalcular posição de tela para portais do MAPA
-            if not portal.isScreenSpace then
+    -- SEMPRE atualizar coordenadas de tela dos portais (independente do hover)
+    for i, portal in ipairs(self.activePortals) do
+        -- Recalcular posição de tela para portais do MAPA usando o sistema de coordenadas correto
+        if not portal.isScreenSpace then
+            if self.proceduralMap then
+                -- Usar método do mapa procedural que aplica transformação isométrica correta
+                portal.screenX, portal.screenY = self.proceduralMap:getScreenPositionFromWorld(portal.mapX,
+                    portal.mapY)
+            else
+                -- Fallback para o sistema antigo se não há mapa procedural
                 portal.screenX = mapDrawX + portal.mapX * mapScale
                 portal.screenY = mapDrawY + portal.mapY * mapScale
             end
+        end
 
-            -- Atualizar posição da animação correspondente
-            local animConfig = self.portalAnimations[portal.id]
-            if animConfig then
-                animConfig.position.x = portal.screenX
-                animConfig.position.y = portal.screenY
-            end
+        -- Atualizar posição da animação correspondente
+        local animConfig = self.portalAnimations[portal.id]
+        if animConfig then
+            animConfig.position.x = portal.screenX
+            animConfig.position.y = portal.screenY
+        end
+    end
 
+    -- Atualizar hover apenas se permitido
+    if allowPortalHover then
+        for i, portal in ipairs(self.activePortals) do
             -- Raio de hover também precisa ser ajustado
             local hoverScale = portal.isScreenSpace and 1.0 or mapScale
             local effectiveRadius = 30 * hoverScale
@@ -383,6 +503,30 @@ function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDr
         for _, portal in ipairs(self.activePortals) do
             portal.isHovering = false
         end
+    end
+end
+
+--- Calcula o buffer de visibilidade baseado no estado de zoom
+---@return number visibilityBuffer Buffer de visibilidade em pixels
+function LobbyPortalManager:_calculateVisibilityBuffer()
+    if not self.proceduralMap then
+        return 200 -- Buffer padrão
+    end
+
+    -- Verificar se está em transição de zoom
+    local currentZoom = self.proceduralMap.currentZoom or 1.0
+    local targetZoom = self.proceduralMap.targetZoom or 1.0
+    local isZoomTransition = math.abs(currentZoom - targetZoom) > 0.01
+
+    if isZoomTransition then
+        -- Durante transições de zoom, usar buffer maior
+        return 400
+    elseif self.proceduralMap.isZoomedIn then
+        -- Durante zoom, usar buffer médio
+        return 300
+    else
+        -- Vista normal, buffer menor
+        return 200
     end
 end
 
@@ -412,6 +556,14 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
         local isSelected = selectedPortalData and (portal.id == selectedPortalData.id)
         local animConfig = self.portalAnimations[portal.id]
 
+        -- Verificar e recriar animação se ausente
+        if not animConfig then
+            Logger.warn("lobby_portal_manager.draw.missing_animation",
+                string.format("[LobbyPortalManager] Animação ausente para portal '%s', recriando...", portal.id))
+            self:_createPortalAnimation(portal)
+            animConfig = self.portalAnimations[portal.id]
+        end
+
         if animConfig then
             -- Log detalhado das coordenadas para debug
             if love.timer.getTime() % 1 < 0.016 then -- Log a cada 1 segundo
@@ -422,24 +574,45 @@ function LobbyPortalManager:draw(mapScale, mapDrawX, mapDrawY, selectedPortalDat
             end
 
             -- Otimização: verificar se está visível na tela
+            -- Durante zoom, expandir área de visibilidade para evitar portais desaparecendo
             local checkRadius = (portal.isScreenSpace and 50) or (60 * mapScale) -- Raio estimado da animação
-            local isVisible = portal.screenX >= -checkRadius and portal.screenX <= screenW + checkRadius and
-                portal.screenY >= -checkRadius and portal.screenY <= screenH + checkRadius
+            local visibilityBuffer = self:_calculateVisibilityBuffer()           -- Buffer dinâmico baseado no estado de zoom
+            local isVisible = portal.screenX >= -checkRadius - visibilityBuffer and
+                portal.screenX <= screenW + checkRadius + visibilityBuffer and
+                portal.screenY >= -checkRadius - visibilityBuffer and
+                portal.screenY <= screenH + checkRadius + visibilityBuffer
 
             if isVisible then
-                -- Ajustar transparência e escala se selecionado
-                local baseScale = animConfig.scale
-                local baseAlpha = animConfig.alpha
-                if isSelected then
-                    animConfig.alpha = 1.0
-                    animConfig.scale = baseScale * 1.2
-                else
-                    animConfig.alpha = baseAlpha
-                    animConfig.scale = baseScale
+                -- Salvar valores originais da animação se ainda não foram salvos
+                if not portal.originalAnimationValues then
+                    portal.originalAnimationValues = {
+                        alpha = animConfig.alpha or 1.0,
+                        scale = animConfig.scale or 1.0
+                    }
                 end
+
+                -- Ajustar transparência e escala se selecionado (sem modificar permanentemente)
+                local drawAlpha = portal.originalAnimationValues.alpha
+                local drawScale = portal.originalAnimationValues.scale
+
+                if isSelected then
+                    drawAlpha = 1.0
+                    drawScale = portal.originalAnimationValues.scale * 1.2
+                end
+
+                -- Aplicar temporariamente os valores para desenho
+                local originalAlpha = animConfig.alpha
+                local originalScale = animConfig.scale
+                animConfig.alpha = drawAlpha
+                animConfig.scale = drawScale
 
                 -- Desenhar animação do portal
                 local success, error = pcall(LobbyPortal.draw, animConfig)
+
+                -- Restaurar valores originais imediatamente após desenho
+                animConfig.alpha = originalAlpha
+                animConfig.scale = originalScale
+
                 if success then
                     portalsDrawn = portalsDrawn + 1
                 else
@@ -502,9 +675,10 @@ function LobbyPortalManager:_drawPortalsPlaceholder(mapScale, mapDrawX, mapDrawY
         local baseRadius = isSelected and 25 or 20
         local checkRadius = baseRadius * mapScale
 
-        -- Só desenha se visível
-        if portal.screenX >= -checkRadius and portal.screenX <= screenW + checkRadius and
-            portal.screenY >= -checkRadius and portal.screenY <= screenH + checkRadius then
+        -- Só desenha se visível (com buffer para transições)
+        local visibilityBuffer = self:_calculateVisibilityBuffer() -- Buffer dinâmico baseado no estado de zoom
+        if portal.screenX >= -checkRadius - visibilityBuffer and portal.screenX <= screenW + checkRadius + visibilityBuffer and
+            portal.screenY >= -checkRadius - visibilityBuffer and portal.screenY <= screenH + checkRadius + visibilityBuffer then
             local r, g, b = portal.color[1], portal.color[2], portal.color[3]
 
             -- Círculo placeholder
@@ -550,9 +724,15 @@ function LobbyPortalManager:handleMouseClick(x, y, mapScale, mapDrawX, mapDrawY)
             currentScreenX = portal.screenX
             currentScreenY = portal.screenY
         else
-            -- Calcula a posição do portal na tela AGORA
-            currentScreenX = mapDrawX + portal.mapX * mapScale
-            currentScreenY = mapDrawY + portal.mapY * mapScale
+            -- Calcula a posição do portal na tela usando o sistema de coordenadas correto
+            if self.proceduralMap then
+                -- Usar método do mapa procedural que aplica transformação isométrica correta
+                currentScreenX, currentScreenY = self.proceduralMap:getScreenPositionFromWorld(portal.mapX, portal.mapY)
+            else
+                -- Fallback para o sistema antigo se não há mapa procedural
+                currentScreenX = mapDrawX + portal.mapX * mapScale
+                currentScreenY = mapDrawY + portal.mapY * mapScale
+            end
         end
 
         -- Verifica clique usando raio da animação completa
@@ -561,6 +741,25 @@ function LobbyPortalManager:handleMouseClick(x, y, mapScale, mapDrawX, mapDrawY)
         local distSq = (x - currentScreenX) ^ 2 + (y - currentScreenY) ^ 2
 
         if distSq <= (animationRadius * animationRadius) then
+            -- Debug: imprimir coordenadas do portal clicado
+            print("=== PORTAL CLICK DEBUG ===")
+            print("Portal Name: " .. portal.name)
+            print("Portal Map Coordinates: (" .. math.floor(portal.mapX) .. ", " .. math.floor(portal.mapY) .. ")")
+            print("Portal Screen Coordinates: (" ..
+                math.floor(currentScreenX) .. ", " .. math.floor(currentScreenY) .. ")")
+            print("Mouse Click: (" .. math.floor(x) .. ", " .. math.floor(y) .. ")")
+            print("Map Scale: " .. math.floor(mapScale * 100) / 100)
+            print("Map Draw Offset: (" .. math.floor(mapDrawX) .. ", " .. math.floor(mapDrawY) .. ")")
+            print("==========================")
+
+            -- Verificar se a animação do portal está intacta
+            local animConfig = self.portalAnimations[portal.id]
+            if not animConfig then
+                Logger.warn("lobby_portal_manager.handleMouseClick.missing_animation",
+                    "[LobbyPortalManager] Animação ausente para portal '" .. portal.name .. "', recriando...")
+                self:_createPortalAnimation(portal)
+            end
+
             Logger.info("lobby_portal_manager.handleMouseClick.portal_clicked",
                 "[LobbyPortalManager] Portal '" .. portal.name .. "' clicado")
             return portal
@@ -580,6 +779,17 @@ end
 ---@return number Número de portais ativos
 function LobbyPortalManager:getPortalCount()
     return #self.activePortals
+end
+
+--- Limpa os valores originais salvos de um portal específico
+---@param portalId string ID do portal
+function LobbyPortalManager:_clearPortalSelectionState(portalId)
+    for _, portal in ipairs(self.activePortals) do
+        if portal.id == portalId then
+            portal.originalAnimationValues = nil
+            break
+        end
+    end
 end
 
 --[[---------------------------------------------------------------------------
