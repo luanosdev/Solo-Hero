@@ -13,7 +13,7 @@ LobbyPortal.__index = LobbyPortal
 
 LobbyPortal.defaultConfig = {
     position = { x = 0, y = 0 },
-    scale = 0.5,
+    scale = 0.3,
     color = { 1, 1, 1 }, -- Branco por padrão (sem alteração)
     alpha = 0.5,
     animation = {

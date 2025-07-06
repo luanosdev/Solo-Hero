@@ -23,6 +23,10 @@ local portalDefinitions = require("src.data.portals.portal_definitions")
 ---@field modalButtonEnterHover boolean Se o botão "Entrar" está em hover
 ---@field modalButtonCancelHover boolean Se o botão "Cancelar" está em hover
 ---@field targetZoomLevel number Nível de zoom para portais selecionados
+---@field loadingAnimationTime number Tempo acumulado para animação de carregamento
+---@field scannerRotation number Rotação atual do scanner radar
+---@field scannerPulseTime number Tempo para pulso do scanner
+---@field loadingDots string Pontos animados para texto de carregamento
 local PortalScreen = {}
 PortalScreen.__index = PortalScreen
 
@@ -77,6 +81,12 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
     instance.fogDensityPower = 2.5
     instance.fogBaseColor = { 0.3, 0.4, 0.6, 1.0 }
 
+    -- Configs da Tela de Carregamento
+    instance.loadingAnimationTime = 0
+    instance.scannerRotation = 0
+    instance.scannerPulseTime = 0
+    instance.loadingDots = ""
+
     instance:_loadAssets()
     instance:_calculateModalLayout()
 
@@ -86,7 +96,7 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
     -- Iniciar geração do mapa procedural
     instance.proceduralMap:generateMap()
 
-    Logger.info("portal_screen.new", "[PortalScreen] criado com sistema de mapa procedural")
+    Logger.info("portal_screen.new", "[PortalScreen] criado com sistema de mapa procedural e tela de carregamento")
 
     return instance
 end
@@ -139,13 +149,42 @@ end
 function PortalScreen:update(dt, mx, my, allowHover)
     -- 1. Atualizar geração do mapa procedural (inclui toda lógica de câmera/zoom/pan)
     if self.proceduralMap then
+        local wasGenerating = not self.proceduralMap:isGenerationComplete()
         self.proceduralMap:update(dt)
+
+        -- Log quando geração completa
+        if wasGenerating and self.proceduralMap:isGenerationComplete() then
+            Logger.info("portal_screen.update.generation_complete",
+                "[PortalScreen] Geração do mapa e portais concluída - área de operação pronta")
+        end
     end
 
-    -- 2. Atualizar tempo da névoa
+    -- 2. Atualizar animações da tela de carregamento
+    self.loadingAnimationTime = self.loadingAnimationTime + dt
+    self.scannerRotation = self.scannerRotation + dt * 2 -- Rotação do scanner
+    self.scannerPulseTime = self.scannerPulseTime + dt
+
+    -- Atualizar pontos animados para texto de carregamento
+    local dotCycle = math.floor(self.loadingAnimationTime * 2) % 4
+    if dotCycle == 0 then
+        self.loadingDots = ""
+    elseif dotCycle == 1 then
+        self.loadingDots = "."
+    elseif dotCycle == 2 then
+        self.loadingDots = ".."
+    else
+        self.loadingDots = "..."
+    end
+
+    -- 3. Atualizar tempo da névoa
     self.noiseTime = self.noiseTime + dt
 
-    -- 3. Lógica do Modal (se visível)
+    -- Se a geração não está completa, não processar lógica de interação
+    if not self:isMapGenerationComplete() then
+        return
+    end
+
+    -- 4. Lógica do Modal (se visível)
     self.modalButtonEnterHover = false
     self.modalButtonCancelHover = false
     local modalHoverHandled = false
@@ -165,7 +204,7 @@ function PortalScreen:update(dt, mx, my, allowHover)
         end
     end
 
-    -- 4. Atualizar Portal Manager (obtendo informações de renderização do mapa procedural)
+    -- 5. Atualizar Portal Manager (obtendo informações de renderização do mapa procedural)
     local allowPortalHoverInternal = allowHover and not modalHoverHandled
     if self.lobbyPortalManager and self.proceduralMap then
         local mapScale, mapDrawX, mapDrawY = self.proceduralMap:getRenderInfo()
@@ -177,6 +216,12 @@ end
 ---@param screenW number Largura da tela.
 ---@param screenH number Altura da tela.
 function PortalScreen:draw(screenW, screenH)
+    -- Se a geração não está completa, mostrar tela de carregamento
+    if not self:isMapGenerationComplete() then
+        self:_drawLoadingScreen(screenW, screenH)
+        return
+    end
+
     -- 1. Desenhar Mapa Procedural (inclui toda lógica de rendering e câmera)
     if self.proceduralMap then
         self.proceduralMap:draw(screenW, screenH)
@@ -233,6 +278,11 @@ end
 ---@return boolean Whether the event was handled.
 function PortalScreen:handleMousePress(x, y, button, istouch)
     if button ~= 1 then return false end -- Só processar clique esquerdo
+
+    -- Se a geração não está completa, não processar cliques
+    if not self:isMapGenerationComplete() then
+        return false
+    end
 
     -- 1. Verificar cliques nos botões do modal primeiro (prioridade)
     if self.selectedPortal then
@@ -331,6 +381,108 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
     end
 
     return false
+end
+
+--- Desenha a tela de carregamento com animação de scanner
+---@param screenW number Largura da tela
+---@param screenH number Altura da tela
+function PortalScreen:_drawLoadingScreen(screenW, screenH)
+    -- Fundo escuro temático
+    love.graphics.setColor(0.05, 0.08, 0.12, 1.0)
+    love.graphics.rectangle("fill", 0, 0, screenW, screenH)
+
+    -- Gradiente radial sutil do centro
+    local centerX, centerY = screenW / 2, screenH / 2
+
+    -- Desenhar círculos concêntricos para efeito de radar
+    love.graphics.setColor(0.1, 0.3, 0.5, 0.3)
+    for i = 1, 5 do
+        local radius = 50 + i * 80
+        local alpha = 0.3 - (i * 0.05)
+        love.graphics.setColor(0.1, 0.3, 0.5, alpha)
+        love.graphics.circle("line", centerX, centerY, radius)
+    end
+
+    -- Scanner rotativo
+    love.graphics.push()
+    love.graphics.translate(centerX, centerY)
+    love.graphics.rotate(self.scannerRotation)
+
+    -- Linha do scanner
+    love.graphics.setColor(0.2, 0.8, 1.0, 0.8)
+    love.graphics.setLineWidth(3)
+    love.graphics.line(0, 0, 250, 0)
+
+    -- Cauda do scanner (gradiente)
+    for i = 1, 10 do
+        local angle = -i * 0.1
+        local alpha = 0.8 - (i * 0.08)
+        love.graphics.setColor(0.2, 0.8, 1.0, alpha)
+        love.graphics.push()
+        love.graphics.rotate(angle)
+        love.graphics.line(0, 0, 250 - i * 10, 0)
+        love.graphics.pop()
+    end
+
+    love.graphics.setLineWidth(1)
+    love.graphics.pop()
+
+    -- Efeito de pulso no centro
+    local pulseAlpha = 0.5 + math.sin(self.scannerPulseTime * 3) * 0.3
+    love.graphics.setColor(0.3, 0.9, 1.0, pulseAlpha)
+    love.graphics.circle("fill", centerX, centerY, 8)
+
+    -- Pontos de interesse simulados (portais sendo detectados)
+    love.graphics.setColor(0.9, 0.5, 0.1, 0.7)
+    for i = 1, 8 do
+        local angle = i * (math.pi * 2 / 8) + self.loadingAnimationTime * 0.5
+        local distance = 120 + math.sin(self.loadingAnimationTime * 2 + i) * 20
+        local x = centerX + math.cos(angle) * distance
+        local y = centerY + math.sin(angle) * distance
+
+        local blinkAlpha = 0.7 + math.sin(self.loadingAnimationTime * 4 + i) * 0.3
+        love.graphics.setColor(0.9, 0.5, 0.1, blinkAlpha)
+        love.graphics.circle("fill", x, y, 4)
+
+        -- Pequeno anel ao redor dos pontos
+        love.graphics.setColor(0.9, 0.7, 0.3, blinkAlpha * 0.5)
+        love.graphics.circle("line", x, y, 8)
+    end
+
+    -- Texto principal
+    love.graphics.setColor(colors.white)
+    love.graphics.setFont(fonts.main_large or fonts.main)
+    local mainText = "ESCANEANDO ÁREA DE OPERAÇÃO"
+    love.graphics.printf(mainText, 0, centerY - 150, screenW, "center")
+
+    -- Texto secundário com pontos animados
+    love.graphics.setFont(fonts.main or fonts.main_small)
+    local subText = "Detectando portais disponíveis" .. self.loadingDots
+    love.graphics.printf(subText, 0, centerY - 110, screenW, "center")
+
+    -- Indicador de progresso temático
+    love.graphics.setColor(0.2, 0.8, 1.0, 0.6)
+    local progressText = "AGÊNCIA SHADOW MONARCH - SISTEMA DE RECONHECIMENTO"
+    love.graphics.printf(progressText, 0, centerY + 180, screenW, "center")
+
+    -- Efeitos de canto (HUD futurístico)
+    love.graphics.setColor(0.2, 0.8, 1.0, 0.4)
+    love.graphics.setLineWidth(2)
+
+    -- Cantos superiores
+    love.graphics.line(20, 20, 60, 20)
+    love.graphics.line(20, 20, 20, 60)
+    love.graphics.line(screenW - 20, 20, screenW - 60, 20)
+    love.graphics.line(screenW - 20, 20, screenW - 20, 60)
+
+    -- Cantos inferiores
+    love.graphics.line(20, screenH - 20, 60, screenH - 20)
+    love.graphics.line(20, screenH - 20, 20, screenH - 60)
+    love.graphics.line(screenW - 20, screenH - 20, screenW - 60, screenH - 20)
+    love.graphics.line(screenW - 20, screenH - 20, screenW - 20, screenH - 60)
+
+    love.graphics.setLineWidth(1)
+    love.graphics.setColor(colors.white)
 end
 
 --- Desenha o modal de portal

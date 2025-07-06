@@ -362,34 +362,14 @@ function LobbyMapPortals:_anchorCamera()
         }
     end
 
-    -- **NOVA VALIDAÇÃO**: Verificar se as posições da câmera resultam em área visível com continente
-    local validatedPositions = {}
-    for _, anchorPos in ipairs(anchorPositions) do
-        if self:_validateCameraPosition(anchorPos.x, anchorPos.y, centerX, centerY) then
-            table.insert(validatedPositions, anchorPos)
-        else
-            print("DEBUG: Posição '" .. anchorPos.name .. "' rejeitada - não mostra continente visível")
-        end
-    end
-
-    -- Se nenhuma posição passou na validação, usar posições mais conservadoras
-    if #validatedPositions == 0 then
-        print("DEBUG: Nenhuma posição validada, usando posições conservadoras no centro")
-        validatedPositions = {
-            { x = centerX, y = centerY, name = "centro (conservador)" },
-            { x = centerX + continentWidth * 0.1, y = centerY, name = "centro-direito (conservador)" },
-            { x = centerX - continentWidth * 0.1, y = centerY, name = "centro-esquerdo (conservador)" }
-        }
-    end
-
-    -- Escolher uma posição aleatória ou forçada das posições validadas
+    -- Escolher uma posição aleatória ou forçada
     local selectedAnchor
-    if CONFIG.FORCE_CAMERA_POSITION and CONFIG.FORCE_CAMERA_POSITION >= 1 and CONFIG.FORCE_CAMERA_POSITION <= #validatedPositions then
-        selectedAnchor = validatedPositions[CONFIG.FORCE_CAMERA_POSITION]
+    if CONFIG.FORCE_CAMERA_POSITION and CONFIG.FORCE_CAMERA_POSITION >= 1 and CONFIG.FORCE_CAMERA_POSITION <= #anchorPositions then
+        selectedAnchor = anchorPositions[CONFIG.FORCE_CAMERA_POSITION]
         print("DEBUG: Usando posição forçada: " .. CONFIG.FORCE_CAMERA_POSITION)
     else
-        selectedAnchor = validatedPositions[love.math.random(1, #validatedPositions)]
-        print("DEBUG: Usando posição aleatória validada")
+        selectedAnchor = anchorPositions[love.math.random(1, #anchorPositions)]
+        print("DEBUG: Usando posição aleatória dos lados naturais")
     end
 
     -- Aplicar pull em direção ao centro se necessário (para evitar oceano demais)
@@ -399,14 +379,58 @@ function LobbyMapPortals:_anchorCamera()
     local finalX = selectedAnchor.x + (centerX - selectedAnchor.x) * centerPullStrength
     local finalY = selectedAnchor.y + (centerY - selectedAnchor.y) * centerPullStrength
 
-    -- **VALIDAÇÃO FINAL**: Verificar se a posição final ainda mostra continente
-    if not self:_validateCameraPosition(finalX, finalY, centerX, centerY) then
-        print("DEBUG: Posição final inválida após pull, usando posição sem pull")
-        finalX = selectedAnchor.x
-        finalY = selectedAnchor.y
+    -- === DIAGNÓSTICO DETALHADO DA CÂMERA ===
+    print("=== DIAGNÓSTICO COMPLETO DA CÂMERA ===")
+    print("DADOS DO CONTINENTE:")
+    print("  Bounds: (" ..
+        math.floor(minX) .. ", " .. math.floor(minY) .. ") to (" .. math.floor(maxX) .. ", " .. math.floor(maxY) .. ")")
+    print("  Centro: (" .. math.floor(centerX) .. ", " .. math.floor(centerY) .. ")")
+    print("  Tamanho: " .. math.floor(continentWidth) .. " x " .. math.floor(continentHeight))
+    print("")
+    print("CONFIGURAÇÕES DA CÂMERA:")
+    print("  CAMERA_BORDER_DISTANCE: " .. CONFIG.CAMERA_BORDER_DISTANCE)
+    print("  CAMERA_CENTER_PULL: " .. CONFIG.CAMERA_CENTER_PULL)
+    print("  Margem calculada: " .. math.floor(margin))
+    print("")
+    print("POSICIONAMENTO:")
+    print("  Âncora original: (" .. math.floor(selectedAnchor.x) .. ", " .. math.floor(selectedAnchor.y) .. ")")
+    print("  Vetor anchor->center: (" ..
+        math.floor(centerX - selectedAnchor.x) .. ", " .. math.floor(centerY - selectedAnchor.y) .. ")")
+    print("  Pull aplicado: (" ..
+        math.floor((centerX - selectedAnchor.x) * centerPullStrength) ..
+        ", " .. math.floor((centerY - selectedAnchor.y) * centerPullStrength) .. ")")
+    print("  Posição final: (" .. math.floor(finalX) .. ", " .. math.floor(finalY) .. ")")
+    print("")
+
+    -- Calcular distâncias da câmera às bordas do continente
+    local distToBorders = {
+        north = maxY - finalY,
+        south = finalY - minY,
+        east = maxX - finalX,
+        west = finalX - minX
+    }
+
+    print("DISTÂNCIAS DA CÂMERA ÀS BORDAS:")
+    for direction, dist in pairs(distToBorders) do
+        print("  " .. direction .. ": " .. math.floor(dist) .. " unidades")
+    end
+
+    local closestBorder = math.min(distToBorders.north, distToBorders.south, distToBorders.east, distToBorders.west)
+    print("  Borda mais próxima: " .. math.floor(closestBorder) .. " unidades")
+
+    -- Estimativa de visibilidade (assumindo viewport ~1920x1080 e escala isométrica)
+    local estimatedViewRange = 600 -- aproximação do alcance visual
+    print("")
+    print("ESTIMATIVA DE VISIBILIDADE:")
+    print("  Alcance visual estimado: ~" .. estimatedViewRange .. " unidades")
+    print("  Costa visível? " .. (closestBorder < estimatedViewRange and "SIM" or "NÃO"))
+    if closestBorder >= estimatedViewRange then
+        print("  PROBLEMA: Câmera muito longe das bordas!")
+        print("  Sugestão: Reduzir CAMERA_BORDER_DISTANCE ou usar CAMERA_CENTER_PULL mais negativo")
     end
 
     -- CORREÇÃO: Converter coordenadas do mundo para coordenadas de tela
+    -- finalX e finalY são coordenadas do mundo, mas agora cameraOffset precisa ser coordenadas de tela
     local screenW = ResolutionUtils.getGameWidth()
     local screenH = ResolutionUtils.getGameHeight()
 
@@ -416,7 +440,8 @@ function LobbyMapPortals:_anchorCamera()
     local isoX = (cartesianX - cartesianY) * 0.7 * CONFIG.ISO_SCALE
     local isoY = (cartesianX + cartesianY) * 0.35 * CONFIG.ISO_SCALE
 
-    -- O cameraOffset representa onde na tela o centro do mapa (0,0 isométrico) deve aparecer
+    -- O cameraOffset agora representa onde na tela o centro do mapa (0,0 isométrico) deve aparecer
+    -- Para mover a câmera para uma posição específica do mundo, precisamos inverter o offset
     self.cameraOffset = { x = screenW / 2 - isoX, y = screenH / 2 - isoY }
 
     -- Salvar posição original da câmera para poder voltar depois do zoom
@@ -425,9 +450,17 @@ function LobbyMapPortals:_anchorCamera()
     -- Debug detalhado da posição da câmera
     print("DEBUG: Posicionamento da câmera:")
     print("  Âncora selecionada: " .. selectedAnchor.name)
-    print("  Posições validadas: " .. #validatedPositions .. "/" .. #anchorPositions)
+    print("  Posição inicial: (" .. math.floor(selectedAnchor.x) .. ", " .. math.floor(selectedAnchor.y) .. ")")
     print("  Posição final: (" .. math.floor(finalX) .. ", " .. math.floor(finalY) .. ")")
-    print("  ✓ Validação de visibilidade do continente aplicada")
+    print("  Offset strength: " .. CONFIG.CAMERA_BORDER_DISTANCE)
+    print("  Margem aplicada: " .. math.floor(margin))
+    print("  Posições disponíveis: " .. #anchorPositions .. " (focadas nos lados naturais)")
+    print("")
+    print("SISTEMA CORRIGIDO:")
+    print("  ✓ Centralização automática removida - CONFIG agora funciona!")
+    print("  ✓ Dupla aplicação do cameraOffset corrigida")
+    print("  ✓ cameraOffset convertido corretamente para coordenadas de tela")
+    print("  ✓ Configurações CONFIG agora afetam verdadeiramente a câmera")
 
     -- Mostrar quais lados estão sendo priorizados
     local prioritizedSides = {}
@@ -436,87 +469,34 @@ function LobbyMapPortals:_anchorCamera()
     end
     print("  Lados priorizados: " .. table.concat(prioritizedSides, ", "))
 
+    print("")
+    print("=== SOLUÇÕES PARA MOSTRAR COSTAS ===")
+    print("PROBLEMA: Só vejo oceano azul, nenhuma costa visível")
+    print("")
+    print("SOLUÇÕES RÁPIDAS (use no console quando estiver na tela de portais):")
+    print("  PortalMapComponent:applyBestSuggestion()    -- MELHOR OPÇÃO: Aplica configuração inteligente")
+    print("  PortalMapComponent:suggestBestCamera()      -- Ver sugestões baseadas no continente")
+    print("  PortalMapComponent:applyCamera(0.01, -1.0)  -- Aplicar configuração específica")
+    print("  PortalMapComponent:findCoast()              -- Testar múltiplas configurações")
+    print("  PortalMapComponent:getSideInfo()            -- Ver análise completa dos lados")
+    print("")
+    print("SISTEMA CORRIGIDO:")
+    print("  ✓ Portal Screen não sobrescreve mais a câmera")
+    print("  ✓ Configurações aplicadas são verdadeiramente PERMANENTES")
+    print("  ✓ Sincronização automática entre sistemas funcionando")
+    print("")
+    print("SIGNIFICADO DOS VALORES:")
+    print("  CAMERA_BORDER_DISTANCE: Quão próximo das bordas (menor = mais próximo)")
+    print("    0.1 = próximo, 0.01 = muito próximo, 0.001 = na borda")
+    print("  CAMERA_CENTER_PULL: Push para longe do centro (mais negativo = mais longe)")
+    print("    -0.5 = longe, -1.0 = muito longe, -2.0 = extremamente longe")
+    print("")
+    print("Para aplicar permanentemente: altere CONFIG no início do arquivo")
+    print("O sistema prioriza automaticamente lados com mais deformações!")
+
     Logger.info("lobby_map_portals._anchorCamera.complete",
         "[LobbyMapPortals] Câmera ancorada em: " .. selectedAnchor.name ..
-        " (validadas: " .. #validatedPositions .. "/" .. #anchorPositions .. ")")
-end
-
---- Valida se uma posição da câmera resulta em área visível com continente
----@param cameraX number Coordenada X da câmera (mundo)
----@param cameraY number Coordenada Y da câmera (mundo)
----@param centerX number Centro X do continente
----@param centerY number Centro Y do continente
----@return boolean isValid Se a posição da câmera mostra continente visível
-function LobbyMapPortals:_validateCameraPosition(cameraX, cameraY, centerX, centerY)
-    local screenW = ResolutionUtils.getGameWidth()
-    local screenH = ResolutionUtils.getGameHeight()
-
-    -- Converter posição da câmera para coordenadas de tela
-    local cartesianX = (cameraX - CONFIG.VIRTUAL_MAP_WIDTH / 2)
-    local cartesianY = (cameraY - CONFIG.VIRTUAL_MAP_HEIGHT / 2)
-    local isoX = (cartesianX - cartesianY) * 0.7 * CONFIG.ISO_SCALE
-    local isoY = (cartesianX + cartesianY) * 0.35 * CONFIG.ISO_SCALE
-
-    -- Calcular onde o centro do mapa apareceria na tela com esta câmera
-    local cameraOffset = { x = screenW / 2 - isoX, y = screenH / 2 - isoY }
-
-    -- Definir pontos de teste na área visível da tela
-    local testPoints = {
-        -- Centro da tela (mais importante)
-        { x = screenW / 2, y = screenH / 2, weight = 3 },
-        -- Quadrantes da tela
-        { x = screenW / 4, y = screenH / 4, weight = 2 },
-        { x = screenW * 3 / 4, y = screenH / 4, weight = 2 },
-        { x = screenW / 4, y = screenH * 3 / 4, weight = 2 },
-        { x = screenW * 3 / 4, y = screenH * 3 / 4, weight = 2 },
-        -- Bordas
-        { x = screenW / 2, y = screenH / 4, weight = 1 },
-        { x = screenW / 2, y = screenH * 3 / 4, weight = 1 },
-        { x = screenW / 4, y = screenH / 2, weight = 1 },
-        { x = screenW * 3 / 4, y = screenH / 2, weight = 1 },
-    }
-
-    local continentVisibleScore = 0
-    local totalWeight = 0
-
-    -- Testar cada ponto da tela para ver se corresponde a uma posição do continente
-    for _, testPoint in ipairs(testPoints) do
-        -- Converter ponto da tela para coordenadas do mundo usando esta câmera
-        local screenX = testPoint.x - cameraOffset.x
-        local screenY = testPoint.y - cameraOffset.y
-
-        -- Reverter projeção isométrica
-        local scaledIsoX = screenX / CONFIG.ISO_SCALE
-        local scaledIsoY = screenY / CONFIG.ISO_SCALE
-
-        local A = 0.7
-        local B = 0.35
-        local cartX = (scaledIsoX / A + scaledIsoY / B) / 2
-        local cartY = (scaledIsoY / B - scaledIsoX / A) / 2
-
-        -- Converter para coordenadas do mundo
-        local worldX = cartX + CONFIG.VIRTUAL_MAP_WIDTH / 2
-        local worldY = cartY + CONFIG.VIRTUAL_MAP_HEIGHT / 2
-
-        -- Verificar se este ponto do mundo está dentro do continente
-        if self:_pointInPolygon(worldX, worldY, self.continentPoints) then
-            continentVisibleScore = continentVisibleScore + testPoint.weight
-        end
-
-        totalWeight = totalWeight + testPoint.weight
-    end
-
-    -- Calcular porcentagem de visibilidade do continente
-    local visibilityPercentage = (continentVisibleScore / totalWeight) * 100
-
-    -- Posição é válida se pelo menos 25% da área visível contém continente
-    local isValid = visibilityPercentage >= 25
-
-    if not isValid then
-        print("DEBUG: Posição inválida - apenas " .. math.floor(visibilityPercentage) .. "% da tela mostra continente")
-    end
-
-    return isValid
+        " (priorizando: " .. table.concat(prioritizedSides, ", ") .. ")")
 end
 
 --- Testa diferentes configurações de câmera rapidamente (TEMPORÁRIO - reverte após teste)

@@ -542,7 +542,7 @@ function LobbyPortalManager:update(dt, mx, my, allowPortalHover, mapScale, mapDr
         LobbyPortal.update(animConfig, dt)
 
         -- Aplicar escala baseada no zoom da câmera
-        local baseScale = 1.0
+        local baseScale = 0.5
         local zoomScale = math.max(0.5, math.min(2.0, currentZoom)) -- Limitar escala entre 0.5x e 2.0x
         animConfig.scale = baseScale * zoomScale
     end
