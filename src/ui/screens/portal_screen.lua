@@ -3,6 +3,8 @@ local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local LobbyMapPortals = require("src.ui.components.lobby_map_portals")
 local PortalTitleSection = require("src.ui.components.portal_title_section")
+local PortalLoadoutSection = require("src.ui.components.portal_loadout_section")
+local portalDefinitions = require("src.data.portals.portal_definitions")
 
 --- Módulo para gerenciar a tela de Portais no Lobby.
 ---@class PortalScreen
@@ -18,6 +20,7 @@ local PortalTitleSection = require("src.ui.components.portal_title_section")
 ---@field noiseTime number Tempo acumulado para animação da névoa
 ---@field selectedPortal PortalData|nil Portal atualmente selecionado
 ---@field titleSection PortalTitleSection Seção do título do portal
+---@field loadoutSection PortalLoadoutSection Seção de loadout/informações do portal
 ---@field targetZoomLevel number Nível de zoom para portais selecionados
 ---@field loadingAnimationTime number Tempo acumulado para animação de carregamento
 ---@field scannerRotation number Rotação atual do scanner radar
@@ -64,6 +67,15 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
         targetY = 120,
         animationSpeed = 8.0,
         shadowOffset = 4
+    })
+
+    -- Criar seção de loadout do portal
+    instance.loadoutSection = PortalLoadoutSection.new({
+        targetX = 50,
+        animationSpeed = 10.0,
+        sectionWidth = 400,
+        sectionHeight = 600,
+        padding = 20
     })
 
     -- Configs da Névoa
@@ -163,9 +175,12 @@ function PortalScreen:update(dt, mx, my, allowHover)
         return
     end
 
-    -- 4. Atualizar seção do título do portal
+    -- 4. Atualizar seções dos portais
     if self.titleSection then
         self.titleSection:update(dt)
+    end
+    if self.loadoutSection then
+        self.loadoutSection:update(dt)
     end
 
     -- 5. Atualizar Portal Manager (obtendo informações de renderização do mapa procedural)
@@ -216,9 +231,12 @@ function PortalScreen:draw(screenW, screenH)
     end
     love.graphics.setColor(colors.white)
 
-    -- 4. Desenhar seção do título do portal
+    -- 4. Desenhar seções dos portais
     if self.titleSection then
         self.titleSection:draw(screenW, screenH)
+    end
+    if self.loadoutSection then
+        self.loadoutSection:draw(screenW, screenH)
     end
 end
 
@@ -261,10 +279,24 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
             self.proceduralMap:zoomToPosition(clickedPortal.mapX, clickedPortal.mapY, self.targetZoomLevel)
             self.selectedPortal = clickedPortal
 
-            -- Atualizar e exibir seção do título
+            -- Atualizar e exibir seções dos portais
             if self.titleSection then
                 self.titleSection:updatePortalInfo(clickedPortal.name, clickedPortal.rank)
                 self.titleSection:show()
+            end
+
+            -- Atualizar e exibir seção de loadout
+            if self.loadoutSection then
+                local portalDefinition = portalDefinitions[clickedPortal.id]
+                if portalDefinition then
+                    self.loadoutSection:updatePortalData(portalDefinition)
+                    self.loadoutSection:show()
+                else
+                    Logger.warn(
+                        "portal_screen.handleMousePress",
+                        "[PortalScreen] Definição não encontrada para portal: " .. clickedPortal.id
+                    )
+                end
             end
 
             return true
@@ -278,9 +310,12 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
         local portalId = self.selectedPortal.id
         self.selectedPortal = nil
 
-        -- Ocultar seção do título
+        -- Ocultar seções dos portais
         if self.titleSection then
             self.titleSection:hide()
+        end
+        if self.loadoutSection then
+            self.loadoutSection:hide()
         end
 
         -- Limpar estado de seleção da animação

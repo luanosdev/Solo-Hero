@@ -798,9 +798,12 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                         -- print("LobbyScene: Mudança de tab cancelando zoom do portal.")
                         self.portalScreen.isZoomedIn = false
                         self.portalScreen.selectedPortal = nil
-                        -- Ocultar seção do título quando sai do zoom
+                        -- Ocultar seções dos portais quando sai do zoom
                         if self.portalScreen.titleSection then
                             self.portalScreen.titleSection:hide()
+                        end
+                        if self.portalScreen.loadoutSection then
+                            self.portalScreen.loadoutSection:hide()
                         end
                     end
                 end
