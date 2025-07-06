@@ -102,10 +102,6 @@ end
 function PortalTitleSection:draw(screenW, screenH)
     if not self.isVisible then return end
 
-    -- Usar fonte grande para o título
-    local titleFont = fonts.game_over or fonts.main_bold or fonts.main
-    love.graphics.setFont(titleFont)
-
     -- Obter cores do rank do portal
     local rankColors = colors.rankDetails[self.portalRank]
     if not rankColors then
@@ -117,23 +113,55 @@ function PortalTitleSection:draw(screenW, screenH)
         )
     end
 
-    -- Calcular posição centralizada na tela
-    local textWidth = titleFont:getWidth(self.portalName)
-    local textX = (screenW - textWidth) / 2
-    local textY = self.animationY
+    -- Fontes para título e rank
+    local titleFont = fonts.game_over or fonts.main_bold or fonts.main
+    local rankFont = fonts.main_bold or fonts.main
 
-    -- Desenhar sombra do texto usando gradientStart (mais escuro)
+    local rankText = "RANK " .. self.portalRank
+    local rankHeight = rankFont:getHeight()
+    local titleHeight = titleFont:getHeight()
+    local spacing = 10
+
+    -- Calcular posições centralizadas
+    local rankWidth = rankFont:getWidth(rankText)
+    local rankX = (screenW - rankWidth) / 2
+    local rankY = self.animationY
+
+    local titleWidth = titleFont:getWidth(self.portalName)
+    local titleX = (screenW - titleWidth) / 2
+    local titleY = rankY + rankHeight + spacing
+
+    -- Desenhar RANK (linha acima)
+    love.graphics.setFont(rankFont)
+
+    -- Sombra do rank
     love.graphics.setColor(
         rankColors.gradientStart[1],
         rankColors.gradientStart[2],
         rankColors.gradientStart[3],
         0.8
     )
-    love.graphics.print(self.portalName, textX + self.shadowOffset, textY + self.shadowOffset)
+    love.graphics.print(rankText, rankX + self.shadowOffset, rankY + self.shadowOffset)
 
-    -- Desenhar texto principal usando a cor do texto do rank
+    -- Texto do rank
     love.graphics.setColor(rankColors.text)
-    love.graphics.print(self.portalName, textX, textY)
+    love.graphics.print(rankText, rankX, rankY)
+
+    -- Desenhar nome do portal (linha principal)
+    love.graphics.setFont(titleFont)
+
+    -- Sombra do nome
+    love.graphics.setColor(
+        rankColors.gradientStart[1],
+        rankColors.gradientStart[2],
+        rankColors.gradientStart[3],
+        0.8
+    )
+    love.graphics.print(self.portalName, titleX + self.shadowOffset, titleY + self.shadowOffset)
+
+    -- Texto do nome
+    love.graphics.setColor(rankColors.text)
+    love.graphics.print(self.portalName, titleX, titleY)
 
     -- Resetar cor
     love.graphics.setColor(colors.white)

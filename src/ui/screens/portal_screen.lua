@@ -5,6 +5,7 @@ local LobbyMapPortals = require("src.ui.components.lobby_map_portals")
 local PortalTitleSection = require("src.ui.components.portal_title_section")
 local PortalLoadoutSection = require("src.ui.components.portal_loadout_section")
 local PortalEventsSection = require("src.ui.components.portal_events_section")
+local PortalActionSection = require("src.ui.components.portal_action_section")
 local portalDefinitions = require("src.data.portals.portal_definitions")
 
 --- Módulo para gerenciar a tela de Portais no Lobby.
@@ -23,6 +24,7 @@ local portalDefinitions = require("src.data.portals.portal_definitions")
 ---@field titleSection PortalTitleSection Seção do título do portal
 ---@field loadoutSection PortalLoadoutSection Seção de loadout/informações do portal
 ---@field eventsSection PortalEventsSection Seção de eventos aleatórios do portal
+---@field actionSection PortalActionSection Seção de ação/botão do portal
 ---@field targetZoomLevel number Nível de zoom para portais selecionados
 ---@field loadingAnimationTime number Tempo acumulado para animação de carregamento
 ---@field scannerRotation number Rotação atual do scanner radar
@@ -85,6 +87,16 @@ function PortalScreen:new(lobbyPortalManager, hunterManager)
         sectionWidth = 400,
         sectionHeight = 600,
         padding = 20
+    })
+
+    -- Criar seção de ação do portal
+    instance.actionSection = PortalActionSection.new({
+        animationSpeed = 12.0,
+        sectionWidth = 500,
+        sectionHeight = 120,
+        padding = 20,
+        buttonWidth = 300,
+        buttonHeight = 60
     })
 
     -- Configs da Névoa
@@ -194,6 +206,9 @@ function PortalScreen:update(dt, mx, my, allowHover)
     if self.eventsSection then
         self.eventsSection:update(dt)
     end
+    if self.actionSection then
+        self.actionSection:update(dt, mx, my)
+    end
 
     -- 5. Atualizar Portal Manager (obtendo informações de renderização do mapa procedural)
     local allowPortalHoverInternal = allowHover
@@ -253,6 +268,9 @@ function PortalScreen:draw(screenW, screenH)
     if self.eventsSection then
         self.eventsSection:draw(screenW, screenH)
     end
+    if self.actionSection then
+        self.actionSection:draw(screenW, screenH)
+    end
 end
 
 --- Verifica se a geração do mapa está completa
@@ -281,7 +299,22 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
         return false
     end
 
-    -- 1. Verificar cliques em portais
+    -- 1. Verificar clique no botão de ação
+    if self.actionSection and self.actionSection:isButtonClicked(x, y) then
+        local portalData = self.actionSection:getPortalData()
+        Logger.info(
+            "portal_screen.handleMousePress.action_button",
+            "[PortalScreen] Botão 'Entrar no Portal' clicado - " ..
+            portalData.name .. " (Rank " .. portalData.rank .. ")"
+        )
+
+        -- TODO: Implementar lógica para iniciar o portal/mapa
+        -- Exemplo: SceneManager.changeScene("gameplay", { portalId = self.selectedPortal.id })
+
+        return true
+    end
+
+    -- 2. Verificar cliques em portais
     if self.lobbyPortalManager and self.proceduralMap then
         local mapScale, mapDrawX, mapDrawY = self.proceduralMap:getRenderInfo()
         local clickedPortal = self.lobbyPortalManager:handleMouseClick(x, y, mapScale, mapDrawX, mapDrawY)
@@ -328,11 +361,17 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
                 end
             end
 
+            -- Atualizar e exibir seção de ação
+            if self.actionSection then
+                self.actionSection:updatePortalData(clickedPortal.name, clickedPortal.rank)
+                self.actionSection:show()
+            end
+
             return true
         end
     end
 
-    -- 2. Clique em área vazia - desmarcar portal se houver
+    -- 3. Clique em área vazia - desmarcar portal se houver
     if self.selectedPortal then
         Logger.info("portal_screen.handleMousePress.deselect",
             "[PortalScreen] Portal desmarcado (clique em área vazia)")
@@ -348,6 +387,9 @@ function PortalScreen:handleMousePress(x, y, button, istouch)
         end
         if self.eventsSection then
             self.eventsSection:hide()
+        end
+        if self.actionSection then
+            self.actionSection:hide()
         end
 
         -- Limpar estado de seleção da animação

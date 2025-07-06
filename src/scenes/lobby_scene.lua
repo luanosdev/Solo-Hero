@@ -808,6 +808,9 @@ function LobbyScene:mousepressed(x, y, buttonIdx, istouch, presses)
                         if self.portalScreen.eventsSection then
                             self.portalScreen.eventsSection:hide()
                         end
+                        if self.portalScreen.actionSection then
+                            self.portalScreen.actionSection:hide()
+                        end
                     end
                 end
                 break
