@@ -53,11 +53,11 @@ local SCAN_STATE_CONFIG = {
 
 -- Configurações de performance para time budget
 local PERFORMANCE_CONFIG = {
-    MAX_TIME_PER_FRAME_MS = 2.0,         -- Máximo de 2ms por frame para geração
+    MAX_TIME_PER_FRAME_MS = 2.0,         -- Voltando para 2ms (rápido)
     SUBDIVISION_YIELD_FREQUENCY = 1,     -- Yield a cada iteração de subdivisão
     CAMERA_ANALYSIS_YIELD_FREQUENCY = 1, -- Yield a cada lado analisado
-    STRUCTURE_YIELD_FREQUENCY = 50,      -- Yield a cada 50 tentativas de estrutura
-    ROAD_YIELD_FREQUENCY = 10,           -- Yield a cada 10 operações de estrada
+    STRUCTURE_YIELD_FREQUENCY = 50,      -- Voltando para 50 (menos yields)
+    ROAD_YIELD_FREQUENCY = 10,           -- Voltando para 10 (menos yields)
 }
 
 ---@class Structure
