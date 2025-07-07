@@ -450,6 +450,10 @@ end
 ---@param screenW number Largura da tela
 ---@param screenH number Altura da tela
 function PortalScreen:_drawLoadingScreen(screenW, screenH)
+    -- Obter informações do scan atual
+    local scanInfo = self.proceduralMap and self.proceduralMap:getScanInfo() or {}
+    local config = scanInfo.config or {}
+
     -- Fundo escuro temático
     love.graphics.setColor(0.05, 0.08, 0.12, 1.0)
     love.graphics.rectangle("fill", 0, 0, screenW, screenH)
@@ -466,13 +470,27 @@ function PortalScreen:_drawLoadingScreen(screenW, screenH)
         love.graphics.circle("line", centerX, centerY, radius)
     end
 
-    -- Scanner rotativo
+    -- Scanner rotativo (velocidade baseada no estado)
+    local scannerSpeed = 2.0
+    if scanInfo.state == "detecting_portal_sites" then
+        scannerSpeed = 3.5 -- Mais rápido durante detecção
+    elseif scanInfo.state == "finalizing_scan" then
+        scannerSpeed = 1.0 -- Mais lento na finalização
+    end
+
     love.graphics.push()
     love.graphics.translate(centerX, centerY)
-    love.graphics.rotate(self.scannerRotation)
+    love.graphics.rotate(self.scannerRotation * scannerSpeed)
 
-    -- Linha do scanner
-    love.graphics.setColor(0.2, 0.8, 1.0, 0.8)
+    -- Linha do scanner (cor baseada no estado)
+    local scannerColor = { 0.2, 0.8, 1.0 }
+    if scanInfo.state == "detecting_portal_sites" then
+        scannerColor = { 0.9, 0.5, 0.1 } -- Laranja durante detecção
+    elseif scanInfo.state == "finalizing_scan" then
+        scannerColor = { 0.2, 0.9, 0.3 } -- Verde na finalização
+    end
+
+    love.graphics.setColor(scannerColor[1], scannerColor[2], scannerColor[3], 0.8)
     love.graphics.setLineWidth(3)
     love.graphics.line(0, 0, 250, 0)
 
@@ -480,7 +498,7 @@ function PortalScreen:_drawLoadingScreen(screenW, screenH)
     for i = 1, 10 do
         local angle = -i * 0.1
         local alpha = 0.8 - (i * 0.08)
-        love.graphics.setColor(0.2, 0.8, 1.0, alpha)
+        love.graphics.setColor(scannerColor[1], scannerColor[2], scannerColor[3], alpha)
         love.graphics.push()
         love.graphics.rotate(angle)
         love.graphics.line(0, 0, 250 - i * 10, 0)
@@ -492,44 +510,90 @@ function PortalScreen:_drawLoadingScreen(screenW, screenH)
 
     -- Efeito de pulso no centro
     local pulseAlpha = 0.5 + math.sin(self.scannerPulseTime * 3) * 0.3
-    love.graphics.setColor(0.3, 0.9, 1.0, pulseAlpha)
+    love.graphics.setColor(scannerColor[1], scannerColor[2], scannerColor[3], pulseAlpha)
     love.graphics.circle("fill", centerX, centerY, 8)
 
-    -- Pontos de interesse simulados (portais sendo detectados)
-    love.graphics.setColor(0.9, 0.5, 0.1, 0.7)
-    for i = 1, 8 do
-        local angle = i * (math.pi * 2 / 8) + self.loadingAnimationTime * 0.5
+    -- Pontos de interesse simulados (baseados no estado de scan)
+    local pointCount = 4
+    local pointColor = { 0.6, 0.6, 0.8 }
+
+    if scanInfo.state == "detecting_portal_sites" then
+        pointCount = 12
+        pointColor = { 0.9, 0.5, 0.1 }
+    elseif scanInfo.state == "mapping_connections" then
+        pointCount = 8
+        pointColor = { 0.3, 0.9, 0.7 }
+    elseif scanInfo.state == "finalizing_scan" then
+        pointCount = 6
+        pointColor = { 0.2, 0.9, 0.3 }
+    end
+
+    love.graphics.setColor(pointColor[1], pointColor[2], pointColor[3], 0.7)
+    for i = 1, pointCount do
+        local angle = i * (math.pi * 2 / pointCount) + self.loadingAnimationTime * 0.5
         local distance = 120 + math.sin(self.loadingAnimationTime * 2 + i) * 20
         local x = centerX + math.cos(angle) * distance
         local y = centerY + math.sin(angle) * distance
 
         local blinkAlpha = 0.7 + math.sin(self.loadingAnimationTime * 4 + i) * 0.3
-        love.graphics.setColor(0.9, 0.5, 0.1, blinkAlpha)
+        love.graphics.setColor(pointColor[1], pointColor[2], pointColor[3], blinkAlpha)
         love.graphics.circle("fill", x, y, 4)
 
         -- Pequeno anel ao redor dos pontos
-        love.graphics.setColor(0.9, 0.7, 0.3, blinkAlpha * 0.5)
+        love.graphics.setColor(pointColor[1], pointColor[2], pointColor[3], blinkAlpha * 0.5)
         love.graphics.circle("line", x, y, 8)
     end
 
-    -- Texto principal
+    -- Texto principal - Estado atual do scan
     love.graphics.setColor(colors.white)
     love.graphics.setFont(fonts.main_large or fonts.main)
-    local mainText = "ESCANEANDO ÁREA DE OPERAÇÃO"
+    local mainText = config.text or "ESCANEANDO ÁREA DE OPERAÇÃO"
     love.graphics.printf(mainText, 0, centerY - 150, screenW, "center")
 
-    -- Texto secundário com pontos animados
+    -- Texto secundário - Detalhes do que está sendo feito
     love.graphics.setFont(fonts.main or fonts.main_small)
-    local subText = "Detectando portais disponíveis" .. self.loadingDots
+    love.graphics.setColor(0.8, 0.9, 1.0, 1.0)
+    local subText = (config.subtext or "Processando dados") .. self.loadingDots
     love.graphics.printf(subText, 0, centerY - 110, screenW, "center")
 
-    -- Indicador de progresso temático
+    -- Detalhes técnicos (se disponível)
+    if config.detail then
+        love.graphics.setFont(fonts.main_small or fonts.main)
+        love.graphics.setColor(0.6, 0.7, 0.8, 0.8)
+        love.graphics.printf(config.detail, 0, centerY - 80, screenW, "center")
+    end
+
+    -- Barra de progresso conceitual (se há progresso real)
+    if scanInfo.progress and scanInfo.progress > 0 then
+        local barWidth = 400
+        local barHeight = 6
+        local barX = centerX - barWidth / 2
+        local barY = centerY + 60
+
+        -- Fundo da barra
+        love.graphics.setColor(0.2, 0.3, 0.4, 0.6)
+        love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
+
+        -- Progresso da barra
+        local progressWidth = (scanInfo.progress / 100) * barWidth
+        love.graphics.setColor(scannerColor[1], scannerColor[2], scannerColor[3], 0.8)
+        love.graphics.rectangle("fill", barX, barY, progressWidth, barHeight)
+
+        -- Texto de porcentagem
+        love.graphics.setColor(colors.white)
+        love.graphics.setFont(fonts.main_small or fonts.main)
+        local percentText = string.format("%.0f%%", scanInfo.progress)
+        love.graphics.printf(percentText, 0, barY + 15, screenW, "center")
+    end
+
+    -- Identificação da agência
     love.graphics.setColor(0.2, 0.8, 1.0, 0.6)
-    local progressText = "AGÊNCIA SHADOW MONARCH - SISTEMA DE RECONHECIMENTO"
-    love.graphics.printf(progressText, 0, centerY + 180, screenW, "center")
+    love.graphics.setFont(fonts.main_small or fonts.main)
+    local agencyText = "AGÊNCIA SHADOW MONARCH - SISTEMA DE RECONHECIMENTO TÁTICO"
+    love.graphics.printf(agencyText, 0, centerY + 180, screenW, "center")
 
     -- Efeitos de canto (HUD futurístico)
-    love.graphics.setColor(0.2, 0.8, 1.0, 0.4)
+    love.graphics.setColor(scannerColor[1], scannerColor[2], scannerColor[3], 0.4)
     love.graphics.setLineWidth(2)
 
     -- Cantos superiores

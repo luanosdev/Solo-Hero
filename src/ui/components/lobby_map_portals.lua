@@ -4,6 +4,62 @@
 
 local colors = require("src.ui.colors")
 
+-- === SISTEMA DE ESTADOS DE GERAÇÃO ===
+---@enum GenerationState
+local GENERATION_STATES = {
+    IDLE = "idle",
+    GENERATING_TERRAIN = "generating_terrain",
+    ANALYZING_TOPOGRAPHY = "analyzing_topography",
+    CALIBRATING_SCANNER = "calibrating_scanner",
+    DETECTING_PORTAL_SITES = "detecting_portal_sites",
+    MAPPING_CONNECTIONS = "mapping_connections",
+    FINALIZING_SCAN = "finalizing_scan",
+    COMPLETE = "complete"
+}
+
+-- Configurações dos textos temáticos para scan de portais
+local SCAN_STATE_CONFIG = {
+    [GENERATION_STATES.GENERATING_TERRAIN] = {
+        text = "Mapeando Topografia",
+        subtext = "Analisando estrutura do terreno",
+        detail = "Escaneando formações geológicas..."
+    },
+    [GENERATION_STATES.ANALYZING_TOPOGRAPHY] = {
+        text = "Identificando Pontos Estratégicos",
+        subtext = "Calculando linhas de visão",
+        detail = "Processando dados topográficos..."
+    },
+    [GENERATION_STATES.CALIBRATING_SCANNER] = {
+        text = "Calibrando Detector de Portais",
+        subtext = "Ajustando frequência de varredura",
+        detail = "Sincronizando sensores mágicos..."
+    },
+    [GENERATION_STATES.DETECTING_PORTAL_SITES] = {
+        text = "Detectando Assentamentos",
+        subtext = "Localizando concentrações de energia",
+        detail = "Identificando potenciais portais..."
+    },
+    [GENERATION_STATES.MAPPING_CONNECTIONS] = {
+        text = "Mapeando Rotas de Acesso",
+        subtext = "Traçando caminhos seguros",
+        detail = "Analisando rotas de evacuação..."
+    },
+    [GENERATION_STATES.FINALIZING_SCAN] = {
+        text = "Finalizando Reconhecimento",
+        subtext = "Compilando dados operacionais",
+        detail = "Preparando relatório tático..."
+    }
+}
+
+-- Configurações de performance para time budget
+local PERFORMANCE_CONFIG = {
+    MAX_TIME_PER_FRAME_MS = 2.0,         -- Máximo de 2ms por frame para geração
+    SUBDIVISION_YIELD_FREQUENCY = 1,     -- Yield a cada iteração de subdivisão
+    CAMERA_ANALYSIS_YIELD_FREQUENCY = 1, -- Yield a cada lado analisado
+    STRUCTURE_YIELD_FREQUENCY = 50,      -- Yield a cada 50 tentativas de estrutura
+    ROAD_YIELD_FREQUENCY = 10,           -- Yield a cada 10 operações de estrada
+}
+
 ---@class Structure
 ---@field x number Coordenada X central da estrutura
 ---@field y number Coordenada Y central da estrutura
@@ -30,16 +86,13 @@ local colors = require("src.ui.colors")
 ---@field continentPoints number[] Lista de pontos do polígono do continente (x,y alternados)
 ---@field structures Structure[] Lista de estruturas geradas no continente
 ---@field roads RoadData[] Lista de estradas conectando estruturas
----@field isGenerating boolean Se o mapa está sendo gerado
----@field isGeneratingRoads boolean Se as estradas estão sendo geradas
----@field continentReadyForProcessing boolean Se o continente está pronto para processamento
----@field structuresGenerated boolean Garante que estruturas sejam geradas apenas uma vez
----@field generationCoroutine thread|nil Corrotina para geração do continente
----@field roadGenerationCoroutine thread|nil Corrotina para geração de estradas
----@field cameraOffset Vector2D Offset da câmera isométrica
----@field originalCameraOffset Vector2D Offset original da câmera (antes do zoom)
+---@field currentGenerationState GenerationState Estado atual da geração
+---@field stateProgress number Progresso do estado atual (0-100)
+---@field activeCoroutine thread|nil Corrotina ativa de geração
 ---@field frameCounter number Contador de frames para controle de performance
 ---@field maxPoints number Número máximo de pontos do continente
+---@field cameraOffset Vector2D Offset da câmera isométrica
+---@field originalCameraOffset Vector2D Offset original da câmera (antes do zoom)
 ---@field currentZoom number Zoom atual da câmera
 ---@field targetZoom number Zoom alvo da câmera
 ---@field originalZoom number Zoom original da câmera (antes do zoom)
@@ -58,7 +111,7 @@ local CONFIG = {
     STRUCTURE_COUNT = 30,         -- Número de estruturas
     MIN_STRUCTURE_DISTANCE = 200, -- Distância mínima entre estruturas
     STRUCTURE_SCALE = 0.5,        -- Escala das estruturas desenhadas
-    GRID_SIZE = 25,               -- Tamanho da grade tática
+    GRID_SIZE = 20,               -- Tamanho da grade tática
     ISO_SCALE = 1.5,              -- Escala da projeção isométrica (igual ao map.lua)
     GRID_RANGE = 60,              -- Alcance da grade tática (igual ao map.lua)
 
@@ -92,19 +145,18 @@ local CONFIG = {
 function LobbyMapPortals:new()
     local instance = setmetatable({}, LobbyMapPortals)
 
-    -- Estado da geração
+    -- Estado da geração com novo sistema granular
     instance.continentPoints = {}
     instance.structures = {}
     instance.roads = {
         nodes = {},
         paths = {}
     }
-    instance.isGenerating = false
-    instance.isGeneratingRoads = false
-    instance.continentReadyForProcessing = false -- NOVO: Estado para controlar o fluxo
-    instance.structuresGenerated = false         -- NOVO: Garante que estruturas sejam geradas apenas uma vez
-    instance.generationCoroutine = nil
-    instance.roadGenerationCoroutine = nil
+
+    -- Sistema de Estados Granular
+    instance.currentGenerationState = GENERATION_STATES.IDLE
+    instance.stateProgress = 0
+    instance.activeCoroutine = nil
     instance.frameCounter = 0
     instance.maxPoints = CONFIG.MAX_POINTS
     instance._debugPrinted = false
@@ -153,7 +205,7 @@ end
 
 --- Inicia a geração do mapa procedural
 function LobbyMapPortals:generateMap()
-    if self.isGenerating then
+    if self.currentGenerationState ~= GENERATION_STATES.IDLE then
         return
     end
 
@@ -177,95 +229,271 @@ function LobbyMapPortals:generateMap()
     Logger.info("lobby_map_portals.generateMap.initial",
         "[LobbyMapPortals] Polígono inicial criado com " .. (#self.continentPoints / 2) .. " pontos")
 
-    -- Criar corrotina para subdivisão
-    self.generationCoroutine = coroutine.create(function() self:_subdivideContinent() end)
-    if self.generationCoroutine then
-        self.isGenerating = true
-        Logger.info("lobby_map_portals.generateMap.coroutine", "[LobbyMapPortals] Corrotina de geração criada")
-    else
-        Logger.error("lobby_map_portals.generateMap.error", "[LobbyMapPortals] Falha ao criar corrotina de geração")
-    end
+    -- Iniciar sistema de geração granular
+    self.currentGenerationState = GENERATION_STATES.GENERATING_TERRAIN
+    self.stateProgress = 0
+    self.activeCoroutine = self:_createTerrainGenerationCoroutine()
+
+    Logger.info("lobby_map_portals.generateMap.start",
+        "[LobbyMapPortals] Iniciando geração com sistema granular - Estado: " .. self.currentGenerationState)
 end
 
---- Subdivide o continente usando corrotinas para melhor performance
-function LobbyMapPortals:_subdivideContinent()
-    Logger.info("lobby_map_portals._subdivideContinent", "[LobbyMapPortals] Iniciando subdivisão do continente")
+--- Cria corrotina para geração do terreno (subdivisão do continente)
+---@return thread
+function LobbyMapPortals:_createTerrainGenerationCoroutine()
+    return coroutine.create(function()
+        Logger.info("lobby_map_portals.terrain_generation", "[LobbyMapPortals] Iniciando mapeamento de topografia")
 
-    local lerp = function(a, b, t) return a + (b - a) * t end
-    local iterations = 0
+        local lerp = function(a, b, t) return a + (b - a) * t end
+        local iterations = 0
+        local maxIterations = 10
 
-    while #self.continentPoints < self.maxPoints and iterations < 10 do
-        iterations = iterations + 1
-        Logger.info("lobby_map_portals._subdivideContinent.iteration",
-            "[LobbyMapPortals] Iteração " .. iterations .. " - Pontos: " .. (#self.continentPoints / 2))
+        self.stateProgress = 5
 
-        local npoints = {}
-        local L = #self.continentPoints
+        while #self.continentPoints < self.maxPoints and iterations < maxIterations do
+            iterations = iterations + 1
 
-        if L < 2 then
-            Logger.error("lobby_map_portals._subdivideContinent.error",
-                "[LobbyMapPortals] Lista de pontos muito pequena: " .. L)
-            break
-        end
+            -- Atualizar progresso baseado na iteração
+            local iterationProgress = (iterations / maxIterations) * 85 -- 5% + 85% = 90%
+            self.stateProgress = 5 + iterationProgress
 
-        local nz = math.min(math.pow(1 / L, 0.85), 0.1) * 0.75
+            Logger.info("lobby_map_portals.terrain_iteration",
+                "[LobbyMapPortals] Deformação da costa - Iteração " ..
+                iterations .. " - Pontos: " .. (#self.continentPoints / 2))
 
-        for i = 1, L, 2 do
-            if i + 1 > L then
-                Logger.error("lobby_map_portals._subdivideContinent.index_error",
-                    "[LobbyMapPortals] Índice fora dos limites: i=" .. i .. ", L=" .. L)
+            local npoints = {}
+            local L = #self.continentPoints
+
+            if L < 2 then
+                Logger.error("lobby_map_portals.terrain_error",
+                    "[LobbyMapPortals] Lista de pontos muito pequena: " .. L)
                 break
             end
 
-            local fx, fy = self.continentPoints[i], self.continentPoints[i + 1]
-            local next_point_idx = i + 2
-            if next_point_idx > L then
-                next_point_idx = 1
+            local nz = math.min(math.pow(1 / L, 0.85), 0.1) * 0.75
+
+            for i = 1, L, 2 do
+                if i + 1 > L then
+                    Logger.error("lobby_map_portals.terrain_index_error",
+                        "[LobbyMapPortals] Índice fora dos limites: i=" .. i .. ", L=" .. L)
+                    break
+                end
+
+                local fx, fy = self.continentPoints[i], self.continentPoints[i + 1]
+                local next_point_idx = i + 2
+                if next_point_idx > L then
+                    next_point_idx = 1
+                end
+
+                if next_point_idx + 1 > L then
+                    Logger.error("lobby_map_portals.terrain_next_error",
+                        "[LobbyMapPortals] Próximo ponto fora dos limites")
+                    break
+                end
+
+                local gx, gy = self.continentPoints[next_point_idx], self.continentPoints[next_point_idx + 1]
+
+                local mx, my
+                local attempts = 0
+                repeat
+                    attempts = attempts + 1
+                    if attempts > 50 then break end
+
+                    local int = 0.25 + love.math.random() * 0.5
+                    local d = math.atan2(fy - gy, fx - gx)
+                    mx = lerp(fx, gx, int) + (-250 + love.math.random(500)) * nz -
+                        (-2250 + love.math.random(4000)) * nz * math.sin(d)
+                    my = lerp(fy, gy, int) + (-250 + love.math.random(500)) * nz +
+                        (-2250 + love.math.random(4000)) * nz * math.cos(d)
+
+                    local disAB = math.sqrt((fx - mx) ^ 2 + (fy - my) ^ 2)
+                    local disAC = math.sqrt((fx - gx) ^ 2 + (fy - gy) ^ 2)
+                    local disBC = math.sqrt((gx - mx) ^ 2 + (gy - my) ^ 2)
+                until (disBC <= disAC and disAB <= disAC) or attempts > 50
+
+                table.insert(npoints, fx)
+                table.insert(npoints, fy)
+                table.insert(npoints, mx)
+                table.insert(npoints, my)
             end
 
-            if next_point_idx + 1 > L then
-                Logger.error("lobby_map_portals._subdivideContinent.next_error",
-                    "[LobbyMapPortals] Próximo ponto fora dos limites")
-                break
+            self.continentPoints = npoints
+
+            -- Yield a cada iteração para manter responsividade
+            if iterations % PERFORMANCE_CONFIG.SUBDIVISION_YIELD_FREQUENCY == 0 then
+                coroutine.yield()
             end
-
-            local gx, gy = self.continentPoints[next_point_idx], self.continentPoints[next_point_idx + 1]
-
-            local mx, my
-            local attempts = 0
-            repeat
-                attempts = attempts + 1
-                if attempts > 50 then break end
-
-                local int = 0.25 + love.math.random() * 0.5
-                local d = math.atan2(fy - gy, fx - gx)
-                mx = lerp(fx, gx, int) + (-250 + love.math.random(500)) * nz -
-                    (-2250 + love.math.random(4000)) * nz * math.sin(d)
-                my = lerp(fy, gy, int) + (-250 + love.math.random(500)) * nz +
-                    (-2250 + love.math.random(4000)) * nz * math.cos(d)
-
-                local disAB = math.sqrt((fx - mx) ^ 2 + (fy - my) ^ 2)
-                local disAC = math.sqrt((fx - gx) ^ 2 + (fy - gy) ^ 2)
-                local disBC = math.sqrt((gx - mx) ^ 2 + (gy - my) ^ 2)
-            until (disBC <= disAC and disAB <= disAC) or attempts > 50
-
-            table.insert(npoints, fx)
-            table.insert(npoints, fy)
-            table.insert(npoints, mx)
-            table.insert(npoints, my)
         end
 
-        self.continentPoints = npoints
+        self.stateProgress = 95
+        Logger.info("lobby_map_portals.terrain_complete",
+            "[LobbyMapPortals] Mapeamento de topografia concluído. Pontos finais: " .. (#self.continentPoints / 2))
+
+        self.stateProgress = 100
         coroutine.yield()
-    end
+    end)
+end
 
-    self.isGenerating = false
-    Logger.info("lobby_map_portals._subdivideContinent.complete",
-        "[LobbyMapPortals] Subdivisão concluída. Pontos finais: " .. (#self.continentPoints / 2))
+--- Cria corrotina para análise topográfica (inclui ancoragem da câmera)
+---@return thread
+function LobbyMapPortals:_createTopographyAnalysisCoroutine()
+    return coroutine.create(function()
+        Logger.info("lobby_map_portals.topography_analysis", "[LobbyMapPortals] Iniciando análise topográfica")
 
-    -- A corrotina agora apenas sinaliza que terminou. A função update()
-    -- será responsável por chamar os próximos passos na ordem correta.
-    self.continentReadyForProcessing = true
+        self.stateProgress = 10
+
+        -- Analisar complexidade dos lados do continente
+        local sideComplexity = {}
+        local sides = { "north", "south", "east", "west" }
+
+        for i, sideName in ipairs(sides) do
+            Logger.info("lobby_map_portals.side_analysis", "[LobbyMapPortals] Analisando lado: " .. sideName)
+            sideComplexity[sideName] = self:_analyzeSideComplexity(sideName)
+
+            -- Progresso: 10% + (i/4) * 60% = 10% a 70%
+            self.stateProgress = 10 + (i / #sides) * 60
+
+            -- Yield a cada lado analisado
+            if i % PERFORMANCE_CONFIG.CAMERA_ANALYSIS_YIELD_FREQUENCY == 0 then
+                coroutine.yield()
+            end
+        end
+
+        self.stateProgress = 75
+        Logger.info("lobby_map_portals.natural_sides", "[LobbyMapPortals] Identificando lados naturais")
+        local naturalSides = self:_identifyNaturalSides(sideComplexity)
+
+        self.stateProgress = 85
+        coroutine.yield()
+
+        Logger.info("lobby_map_portals.camera_positioning", "[LobbyMapPortals] Calculando posição otimizada da câmera")
+        self:_calculateOptimalCameraPosition(naturalSides)
+
+        self.stateProgress = 95
+        coroutine.yield()
+
+        Logger.info("lobby_map_portals.topography_complete", "[LobbyMapPortals] Análise topográfica concluída")
+        self.stateProgress = 100
+        coroutine.yield()
+    end)
+end
+
+--- Cria corrotina para calibração do scanner de portais
+---@return thread
+function LobbyMapPortals:_createScannerCalibrationCoroutine()
+    return coroutine.create(function()
+        Logger.info("lobby_map_portals.scanner_calibration",
+            "[LobbyMapPortals] Iniciando calibração do detector de portais")
+
+        -- Simulação de calibração com pequenas pausas
+        for calibrationStep = 1, 5 do
+            local stepNames = {
+                "Sincronizando sensores mágicos",
+                "Ajustando frequência de varredura",
+                "Calibrando detectores de energia",
+                "Testando alcance de detecção",
+                "Finalizando configurações"
+            }
+
+            Logger.info("lobby_map_portals.calibration_step",
+                "[LobbyMapPortals] " .. stepNames[calibrationStep])
+
+            self.stateProgress = (calibrationStep / 5) * 100
+
+            -- Pequena pausa para simular processamento
+            coroutine.yield()
+        end
+
+        Logger.info("lobby_map_portals.scanner_ready", "[LobbyMapPortals] Detector de portais calibrado e operacional")
+        self.stateProgress = 100
+        coroutine.yield()
+    end)
+end
+
+--- Cria corrotina para detecção de assentamentos (estruturas)
+---@return thread
+function LobbyMapPortals:_createSettlementDetectionCoroutine()
+    return coroutine.create(function()
+        Logger.info("lobby_map_portals.settlement_detection", "[LobbyMapPortals] Iniciando detecção de assentamentos")
+
+        local attempts = 0
+        local maxAttempts = CONFIG.STRUCTURE_COUNT * CONFIG.STRUCTURE_GENERATION_ATTEMPTS_MULTIPLIER
+        local structuresPlaced = 0
+
+        self.stateProgress = 5
+
+        while structuresPlaced < CONFIG.STRUCTURE_COUNT and attempts < maxAttempts do
+            attempts = attempts + 1
+
+            -- Tentar colocar uma estrutura
+            local success = self:_attemptPlaceStructure()
+            if success then
+                structuresPlaced = structuresPlaced + 1
+                Logger.info("lobby_map_portals.structure_placed",
+                    "[LobbyMapPortals] Assentamento detectado: " .. structuresPlaced .. "/" .. CONFIG.STRUCTURE_COUNT)
+            end
+
+            -- Atualizar progresso baseado em estruturas colocadas
+            local structureProgress = (structuresPlaced / CONFIG.STRUCTURE_COUNT) * 90 -- 5% + 90% = 95%
+            self.stateProgress = 5 + structureProgress
+
+            -- Yield a cada grupo de tentativas ou quando estrutura é colocada
+            if attempts % PERFORMANCE_CONFIG.STRUCTURE_YIELD_FREQUENCY == 0 or success then
+                coroutine.yield()
+            end
+        end
+
+        self.stateProgress = 100
+        Logger.info("lobby_map_portals.settlements_complete",
+            "[LobbyMapPortals] Detecção de assentamentos concluída. Total: " .. structuresPlaced)
+        coroutine.yield()
+    end)
+end
+
+--- Cria corrotina para mapeamento de conexões (estradas)
+---@return thread
+function LobbyMapPortals:_createConnectionMappingCoroutine()
+    return coroutine.create(function()
+        Logger.info("lobby_map_portals.connection_mapping", "[LobbyMapPortals] Iniciando mapeamento de rotas de acesso")
+
+        if #self.structures <= 1 then
+            Logger.info("lobby_map_portals.no_connections", "[LobbyMapPortals] Assentamentos insuficientes para rotas")
+            self.stateProgress = 100
+            coroutine.yield()
+            return
+        end
+
+        self.stateProgress = 10
+
+        -- Usar a lógica existente de geração de estradas com yields
+        self:_generateRoadsWithYields()
+
+        self.stateProgress = 100
+        Logger.info("lobby_map_portals.connections_complete", "[LobbyMapPortals] Mapeamento de rotas concluído")
+        coroutine.yield()
+    end)
+end
+
+--- Cria corrotina para finalização do scan
+---@return thread
+function LobbyMapPortals:_createFinalizationCoroutine()
+    return coroutine.create(function()
+        Logger.info("lobby_map_portals.finalization", "[LobbyMapPortals] Finalizando reconhecimento")
+
+        self.stateProgress = 20
+        coroutine.yield()
+
+        Logger.info("lobby_map_portals.rendering_map", "[LobbyMapPortals] Compilando dados operacionais")
+        self:_renderStaticMapToCanvas()
+
+        self.stateProgress = 80
+        coroutine.yield()
+
+        Logger.info("lobby_map_portals.scan_complete",
+            "[LobbyMapPortals] Relatório tático preparado - área operacional pronta")
+        self.stateProgress = 100
+        coroutine.yield()
+    end)
 end
 
 --- Ancora a câmera numa posição otimizada do continente
@@ -903,79 +1131,37 @@ function LobbyMapPortals:_generateRoads()
     self:_processRoads()
 end
 
---- Atualiza a geração do mapa e lógica de câmera/zoom
+--- Atualiza a geração do mapa com sistema de estados granular e time budget
 ---@param dt number Delta time
 function LobbyMapPortals:update(dt)
     self.frameCounter = self.frameCounter + 1
 
-    -- Atualizar geração do continente
-    if self.isGenerating and self.generationCoroutine then
-        local status = coroutine.status(self.generationCoroutine)
-        if status == "dead" then
-            Logger.warn("lobby_map_portals.update.continent",
-                "[LobbyMapPortals] Corrotina de continente morreu inesperadamente")
-            self.isGenerating = false
-            self.continentReadyForProcessing = true -- Garantir que o processo continue
-            return
-        end
+    -- === SISTEMA DE GERAÇÃO COM TIME BUDGET ===
+    if self.activeCoroutine and self.currentGenerationState ~= GENERATION_STATES.COMPLETE then
+        local startTime = love.timer.getTime()
+        local maxTimeMs = PERFORMANCE_CONFIG.MAX_TIME_PER_FRAME_MS / 1000.0 -- Converter para segundos
 
-        local ok, err = coroutine.resume(self.generationCoroutine)
-        if not ok then
-            Logger.error("lobby_map_portals.update.continent_error",
-                "[LobbyMapPortals] Erro na corrotina de continente: " .. tostring(err))
-            self.isGenerating = false
-        end
+        repeat
+            local status = coroutine.status(self.activeCoroutine)
+            if status == "dead" then
+                -- Corrotina atual terminou, avançar para próximo estado
+                self:_nextGenerationState()
+                break
+            end
+
+            local ok, err = coroutine.resume(self.activeCoroutine)
+            if not ok then
+                Logger.error("lobby_map_portals.update.coroutine_error",
+                    "[LobbyMapPortals] Erro na corrotina do estado " ..
+                    self.currentGenerationState .. ": " .. tostring(err))
+                self:_nextGenerationState()
+                break
+            end
+        until (love.timer.getTime() - startTime) > maxTimeMs
     end
 
-    -- NOVO: Fluxo de geração controlado pelo update
-    -- Uma vez que o continente está pronto, executa os próximos passos em ordem.
-    if self.continentReadyForProcessing and not self.structuresGenerated then
-        Logger.info("lobby_map_portals.update.processing_continent",
-            "[LobbyMapPortals] Continente finalizado. Iniciando pós-processamento...")
-
-        -- 1. Ancorar câmera com base no continente final
-        self:_anchorCamera()
-
-        -- 2. Gerar estruturas
-        self:_generateStructures()
-        self.structuresGenerated = true -- Marcar como concluído
-
-        -- 3. Iniciar geração de estradas (se houver estruturas)
-        if #self.structures > 1 then
-            self.roadGenerationCoroutine = coroutine.create(function() self:_generateRoads() end)
-            self.isGeneratingRoads = true
-            Logger.info("lobby_map_portals.update.starting_roads", "[LobbyMapPortals] Iniciando geração de estradas")
-        else
-            -- Se não há estradas para gerar, o mapa está pronto para ser renderizado
-            self:_renderStaticMapToCanvas()
-        end
-    end
-
-    -- Atualizar geração de estradas
-    if self.isGeneratingRoads and self.roadGenerationCoroutine then
-        local status = coroutine.status(self.roadGenerationCoroutine)
-        if status == "dead" then
-            Logger.info("lobby_map_portals.update.roads",
-                "[LobbyMapPortals] Geração de estradas concluída")
-            self.isGeneratingRoads = false
-            -- Estradas concluídas, renderizar para o canvas
-            self:_renderStaticMapToCanvas()
-            return
-        end
-
-        local ok, err = coroutine.resume(self.roadGenerationCoroutine)
-        if not ok then
-            Logger.error("lobby_map_portals.update.roads_error",
-                "[LobbyMapPortals] Erro na geração de estradas: " .. tostring(err))
-            self.isGeneratingRoads = false
-            -- Mesmo com erro, tentar renderizar o que temos
-            self:_renderStaticMapToCanvas()
-        end
-    end
-
-    -- Atualizar lógica de zoom/pan (interpolação suave)
+    -- === LÓGICA DE ZOOM/PAN (sempre ativa) ===
     local factor = math.min(1, dt * self.zoomSmoothFactor)
-
     self.currentZoom = self.currentZoom + (self.targetZoom - self.currentZoom) * factor
 
     -- Atualizar posição da câmera de forma mais direta
@@ -983,28 +1169,53 @@ function LobbyMapPortals:update(dt)
         self.cameraOffset.x = self.cameraOffset.x + (self.targetCameraOffset.x - self.cameraOffset.x) * factor
         self.cameraOffset.y = self.cameraOffset.y + (self.targetCameraOffset.y - self.cameraOffset.y) * factor
 
-        -- Debug durante zoom
+        -- Debug durante zoom (reduzido para não spam)
         if self.zoomTarget and math.abs(self.currentZoom - self.targetZoom) > 0.01 then
-            local currentScreenX, currentScreenY = self:getScreenPositionFromWorld(self.zoomTarget.x, self.zoomTarget.y)
-            local screenW = ResolutionUtils.getGameWidth()
-            local screenH = ResolutionUtils.getGameHeight()
-            local centerX, centerY = screenW / 2, screenH / 2
-
-            if love.timer.getTime() % 0.5 < dt then -- Log a cada 0.5 segundos
-                print("=== ZOOM UPDATE ===")
-                print("Target portal: (" .. math.floor(self.zoomTarget.x) .. ", " .. math.floor(self.zoomTarget.y) .. ")")
-                print("Current zoom: " ..
-                    string.format("%.2f", self.currentZoom) .. " -> " .. string.format("%.2f", self.targetZoom))
-                print("Camera offset: (" ..
-                    math.floor(self.cameraOffset.x) .. ", " .. math.floor(self.cameraOffset.y) .. ")")
-                print("Portal na tela: (" .. math.floor(currentScreenX) .. ", " .. math.floor(currentScreenY) .. ")")
-                print("Centro da tela: (" .. math.floor(centerX) .. ", " .. math.floor(centerY) .. ")")
-                print("Distância do centro: " ..
-                    math.floor(math.sqrt((currentScreenX - centerX) ^ 2 + (currentScreenY - centerY) ^ 2)))
-                print("===================")
+            if love.timer.getTime() % 1.0 < dt then -- Log a cada 1 segundo
+                local currentScreenX, currentScreenY = self:getScreenPositionFromWorld(self.zoomTarget.x,
+                    self.zoomTarget.y)
+                Logger.debug("lobby_map_portals.zoom_debug",
+                    "[LobbyMapPortals] Zoom: " .. string.format("%.2f->%.2f", self.currentZoom, self.targetZoom) ..
+                    " | Portal: (" .. math.floor(currentScreenX) .. "," .. math.floor(currentScreenY) .. ")")
             end
         end
     end
+end
+
+--- Avança para o próximo estado de geração
+function LobbyMapPortals:_nextGenerationState()
+    local oldState = self.currentGenerationState
+    self.stateProgress = 0
+    self.activeCoroutine = nil
+
+    if self.currentGenerationState == GENERATION_STATES.IDLE then
+        -- Não deveria chegar aqui, mas fallback
+        self.currentGenerationState = GENERATION_STATES.COMPLETE
+    elseif self.currentGenerationState == GENERATION_STATES.GENERATING_TERRAIN then
+        self.currentGenerationState = GENERATION_STATES.ANALYZING_TOPOGRAPHY
+        self.activeCoroutine = self:_createTopographyAnalysisCoroutine()
+    elseif self.currentGenerationState == GENERATION_STATES.ANALYZING_TOPOGRAPHY then
+        self.currentGenerationState = GENERATION_STATES.CALIBRATING_SCANNER
+        self.activeCoroutine = self:_createScannerCalibrationCoroutine()
+    elseif self.currentGenerationState == GENERATION_STATES.CALIBRATING_SCANNER then
+        self.currentGenerationState = GENERATION_STATES.DETECTING_PORTAL_SITES
+        self.activeCoroutine = self:_createSettlementDetectionCoroutine()
+    elseif self.currentGenerationState == GENERATION_STATES.DETECTING_PORTAL_SITES then
+        self.currentGenerationState = GENERATION_STATES.MAPPING_CONNECTIONS
+        self.activeCoroutine = self:_createConnectionMappingCoroutine()
+    elseif self.currentGenerationState == GENERATION_STATES.MAPPING_CONNECTIONS then
+        self.currentGenerationState = GENERATION_STATES.FINALIZING_SCAN
+        self.activeCoroutine = self:_createFinalizationCoroutine()
+    elseif self.currentGenerationState == GENERATION_STATES.FINALIZING_SCAN then
+        self.currentGenerationState = GENERATION_STATES.COMPLETE
+        Logger.info("lobby_map_portals.generation_complete", "[LobbyMapPortals] *** SCAN DE PORTAIS CONCLUÍDO ***")
+    else
+        -- Estado desconhecido, ir para completo
+        self.currentGenerationState = GENERATION_STATES.COMPLETE
+    end
+
+    Logger.info("lobby_map_portals.state_transition",
+        "[LobbyMapPortals] Transição de estado: " .. oldState .. " -> " .. self.currentGenerationState)
 end
 
 --- Renderiza o mapa procedural para um canvas estático para otimização
@@ -1202,7 +1413,7 @@ end
 --- Verifica se a geração está completa
 ---@return boolean isComplete Se a geração está completa
 function LobbyMapPortals:isGenerationComplete()
-    return not self.isGenerating and not self.isGeneratingRoads
+    return self.currentGenerationState == GENERATION_STATES.COMPLETE
 end
 
 --- Debug das posições das estruturas na tela
@@ -2468,6 +2679,321 @@ function LobbyMapPortals:getScreenPositionFromWorld(worldX, worldY)
     local screenY = self.cameraOffset.y + isoY * self.currentZoom
 
     return screenX, screenY
+end
+
+--- Obtém o estado atual de geração
+---@return GenerationState currentState Estado atual da geração
+function LobbyMapPortals:getCurrentGenerationState()
+    return self.currentGenerationState
+end
+
+--- Obtém o progresso do estado atual (0-100)
+---@return number progress Progresso atual
+function LobbyMapPortals:getStateProgress()
+    return self.stateProgress or 0
+end
+
+--- Obtém configuração de texto para o estado atual
+---@return table|nil config Configuração de texto {text, subtext, detail}
+function LobbyMapPortals:getCurrentStateConfig()
+    return SCAN_STATE_CONFIG[self.currentGenerationState]
+end
+
+--- Obtém informações completas do scan para UI
+---@return table scanInfo {state, progress, config, isComplete}
+function LobbyMapPortals:getScanInfo()
+    return {
+        state = self.currentGenerationState,
+        progress = self.stateProgress,
+        config = SCAN_STATE_CONFIG[self.currentGenerationState],
+        isComplete = self:isGenerationComplete()
+    }
+end
+
+-- === FUNÇÕES AUXILIARES PARA AS CORROTINAS ===
+
+--- Analisa a complexidade de um lado do continente
+---@param sideName string Nome do lado ("north", "south", "east", "west")
+---@return number complexity Valor de complexidade (1-10)
+function LobbyMapPortals:_analyzeSideComplexity(sideName)
+    if not self.continentPoints or #self.continentPoints < 6 then
+        return 1
+    end
+
+    -- Simular análise de complexidade baseada em variação dos pontos
+    local totalPoints = #self.continentPoints / 2
+    local sidePoints = math.floor(totalPoints / 4) -- Cada lado tem ~25% dos pontos
+
+    local variations = 0
+    local startIdx = 1
+    local endIdx = sidePoints * 2
+
+    -- Ajustar índices baseado no lado
+    if sideName == "east" then
+        startIdx = sidePoints * 2 + 1
+        endIdx = sidePoints * 4
+    elseif sideName == "south" then
+        startIdx = sidePoints * 4 + 1
+        endIdx = sidePoints * 6
+    elseif sideName == "west" then
+        startIdx = sidePoints * 6 + 1
+        endIdx = math.min(sidePoints * 8, #self.continentPoints)
+    end
+
+    -- Calcular variações de distância entre pontos consecutivos
+    for i = startIdx, endIdx - 2, 2 do
+        if i + 3 <= #self.continentPoints then
+            local x1, y1 = self.continentPoints[i], self.continentPoints[i + 1]
+            local x2, y2 = self.continentPoints[i + 2], self.continentPoints[i + 3]
+            local dist = math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
+
+            if dist > 50 then -- Threshold para considerar "variação significativa"
+                variations = variations + 1
+            end
+        end
+    end
+
+    -- Normalizar para escala 1-10
+    local complexity = math.min(10, math.max(1, variations))
+    Logger.debug("lobby_map_portals.side_complexity",
+        "[LobbyMapPortals] Lado " ..
+        sideName .. " - Complexidade: " .. complexity .. " (variações: " .. variations .. ")")
+
+    return complexity
+end
+
+--- Identifica lados naturais do continente baseado na complexidade
+---@param sideComplexity table Mapa de complexidade {north=X, south=Y, ...}
+---@return table naturalSides Lista ordenada por naturalidade {name, complexity}
+function LobbyMapPortals:_identifyNaturalSides(sideComplexity)
+    local sides = {}
+
+    for sideName, complexity in pairs(sideComplexity) do
+        table.insert(sides, {
+            name = sideName,
+            complexity = complexity
+        })
+    end
+
+    -- Ordenar por complexidade (maior = mais natural)
+    table.sort(sides, function(a, b) return a.complexity > b.complexity end)
+
+    Logger.debug("lobby_map_portals.natural_sides", "[LobbyMapPortals] Lados naturais identificados:")
+    for i, side in ipairs(sides) do
+        Logger.debug("lobby_map_portals.natural_side",
+            "  " .. i .. ". " .. side.name .. " (complexidade: " .. side.complexity .. ")")
+    end
+
+    return sides
+end
+
+--- Calcula posição otimizada da câmera baseada nos lados naturais
+---@param naturalSides table Lista de lados naturais
+function LobbyMapPortals:_calculateOptimalCameraPosition(naturalSides)
+    if not naturalSides or #naturalSides == 0 then
+        Logger.warn("lobby_map_portals.camera_fallback", "[LobbyMapPortals] Sem lados naturais, usando posição central")
+        return
+    end
+
+    -- Calcular limites do continente
+    local minX, maxX = math.huge, -math.huge
+    local minY, maxY = math.huge, -math.huge
+
+    for i = 1, #self.continentPoints, 2 do
+        if self.continentPoints[i] < minX then minX = self.continentPoints[i] end
+        if self.continentPoints[i] > maxX then maxX = self.continentPoints[i] end
+        if self.continentPoints[i + 1] < minY then minY = self.continentPoints[i + 1] end
+        if self.continentPoints[i + 1] > maxY then maxY = self.continentPoints[i + 1] end
+    end
+
+    local centerX = (minX + maxX) / 2
+    local centerY = (minY + maxY) / 2
+    local continentWidth = maxX - minX
+    local continentHeight = maxY - minY
+
+    -- Usar o lado mais natural para posicionar câmera
+    local bestSide = naturalSides[1]
+    local margin = math.min(continentWidth, continentHeight) * CONFIG.CAMERA_BORDER_DISTANCE
+
+    local targetX, targetY = centerX, centerY -- Fallback
+
+    if bestSide.name == "north" then
+        targetX, targetY = centerX, maxY - margin
+    elseif bestSide.name == "south" then
+        targetX, targetY = centerX, minY + margin
+    elseif bestSide.name == "east" then
+        targetX, targetY = maxX - margin, centerY
+    elseif bestSide.name == "west" then
+        targetX, targetY = minX + margin, centerY
+    end
+
+    -- Aplicar pull em direção ao centro se configurado
+    local centerPullStrength = CONFIG.CAMERA_CENTER_PULL
+    local finalX = targetX + (centerX - targetX) * centerPullStrength
+    local finalY = targetY + (centerY - targetY) * centerPullStrength
+
+    -- Converter para coordenadas da tela
+    local windowWidth = ResolutionUtils.getGameWidth()
+    local windowHeight = ResolutionUtils.getGameHeight()
+
+    self.cameraOffset.x = windowWidth / 2
+    self.cameraOffset.y = windowHeight / 2
+    self.originalCameraOffset.x = self.cameraOffset.x
+    self.originalCameraOffset.y = self.cameraOffset.y
+
+    Logger.info("lobby_map_portals.camera_positioned",
+        "[LobbyMapPortals] Câmera posicionada com base no lado " .. bestSide.name ..
+        " (complexidade: " .. bestSide.complexity .. ")")
+end
+
+--- Tenta posicionar uma estrutura no continente
+---@return boolean success Se conseguiu posicionar a estrutura
+function LobbyMapPortals:_attemptPlaceStructure()
+    if not self.continentPoints or #self.continentPoints < 6 then
+        return false
+    end
+
+    -- Calcular bounds do continente
+    local minX, maxX = math.huge, -math.huge
+    local minY, maxY = math.huge, -math.huge
+
+    for i = 1, #self.continentPoints, 2 do
+        if self.continentPoints[i] < minX then minX = self.continentPoints[i] end
+        if self.continentPoints[i] > maxX then maxX = self.continentPoints[i] end
+        if self.continentPoints[i + 1] < minY then minY = self.continentPoints[i + 1] end
+        if self.continentPoints[i + 1] > maxY then maxY = self.continentPoints[i + 1] end
+    end
+
+    -- Gerar posição aleatória
+    local centerX = minX + love.math.random() * (maxX - minX)
+    local centerY = minY + love.math.random() * (maxY - minY)
+
+    -- Verificar se está dentro do continente
+    if not self:_pointInPolygon(centerX, centerY, self.continentPoints) then
+        return false
+    end
+
+    -- Escolher imagem aleatória
+    local imageId = love.math.random(1, #self.structureImages)
+    local img = self.structureImages[imageId]
+    if not img then
+        return false
+    end
+
+    -- Calcular dimensões da estrutura
+    local imgWidth, imgHeight = img:getDimensions()
+    local scaledWidth = imgWidth * CONFIG.STRUCTURE_SCALE
+    local scaledHeight = imgHeight * CONFIG.STRUCTURE_SCALE
+
+    -- Verificar distância mínima de outras estruturas
+    for _, existingStructure in ipairs(self.structures) do
+        local dist = self:_distance(centerX, centerY, existingStructure.x, existingStructure.y)
+        if dist < CONFIG.MIN_STRUCTURE_DISTANCE then
+            return false
+        end
+    end
+
+    -- Adicionar estrutura
+    table.insert(self.structures, {
+        x = centerX,
+        y = centerY,
+        imageId = imageId,
+        id = #self.structures + 1
+    })
+
+    return true
+end
+
+--- Gera estradas com yields para manter responsividade
+function LobbyMapPortals:_generateRoadsWithYields()
+    if #self.structures <= 1 then
+        Logger.info("lobby_map_portals.roads_skip", "[LobbyMapPortals] Estruturas insuficientes para gerar estradas")
+        return
+    end
+
+    self.roads = {
+        nodes = {},
+        paths = {}
+    }
+
+    -- Copiar estruturas como nós
+    for _, structure in ipairs(self.structures) do
+        table.insert(self.roads.nodes, {
+            x = structure.x,
+            y = structure.y,
+            id = structure.id
+        })
+    end
+
+    local roadsGenerated = 0
+    local operationsCount = 0
+
+    -- Conectar estruturas próximas
+    for i, nodeA in ipairs(self.roads.nodes) do
+        local connections = 0
+        local maxConnections = love.math.random(1, 3) -- Menos conexões para performance
+
+        -- Atualizar progresso interno
+        local nodeProgress = (i / #self.roads.nodes) * 90 -- 10% base + 90% para processamento
+        self.stateProgress = 10 + nodeProgress
+
+        -- Encontrar as 3 estruturas mais próximas
+        local distances = {}
+        for j, nodeB in ipairs(self.roads.nodes) do
+            if i ~= j then
+                local dist = self:_distance(nodeA.x, nodeA.y, nodeB.x, nodeB.y)
+                if dist < CONFIG.VIRTUAL_MAP_WIDTH * 0.6 then -- Limitar alcance para performance
+                    table.insert(distances, { node = nodeB, distance = dist, index = j })
+                end
+            end
+        end
+
+        -- Ordenar por distância e pegar só as 3 mais próximas
+        table.sort(distances, function(a, b) return a.distance < b.distance end)
+        distances = { distances[1], distances[2], distances[3] } -- Pegar só as 3 primeiras
+
+        -- Conectar aos nós próximos
+        for k = 1, math.min(maxConnections, #distances) do
+            if not distances[k] then break end
+
+            local nodeB = distances[k].node
+
+            -- Verificar se já existe conexão (simplificado)
+            local alreadyConnected = false
+            for _, path in ipairs(self.roads.paths) do
+                if (path.startId == nodeA.id and path.endId == nodeB.id) or
+                    (path.startId == nodeB.id and path.endId == nodeA.id) then
+                    alreadyConnected = true
+                    break
+                end
+            end
+
+            if not alreadyConnected then
+                -- Criar caminho direto simples (sem pathfinding complexo para performance)
+                local path = {
+                    { x = nodeA.x, y = nodeA.y },
+                    { x = nodeB.x, y = nodeB.y }
+                }
+
+                table.insert(self.roads.paths, {
+                    startId = nodeA.id,
+                    endId = nodeB.id,
+                    points = path
+                })
+                connections = connections + 1
+                roadsGenerated = roadsGenerated + 1
+            end
+
+            operationsCount = operationsCount + 1
+
+            -- Yield periodicamente para manter responsividade
+            if operationsCount % PERFORMANCE_CONFIG.ROAD_YIELD_FREQUENCY == 0 then
+                coroutine.yield()
+            end
+        end
+    end
+
+    Logger.info("lobby_map_portals.roads_complete", "[LobbyMapPortals] " .. roadsGenerated .. " estradas geradas")
 end
 
 return LobbyMapPortals
