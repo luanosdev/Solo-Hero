@@ -103,9 +103,6 @@ function PlayerManager:new()
     instance.levelUpEffectController = nil
     instance.potionController = nil
 
-    -- Carrega recursos do player sprite
-    SpritePlayer.load()
-
     -- Injeta managers vazios inicialmente
     instance.inputManager = nil
     instance.enemyManager = nil
@@ -164,6 +161,9 @@ function PlayerManager:setupGameplay(registry, hunterId)
 
     -- Corrige hunterStats para incluir as instâncias completas dos itens equipados
     hunterStats.equippedItems = equippedItems
+
+    -- 2.5. Carrega sprites restantes do player (equipamentos e armas) se necessário
+    SpritePlayer.load()
 
     -- 3. Inicializa PlayerStateController
     self.stateController = PlayerStateController:new(self, hunterStats)
@@ -412,10 +412,11 @@ end
 --- Retorna a posição do jogador
 ---@return Vector2D
 function PlayerManager:getPlayerPosition()
-    if not self.movementController.player or not self.movementController.player.position then
+    if not self.movementController then
         Logger.warn("player_manager.player_position", "Player não inicializado, retornando posição padrão.")
         return { x = 0, y = 0 }
     end
+
     return self.movementController.player.position
 end
 

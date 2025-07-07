@@ -7,58 +7,82 @@ local portalDefinitions = require("src.data.portals.portal_definitions")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local DashCooldownIndicator = require("src.ui.components.dash_cooldown_indicator")
 
--- === SISTEMA DE TEXTOS TEMÁTICOS ===
+-- === SISTEMA DE TEXTOS TEMÁTICOS EXPANDIDO ===
 local THEMATIC_LOADING_TEXTS = {
     {
-        technical = "Carregando fontes...",
+        technical = "Carregando fontes principais...",
         thematic = {
-            title = "Sincronizando Interface Tática",
-            subtitle = "Calibrando sistemas de comunicação",
-            detail = "Estabelecendo protocolos de comando..."
+            title = "Inicializando Interface Tática",
+            subtitle = "Configurando protocolos visuais",
+            detail = "Estabelecendo sistema de comunicação..."
         }
     },
     {
-        technical = "Inicializando Bootstrap...",
+        technical = "Carregando sprites do jogador...",
         thematic = {
-            title = "Ativando Protocolos de Missão",
-            subtitle = "Preparando sistemas operacionais",
-            detail = "Calibrando equipamentos de combate..."
+            title = "Calibrando Perfil Biométrico",
+            subtitle = "Escaneando dados do caçador",
+            detail = "Preparando teleporte de caçador..."
+        }
+    },
+    {
+        technical = "Inicializando core do Bootstrap...",
+        thematic = {
+            title = "Ativando Núcleo Operacional",
+            subtitle = "Preparando sistemas fundamentais",
+            detail = "Estabelecendo base de comando..."
+        }
+    },
+    {
+        technical = "Configurando todos os managers...",
+        thematic = {
+            title = "Coordenando Sistemas de Apoio",
+            subtitle = "Sincronizando unidades especializadas",
+            detail = "Ativando protocolos de comando..."
         }
     },
     {
         technical = "Carregando animações básicas...",
         thematic = {
-            title = "Sincronizando Dados Biométricos",
+            title = "Escaneando Dados Biométricos",
             subtitle = "Mapeando padrões de movimento",
-            detail = "Analisando perfis de combate..."
+            detail = "Analisando perfis de ação..."
         }
     },
     {
         technical = "Carregando animações do portal...",
         thematic = {
-            title = "Escaneando Zona de Operação",
-            subtitle = "Identificando ameaças hostis",
-            detail = "Preparando contra-medidas táticas..."
+            title = "Identificando Ameaças Hostis",
+            subtitle = "Escaneando zona de operação",
+            detail = "Preparando contra-medidas..."
         }
     },
     {
-        technical = "Configurando managers...",
+        technical = "Criando batches de renderização...",
         thematic = {
-            title = "Ativando Suporte de Comando",
-            subtitle = "Estabelecendo link de comunicação",
-            detail = "Coordenando equipe de apoio..."
+            title = "Otimizando Sistemas Visuais",
+            subtitle = "Preparando pipeline gráfico",
+            detail = "Configurando recursos visuais..."
         }
     },
     {
-        technical = "Criando SpriteBatches...",
+        technical = "Configurando caçador para missão...",
         thematic = {
-            title = "Otimizando Sistemas de Combate",
-            subtitle = "Testando equipamentos de combate...",
-            detail = "Preparando arsenal tático..."
+            title = "Sincronizando Perfil do Caçador",
+            subtitle = "Ativando controles de combate",
+            detail = "Preparando sistemas de movimento..."
         }
     },
     {
-        technical = "Finalizando carregamento...",
+        technical = "Otimizando memória...",
+        thematic = {
+            title = "Avaliado plano de ataque",
+            subtitle = "Definindo estratégia",
+            detail = "Instruindo posições táticas..."
+        }
+    },
+    {
+        technical = "Finalizando inicialização...",
         thematic = {
             title = "Validando Prontidão Operacional",
             subtitle = "Confirmando status de missão",
@@ -112,10 +136,11 @@ local HUNTER_TIPS = {
 
 -- Configurações de performance otimizada
 local PERFORMANCE_CONFIG = {
-    LOAD_BUDGET_MS = 300,      -- Aumentado drasticamente de 12ms para 300ms (muito mais lento)
-    TASK_YIELD_FREQUENCY = 1,  -- Reduzido de 5 para 1 (yield a cada operação)
+    LOAD_BUDGET_MS = 8,        -- Aumentado de 5ms para 8ms (operações menos custosas agora)
+    TASK_YIELD_FREQUENCY = 1,  -- Yield a cada operação
     TIP_CHANGE_INTERVAL = 8.0, -- Troca dica a cada 8 segundos
     ANIMATION_SPEED = 0.7,     -- Animações mais lentas para economia de recursos
+    BATCH_CHUNK_SIZE = 3,      -- Volta para 3 batches por frame (operações mais leves)
 }
 
 --- Cena exibida enquanto o jogo principal está sendo carregado.
@@ -146,31 +171,43 @@ GameLoadingScene.loadingAnimationSpeed = 0.4 -- MUITO mais lento para ser visív
 GameLoadingScene.currentLoadingFrame = 1
 GameLoadingScene.maxLoadingFrames = 7
 
+-- === ESTADOS DE CARREGAMENTO ===
+GameLoadingScene.currentBatchIndex = 0
+GameLoadingScene.totalBatches = 0
+
 --- Inicializa as tarefas de carregamento baseadas nos dados do portal
 function GameLoadingScene:_initializeLoadingTasks()
     self.loadingTasks = {}
 
-    -- Construir tarefas usando textos temáticos
+    -- Construir tarefas usando textos temáticos CORRIGIDOS
     local taskFunctions = {
         function() return self:_loadFonts() end,
-        function() return self:_initializeBootstrap() end,
+        function() return self:_loadPlayerSprites() end,
+        function() return self:_initializeBootstrapCore() end,
+        function() return self:_setupAllManagers() end,
         function() return self:_loadBasicAnimations() end,
         function() return self:_loadPortalAnimations() end,
-        function() return self:_setupManagers() end,
-        function() return self:_createSpriteBatches() end,
+        function() return self:_createSpriteBatchesChunked() end,
+        function() return self:_setupPlayerForMission() end,
+        function() return self:_optimizeMemory() end,
         function() return self:_finalizeLoading() end
     }
 
     for i, thematicData in ipairs(THEMATIC_LOADING_TEXTS) do
-        table.insert(self.loadingTasks, {
-            name = thematicData.thematic.title,
-            thematicData = thematicData.thematic,
-            task = taskFunctions[i]
-        })
+        if taskFunctions[i] then
+            table.insert(self.loadingTasks, {
+                name = thematicData.thematic.title,
+                thematicData = thematicData.thematic,
+                task = taskFunctions[i]
+            })
+        end
     end
 
     self.totalTasks = #self.loadingTasks
     self.currentTaskIndex = 1
+
+    -- Preparar dados para carregamento chunked
+    self:_prepareChunkedData()
 
     -- Inicializar sistema de dicas
     self:_selectRandomTip()
@@ -182,7 +219,14 @@ function GameLoadingScene:_initializeLoadingTasks()
     self.loadingAnimationTimer = 0
     self.currentLoadingFrame = 1
 
-    Logger.info("GameLoadingScene", string.format("Inicializado carregamento temático com %d tarefas", self.totalTasks))
+    Logger.info("GameLoadingScene", string.format("Inicializado carregamento otimizado com %d tarefas", self.totalTasks))
+end
+
+--- Prepara dados para carregamento
+function GameLoadingScene:_prepareChunkedData()
+    -- Resetar apenas índices de batches que ainda são usados
+    self.currentBatchIndex = 0
+    self.totalBatches = 0
 end
 
 --- Seleciona uma dica aleatória do pool
@@ -208,21 +252,29 @@ function GameLoadingScene:_createLoadingCoroutine()
                 string.format("Executando tarefa %d/%d: %s", i, self.totalTasks, taskData.name))
 
             local taskStartTime = love.timer.getTime()
-            local success, result = pcall(taskData.task)
 
-            if not success then
-                Logger.error("GameLoadingScene", string.format("Erro na tarefa '%s': %s", taskData.name, result))
-                error("game_loading_scene.update Falha no carregamento: " .. result)
+            -- Executa tarefa em loop até completar
+            local completed = false
+            while not completed do
+                local success, result = pcall(taskData.task)
+
+                if not success then
+                    Logger.error("GameLoadingScene", string.format("Erro na tarefa '%s': %s", taskData.name, result))
+                    error("game_loading_scene.update Falha no carregamento: " .. result)
+                end
+
+                -- Se a tarefa retornar true, está completa
+                if result == true then
+                    completed = true
+                end
+
+                -- Sempre yield para manter fluidez, mesmo se a tarefa não terminou
+                coroutine.yield()
             end
 
             local taskTime = love.timer.getTime() - taskStartTime
-            if taskTime > 0.012 then -- Log tarefas que demoram mais que 12ms (ajustado)
-                Logger.warn("GameLoadingScene",
-                    string.format("Tarefa '%s' demorou %.1fms", taskData.name, taskTime * 1000))
-            end
-
-            -- Yield para permitir renderização do progresso
-            coroutine.yield()
+            Logger.debug("GameLoadingScene",
+                string.format("Tarefa '%s' completa em %.1fms", taskData.name, taskTime * 1000))
 
             -- === DELAY ARTIFICIAL PARA VISUALIZAÇÃO ===
             -- Garante que cada tarefa seja visível por pelo menos 1 segundo
@@ -240,48 +292,110 @@ function GameLoadingScene:_createLoadingCoroutine()
     end)
 end
 
--- Tarefas de carregamento individuais
+-- === TAREFAS DE CARREGAMENTO CORRIGIDAS ===
 
+--- Carrega todas as fontes necessárias
 function GameLoadingScene:_loadFonts()
+    -- Carrega fontes principais
     if not fonts.main then
         fonts.load()
     end
 
-    -- Carrega fontes específicas do Game Over
-    if not fonts.gameOver then
-        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Bold.ttf", 48)
-        if success then
-            fonts.gameOver = font
-        else
-            fonts.gameOver = fonts.title_large or fonts.main
+    -- Carrega fontes específicas de uma vez só
+    local fontsToLoad = {
+        { name = "gameOver",        path = "assets/fonts/Roboto-Bold.ttf",    size = 48 },
+        { name = "gameOverDetails", path = "assets/fonts/Roboto-Regular.ttf", size = 24 },
+        { name = "gameOverFooter",  path = "assets/fonts/Roboto-Regular.ttf", size = 20 }
+    }
+
+    for _, fontData in ipairs(fontsToLoad) do
+        if not fonts[fontData.name] then
+            local success, font = pcall(love.graphics.newFont, fontData.path, fontData.size)
+            if success then
+                fonts[fontData.name] = font
+                Logger.debug("GameLoadingScene", string.format("Fonte carregada: %s", fontData.name))
+            else
+                -- Fallback para fonte padrão
+                fonts[fontData.name] = fonts.main or love.graphics.getFont()
+                Logger.warn("GameLoadingScene", string.format("Fallback para fonte: %s", fontData.name))
+            end
         end
     end
 
-    if not fonts.gameOverDetails then
-        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Regular.ttf", 24)
-        if success then
-            fonts.gameOverDetails = font
-        else
-            fonts.gameOverDetails = fonts.main_small or fonts.main
-        end
-    end
-
-    if not fonts.gameOverFooter then
-        local success, font = pcall(love.graphics.newFont, "assets/fonts/Roboto-Regular.ttf", 20)
-        if success then
-            fonts.gameOverFooter = font
-        else
-            fonts.gameOverFooter = fonts.debug or fonts.main_small
-        end
-    end
+    return true
 end
 
-function GameLoadingScene:_initializeBootstrap()
-    Bootstrap.initialize()
+--- Carrega sprites do jogador de forma chunked
+function GameLoadingScene:_loadPlayerSprites()
+    local SpritePlayer = require('src.animations.sprite_player')
+
+    -- Carrega apenas sprites do corpo primeiro (operação custosa movida aqui)
+    if not SpritePlayer.resources.body or not next(SpritePlayer.resources.body) then
+        SpritePlayer._loadBodySprites()
+        Logger.debug("GameLoadingScene", "Sprites do corpo do jogador carregados")
+    end
+
+    return true
+end
+
+--- Inicializa apenas o core do Bootstrap
+function GameLoadingScene:_initializeBootstrapCore()
+    -- Inicializa apenas partes essenciais do Bootstrap
+    if Bootstrap and Bootstrap.initializeCore then
+        Bootstrap.initializeCore()
+        Logger.debug("GameLoadingScene", "Bootstrap core inicializado")
+    else
+        Logger.warn("GameLoadingScene", "Bootstrap.initializeCore não encontrado, usando initialize completo")
+        Bootstrap.initialize()
+    end
+    return true
+end
+
+--- Configura todos os managers restantes se necessário
+function GameLoadingScene:_setupAllManagers()
+    -- Verifica quais managers ainda precisam ser criados
+    local requiredManagers = {
+        "inputManager", "playerManager", "enemyManager", "dropManager",
+        "itemDataManager", "experienceOrbManager", "hudGameplayManager",
+        "extractionPortalManager", "extractionManager", "inventoryManager"
+    }
+
+    local missing = {}
+    for _, managerName in ipairs(requiredManagers) do
+        if not ManagerRegistry:tryGet(managerName) then
+            table.insert(missing, managerName)
+        end
+    end
+
+    -- CRÍTICO: Só chama Bootstrap.initialize() se há managers faltando
+    -- Isso evita recriar managers que já foram inicializados
+    if #missing > 0 then
+        Logger.warn("GameLoadingScene",
+            string.format("Managers faltando: %s. Chamando Bootstrap.initialize().", table.concat(missing, ", ")))
+        Bootstrap.initialize()
+
+        -- Valida novamente após Bootstrap.initialize()
+        local stillMissing = {}
+        for _, managerName in ipairs(requiredManagers) do
+            if not ManagerRegistry:get(managerName) then
+                table.insert(stillMissing, managerName)
+            end
+        end
+
+        if #stillMissing > 0 then
+            error("Managers ainda faltando após Bootstrap.initialize(): " .. table.concat(stillMissing, ", "))
+        end
+    else
+        Logger.info("GameLoadingScene", "Todos os managers já estão inicializados")
+    end
+
+    Logger.info("GameLoadingScene", "Validação de managers concluída com sucesso")
+    return true
 end
 
 function GameLoadingScene:_loadBasicAnimations()
     AnimationLoader.loadInitial()
+    return true
 end
 
 function GameLoadingScene:_loadPortalAnimations()
@@ -296,63 +410,221 @@ function GameLoadingScene:_loadPortalAnimations()
             )
         )
     end
+    return true
 end
 
-function GameLoadingScene:_setupManagers()
-    -- Os managers já foram inicializados pelo Bootstrap
-    -- Aqui apenas validamos se estão disponíveis
-    local requiredManagers = {
-        "playerManager", "enemyManager", "dropManager",
-        "itemDataManager", "experienceOrbManager", "hudGameplayManager",
-        "extractionPortalManager", "extractionManager", "inventoryManager"
-    }
-
-    local missing = {}
-    for _, managerName in ipairs(requiredManagers) do
-        if not ManagerRegistry:get(managerName) then
-            table.insert(missing, managerName)
-        end
-    end
-
-    if #missing > 0 then
-        error("Managers essenciais não encontrados: " .. table.concat(missing, ", "))
-    end
-end
-
-function GameLoadingScene:_createSpriteBatches()
+--- Cria SpriteBatches em chunks para evitar travamentos
+function GameLoadingScene:_createSpriteBatchesChunked()
     ---@type EnemyManager
     local enemyMgr = ManagerRegistry:get("enemyManager")
     local maxSpritesInBatch = enemyMgr and enemyMgr.maxEnemies or 200
 
     if AnimatedSpritesheet and AnimatedSpritesheet.assets then
-        local batchCount = 0
-        for unitType, unitAssets in pairs(AnimatedSpritesheet.assets) do
-            if unitAssets.sheets then
-                for animName, sheetTexture in pairs(unitAssets.sheets) do
-                    if sheetTexture then
-                        -- Cria SpriteBatch para esta textura
-                        local newBatch = love.graphics.newSpriteBatch(sheetTexture, maxSpritesInBatch)
-                        -- Nota: renderPipeline será configurado na GameplayScene
-                        batchCount = batchCount + 1
+        local allBatches = {}
 
-                        -- Yield periodicamente para evitar travamentos (usando nova configuração)
-                        if batchCount % PERFORMANCE_CONFIG.TASK_YIELD_FREQUENCY == 0 then
-                            coroutine.yield()
+        -- Prepara lista de todos os batches a serem criados
+        if self.totalBatches == 0 then
+            for unitType, unitAssets in pairs(AnimatedSpritesheet.assets) do
+                if unitAssets.sheets then
+                    for animName, sheetTexture in pairs(unitAssets.sheets) do
+                        if sheetTexture then
+                            table.insert(allBatches, { unitType = unitType, animName = animName, texture = sheetTexture })
                         end
                     end
                 end
             end
+            self.totalBatches = #allBatches
         end
-        Logger.debug("GameLoadingScene", string.format("Criados %d SpriteBatches otimizados", batchCount))
+
+        -- Processa apenas um chunk de batches por vez
+        local startIndex = self.currentBatchIndex + 1
+        local endIndex = math.min(startIndex + PERFORMANCE_CONFIG.BATCH_CHUNK_SIZE - 1, self.totalBatches)
+
+        for i = startIndex, endIndex do
+            local batchData = allBatches[i]
+            if batchData then
+                -- Cria SpriteBatch para esta textura
+                local newBatch = love.graphics.newSpriteBatch(batchData.texture, maxSpritesInBatch)
+                Logger.debug("GameLoadingScene",
+                    string.format("Batch criado: %s-%s", batchData.unitType, batchData.animName))
+            end
+        end
+
+        self.currentBatchIndex = endIndex
+
+        -- Retorna true se todos os batches foram processados
+        return self.currentBatchIndex >= self.totalBatches
     end
+
+    return true
+end
+
+--- Configura TODOS os managers completamente para a missão
+function GameLoadingScene:_setupPlayerForMission()
+    self:_setupAllManagersForGameplay()
+
+    Logger.info("GameLoadingScene", "Todos os managers configurados para gameplay completo")
+    return true
+end
+
+--- Configura todos os managers para gameplay
+function GameLoadingScene:_setupAllManagersForGameplay()
+    -- 1. CONFIGURAR PLAYER MANAGER
+    Logger.debug("GameLoadingScene", "Configurando PlayerManager para gameplay...")
+    ---@type PlayerManager
+    local playerMgr = ManagerRegistry:get("playerManager")
+    if not playerMgr then
+        error("PlayerManager não encontrado para configuração da missão!")
+    end
+    if not self.hunterId then
+        error("hunterId necessário para configurar o PlayerManager!")
+    end
+
+    -- Setup completo do PlayerManager (cria todos os controllers)
+    playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
+    Logger.info("GameLoadingScene", string.format("PlayerManager configurado com hunter ID: %s", self.hunterId))
+
+    -- 2. CONFIGURAR ENEMY MANAGER
+    Logger.debug("GameLoadingScene", "Configurando EnemyManager para gameplay...")
+    ---@type EnemyManager
+    local enemyMgr = ManagerRegistry:get("enemyManager")
+    ---@type DropManager
+    local dropMgr = ManagerRegistry:get("dropManager")
+
+    if enemyMgr and self.currentPortalData then
+        -- Criar ProceduralMapManager aqui (era criado no gameplay_scene)
+        local AssetManager = require("src.managers.asset_manager")
+        local ProceduralMapManager = require("src.managers.procedural_map_manager")
+
+        local mapName = self.currentPortalData.map
+        if not mapName then
+            error("GameLoadingScene - O portal não define um 'map'.")
+        end
+
+        self.mapManager = ProceduralMapManager:new(mapName, AssetManager)
+        Logger.info("GameLoadingScene", string.format("ProceduralMapManager criado para mapa: %s", mapName))
+
+        -- Configurar EnemyManager com todas as dependências
+        local enemyManagerConfig = {
+            hordeConfig = self.hordeConfig,
+            playerManager = playerMgr,
+            dropManager = dropMgr,
+            mapManager = self.mapManager
+        }
+        enemyMgr:setupGameplay(enemyManagerConfig)
+        Logger.info("GameLoadingScene", "EnemyManager configurado para gameplay")
+    end
+
+    -- 3. CONFIGURAR HUD GAMEPLAY MANAGER
+    Logger.debug("GameLoadingScene", "Configurando HUDGameplayManager...")
+    ---@type HUDGameplayManager
+    local hudGameplayManager = ManagerRegistry:get("hudGameplayManager")
+    if hudGameplayManager then
+        hudGameplayManager:setupGameplay()
+        Logger.info("GameLoadingScene", "HUDGameplayManager configurado")
+    end
+
+    -- 4. CONFIGURAR EXTRACTION MANAGERS
+    Logger.debug("GameLoadingScene", "Configurando managers de extração...")
+    ---@type ExtractionManager
+    local extractionManager = ManagerRegistry:get("extractionManager")
+    ---@type ExtractionPortalManager
+    local extractionPortalManager = ManagerRegistry:get("extractionPortalManager")
+
+    if extractionManager and self.currentPortalData then
+        extractionManager:reset(self.currentPortalData)
+        Logger.info("GameLoadingScene", "ExtractionManager configurado")
+    end
+
+    if extractionPortalManager then
+        extractionPortalManager:spawnPortals()
+        Logger.info("GameLoadingScene", "ExtractionPortalManager configurado")
+    end
+
+    -- 5. CONFIGURAR RENDER PIPELINE
+    Logger.debug("GameLoadingScene", "Configurando RenderPipeline...")
+    local RenderPipeline = require("src.core.render_pipeline")
+    self.renderPipeline = RenderPipeline:new()
+
+    if self.mapManager then
+        self.renderPipeline:setMapManager(self.mapManager)
+        Logger.debug("GameLoadingScene", "RenderPipeline configurado com MapManager")
+    end
+
+    -- 6. CRIAR SPRITEBATCHES PARA O RENDERPIPELINE
+    Logger.debug("GameLoadingScene", "Criando SpriteBatches para RenderPipeline...")
+    local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
+    if AnimatedSpritesheet and AnimatedSpritesheet.assets then
+        for unitType, unitAssets in pairs(AnimatedSpritesheet.assets) do
+            if unitAssets.sheets then
+                for animName, sheetTexture in pairs(unitAssets.sheets) do
+                    if sheetTexture and not self.renderPipeline.spriteBatchReferences[sheetTexture] then
+                        local maxSpritesInBatch = enemyMgr and enemyMgr.maxEnemies or 200
+                        local newBatch = love.graphics.newSpriteBatch(sheetTexture, maxSpritesInBatch)
+                        self.renderPipeline:registerSpriteBatch(sheetTexture, newBatch)
+                    end
+                end
+            end
+        end
+        Logger.info("GameLoadingScene", "SpriteBatches criados e registrados no RenderPipeline")
+    end
+
+    -- 7. CONFIGURAR MANAGERS DE GAME OVER E BOSS
+    Logger.debug("GameLoadingScene", "Configurando managers de apresentação...")
+    local GameOverManager = require("src.managers.game_over_manager")
+    local BossPresentationManager = require("src.managers.boss_presentation_manager")
+    local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
+
+    self.gameOverManager = GameOverManager:new()
+    self.gameOverManager:init(ManagerRegistry, require("src.core.scene_manager"))
+    self.gameOverManager:reset()
+
+    self.bossPresentationManager = BossPresentationManager:new()
+
+    -- Destruir e recriar BossHealthBarManager (padrão do projeto)
+    if BossHealthBarManager.destroy then
+        BossHealthBarManager:destroy()
+    end
+    BossHealthBarManager:init()
+
+    Logger.info("GameLoadingScene", "Managers de apresentação configurados")
+
+    -- 8. CALLBACK DE MORTE DO JOGADOR (configuração que era feita no gameplay_scene)
+    if playerMgr then
+        playerMgr:setOnPlayerDiedCallback(function()
+            Logger.info("GameLoadingScene", "Callback de morte configurado - será usado no gameplay")
+            -- O GameplayScene será responsável apenas por chamar GameOverManager
+        end)
+        Logger.debug("GameLoadingScene", "Callback de morte do jogador configurado")
+    end
+
+    -- 9. PREPARAR DADOS PARA GAMEPLAY_SCENE
+    -- Criar objeto com todas as referências que o gameplay_scene precisará
+    self.gameplayData = {
+        renderPipeline = self.renderPipeline,
+        mapManager = self.mapManager,
+        gameOverManager = self.gameOverManager,
+        bossPresentationManager = self.bossPresentationManager,
+        portalId = self.portalId,
+        hordeConfig = self.hordeConfig,
+        hunterId = self.hunterId,
+        currentPortalData = self.currentPortalData
+    }
+
+    Logger.info("GameLoadingScene", "*** CONFIGURAÇÃO COMPLETA DE TODOS OS MANAGERS PARA GAMEPLAY ***")
+end
+
+--- Otimiza memória de forma gradual
+function GameLoadingScene:_optimizeMemory()
+    -- Coleta de lixo ultra suave para evitar picos de performance
+    collectgarbage("step", 50) -- Reduzido de 100 para 50 KB por vez
+    return true
 end
 
 function GameLoadingScene:_finalizeLoading()
-    -- Força coleta de lixo antes de entrar no gameplay
-    collectgarbage("collect")
-
     -- Pequeна pausa para garantir que tudo foi processado
-    love.timer.sleep(0.01)
+    love.timer.sleep(0.005) -- Reduzido de 0.01 para 0.005
+    return true
 end
 
 --- Chamado quando a cena é carregada.
@@ -402,6 +674,9 @@ end
 
 --- Chamado a cada frame para atualizar o carregamento.
 function GameLoadingScene:update(dt)
+    -- Monitoramento de performance rigoroso
+    local frameStartTime = love.timer.getTime()
+
     -- Atualizar timers de animação e dicas
     self.animationTimer = self.animationTimer + dt * PERFORMANCE_CONFIG.ANIMATION_SPEED
     self.tipTimer = self.tipTimer + dt
@@ -417,16 +692,24 @@ function GameLoadingScene:update(dt)
             "game_loading_scene.update",
             "[GameLoadingScene:update] Carregamento concluído, trocando para GameplayScene..."
         )
-        SceneManager.switchScene("gameplay_scene", self.sceneArgs)
+
+        -- NOVA ARQUITETURA: Passar dados completamente configurados para gameplay_scene
+        local gameplayArgs = self.gameplayData or self.sceneArgs
+        SceneManager.switchScene("gameplay_scene", gameplayArgs)
         return
     end
 
     if self.loadingCoroutine then
         local startTime = love.timer.getTime()
+        local iterations = 0
 
-        -- Processa carregamento dentro do budget de tempo
+        -- Processa carregamento dentro do budget de tempo ULTRA RESTRITO
         while love.timer.getTime() - startTime < (PERFORMANCE_CONFIG.LOAD_BUDGET_MS / 1000) do
+            local resumeStartTime = love.timer.getTime()
             local success, errorMsg = coroutine.resume(self.loadingCoroutine)
+            local resumeTime = love.timer.getTime() - resumeStartTime
+
+            iterations = iterations + 1
 
             if not success then
                 error("game_loading_scene.update Falha crítica no carregamento: " .. errorMsg)
@@ -435,6 +718,26 @@ function GameLoadingScene:update(dt)
             if coroutine.status(self.loadingCoroutine) == "dead" then
                 break
             end
+
+            -- Log operações que demoram mais que 2ms
+            if resumeTime > 0.002 then
+                Logger.warn("GameLoadingScene",
+                    string.format("Operação custosa detectada: %.1fms na tarefa %d",
+                        resumeTime * 1000, self.currentTaskIndex))
+            end
+
+            -- Força uma saída do loop se o tempo acabou
+            if love.timer.getTime() - startTime >= (PERFORMANCE_CONFIG.LOAD_BUDGET_MS / 1000) then
+                break
+            end
+        end
+
+        -- Monitora performance geral do frame
+        local totalFrameTime = love.timer.getTime() - frameStartTime
+        if totalFrameTime > 0.016 then -- 16ms = 62.5 FPS
+            Logger.warn("GameLoadingScene",
+                string.format("Frame lento detectado: %.1fms (%d iterações)",
+                    totalFrameTime * 1000, iterations))
         end
     end
 

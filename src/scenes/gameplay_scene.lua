@@ -1,6 +1,4 @@
-local SceneManager = require("src.core.scene_manager")
 local Camera = require("src.config.camera")
-local AnimationLoader = require("src.animations.animation_loader")
 local LevelUpModal = require("src.ui.level_up_modal")
 local RuneChoiceModal = require("src.ui.rune_choice_modal")
 local HUD = require("src.ui.hud")
@@ -9,18 +7,11 @@ local elements = require("src.ui.ui_elements")
 local InventoryScreen = require("src.ui.screens.inventory_screen")
 local ItemDetailsModal = require("src.ui._item_details_modal")
 local ManagerRegistry = require("src.managers.manager_registry")
-local Bootstrap = require("src.core.bootstrap")
 local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
-local AssetManager = require("src.managers.asset_manager")
 local portalDefinitions = require("src.data.portals.portal_definitions")
 local Constants = require("src.config.constants")
-local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
-local ProceduralMapManager = require("src.managers.procedural_map_manager")
-local RenderPipeline = require("src.core.render_pipeline")
 local Culling = require("src.core.culling")
-local GameOverManager = require("src.managers.game_over_manager")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
-local BossPresentationManager = require("src.managers.boss_presentation_manager")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
@@ -31,25 +22,30 @@ GameplayScene.gameOverManager = nil         -- Instância do GameOverManager
 GameplayScene.bossPresentationManager = nil -- Instância do BossPresentationManager
 
 function GameplayScene:load(args)
-    Logger.debug("GameplayScene", "GameplayScene:load - Configurando gameplay para sessão...")
+    Logger.debug("GameplayScene", "GameplayScene:load - Iniciando orquestração de gameplay...")
 
-    -- Extrai argumentos (já validados pela GameLoadingScene)
-    self.portalId = args and args.portalId or "floresta_assombrada"
-    self.hordeConfig = args and args.hordeConfig or nil
-    self.hunterId = args and args.hunterId or nil
-    self.currentPortalData = portalDefinitions[self.portalId]
+    -- NOVA ARQUITETURA: Obtém dados já configurados pelo game_loading_scene
+    if args and args.renderPipeline then
+        -- Dados vêm do game_loading_scene (nova arquitetura)
+        self.renderPipeline = args.renderPipeline
+        self.mapManager = args.mapManager
+        self.gameOverManager = args.gameOverManager
+        self.bossPresentationManager = args.bossPresentationManager
+        self.portalId = args.portalId
+        self.hordeConfig = args.hordeConfig
+        self.hunterId = args.hunterId
+        self.currentPortalData = args.currentPortalData
+        Logger.info("GameplayScene", "Recebidos dados configurados do game_loading_scene")
+    else
+        -- Fallback para compatibilidade (args antigos)
+        self.portalId = args and args.portalId or "floresta_assombrada"
+        self.hordeConfig = args and args.hordeConfig or nil
+        self.hunterId = args and args.hunterId or nil
+        self.currentPortalData = portalDefinitions[self.portalId]
+        Logger.error("GameplayScene", "Usando fallback - dados não vieram do game_loading_scene!")
+    end
 
-    -- Inicializa sistemas específicos do gameplay
-    self.renderPipeline = RenderPipeline:new()
-
-    -- Instancia managers específicos da sessão
-    self.gameOverManager = GameOverManager:new()
-    self.gameOverManager:init(ManagerRegistry, SceneManager)
-    self.gameOverManager:reset()
-
-    self.bossPresentationManager = BossPresentationManager:new()
-
-    -- Estado inicial da UI
+    -- Estado inicial da UI (mínimo necessário)
     self.isPaused = false
     self.inventoryDragState = {
         isDragging = false,
@@ -79,54 +75,11 @@ function GameplayScene:load(args)
     -- Inicializa camera
     Camera:init()
 
-    -- Obtém managers (já inicializados pela GameLoadingScene)
-    local enemyMgr = ManagerRegistry:get("enemyManager") ---@type EnemyManager
-    local dropMgr = ManagerRegistry:get("dropManager") ---@type DropManager
+    -- VALIDAÇÃO: Verifica se todos os managers estão prontos
     local playerMgr = ManagerRegistry:get("playerManager") ---@type PlayerManager
-    local hudGameplayManager = ManagerRegistry:get("hudGameplayManager") ---@type HUDGameplayManager
-    local extractionPortalManager = ManagerRegistry:get("extractionPortalManager") ---@type ExtractionPortalManager
-    local extractionManager = ManagerRegistry:get("extractionManager") ---@type ExtractionManager
-
-    -- Cria SpriteBatches para o RenderPipeline
-    if AnimatedSpritesheet and AnimatedSpritesheet.assets then
-        for unitType, unitAssets in pairs(AnimatedSpritesheet.assets) do
-            if unitAssets.sheets then
-                for animName, sheetTexture in pairs(unitAssets.sheets) do
-                    if sheetTexture and not self.renderPipeline.spriteBatchReferences[sheetTexture] then
-                        local maxSpritesInBatch = enemyMgr and enemyMgr.maxEnemies or 200
-                        local newBatch = love.graphics.newSpriteBatch(sheetTexture, maxSpritesInBatch)
-                        self.renderPipeline:registerSpriteBatch(sheetTexture, newBatch)
-                    end
-                end
-            end
-        end
+    if not playerMgr or not playerMgr.movementController then
+        error("ERRO CRÍTICO: PlayerManager não foi configurado adequadamente pelo game_loading_scene!")
     end
-
-    -- Instancia ProceduralMapManager para esta sessão
-    local mapName = self.currentPortalData.map
-    if not mapName then
-        error("GameplayScene:load - O portal " .. self.portalId .. " não define um 'map'.")
-    end
-    self.mapManager = ProceduralMapManager:new(mapName, AssetManager)
-    self.renderPipeline:setMapManager(self.mapManager)
-
-    -- Configura managers para esta sessão específica
-    playerMgr:setupGameplay(ManagerRegistry, self.hunterId)
-
-    local enemyManagerConfig = {
-        hordeConfig = self.hordeConfig,
-        playerManager = playerMgr,
-        dropManager = dropMgr,
-        mapManager = self.mapManager
-    }
-    enemyMgr:setupGameplay(enemyManagerConfig)
-
-    -- IMPORTANTE: Configura HUD ANTES de resetar sistemas que dependem dele
-    hudGameplayManager:setupGameplay()
-
-    -- Configura sistemas de extração (APÓS HUD estar configurado)
-    extractionManager:reset(self.currentPortalData)
-    extractionPortalManager:spawnPortals()
 
     -- Captura snapshot inicial de itens
     self:_snapshotInitialItems()
@@ -145,26 +98,28 @@ function GameplayScene:load(args)
     local randomWeaponId = rankEWeapons[math.random(#rankEWeapons)]
     self:createDropNearPlayer(randomWeaponId)
 
-    -- Configura callback de morte do jogador
-    playerMgr:setOnPlayerDiedCallback(function()
-        Logger.info("gameplay_scene.load", "[GameplayScene:load] Callback de morte do jogador acionado")
-        self:_cleanupForGameOver()
+    -- CALLBACK DE MORTE ATUALIZADO (já configurado no game_loading_scene)
+    if playerMgr and self.gameOverManager then
+        playerMgr:setOnPlayerDiedCallback(function()
+            Logger.info("gameplay_scene.load", "[GameplayScene:load] Callback de morte do jogador acionado")
+            self:_cleanupForGameOver()
 
-        -- Obtém a causa da morte (último inimigo que causou dano)
-        local lastDamageSource = playerMgr.healthController:getLastDamageSource()
-        local deathCause = "Desconhecido"
-        if lastDamageSource then
-            if lastDamageSource.isBoss then
-                deathCause = string.format("Boss: %s", lastDamageSource.name or "Desconhecido")
-            elseif lastDamageSource.isMVP then
-                deathCause = string.format("MVP: %s", lastDamageSource.name or "Desconhecido")
-            else
-                deathCause = string.format("Inimigo: %s", lastDamageSource.name or "Desconhecido")
+            -- Obtém a causa da morte (último inimigo que causou dano)
+            local lastDamageSource = playerMgr.healthController:getLastDamageSource()
+            local deathCause = "Desconhecido"
+            if lastDamageSource then
+                if lastDamageSource.isBoss then
+                    deathCause = string.format("Boss: %s", lastDamageSource.name or "Desconhecido")
+                elseif lastDamageSource.isMVP then
+                    deathCause = string.format("MVP: %s", lastDamageSource.name or "Desconhecido")
+                else
+                    deathCause = string.format("Inimigo: %s", lastDamageSource.name or "Desconhecido")
+                end
             end
-        end
 
-        self.gameOverManager:start(self.currentPortalData, deathCause)
-    end)
+            self.gameOverManager:start(self.currentPortalData, deathCause)
+        end)
+    end
 
     -- Posiciona camera inicial
     local playerInitialPos = playerMgr:getPlayerPosition()
@@ -176,7 +131,8 @@ function GameplayScene:load(args)
         Camera:setPosition(0, 0)
     end
 
-    Logger.debug("gameplay_scene.load", "[GameplayScene:load] GameplayScene:load concluído - sessão pronta para iniciar.")
+    Logger.info("gameplay_scene.load",
+        "[GameplayScene:load] Orquestração de gameplay configurada - pronto para update/draw.")
 end
 
 function GameplayScene:createDropNearPlayer(dropId)
