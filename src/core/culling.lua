@@ -2,7 +2,7 @@
 local Culling = {}
 
 --- Verifica se uma entidade está dentro da viewport + margem opcional
----@param entity table Deve ter .position {x, y} e opcionalmente .radius
+---@param entity { position: Vector2D, radius?: number } Deve ter .position {x, y} e opcionalmente .radius
 ---@param camX number
 ---@param camY number
 ---@param screenW number
@@ -21,7 +21,7 @@ function Culling.isInView(entity, camX, camY, screenW, screenH, margin)
 end
 
 --- Verifica se uma entidade está completamente FORA da viewport + margem opcional
----@param entity table
+---@param entity { position: Vector2D, radius?: number } Deve ter .position {x, y} e opcionalmente .radius
 ---@param camX number
 ---@param camY number
 ---@param screenW number

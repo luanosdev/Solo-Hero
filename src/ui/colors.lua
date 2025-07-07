@@ -3,6 +3,7 @@ local colors = {
     transparent = { 0, 0, 0, 0 },
     white = { 1, 1, 1, 1 }, -- #FFFFFF
     black = { 0, 0, 0, 1 }, -- #000000
+    purple = { 0.6, 0.3, 1, 1 }, -- #9966FF
 
     -- Cores base inspiradas em Solo Leveling
     window_bg = { 0.06, 0.07, 0.09, 0.95 },  -- Preto azulado escuro

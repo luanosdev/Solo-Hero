@@ -50,6 +50,7 @@ function Bootstrap.initialize()
 
     -- ExperienceOrbManager
     print("  - Inicializando/Registrando ExperienceOrbManager...")
+    ExperienceOrbManager:init()
     ManagerRegistry:register("experienceOrbManager", ExperienceOrbManager, true)
     print("    > ExperienceOrbManager registrado.")
 
