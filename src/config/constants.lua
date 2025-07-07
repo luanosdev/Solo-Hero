@@ -177,11 +177,11 @@ Constants.POTION_SYSTEM = {
 -- Constantes do Sistema de Spawn Otimizado
 Constants.SPAWN_OPTIMIZATION = {
     -- Número máximo de inimigos spawnados por frame para evitar stuttering
-    MAX_SPAWNS_PER_FRAME = 5,
+    MAX_SPAWNS_PER_FRAME = 2,
     -- Limite mínimo permitido para maxSpawnsPerFrame
     MIN_SPAWNS_PER_FRAME = 1,
     -- Limite máximo permitido para maxSpawnsPerFrame
-    MAX_SPAWNS_PER_FRAME_LIMIT = 20,
+    MAX_SPAWNS_PER_FRAME_LIMIT = 10,
 }
 
 -- Funções utilitárias para conversão de unidades
