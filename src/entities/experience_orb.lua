@@ -21,6 +21,9 @@ local Constants = require("src.config.constants")
 ---@field isMoving boolean Se o orbe está se movendo
 ---@field velocity Vector2D Velocidade atual do orbe
 ---@field active boolean Se o orbe está ativo (para pooling)
+---@field mergedExperience number Experiência total acumulada
+---@field mergedCount number Número de orbes agrupados (para visual)
+---@field isMerged boolean Se este orbe representa um agrupamento
 local ExperienceOrb = {}
 ExperienceOrb.__index = ExperienceOrb
 
@@ -40,6 +43,12 @@ ExperienceOrb.LEVITATION_HEIGHT = 5
 ExperienceOrb.LEVITATION_SPEED = 3
 ExperienceOrb.MAX_TILT_ANGLE = 0.3 -- Máxima inclinação em radianos (~17 graus)
 
+-- Adicionar às configurações estáticas
+ExperienceOrb.MERGE_GRID_SIZE = 150    -- Tamanho do grid para agrupamento
+ExperienceOrb.MIN_MERGE_DISTANCE = 500 -- Distância mínima da câmera para merger
+ExperienceOrb.MAX_MERGE_SCALE = 2.5    -- Scale máximo para orbes agrupados
+ExperienceOrb.MERGE_THRESHOLD = 3      -- Mínimo de orbes para agrupar
+
 function ExperienceOrb:new(x, y, exp)
     local orb = setmetatable({
         position = { x = x, y = y },
@@ -54,7 +63,10 @@ function ExperienceOrb:new(x, y, exp)
         tiltAngle = 0,
         isMoving = false,
         velocity = { x = 0, y = 0 },
-        active = true
+        active = true,
+        mergedExperience = exp or 1, -- Inicia com experiência própria
+        mergedCount = 1,
+        isMerged = false
     }, self)
 
     return orb
@@ -78,6 +90,10 @@ function ExperienceOrb:reset(x, y, exp)
     self.velocity.x = 0
     self.velocity.y = 0
     self.active = true
+    -- Reset de merge
+    self.mergedExperience = exp or 1
+    self.mergedCount = 1
+    self.isMerged = false
 end
 
 -- Método para desativar o orbe (para pooling)
@@ -208,14 +224,23 @@ function ExperienceOrb:getRenderData()
     local frameX = (self.currentFrame - 1) % self.SPRITE_COLS
     local frameY = math.floor((self.currentFrame - 1) / self.SPRITE_COLS)
 
+    -- Scale aumenta com base no número de orbes agrupados
+    local baseScale = 0.15 + (self.collectionProgress * 0.2)
+    local mergeScale = 1.0
+
+    if self.isMerged and self.mergedCount > 1 then
+        -- Scale logarítmico: mais orbes = maior, mas não exageradamente
+        mergeScale = math.min(1.0 + math.log(self.mergedCount) * 0.4, self.MAX_MERGE_SCALE)
+    end
+
     return {
         x = x,
         y = y,
         rotation = self.tiltAngle,
         frameX = frameX,
         frameY = frameY,
-        scale = 0.15 + (self.collectionProgress * 0.2), -- Cresce ligeiramente durante coleta
-        alpha = 1 - (self.collectionProgress * 0.3)     -- Fade out durante coleta
+        scale = baseScale * mergeScale,
+        alpha = 1 - (self.collectionProgress * 0.3)
     }
 end
 
@@ -227,6 +252,29 @@ end
 -- Método para verificar se está ativo
 function ExperienceOrb:isActive()
     return self.active and not self.collected
+end
+
+-- Método para agrupar orbes
+function ExperienceOrb:mergeWith(otherOrbs)
+    self.isMerged = true
+    self.mergedExperience = self.experience
+    self.mergedCount = 1
+
+    -- Acumula experiência de outros orbes
+    for _, otherOrb in ipairs(otherOrbs) do
+        if otherOrb.isMerged then
+            self.mergedExperience = self.mergedExperience + otherOrb.mergedExperience
+            self.mergedCount = self.mergedCount + otherOrb.mergedCount
+        else
+            self.mergedExperience = self.mergedExperience + otherOrb.experience
+            self.mergedCount = self.mergedCount + 1
+        end
+    end
+end
+
+-- Método para obter quantidade total de experiência
+function ExperienceOrb:getTotalExperience()
+    return self.isMerged and self.mergedExperience or self.experience
 end
 
 return ExperienceOrb

@@ -333,7 +333,7 @@ end
 ---Funções de experiência e level
 function PlayerManager:addExperience(amount)
     if self.experienceController then
-        self.experienceController:addExperience(amount)
+        self.experienceController:addExperience(math.floor(amount))
     end
 end
 
