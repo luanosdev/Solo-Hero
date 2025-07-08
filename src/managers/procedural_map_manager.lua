@@ -1,5 +1,6 @@
 -- src/managers/procedural_map_manager.lua
 -- Gerencia a geração procedural de mapas infinitos baseados em chunks.
+-- V2: Sistema otimizado com foco em performance real
 
 local MapManager = require("src.managers.map_manager")
 local Constants = require("src.config.constants")
@@ -21,8 +22,20 @@ local TablePool = require("src.utils.table_pool")
 ---@field windSpeed number
 ---@field decorationAtlas table
 ---@field decorationBatch love.SpriteBatch
+---@field textureAtlasManager TextureAtlasManager
+---@field sessionSeed number
+---@field generationQueue table
+---@field generatingTask table|nil
+---@field workPerFrame number
+---@field chunkPool table Pool simples de chunks para reutilização
+---@field frameCounter number Contador para operações menos frequentes
 local ProceduralMapManager = {}
 ProceduralMapManager.__index = ProceduralMapManager
+
+-- Constantes de otimização simplificadas
+local WORK_PER_FRAME = 12        -- Mais trabalho por frame para ser eficiente
+local POOL_MAX_SIZE = 20         -- Pool pequeno e eficiente
+local UNLOAD_CHECK_INTERVAL = 30 -- Verifica unload a cada 30 frames (~0.5s)
 
 --- Cria uma nova instância do ProceduralMapManager.
 --- @param mapName string O nome do mapa a ser gerado (ex: "florest").
@@ -32,21 +45,27 @@ function ProceduralMapManager:new(mapName, assetManager)
     local instance = setmetatable({}, ProceduralMapManager)
     instance.mapName = mapName
     instance.assetManager = assetManager -- Mantido para o chão e outros possíveis assets.
-    Logger.info("ProceduralMapManager.new", "Criando ProceduralMapManager para o mapa: " .. mapName)
+    Logger.info("ProceduralMapManager.new", "Criando ProceduralMapManager otimizado para o mapa: " .. mapName)
 
     -- Carrega os dados de configuração do mapa.
     instance.mapData = MapManager:loadMap(mapName)
 
-    -- Configurações do mapa procedural.
+    -- Configurações do mapa procedural otimizadas
     instance.chunks = {}
-    instance.chunkSize = 24
-    instance.viewDistance = 1
+    instance.chunkSize = 24   -- Mantém compatibilidade com sistema isométrico existente
+    instance.viewDistance = 1 -- Volta para o valor original eficiente
     instance.sessionSeed = love.math.random(1, 1000000)
 
-    -- Fila e controle para geração assíncrona de chunks.
+    -- Sistema assíncrono simplificado
     instance.generationQueue = {}
     instance.generatingTask = nil
-    instance.workPerFrame = 4 -- Número de linhas de tiles a gerar por quadro.
+    instance.workPerFrame = WORK_PER_FRAME
+
+    -- Pool simples de chunks
+    instance.chunkPool = {}
+
+    -- Contador para operações menos frequentes
+    instance.frameCounter = 0
 
     -- Parâmetros de vento.
     instance.windStrength = 1.2
@@ -65,6 +84,39 @@ function ProceduralMapManager:new(mapName, assetManager)
     instance:_initializeRenderer()
 
     return instance
+end
+
+--- Pool simples e eficiente para chunks
+---@return table
+function ProceduralMapManager:_getChunkFromPool()
+    if #self.chunkPool > 0 then
+        local chunk = table.remove(self.chunkPool)
+        return chunk
+    else
+        return {}
+    end
+end
+
+---@param chunk table
+function ProceduralMapManager:_returnChunkToPool(chunk)
+    if #self.chunkPool < POOL_MAX_SIZE then
+        -- Limpa SpriteBatch se existir
+        if chunk.ground and type(chunk.ground.release) == "function" then
+            if type(chunk.ground.isReleased) == "function" then
+                if not chunk.ground:isReleased() then
+                    chunk.ground:release()
+                end
+            else
+                chunk.ground:release()
+            end
+        end
+
+        -- Limpa chunk para reutilização
+        chunk.ground = nil
+        chunk.decorations = nil
+
+        table.insert(self.chunkPool, chunk)
+    end
 end
 
 --- Inicializa os recursos de renderização para o mapa.
@@ -94,39 +146,46 @@ function ProceduralMapManager:_initializeRenderer()
         self.decorationData = self.mapData.decorations.layers
     end
 
-    Logger.info("ProceduralMapManager.start", "Renderizador do ProceduralMapManager inicializado.")
+    Logger.info("ProceduralMapManager.start", "Renderizador otimizado do ProceduralMapManager inicializado.")
 end
 
---- Verifica se um chunk está na fila de geração ou sendo gerado.
---- @param chunkId string O ID do chunk.
+--- Verifica se um chunk está na fila de geração ou sendo gerado (versão eficiente).
+--- @param chunkX number
+--- @param chunkY number
 --- @return boolean
-function ProceduralMapManager:_isChunkInQueueOrGenerating(chunkId)
-    if self.generatingTask and self.generatingTask.id == chunkId then
-        return true
-    end
-    for _, task in ipairs(self.generationQueue) do
-        if (task.x .. "," .. task.y) == chunkId then
+function ProceduralMapManager:_isChunkInQueueOrGenerating(chunkX, chunkY)
+    -- Verifica tarefa ativa (mais provável)
+    if self.generatingTask then
+        local task = self.generatingTask
+        if task.x == chunkX and task.y == chunkY then
             return true
         end
     end
+
+    -- Verifica fila (menos provável, fila pequena)
+    for i = 1, #self.generationQueue do
+        local task = self.generationQueue[i]
+        if task.x == chunkX and task.y == chunkY then
+            return true
+        end
+    end
+
     return false
 end
 
---- Cria uma corotina para gerar um chunk de forma assíncrona.
+--- Cria uma corotina otimizada para gerar um chunk de forma assíncrona.
 function ProceduralMapManager:_createChunkGenerator(chunkX, chunkY)
     return coroutine.create(function()
-        local chunkId = chunkX .. "," .. chunkY
-        if self.chunks[chunkY] and self.chunks[chunkY][chunkX] then
-            return -- Evita gerar novamente se outro processo o fez enquanto estava na fila.
-        end
-
-        Logger.debug("ProceduralMapManager._createChunkGenerator", "Iniciando geração do chunk: " .. chunkId)
+        local chunk = self:_getChunkFromPool()
 
         local groundBatch = love.graphics.newSpriteBatch(self.groundImage, self.chunkSize * self.chunkSize, "static")
         local decorationsByTile = {}
         local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
         local TILE_HEIGHT_HALF = Constants.TILE_HEIGHT / 2
         local rng = love.math.newRandomGenerator()
+
+        -- Yield counter otimizado
+        local yieldCounter = 0
 
         for tileY = 0, self.chunkSize - 1 do
             decorationsByTile[tileY] = {}
@@ -137,12 +196,14 @@ function ProceduralMapManager:_createChunkGenerator(chunkX, chunkY)
                 local isoX = (worldTileX - worldTileY) * TILE_WIDTH_HALF
                 local isoY = (worldTileX + worldTileY) * TILE_HEIGHT_HALF
                 groundBatch:add(self.groundQuad, isoX, isoY)
+
                 local noiseOffset = 0
                 for layerIndex, layerData in ipairs(self.decorationData) do
                     local shouldPlace = false
                     local placementSeed = self.sessionSeed + noiseOffset
                     rng:setSeed(placementSeed + worldTileX * 13 + worldTileY * 31)
                     local randomValue = rng:random()
+
                     if layerData.placement == "clustered" then
                         local clusterNoiseX = worldTileX / layerData.cluster_scale
                         local clusterNoiseY = worldTileY / layerData.cluster_scale
@@ -157,6 +218,7 @@ function ProceduralMapManager:_createChunkGenerator(chunkX, chunkY)
                             shouldPlace = true
                         end
                     end
+
                     if shouldPlace and layerData.types and #layerData.types > 0 then
                         local typeIndex = rng:random(#layerData.types)
                         local decoType = layerData.types[typeIndex]
@@ -175,25 +237,30 @@ function ProceduralMapManager:_createChunkGenerator(chunkX, chunkY)
                     end
                     noiseOffset = noiseOffset + 100
                 end
-            end
-            -- Pausa a cada N linhas para distribuir a carga.
-            if tileY > 0 and tileY % self.workPerFrame == 0 and tileX == self.chunkSize - 1 then
-                coroutine.yield()
+
+                -- Yield otimizado
+                yieldCounter = yieldCounter + 1
+                if yieldCounter >= self.workPerFrame then
+                    yieldCounter = 0
+                    coroutine.yield()
+                end
             end
         end
 
+        chunk.ground = groundBatch
+        chunk.decorations = decorationsByTile
+
+        -- Armazena no chunks table diretamente
         if not self.chunks[chunkY] then
             self.chunks[chunkY] = {}
         end
-        self.chunks[chunkY][chunkX] = {
-            ground = groundBatch,
-            decorations = decorationsByTile
-        }
-        Logger.debug("ProceduralMapManager._createChunkGenerator", "Chunk gerado: " .. chunkId)
+        self.chunks[chunkY][chunkX] = chunk
+
+        Logger.debug("ProceduralMapManager._createChunkGenerator", "Chunk gerado: " .. chunkX .. "," .. chunkY)
     end)
 end
 
---- Processa a fila de geração de chunks de forma assíncrona.
+--- Processa a fila de geração de chunks de forma eficiente.
 function ProceduralMapManager:_processGenerationQueue()
     -- Se há um chunk sendo gerado, continua sua execução.
     if self.generatingTask then
@@ -210,19 +277,26 @@ function ProceduralMapManager:_processGenerationQueue()
     -- Se não há tarefa ativa e a fila tem itens, inicia a próxima.
     if not self.generatingTask and #self.generationQueue > 0 then
         local taskData = table.remove(self.generationQueue, 1)
-        local chunkId = taskData.x .. "," .. taskData.y
-        Logger.debug("ProceduralMapManager._processGenerationQueue", "Iniciando nova geração de chunk: " .. chunkId)
+        Logger.debug("ProceduralMapManager._processGenerationQueue",
+            "Iniciando geração de chunk: " .. taskData.x .. "," .. taskData.y)
         local co = self:_createChunkGenerator(taskData.x, taskData.y)
-        self.generatingTask = { id = chunkId, coroutine = co }
+        self.generatingTask = {
+            x = taskData.x,
+            y = taskData.y,
+            coroutine = co
+        }
     end
 end
 
---- Atualiza o gerenciador do mapa.
+--- Atualiza o gerenciador do mapa de forma eficiente.
 -- Determina quais chunks carregar/descarregar com base na posição do jogador.
 --- @param dt number O tempo delta.
 --- @param playerPosition { x: number, y: number } A posição do jogador {x, y}.
 function ProceduralMapManager:update(dt, playerPosition)
     if not playerPosition then return end
+
+    -- Incrementa contador de frames
+    self.frameCounter = self.frameCounter + 1
 
     -- Converte a posição isométrica (pixels) do jogador para coordenadas de tile no mundo.
     local TILE_WIDTH_HALF = Constants.TILE_WIDTH / 2
@@ -238,38 +312,41 @@ function ProceduralMapManager:update(dt, playerPosition)
     local requiredChunks = TablePool.get()
     for y = playerChunkY - self.viewDistance, playerChunkY + self.viewDistance do
         for x = playerChunkX - self.viewDistance, playerChunkX + self.viewDistance do
-            local chunkId = x .. "," .. y
-            requiredChunks[chunkId] = true
+            requiredChunks[x .. "," .. y] = true
             -- Adiciona o chunk à fila de geração se ele não existir e não estiver sendo processado.
             local chunkExists = self.chunks[y] and self.chunks[y][x]
-            if not chunkExists and not self:_isChunkInQueueOrGenerating(chunkId) then
+            if not chunkExists and not self:_isChunkInQueueOrGenerating(x, y) then
                 -- Adiciona no início da fila para priorizar os mais próximos.
                 table.insert(self.generationQueue, 1, { x = x, y = y })
             end
         end
     end
 
-    -- Descarrega os chunks que não são mais necessários.
-    local chunksToUnload = TablePool.get()
-    for y, row in pairs(self.chunks) do
-        for x, _ in pairs(row) do
-            local chunkId = x .. "," .. y
-            if not requiredChunks[chunkId] then
-                table.insert(chunksToUnload, { x = x, y = y })
+    -- Descarrega os chunks que não são mais necessários (menos frequente).
+    if self.frameCounter % UNLOAD_CHECK_INTERVAL == 0 then
+        local chunksToUnload = TablePool.get()
+        for y, row in pairs(self.chunks) do
+            for x, chunk in pairs(row) do
+                local chunkId = x .. "," .. y
+                if not requiredChunks[chunkId] then
+                    table.insert(chunksToUnload, { x = x, y = y })
+                end
             end
         end
-    end
-    TablePool.release(requiredChunks)
 
-    for _, pos in ipairs(chunksToUnload) do
-        if self.chunks[pos.y] then
-            self.chunks[pos.y][pos.x] = nil
-            if next(self.chunks[pos.y]) == nil then
-                self.chunks[pos.y] = nil -- Limpa a linha se estiver vazia.
+        for _, pos in ipairs(chunksToUnload) do
+            if self.chunks[pos.y] and self.chunks[pos.y][pos.x] then
+                self:_returnChunkToPool(self.chunks[pos.y][pos.x])
+                self.chunks[pos.y][pos.x] = nil
+                if next(self.chunks[pos.y]) == nil then
+                    self.chunks[pos.y] = nil -- Limpa a linha se estiver vazia.
+                end
             end
         end
+        TablePool.release(chunksToUnload)
     end
-    TablePool.release(chunksToUnload)
+
+    TablePool.release(requiredChunks)
 
     -- Processa a geração de chunks pendentes.
     self:_processGenerationQueue()
@@ -312,7 +389,9 @@ function ProceduralMapManager:draw()
     -- 1. Desenha o chão.
     local chunksToDraw = self:_getVisibleChunksSorted()
     for _, chunkData in ipairs(chunksToDraw) do
-        love.graphics.draw(chunkData.chunk.ground)
+        if chunkData.chunk.ground then
+            love.graphics.draw(chunkData.chunk.ground)
+        end
     end
 
     -- 2. Desenha as decorações se houver um batch.
@@ -325,28 +404,30 @@ function ProceduralMapManager:draw()
 
         for _, chunkData in ipairs(chunksToDraw) do
             local decorationsByTile = chunkData.chunk.decorations
-            -- Itera sobre a grade de tiles na ordem de renderização correta (Y, depois X).
-            for tileY = 0, self.chunkSize - 1 do
-                if decorationsByTile[tileY] then
-                    for tileX = 0, self.chunkSize - 1 do
-                        if decorationsByTile[tileY][tileX] then
-                            for _, deco in ipairs(decorationsByTile[tileY][tileX]) do
-                                local quad = self.decorationAtlas.quads[deco.path]
-                                if quad then
-                                    local x, y = deco.x, deco.y
-                                    if deco.affectedByWind then
-                                        local posOffset = (x + y) * 0.01
-                                        local windEffect = math.sin(time * self.windSpeed + posOffset) *
-                                            self.windStrength
-                                        x = x + windEffect
+            if decorationsByTile then
+                -- Itera sobre a grade de tiles na ordem de renderização correta (Y, depois X).
+                for tileY = 0, self.chunkSize - 1 do
+                    if decorationsByTile[tileY] then
+                        for tileX = 0, self.chunkSize - 1 do
+                            if decorationsByTile[tileY][tileX] then
+                                for _, deco in ipairs(decorationsByTile[tileY][tileX]) do
+                                    local quad = self.decorationAtlas.quads[deco.path]
+                                    if quad then
+                                        local x, y = deco.x, deco.y
+                                        if deco.affectedByWind then
+                                            local posOffset = (x + y) * 0.01
+                                            local windEffect = math.sin(time * self.windSpeed + posOffset) *
+                                                self.windStrength
+                                            x = x + windEffect
+                                        end
+
+                                        -- Calcula o pivô em pixels a partir do quad.
+                                        local quadW, quadH = quad:getViewport()
+                                        local pivotX = quadW * deco.pivot_x
+                                        local pivotY = quadH * deco.pivot_y
+
+                                        self.decorationBatch:add(quad, x, y, 0, 1, 1, pivotX, pivotY)
                                     end
-
-                                    -- Calcula o pivô em pixels a partir do quad.
-                                    local quadW, quadH = quad:getViewport()
-                                    local pivotX = quadW * deco.pivot_x
-                                    local pivotY = quadH * deco.pivot_y
-
-                                    self.decorationBatch:add(quad, x, y, 0, 1, 1, pivotX, pivotY)
                                 end
                             end
                         end
@@ -407,27 +488,67 @@ function ProceduralMapManager:draw()
     TablePool.release(chunksToDraw)
 end
 
---- Libera os recursos utilizados pelo gerenciador.
-function ProceduralMapManager:destroy()
-    -- Libera os recursos do chão.
+--- Obtém informações básicas de performance
+---@return table
+function ProceduralMapManager:getPerformanceInfo()
+    local chunksLoaded = 0
     for y, row in pairs(self.chunks) do
         for x, chunk in pairs(row) do
-            if chunk and chunk.ground then
-                if type(chunk.ground.release) == "function" then
-                    -- Verifica se já foi liberado antes de tentar liberar novamente
-                    if type(chunk.ground.isReleased) == "function" then
-                        if chunk.ground:isReleased() == false then
-                            chunk.ground:release()
-                        end
-                    else
-                        -- Se isReleased não existe, apenas libera
-                        chunk.ground:release()
-                    end
-                end
+            if chunk then
+                chunksLoaded = chunksLoaded + 1
+            end
+        end
+    end
+
+    return {
+        chunks = {
+            loaded = chunksLoaded,
+            inQueue = #self.generationQueue,
+        },
+        pools = {
+            chunks = #self.chunkPool,
+        },
+        optimizations = {
+            "Object pooling simples para chunks",
+            "Verificação de unload menos frequente (cada 0.5s)",
+            "Geração assíncrona eficiente",
+            "Eliminação de overhead de cache LRU",
+            "Foco em performance real ao invés de complexidade"
+        }
+    }
+end
+
+--- Libera os recursos utilizados pelo gerenciador de forma eficiente.
+function ProceduralMapManager:destroy()
+    Logger.info("ProceduralMapManager.destroy", "Iniciando destruição do ProceduralMapManager...")
+
+    -- Para geração ativa
+    self.generatingTask = nil
+    self.generationQueue = {}
+
+    -- Libera chunks e pool
+    for y, row in pairs(self.chunks) do
+        for x, chunk in pairs(row) do
+            if chunk then
+                self:_returnChunkToPool(chunk)
             end
         end
     end
     self.chunks = {}
+
+    -- Limpa pool
+    for _, chunk in ipairs(self.chunkPool) do
+        if chunk.ground and type(chunk.ground.release) == "function" then
+            if type(chunk.ground.isReleased) == "function" then
+                if not chunk.ground:isReleased() then
+                    chunk.ground:release()
+                end
+            else
+                chunk.ground:release()
+            end
+        end
+    end
+    self.chunkPool = {}
 
     -- Libera os recursos do atlas de decoração.
     if self.decorationBatch then
@@ -460,10 +581,9 @@ function ProceduralMapManager:destroy()
     -- Limpa referências restantes
     self.decorationBatch = nil
     self.decorationAtlas = nil
-    self.generationQueue = {}
 
     Logger.info("procedural_map_manager.destroy.finalized",
-        "[ProceduralMapManager:destroy] ProceduralMapManager para o mapa " .. self.mapName .. " destruído.")
+        "[ProceduralMapManager:destroy] ProceduralMapManager otimizado para o mapa " .. self.mapName .. " destruído.")
 end
 
 return ProceduralMapManager
