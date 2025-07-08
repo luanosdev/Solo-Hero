@@ -1,8 +1,35 @@
 -- src/controllers/spawn_controller.lua
 --[[
-    SISTEMA DE CONTROLE DE SPAWN POR BOSS
+    SISTEMA DE CONTROLE DE SPAWN ASSÍNCRONO COM THREADS
 
-    O SpawnController agora implementa um sistema inteligente de controle de spawns baseado na presença de bosses:
+    O SpawnController implementa um sistema híbrido de spawns com processamento assíncrono usando coroutines,
+    mantendo todas as funcionalidades originais mas com performance máxima através de processamento distribuído.
+
+    🚀 SISTEMA ASSÍNCRONO DE SPAWNS:
+
+    1. PROCESSAMENTO DISTRIBUÍDO
+       - Usa coroutines para distribuir spawns ao longo de múltiplos frames
+       - Evita spikes de performance durante spawns massivos
+       - Yield automático baseado em tempo de processamento por frame
+
+    2. PRIORIZAÇÃO INTELIGENTE
+       - Bosses: Prioridade máxima (processamento imediato)
+       - MVPs: Alta prioridade (processamento rápido)
+       - Spawns normais: Processamento distribuído em batches
+
+    3. MÉTRICAS E MONITORAMENTO
+       - Tracking em tempo real de performance
+       - Estatísticas de throughput e yields
+       - Health monitoring do sistema
+
+    4. CONFIGURAÇÃO DINÂMICA
+       - Ajuste de parâmetros em runtime
+       - Limites adaptativos baseados na performance
+       - Fallback para sistema legacy se necessário
+
+    ✨ FUNCIONALIDADES MANTIDAS (Sistema de Controle por Boss):
+
+    O SpawnController mantém o sistema inteligente de controle de spawns baseado na presença de bosses:
 
     ✨ FUNCIONALIDADES PRINCIPAIS:
 
@@ -65,6 +92,8 @@
 local Camera = require("src.config.camera")
 local Logger = require("src.libs.logger")
 local Constants = require("src.config.constants")
+local AsyncSpawnProcessor = require("src.controllers.async_spawn_processor")
+local SpawnPerformanceMonitor = require("src.utils.spawn_performance_monitor")
 
 ---@class SpawnRequest
 ---@field enemyClass table
@@ -83,12 +112,14 @@ local Constants = require("src.config.constants")
 ---@field nextMinorSpawnTime number
 ---@field nextMVPSpawnTime number
 ---@field nextBossIndex number
----@field spawnQueue SpawnRequest[] Fila de spawns pendentes para distribuir ao longo de múltiplos frames
+---@field spawnQueue SpawnRequest[] Fila de spawns pendentes para distribuir ao longo de múltiplos frames (DEPRECATED - usado apenas para compatibilidade)
 ---@field maxSpawnsPerFrame number Número máximo de inimigos a spawnar por frame
 ---@field isSpawnPaused boolean Indica se os spawns estão pausados devido a boss ativo
 ---@field pauseStartTime number Tempo quando a pausa começou
 ---@field totalPauseTime number Tempo total acumulado de pausa
 ---@field isPermanentlyPaused boolean Indica se os spawns foram pausados permanentemente (último boss)
+---@field asyncProcessor AsyncSpawnProcessor Processador assíncrono de spawns
+---@field performanceMonitor SpawnPerformanceMonitor Monitor de performance do sistema
 local SpawnController = {}
 SpawnController.__index = SpawnController
 
@@ -113,7 +144,7 @@ function SpawnController:new(enemyManager, playerManager, mapManager)
     instance.nextMVPSpawnTime = 0
     instance.nextBossIndex = 1
 
-    -- Sistema de Spawn Distribuído
+    -- Sistema de Spawn Distribuído (Mantido para compatibilidade)
     instance.spawnQueue = {}
     instance.maxSpawnsPerFrame = Constants.SPAWN_OPTIMIZATION.MAX_SPAWNS_PER_FRAME
 
@@ -122,6 +153,15 @@ function SpawnController:new(enemyManager, playerManager, mapManager)
     instance.pauseStartTime = 0
     instance.totalPauseTime = 0
     instance.isPermanentlyPaused = false
+
+    -- Processador Assíncrono de Spawns
+    instance.asyncProcessor = AsyncSpawnProcessor:new()
+
+    -- Monitor de Performance
+    instance.performanceMonitor = SpawnPerformanceMonitor:new({
+        autoOptimizeEnabled = true,
+        maxSnapshotHistory = 300 -- 5 minutos a 60fps
+    })
 
     return instance
 end
@@ -136,6 +176,23 @@ function SpawnController:setup(hordeConfig)
 
     -- Limpa a fila de spawn de sessões anteriores
     self.spawnQueue = {}
+
+    -- Limpa o processador assíncrono
+    if self.asyncProcessor then
+        self.asyncProcessor:clear()
+    else
+        self.asyncProcessor = AsyncSpawnProcessor:new()
+    end
+
+    -- Reseta o monitor de performance
+    if self.performanceMonitor then
+        self.performanceMonitor:reset()
+    else
+        self.performanceMonitor = SpawnPerformanceMonitor:new({
+            autoOptimizeEnabled = true,
+            maxSnapshotHistory = 300
+        })
+    end
 
     if not self.worldConfig or not self.worldConfig.cycles or #self.worldConfig.cycles == 0 then
         error("Erro [SpawnController:setup]: Configuração de horda inválida ou vazia fornecida.")
@@ -171,6 +228,16 @@ function SpawnController:update(dt)
     self.gameTimer = self.gameTimer + dt
     self.timeInCurrentCycle = self.timeInCurrentCycle + dt
 
+    -- Atualiza o processador assíncrono
+    if self.asyncProcessor then
+        self.asyncProcessor:update(dt)
+    end
+
+    -- Coleta métricas de performance
+    if self.performanceMonitor then
+        self.performanceMonitor:collectSnapshot(self, dt)
+    end
+
     -- Verifica se há boss ativo e ajusta o estado de pausa
     self:updateBossSpawnControl()
 
@@ -179,7 +246,10 @@ function SpawnController:update(dt)
         return
     end
 
-    -- Processa a fila de spawn distribuído PRIMEIRO (mesmo em pausa, para não perder spawns já na fila)
+    -- Processa spawns do sistema assíncrono PRIMEIRO
+    self:processAsyncSpawns()
+
+    -- Processa a fila de spawn distribuído legacy (mesmo em pausa, para não perder spawns já na fila)
     self:processSpawnQueue()
 
     -- Se spawns estão pausados, não executa novos spawns
@@ -245,7 +315,37 @@ function SpawnController:update(dt)
     end
 end
 
---- Processa a fila de spawn distribuído, limitando spawns por frame
+--- Processa spawns do sistema assíncrono
+function SpawnController:processAsyncSpawns()
+    if not self.asyncProcessor then return end
+
+    -- Obtém spawns processados do sistema assíncrono
+    local processedSpawns = self.asyncProcessor:getProcessedSpawns(self.maxSpawnsPerFrame)
+    local spawnsThisFrame = 0
+
+    for _, spawn in ipairs(processedSpawns) do
+        if not self.enemyManager:canSpawnMoreEnemies() then
+            Logger.warn("[SpawnController:processAsyncSpawns]", "Limite máximo de inimigos atingido.")
+            break
+        end
+
+        self.enemyManager:spawnSpecificEnemy(
+            spawn.enemyClass,
+            spawn.position,
+            spawn.options
+        )
+        spawnsThisFrame = spawnsThisFrame + 1
+    end
+
+    if spawnsThisFrame > 0 then
+        Logger.debug(
+            "[SpawnController:processAsyncSpawns]",
+            string.format("Executados %d spawns assíncronos.", spawnsThisFrame)
+        )
+    end
+end
+
+--- Processa a fila de spawn distribuído legacy, limitando spawns por frame
 function SpawnController:processSpawnQueue()
     local spawnsThisFrame = 0
 
@@ -269,12 +369,12 @@ function SpawnController:processSpawnQueue()
     if spawnsThisFrame > 0 then
         Logger.debug(
             "[SpawnController:processSpawnQueue]",
-            string.format("Processados %d spawns. %d restantes na fila.", spawnsThisFrame, #self.spawnQueue)
+            string.format("Processados %d spawns legacy. %d restantes na fila.", spawnsThisFrame, #self.spawnQueue)
         )
     end
 end
 
---- Adiciona um spawn request à fila
+--- Adiciona um spawn request à fila (LEGACY - mantido para compatibilidade)
 ---@param enemyClass table
 ---@param position { x: number, y: number }
 ---@param options table|nil
@@ -284,6 +384,19 @@ function SpawnController:addToSpawnQueue(enemyClass, position, options)
         position = position,
         options = options
     })
+end
+
+--- Adiciona um spawn request ao sistema assíncrono
+---@param enemyClass table
+---@param position { x: number, y: number }
+---@param options table|nil
+function SpawnController:addAsyncSpawnRequest(enemyClass, position, options)
+    if self.asyncProcessor then
+        self.asyncProcessor:addSpawnRequest(enemyClass, position, options)
+    else
+        -- Fallback para sistema legacy
+        self:addToSpawnQueue(enemyClass, position, options)
+    end
 end
 
 ---@param currentCycle HordeCycle
@@ -296,20 +409,19 @@ function SpawnController:handleMajorSpawn(currentCycle)
     Logger.debug(
         "[SpawnController:handleMajorSpawn]",
         string.format(
-            "Major Spawn (Ciclo %d) no tempo %.2f: Adicionando %d inimigos à fila de spawn. %d restantes na fila.",
+            "Major Spawn (Ciclo %d) no tempo %.2f: Adicionando %d inimigos ao processamento assíncrono.",
             self.currentCycleIndex,
             self.gameTimer,
-            countToSpawn,
-            #self.spawnQueue
+            countToSpawn
         )
     )
 
-    -- Adiciona spawns à fila ao invés de spawnar imediatamente
+    -- Adiciona spawns ao sistema assíncrono
     for _ = 1, countToSpawn do
         local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
         if enemyClass then
             local spawnX, spawnY = self:calculateSpawnPosition()
-            self:addToSpawnQueue(enemyClass, { x = spawnX, y = spawnY }, nil)
+            self:addAsyncSpawnRequest(enemyClass, { x = spawnX, y = spawnY }, nil)
         end
     end
 end
@@ -320,15 +432,15 @@ function SpawnController:handleMinorSpawn(currentCycle)
     local countToSpawn = spawnConfig.count
 
     Logger.debug("[SpawnController:handleMinorSpawn]",
-        string.format("Minor Spawn (Ciclo %d) no tempo %.2f: Adicionando %d inimigos à fila de spawn.",
+        string.format("Minor Spawn (Ciclo %d) no tempo %.2f: Adicionando %d inimigos ao processamento assíncrono.",
             self.currentCycleIndex, self.gameTimer, countToSpawn))
 
-    -- Adiciona spawns à fila ao invés de spawnar imediatamente
+    -- Adiciona spawns ao sistema assíncrono
     for _ = 1, countToSpawn do
         local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
         if enemyClass then
             local spawnX, spawnY = self:calculateSpawnPosition()
-            self:addToSpawnQueue(enemyClass, { x = spawnX, y = spawnY }, nil)
+            self:addAsyncSpawnRequest(enemyClass, { x = spawnX, y = spawnY }, nil)
         end
     end
 end
@@ -341,9 +453,9 @@ function SpawnController:spawnMVP()
     if not enemyClass then return end
 
     local spawnX, spawnY = self:calculateSpawnPosition()
-    -- MVPs são spawnados imediatamente por prioridade, mas só 1 por vez então não causa gargalo
-    Logger.debug("[SpawnController:spawnMVP]", "Spawnando MVP diretamente (prioridade alta).")
-    self.enemyManager:spawnSpecificEnemy(enemyClass, { x = spawnX, y = spawnY }, { isMVP = true })
+    -- MVPs são adicionados ao sistema assíncrono com alta prioridade (processamento imediato)
+    Logger.debug("[SpawnController:spawnMVP]", "Adicionando MVP ao processamento assíncrono (prioridade alta).")
+    self:addAsyncSpawnRequest(enemyClass, { x = spawnX, y = spawnY }, { isMVP = true })
 end
 
 ---@param cycleConfig HordeCycle
@@ -515,16 +627,50 @@ function SpawnController:resumeSpawns()
     end
 end
 
---- Retorna informações sobre o estado atual da fila de spawn
----@return table Estado da fila contendo: count (número de spawns pendentes), maxPerFrame (limite por frame), isPaused (se spawns estão pausados), isPermanentlyPaused (se pausados permanentemente)
+--- Retorna informações sobre o estado atual do sistema de spawn
+---@return table Estado do sistema contendo informações de filas legacy e assíncrona
 function SpawnController:getSpawnQueueInfo()
+    local asyncStatus = {}
+    if self.asyncProcessor then
+        asyncStatus = self.asyncProcessor:getStatus()
+    end
+
     return {
-        count = #self.spawnQueue,
-        maxPerFrame = self.maxSpawnsPerFrame,
+        -- Sistema Legacy
+        legacyQueue = {
+            count = #self.spawnQueue,
+            maxPerFrame = self.maxSpawnsPerFrame
+        },
+        -- Sistema Assíncrono
+        asyncSystem = asyncStatus,
+        -- Estado Global
         isPaused = self.isSpawnPaused,
         isPermanentlyPaused = self.isPermanentlyPaused,
-        totalPauseTime = self.totalPauseTime
+        totalPauseTime = self.totalPauseTime,
+        gameTimer = self.gameTimer
     }
+end
+
+--- Retorna métricas detalhadas de performance do sistema de spawn
+---@return table Métricas de performance
+function SpawnController:getPerformanceMetrics()
+    local metrics = {
+        systemType = "AsyncSpawnController",
+        legacyQueueCount = #self.spawnQueue,
+        asyncMetrics = nil,
+        totalPauseTime = self.totalPauseTime,
+        gameTimer = self.gameTimer
+    }
+
+    if self.asyncProcessor then
+        local asyncStatus = self.asyncProcessor:getStatus()
+        metrics.asyncMetrics = asyncStatus.metrics
+        metrics.asyncPendingRequests = asyncStatus.pendingRequests
+        metrics.asyncProcessedSpawns = asyncStatus.processedSpawns
+        metrics.activeCoroutines = asyncStatus.activeCoroutines
+    end
+
+    return metrics
 end
 
 --- Função de teste para verificar funcionalidade do controle de spawn por boss
@@ -559,9 +705,23 @@ function SpawnController:testBossSpawnControl(forceSpawnBoss)
         isPermanentlyPaused = self.isPermanentlyPaused,
         totalPauseTime = self.totalPauseTime,
         gameTimer = self.gameTimer,
-        spawnQueueCount = #self.spawnQueue,
-        nextBossIndex = self.nextBossIndex
+        legacySpawnQueueCount = #self.spawnQueue,
+        nextBossIndex = self.nextBossIndex,
+        asyncSpawnSystem = {}
     }
+
+    -- Adiciona informações do sistema assíncrono
+    if self.asyncProcessor then
+        local asyncStatus = self.asyncProcessor:getStatus()
+        debugInfo.asyncSpawnSystem = {
+            pendingRequests = asyncStatus.pendingRequests,
+            processedSpawns = asyncStatus.processedSpawns,
+            activeCoroutines = asyncStatus.activeCoroutines,
+            totalProcessed = asyncStatus.metrics.totalProcessed,
+            totalYields = asyncStatus.metrics.totalYields,
+            avgProcessTime = asyncStatus.metrics.avgProcessTime
+        }
+    end
 
     if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
         debugInfo.totalBossesConfigured = #self.worldConfig.bossConfig.spawnTimes
@@ -569,13 +729,121 @@ function SpawnController:testBossSpawnControl(forceSpawnBoss)
     end
 
     Logger.info("[SpawnController:testBossSpawnControl]",
-        string.format("Estado atual: Pausado=%s, PermanentePausado=%s, TempoPausa=%.2f, FilaSpawn=%d",
+        string.format(
+            "Estado atual: Pausado=%s, PermanentePausado=%s, TempoPausa=%.2f, FilaLegacy=%d, AsyncPending=%d, AsyncProcessed=%d",
             tostring(debugInfo.isSpawnPaused),
             tostring(debugInfo.isPermanentlyPaused),
             debugInfo.totalPauseTime,
-            debugInfo.spawnQueueCount))
+            debugInfo.legacySpawnQueueCount,
+            debugInfo.asyncSpawnSystem.pendingRequests or 0,
+            debugInfo.asyncSpawnSystem.processedSpawns or 0))
 
     return debugInfo
+end
+
+--- Configura parâmetros de performance do sistema assíncrono em runtime
+---@param config table Configurações: maxProcessTimePerFrame, yieldCheckInterval, batchSize
+function SpawnController:configureAsyncSystem(config)
+    if self.asyncProcessor then
+        self.asyncProcessor:updateConfig(config)
+        Logger.info("[SpawnController:configureAsyncSystem]", "Sistema assíncrono reconfigurado")
+    else
+        Logger.warn("[SpawnController:configureAsyncSystem]",
+            "Tentativa de configurar sistema assíncrono não inicializado")
+    end
+end
+
+--- Obtém estatísticas de performance em tempo real
+---@return table Estatísticas incluindo FPS impact, throughput, etc.
+function SpawnController:getRealtimeStats()
+    local stats = {
+        frameTime = love.timer.getDelta() * 1000, -- ms
+        fps = love.timer.getFPS(),
+        spawnThroughput = 0,
+        systemHealth = "healthy"
+    }
+
+    if self.asyncProcessor then
+        local asyncStatus = self.asyncProcessor:getStatus()
+        local metrics = asyncStatus.metrics
+
+        stats.spawnThroughput = metrics.totalProcessed / math.max(self.gameTimer, 1)
+        stats.avgProcessTime = metrics.avgProcessTime
+        stats.totalYields = metrics.totalYields
+        stats.asyncLoad = asyncStatus.pendingRequests + asyncStatus.processedSpawns
+
+        -- Determina health do sistema
+        if metrics.frameProcessTime > 5.0 then
+            stats.systemHealth = "overloaded"
+        elseif metrics.frameProcessTime > 3.0 then
+            stats.systemHealth = "stressed"
+        elseif asyncStatus.pendingRequests > 100 then
+            stats.systemHealth = "busy"
+        end
+    end
+
+    return stats
+end
+
+--- Força limpeza completa do sistema de spawn (usado ao sair de gameplay)
+function SpawnController:cleanup()
+    if self.asyncProcessor then
+        self.asyncProcessor:clear()
+        Logger.info("[SpawnController:cleanup]", "Sistema assíncrono limpo")
+    end
+
+    self.spawnQueue = {}
+    self.isSpawnPaused = false
+    self.isPermanentlyPaused = false
+    self.totalPauseTime = 0
+
+    Logger.info("[SpawnController:cleanup]", "SpawnController completamente limpo")
+end
+
+--- Obtém relatório detalhado de performance do sistema
+---@return table Relatório completo de performance
+function SpawnController:getPerformanceReport()
+    if self.performanceMonitor then
+        return self.performanceMonitor:generateReport()
+    else
+        return { error = "Monitor de performance não inicializado" }
+    end
+end
+
+--- Configura o monitor de performance
+---@param config table Configurações do monitor
+function SpawnController:configurePerformanceMonitor(config)
+    if self.performanceMonitor then
+        if config.enabled ~= nil then
+            self.performanceMonitor:setEnabled(config.enabled)
+        end
+        if config.autoOptimization ~= nil then
+            self.performanceMonitor:setAutoOptimization(config.autoOptimization)
+        end
+        Logger.info("[SpawnController:configurePerformanceMonitor]", "Monitor de performance reconfigurado")
+    else
+        Logger.warn("[SpawnController:configurePerformanceMonitor]", "Monitor de performance não inicializado")
+    end
+end
+
+--- Obtém estatísticas agregadas de performance
+---@return table Estatísticas agregadas
+function SpawnController:getAggregatedPerformanceStats()
+    if self.performanceMonitor then
+        return self.performanceMonitor:getAggregatedStats()
+    else
+        return { error = "Monitor de performance não inicializado" }
+    end
+end
+
+--- Reseta o histórico de performance
+function SpawnController:resetPerformanceHistory()
+    if self.performanceMonitor then
+        self.performanceMonitor:reset()
+        Logger.info("[SpawnController:resetPerformanceHistory]", "Histórico de performance resetado")
+    else
+        Logger.warn("[SpawnController:resetPerformanceHistory]", "Monitor de performance não inicializado")
+    end
 end
 
 return SpawnController
