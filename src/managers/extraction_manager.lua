@@ -95,9 +95,15 @@ function ExtractionManager:_updateSequence(dt)
 
     if self.timer >= self.config.duration then
         local extractionType = self.config.details and self.config.details.extractionType or "all_items_instant"
-        local summaryParams = self:_getExtractionSummaryArgs(extractionType)
 
-        SceneManager.switchScene("extraction_summary_scene", summaryParams)
+        -- Usar extraction_transition_scene para processamento assíncrono
+        local gameplayData = self:_getExtractionGameplayData()
+        local transitionParams = {
+            gameplayData = gameplayData,
+            extractionType = "success" -- Indica que foi uma extração bem-sucedida
+        }
+
+        SceneManager.switchScene("extraction_transition_scene", transitionParams)
     end
 end
 
@@ -132,46 +138,28 @@ function ExtractionManager:reset(portalData)
     playerManager:setInvincible(false)
 end
 
---- Logic moved from GameplayScene
----@param extractionType string
----@return table params Parameters for the extraction summary scene
-function ExtractionManager:_getExtractionSummaryArgs(extractionType)
+--- Coleta dados básicos do gameplay para processamento assíncrono
+---@return table gameplayData Dados básicos para processamento na extraction_transition_scene
+function ExtractionManager:_getExtractionGameplayData()
     Logger.debug(
-        "extraction_manager.get_extraction_summary_args",
-        string.format("[ExtractionManager:_getExtractionSummaryArgs] Getting summary args for extraction type: %s",
-            extractionType)
+        "extraction_manager.get_extraction_gameplay_data",
+        "[ExtractionManager:_getExtractionGameplayData] Coletando dados básicos do gameplay"
     )
+
     local playerManager = ManagerRegistry:get("playerManager")
-    local inventoryManager = ManagerRegistry:get("inventoryManager")
-    local hunterManager = ManagerRegistry:get("hunterManager")
-    local archetypeManager = ManagerRegistry:get("archetypeManager")
-    local gameStatisticsManager = ManagerRegistry:get("gameStatisticsManager")
     local hunterId = playerManager:getCurrentHunterId()
 
     if not hunterId then
         error("No hunter ID found")
     end
 
-    local finalStatsForSummary = playerManager:getCurrentFinalStats()
-    local archetypeIdsForSummary = hunterManager:getArchetypeIds(hunterId)
-
-    local backpackItemsToExtract = inventoryManager:getAllItemsGameplay() or {}
-    local equipmentToExtract = playerManager:getCurrentEquipmentGameplay() or {}
-
-    local params = {
-        wasSuccess = true,
-        hunterId = hunterId,
-        hunterData = hunterManager:getHunterData(hunterId),
+    -- Apenas dados básicos - o processamento pesado será feito na extraction_transition_scene
+    local gameplayData = {
         portalData = self.portalData,
-        extractedItems = backpackItemsToExtract,
-        extractedEquipment = equipmentToExtract,
-        finalStats = finalStatsForSummary,
-        archetypeIds = archetypeIdsForSummary,
-        archetypeManagerInstance = archetypeManager,
-        gameplayStats = gameStatisticsManager:getRawStats()
+        hunterId = hunterId
     }
 
-    return params
+    return gameplayData
 end
 
 --- Casting logic moved from GameplayScene

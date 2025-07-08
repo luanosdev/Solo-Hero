@@ -136,10 +136,10 @@ local HUNTER_TIPS = {
 
 -- Configurações de performance otimizada
 local PERFORMANCE_CONFIG = {
-    LOAD_BUDGET_MS = 8,        -- Aumentado de 5ms para 8ms (operações menos custosas agora)
+    LOAD_BUDGET_MS = 3,        -- Aumentado de 5ms para 8ms (operações menos custosas agora)
     TASK_YIELD_FREQUENCY = 1,  -- Yield a cada operação
-    TIP_CHANGE_INTERVAL = 8.0, -- Troca dica a cada 8 segundos
-    ANIMATION_SPEED = 0.7,     -- Animações mais lentas para economia de recursos
+    TIP_CHANGE_INTERVAL = 5.0, -- Troca dica a cada 8 segundos
+    ANIMATION_SPEED = 1.5,     -- Animações mais lentas para economia de recursos
     BATCH_CHUNK_SIZE = 3,      -- Volta para 3 batches por frame (operações mais leves)
 }
 

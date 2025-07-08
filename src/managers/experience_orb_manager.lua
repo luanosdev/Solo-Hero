@@ -264,6 +264,7 @@ function ExperienceOrbManager:_drawSpriteBatch()
 
         -- Restaura blend mode anterior
         love.graphics.setBlendMode(previousBlendMode)
+        love.graphics.setColor(1, 1, 1, 1)
     end
 end
 

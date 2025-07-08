@@ -122,7 +122,7 @@ function MovementController:update(dt, targetPosition)
         -- Obtém a velocidade atual do jogador baseada nos stats finais
         local finalStats = self.playerManager:getCurrentFinalStats()
         local currentSpeed = finalStats and Constants.moveSpeedToPixels(finalStats.moveSpeed) or
-        Constants.moveSpeedToPixels(Constants.HUNTER_DEFAULT_STATS.moveSpeed)
+            Constants.moveSpeedToPixels(Constants.HUNTER_DEFAULT_STATS.moveSpeed)
 
         local distanceMoved = SpritePlayer.update(self.player, dt, targetPosition, currentSpeed)
 
@@ -161,11 +161,6 @@ function MovementController:setPosition(x, y)
     if self.player and self.player.position then
         self.player.position.x = x
         self.player.position.y = y
-
-        Logger.debug(
-            "movement_controller.position.set",
-            string.format("[MovementController:setPosition] Posição definida para (%.1f, %.1f)", x, y)
-        )
     end
 end
 

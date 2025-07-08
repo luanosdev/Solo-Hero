@@ -1,8 +1,8 @@
 ---@class Colors
 local colors = {
     transparent = { 0, 0, 0, 0 },
-    white = { 1, 1, 1, 1 }, -- #FFFFFF
-    black = { 0, 0, 0, 1 }, -- #000000
+    white = { 1, 1, 1, 1 },      -- #FFFFFF
+    black = { 0, 0, 0, 1 },      -- #000000
     purple = { 0.6, 0.3, 1, 1 }, -- #9966FF
 
     -- Cores base inspiradas em Solo Leveling
@@ -138,6 +138,33 @@ local colors = {
     placement_valid = { 0.2, 0.8, 0.2, 1.0 },   -- Verde para indicar local válido
     placement_invalid = { 0.8, 0.2, 0.2, 1.0 }, -- Vermelho para indicar local inválido
 
+    -- Cores para tela de transição de extração
+    extraction_transition = {
+        -- Tema SUCESSO (Extração bem-sucedida) - Tons de verde militar/tecnológico
+        success = {
+            background = { 0.02, 0.08, 0.04, 1.0 },     -- Verde muito escuro (quase preto com tom verde)
+            accent_primary = { 0.1, 0.6, 0.2, 1.0 },    -- Verde escuro forte
+            accent_secondary = { 0.15, 0.8, 0.3, 1.0 }, -- Verde médio vibrante
+            text_primary = { 0.7, 0.95, 0.8, 1.0 },     -- Verde claro para texto principal
+            text_secondary = { 0.5, 0.8, 0.6, 1.0 },    -- Verde médio para texto secundário
+            progress_fill = { 0.2, 0.9, 0.4, 1.0 },     -- Verde brilhante para barra de progresso
+            progress_bg = { 0.05, 0.25, 0.1, 0.8 },     -- Verde escuro para fundo da barra
+            glow_effect = { 0.3, 1.0, 0.5, 0.4 }        -- Verde brilhante para efeitos de brilho
+        },
+
+        -- Tema MORTE (Falha na missão) - Tons de vermelho militar/alerta
+        death = {
+            background = { 0.08, 0.02, 0.02, 1.0 },      -- Vermelho muito escuro (quase preto com tom vermelho)
+            accent_primary = { 0.6, 0.1, 0.1, 1.0 },     -- Vermelho escuro forte
+            accent_secondary = { 0.8, 0.15, 0.15, 1.0 }, -- Vermelho médio vibrante
+            text_primary = { 0.95, 0.7, 0.7, 1.0 },      -- Vermelho claro para texto principal
+            text_secondary = { 0.8, 0.5, 0.5, 1.0 },     -- Vermelho médio para texto secundário
+            progress_fill = { 0.9, 0.2, 0.2, 1.0 },      -- Vermelho brilhante para barra de progresso
+            progress_bg = { 0.25, 0.05, 0.05, 0.8 },     -- Vermelho escuro para fundo da barra
+            glow_effect = { 1.0, 0.3, 0.3, 0.4 }         -- Vermelho brilhante para efeitos de brilho
+        }
+    },
+
     alert_bg = { 0.08, 0.09, 0.11, 0.95 },
     alert_border = { 0.3, 0.6, 1.0, 1.0 },
     alert_text = { 0.8, 0.85, 0.9, 1.0 },
@@ -253,7 +280,7 @@ local colors = {
         -- ==== 6. Controle e Alcance (Azul Tático: #2471A3) ====
         range                 = { 0.14, 0.44, 0.64, 1.0 },
         attack_area           = { 0.14, 0.44, 0.64, 1.0 },
-        strength              = { 0.14  , 0.44, 0.64, 1.0 },
+        strength              = { 0.14, 0.44, 0.64, 1.0 },
 
         -- ==== 7. Mobilidade e Agilidade (Ciano Elétrico: #00FFFF) ====
         move_speed            = { 0.0, 1.0, 1.0, 1.0 },
@@ -278,9 +305,9 @@ local colors = {
         potion_fill_rate      = { 0.54, 0.34, 0.16, 1.0 },
 
         -- ==== 11. Cores de modificadores ====
-        positive = { 0.4, 1.0, 0.4, 1.0 },  -- #00FF00
-        negative = { 1.0, 0.4, 0.4, 1.0 },  -- #FF0000
-        neutral = { 1.0, 1.0, 1.0, 1.0 },   -- #FFFFFF
+        positive              = { 0.4, 1.0, 0.4, 1.0 }, -- #00FF00
+        negative              = { 1.0, 0.4, 0.4, 1.0 }, -- #FF0000
+        neutral               = { 1.0, 1.0, 1.0, 1.0 }, -- #FFFFFF
     }
 }
 

@@ -526,12 +526,8 @@ function GameplayScene:mousepressed(x, y, button, istouch, presses)
         return
     end
 
+    -- Durante Game Over, bloqueia todo processamento de mouse
     if self.gameOverManager and self.gameOverManager.isGameOverActive then
-        if self.gameOverManager.canExit then
-            self.gameOverManager:handleExit()
-            return
-        end
-        -- Ignora outros inputs durante o Game Over se não for para sair
         return
     end
 
@@ -563,11 +559,21 @@ function GameplayScene:mousepressed(x, y, button, istouch, presses)
 end
 
 function GameplayScene:mousemoved(x, y, dx, dy, istouch)
+    -- Durante Game Over, bloqueia processamento de movimento do mouse
+    if self.gameOverManager and self.gameOverManager.isGameOverActive then
+        return
+    end
+
     local inputMgr = ManagerRegistry:get("inputManager")
     if inputMgr then inputMgr:mousemoved(x, y, dx, dy) end
 end
 
 function GameplayScene:mousereleased(x, y, button, istouch, presses)
+    -- Durante Game Over, bloqueia processamento de mouse release
+    if self.gameOverManager and self.gameOverManager.isGameOverActive then
+        return
+    end
+
     if self.inventoryDragState.isDragging then
         InventoryScreen.handleMouseRelease(self.inventoryDragState)
         self.inventoryDragState = { isDragging = false }
@@ -578,10 +584,11 @@ function GameplayScene:mousereleased(x, y, button, istouch, presses)
 end
 
 function GameplayScene:unload()
-    Logger.info(
-        "gameplay_scene.unload.started",
-        "[GameplayScene:unload] Iniciando descarregamento completo dos recursos do gameplay..."
-    )
+    Logger.info("gameplay_scene.unload.started",
+        "[GameplayScene:unload] Limpeza mínima - managers serão limpos pela próxima cena...")
+
+    -- NOVA ARQUITETURA: Apenas limpar UI e sistemas locais
+    -- Os managers serão limpos pela extraction_transition_scene após coletar os dados
 
     -- Fecha todos os modais e UIs primeiro
     LevelUpModal.visible = false
@@ -594,16 +601,13 @@ function GameplayScene:unload()
         HUD:reset()
     end
 
-    -- Limpa managers específicos do GameplayScene primeiro
-    self:_cleanupGameplayManagers()
+    -- Limpa apenas sistemas locais do GameplayScene (NÃO os managers)
+    self:_cleanupLocalSystemsOnly()
 
-    -- Limpa sistemas locais do GameplayScene
-    self:_cleanupLocalSystems()
+    -- Força coleta de lixo suave
+    collectgarbage("step", 50)
 
-    -- Força limpeza de memória
-    collectgarbage("collect")
-
-    Logger.info("gameplay_scene.unload.finalized", "[GameplayScene:unload] Descarregamento completo finalizado.")
+    Logger.info("gameplay_scene.unload.finalized", "[GameplayScene:unload] Limpeza mínima concluída.")
 end
 
 --- Limpa todos os managers específicos do gameplay de forma segura
@@ -664,7 +668,24 @@ function GameplayScene:_cleanupGameplayManagers()
     end
 end
 
---- Limpa sistemas locais do GameplayScene
+--- Limpa APENAS sistemas locais do GameplayScene (sem tocar nos managers)
+function GameplayScene:_cleanupLocalSystemsOnly()
+    Logger.debug("gameplay_scene.cleanup_local_systems_only.started", "Limpando APENAS sistemas locais...")
+
+    -- Limpa apenas estado interno da cena
+    self.initialItemInstanceIds = {}
+    self.inventoryDragState = { isDragging = false }
+    self.inventoryEquipmentAreas = {}
+    self.inventoryGridArea = {}
+    self.isPaused = false
+
+    -- NÃO limpar: mapManager, renderPipeline, gameOverManager, bossPresentationManager
+    -- Estes serão limpos pela extraction_transition_scene após coletar os dados
+
+    Logger.debug("gameplay_scene.cleanup_local_systems_only.finalized", "Limpeza local mínima concluída")
+end
+
+--- Limpa sistemas locais do GameplayScene (versão completa para uso da extraction_transition_scene)
 function GameplayScene:_cleanupLocalSystems()
     Logger.debug("gameplay_scene.cleanup_local_systems.started", "Limpando sistemas locais do GameplayScene...")
 

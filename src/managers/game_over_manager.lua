@@ -368,20 +368,22 @@ function GameOverManager:handleExit()
             string.format("Caçador %s (ID: %s) foi permanentemente deletado.", self.hunterName, self.hunterId))
     end
 
-    local params = {
-        wasSuccess = false,
-        hunterData = hunterData,
+    local gameplayData = {
         portalData = self.portalData,
-        extractedItems = {},     -- Nenhum item vai para o loadout
-        extractedEquipment = {}, -- Nenhum equipamento é salvo
+        hunterId = self.hunterId,
+        hunterData = hunterData,
         finalStats = self.finalStats,
         gameplayStats = self.gameplayStats,
         archetypeIds = self.archetypeIds,
-        archetypeManagerInstance = self.archetypeManagerInstance,
-        hunterId = self.hunterId
+        archetypeManagerInstance = self.archetypeManagerInstance
     }
 
-    self.sceneManager.switchScene("extraction_summary_scene", params)
+    local transitionParams = {
+        gameplayData = gameplayData,
+        extractionType = "death" -- Indica que foi uma morte
+    }
+
+    self.sceneManager.switchScene("extraction_transition_scene", transitionParams)
     self:reset()
 end
 
