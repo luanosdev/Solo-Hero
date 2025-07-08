@@ -56,10 +56,11 @@ function Logger.log(key, message, level, showOnScreen)
     if not Logger.enabled then return end
     level = level or "info"
     local now = love.timer.getTime()
+    local currentFPS = love.timer.getFPS()
     if not Logger.timers[key] or now - Logger.timers[key] >= Logger.logInterval then
         local label = levels[level] and levels[level].label or "[LOG]"
         local color = levels[level] and levels[level].color or { 1, 1, 1 }
-        local entry = string.format("%s %s", label, message)
+        local entry = string.format("%s %s - FPS: %d", label, message, currentFPS)
 
         if Logger.printToConsole then
             print(entry)
