@@ -228,8 +228,8 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.LOW,
         knockbackForce = Constants.KNOCKBACK_FORCE.BOW,
         modifiers = {
-            { stat = "moveSpeed",   type = "base", value = 0.5 },
-            { stat = "multiAttack", type = "base", value = 0.4 },
+            { stat = "critChance", type = "base", value = 0.2 },
+            { stat = "critDamage", type = "base", value = 0.5 },
         },
         value = 200,
     },
@@ -258,7 +258,8 @@ local weapons = {
         knockbackPower = Constants.KNOCKBACK_POWER.NONE,
         knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
         modifiers = {
-            { stat = "critDamage", type = "base", value = 1 },
+            { stat = "multiAttack", type = "base", value = 0.5 },
+            { stat = "critDamage", type = "base", value = 0.5 },
         },
         value = 100,
     },
