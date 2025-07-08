@@ -26,6 +26,14 @@ local THEMATIC_LOADING_TEXTS = {
         }
     },
     {
+        technical = "Carregando imagens de skills...",
+        thematic = {
+            title = "Sincronizando Base de Conhecimento",
+            subtitle = "Catalogando habilidades especiais",
+            detail = "Preparando arsenal de técnicas..."
+        }
+    },
+    {
         technical = "Inicializando core do Bootstrap...",
         thematic = {
             title = "Ativando Núcleo Operacional",
@@ -183,6 +191,7 @@ function GameLoadingScene:_initializeLoadingTasks()
     local taskFunctions = {
         function() return self:_loadFonts() end,
         function() return self:_loadPlayerSprites() end,
+        function() return self:_loadLevelUpImages() end,
         function() return self:_initializeBootstrapCore() end,
         function() return self:_setupAllManagers() end,
         function() return self:_loadBasicAnimations() end,
@@ -333,6 +342,22 @@ function GameLoadingScene:_loadPlayerSprites()
     if not SpritePlayer.resources.body or not next(SpritePlayer.resources.body) then
         SpritePlayer._loadBodySprites()
         Logger.debug("GameLoadingScene", "Sprites do corpo do jogador carregados")
+    end
+
+    return true
+end
+
+--- Pré-carrega todas as imagens das skills de level up
+function GameLoadingScene:_loadLevelUpImages()
+    local LevelUpImageManager = require("src.managers.level_up_image_manager")
+
+    -- Pré-carrega todas as imagens das skills
+    local success = LevelUpImageManager:preloadAllImages()
+
+    if success then
+        Logger.info("GameLoadingScene", "Imagens das skills de level up pré-carregadas com sucesso")
+    else
+        Logger.warn("GameLoadingScene", "Falha no pré-carregamento das imagens das skills")
     end
 
     return true

@@ -442,6 +442,13 @@ function ExtractionTransitionScene:_cleanupGameplayResources()
         coroutine.yield()
     end
 
+    -- Limpa cache de imagens de level up
+    local LevelUpImageManager = require("src.managers.level_up_image_manager")
+    if LevelUpImageManager.isLoaded then
+        LevelUpImageManager:clearCache()
+        Logger.debug("ExtractionTransitionScene", "Cache de imagens de level up limpo")
+    end
+
     -- Força coleta de lixo suave (reduzida)
     collectgarbage("step", PERFORMANCE_CONFIG.GC_CHUNK_SIZE)
     Logger.info("ExtractionTransitionScene", "Recursos de gameplay limpos")

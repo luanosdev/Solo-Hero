@@ -20,7 +20,6 @@ local lume = require("src.libs.lume")
 ---@field cardsAnimated number
 ---@field canChoose boolean
 ---@field appearanceSequenceCompleted boolean
----@field loadedImages table<string, love.Image>
 local LevelUpModal = {
     visible = false,
     options = {},
@@ -36,7 +35,6 @@ local LevelUpModal = {
     cardsAnimated = 0,
     canChoose = false,
     appearanceSequenceCompleted = false,
-    loadedImages = {},
 }
 
 ---@class LevelUpCard
@@ -59,18 +57,22 @@ function LevelUpCard:new(rect, optionData)
 end
 
 function LevelUpCard:loadImage()
-    if self.optionData.image_path and love.filesystem.getInfo(self.optionData.image_path) then
-        local success, imageOrError = pcall(love.graphics.newImage, self.optionData.image_path)
-        if success then
-            self.skillImage = imageOrError
-            Logger.debug("level_up_card.load_image", "Imagem carregada: " .. self.optionData.image_path)
-        else
-            Logger.debug("level_up_card.load_image_error",
-                "Erro ao carregar: " .. self.optionData.image_path .. " - " .. tostring(imageOrError))
-        end
+    if not self.optionData.image_path or self.optionData.image_path == "" then
+        Logger.debug("level_up_card.load_image_missing",
+            "Caminho de imagem não fornecido")
+        return
+    end
+
+    -- Usa o LevelUpImageManager para obter imagem pré-carregada
+    local LevelUpImageManager = require("src.managers.level_up_image_manager")
+    self.skillImage = LevelUpImageManager:getImage(self.optionData.image_path)
+
+    if self.skillImage then
+        Logger.debug("level_up_card.load_image",
+            "Imagem obtida do cache: " .. self.optionData.image_path)
     else
         Logger.debug("level_up_card.load_image_missing",
-            "Arquivo não encontrado: " .. (self.optionData.image_path or "nil"))
+            "Imagem não encontrada no cache: " .. self.optionData.image_path)
     end
 end
 
@@ -625,6 +627,9 @@ function LevelUpModal:show(onCloseCallback)
     self.scales = {}
     self.backgroundColors = {}
 
+    -- Verifica se as imagens estão pré-carregadas, se não, carrega agora
+    self:_ensureImagesLoaded()
+
     self:generateOptions()
     self:createCards()
 
@@ -639,6 +644,20 @@ function LevelUpModal:hide()
         Logger.debug("level_up_modal.hide.callback", "[LevelUpModal] Chamando callback de fechamento")
         self.onCloseCallback()
         self.onCloseCallback = nil
+    end
+end
+
+--- Garante que as imagens estão carregadas (fallback se pré-carregamento falhou)
+function LevelUpModal:_ensureImagesLoaded()
+    local LevelUpImageManager = require("src.managers.level_up_image_manager")
+
+    if not LevelUpImageManager.isLoaded then
+        Logger.warn("level_up_modal.ensure_images",
+            "Imagens não foram pré-carregadas, carregando agora (pode causar lag)")
+        LevelUpImageManager:preloadAllImages()
+    else
+        Logger.debug("level_up_modal.ensure_images",
+            "Imagens já pré-carregadas, usando cache")
     end
 end
 
