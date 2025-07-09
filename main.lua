@@ -12,6 +12,7 @@ local HunterManager = require("src.managers.hunter_manager")
 local AgencyManager = require("src.managers.agency_manager")
 local ReputationManager = require("src.managers.reputation_manager")
 local GameStatisticsManager = require("src.managers.game_statistics_manager")
+local ArtefactManager = require("src.managers.artefact_manager")
 local fonts = require("src.ui.fonts")
 
 local lovebird = require("src.libs.lovebird")
@@ -114,6 +115,10 @@ function love.load()
 
     local gameStatsMgr = GameStatisticsManager:new()
     ManagerRegistry:register("gameStatisticsManager", gameStatsMgr)
+
+    local artefactMgr = ArtefactManager:new()
+    artefactMgr:initialize()
+    ManagerRegistry:register("artefactManager", artefactMgr)
 end
 
 function love.update(dt)

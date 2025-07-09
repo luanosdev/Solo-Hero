@@ -62,11 +62,20 @@ function ItemDetailsModalManager.update(dt, mx, my, currentHoverItem)
 
     if currentHoverItem and currentHoverItem.itemBaseId then
         if ItemDetailsModalManager.activeItem ~= currentHoverItem then
-            local itemDataManager = ManagerRegistry:get("itemDataManager")
-            if not itemDataManager then
-                error("[ItemDetailsModalManager.update] ERRO: ItemDataManager não encontrado.")
+            local baseData = nil
+
+            -- Para artefatos, usa os dados já fornecidos em _baseItemData
+            if currentHoverItem.type == "artefact" and currentHoverItem._baseItemData then
+                baseData = currentHoverItem._baseItemData
+            else
+                -- Para itens normais, busca no ItemDataManager
+                local itemDataManager = ManagerRegistry:get("itemDataManager")
+                if not itemDataManager then
+                    error("[ItemDetailsModalManager.update] ERRO: ItemDataManager não encontrado.")
+                end
+                baseData = itemDataManager:getBaseItemData(currentHoverItem.itemBaseId)
             end
-            local baseData = itemDataManager:getBaseItemData(currentHoverItem.itemBaseId)
+
             if baseData then
                 if currentHoverItem.modifiers then
                     baseData.modifiers = currentHoverItem.modifiers
@@ -75,7 +84,6 @@ function ItemDetailsModalManager.update(dt, mx, my, currentHoverItem)
                 ItemDetailsModalManager.activeItem = currentHoverItem
                 ItemDetailsModalManager.activeBaseItemData = baseData
                 ItemDetailsModalManager.isVisible = true
-                -- print(string.format("[HoverManager] Mostrando tooltip para: %s", currentHoverItem.itemBaseId)) -- DEBUG
             else
                 -- Se não encontrou baseData, considera como se não houvesse item válido
                 ItemDetailsModalManager.hide()

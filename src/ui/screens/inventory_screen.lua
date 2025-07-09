@@ -11,6 +11,7 @@ local ItemGridUI = require("src.ui.item_grid_ui")
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
 local HunterEquipmentColumn = require("src.ui.components.HunterEquipmentColumn")
 local HunterInventoryColumn = require("src.ui.components.HunterInventoryColumn")
+local ArtefactsDisplay = require("src.ui.components.ArtefactsDisplay")
 
 local InventoryScreen = {}
 InventoryScreen.isVisible = false
@@ -61,12 +62,12 @@ function InventoryScreen.update(dt, mx, my, dragState)
     if not (dragState and dragState.isDragging) then
         ---@type HunterManager
         local hunterManager = ManagerRegistry:get("hunterManager")
-
         ---@type PlayerManager
         local playerManager = ManagerRegistry:get("playerManager")
-
         ---@type InventoryManager
         local inventoryManager = ManagerRegistry:get("inventoryManager")
+        ---@type ArtefactManager
+        local artefactManager = ManagerRegistry:get("artefactManager")
 
         -- 1. Checa hover em slots de equipamento
         local currentHunterId = playerManager:getCurrentHunterId()
@@ -106,10 +107,21 @@ function InventoryScreen.update(dt, mx, my, dragState)
                 end
             end
         end
+
+        -- 3. Checa hover em artefatos
+        if not InventoryScreen.itemToShowTooltip and artefactManager then
+            local hoveredItem = ArtefactsDisplay.hoveredArtefact
+            if hoveredItem then
+                InventoryScreen.itemToShowTooltip = hoveredItem
+            end
+        end
     end
 
     -- Atualiza o gerenciador de tooltips com o item sob o mouse
-    ItemDetailsModalManager.update(dt, InventoryScreen.mouseX, InventoryScreen.mouseY, InventoryScreen.itemToShowTooltip)
+    local itemForTooltip = InventoryScreen.itemToShowTooltip
+
+    -- Usa o sistema unificado para todos os tipos de item (incluindo artefatos)
+    ItemDetailsModalManager.update(dt, InventoryScreen.mouseX, InventoryScreen.mouseY, itemForTooltip)
 end
 
 ---@param dragState table|nil Estado do drag-and-drop gerenciado pela cena pai (pode ser nil)
@@ -127,6 +139,8 @@ function InventoryScreen.draw(dragState)
     local inventoryManager = ManagerRegistry:get("inventoryManager")
     ---@type ItemDataManager
     local itemDataManager = ManagerRegistry:get("itemDataManager")
+    ---@type ArtefactManager
+    local artefactManager = ManagerRegistry:get("artefactManager")
 
     local screenW, screenH = ResolutionUtils.getGameDimensions()
 
@@ -173,26 +187,11 @@ function InventoryScreen.draw(dragState)
     local currentHunterId = playerManager:getCurrentHunterId()
     local hunterArchetypeIds = currentHunterId and hunterManager:getArchetypeIds(currentHunterId)
 
-    -- DEBUG: Log currentFinalStats antes de criar statsColumnConfig
-    if currentFinalStats then
-        -- print("[InventoryScreen DEBUG] currentFinalStats recebido de PlayerManager:") -- COMENTADO
-        -- print("  > Tem _learnedLevelUpBonuses?", currentFinalStats._learnedLevelUpBonuses ~= nil and not not next(currentFinalStats._learnedLevelUpBonuses or {})) -- COMENTADO
-        -- print("  > Tem _fixedBonus?", currentFinalStats._fixedBonus ~= nil and not not next(currentFinalStats._fixedBonus or {})) -- COMENTADO
-        -- print("  > Tem equippedItems?", currentFinalStats.equippedItems ~= nil and not not next(currentFinalStats.equippedItems or {})) -- COMENTADO
-        if currentFinalStats.equippedItems and currentFinalStats.equippedItems.weapon then -- COMENTADO
-            -- print("    Weapon ID:", currentFinalStats.equippedItems.weapon) -- COMENTADO
-        else
-            -- print("    Weapon ID: nil") -- COMENTADO
-        end
-    else
-        error("[InventoryScreen DEBUG] currentFinalStats de PlayerManager é NULO.")
-    end
-
     local statsColumnConfig = {
-        currentHp = playerManager.state and playerManager.state.currentHealth,
-        level = playerManager.state and playerManager.state.level,
-        currentXp = playerManager.state and playerManager.state.experience,
-        xpToNextLevel = playerManager.state and playerManager.state.experienceToNextLevel,
+        currentHp = playerManager.stateController and playerManager.stateController.currentHealth,
+        level = playerManager.stateController and playerManager.stateController:getCurrentLevel(),
+        currentXp = playerManager.stateController and playerManager.stateController:getCurrentExperience(),
+        xpToNextLevel = playerManager.stateController and playerManager.stateController.experienceToNextLevel,
         finalStats = currentFinalStats,
         archetypeIds = hunterArchetypeIds or {},
         mouseX = InventoryScreen.mouseX or 0,
@@ -219,12 +218,34 @@ function InventoryScreen.draw(dragState)
     -- Atribui o resultado retornado (para uso local e retorno)
     InventoryScreen.equipmentSlotAreas = tempAreas
 
+    -- Usa altura fixa mais razoável para o inventário
+    local inventoryFixedHeight = 350 -- Altura fixa razoável para o inventário
+    local artefactsHeight = 120      -- Altura da seção de artefatos
+    local artefactsPadding = 15      -- Padding entre inventário e artefatos
+
     -- Desenha Coluna de Inventário (usando HunterInventoryColumn)
     InventoryScreen.inventoryGridArea = HunterInventoryColumn.draw(
-        inventoryX + innerColXOffset, centeredContentStartY, innerColW, centeredContentH,
+        inventoryX + innerColXOffset,
+        centeredContentStartY,
+        innerColW,
+        inventoryFixedHeight,
         inventoryManager, -- Passa o manager de inventário do gameplay
         itemDataManager
     )
+
+    -- Desenha Display de Artefatos abaixo do inventário
+    local artefactsY = centeredContentStartY + inventoryFixedHeight + artefactsPadding
+    if artefactManager then
+        ArtefactsDisplay:draw(
+            inventoryX + innerColXOffset,
+            artefactsY,
+            innerColW,
+            artefactsHeight,
+            false,
+            InventoryScreen.mouseX,
+            InventoryScreen.mouseY
+        )
+    end
 
 
     if dragState and dragState.isDragging and dragState.draggedItem then
@@ -372,7 +393,7 @@ function InventoryScreen.handleMousePress(x, y, button)
             end
         end
 
-        -- 2. Verifica clique na Grade de Inventário
+        -- 3. Verifica clique na Grade de Inventário
         local area = InventoryScreen.inventoryGridArea
         if area and x >= area.x and x < area.x + area.w and y >= area.y and y < area.y + area.h then
             local ItemGridUI = require("src.ui.item_grid_ui")

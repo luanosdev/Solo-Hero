@@ -39,9 +39,13 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
 
     -- Dimensões e cálculos preliminares (serão ajustados)
     local tooltipLines = {}
-    local tooltipWidth = 300                            -- Largura inicial, será recalculada
-    local currentYInternal = PADDING                    -- Usar uma variável interna para o cálculo de altura das linhas
-    local baseAttributesSection = {}                    -- Novo: para armazenar atributos base a serem movidos
+    local tooltipWidth = 300         -- Largura inicial, será recalculada
+    local currentYInternal = PADDING -- Usar uma variável interna para o cálculo de altura das linhas
+    local baseAttributesSection = {} -- Novo: para armazenar atributos base a serem movidos
+
+    -- Define a cor do texto baseado na raridade do item
+    local rankStyleData = colors.rankDetails[item.rarity or item.rank] or colors.rankDetails["E"]
+    local rankTextColor = rankStyleData.text or colors.text_label
 
     local iconColumnWidth = tooltipWidth * 0.4          -- 40% para o ícone
     local textColumnWidth = tooltipWidth * 0.6          -- 60% para o texto ao lado
@@ -64,7 +68,12 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
 
     -- Coluna da Direita (Tipo, Raridade, Dano, APS)
     local rankColor = colors.rankDetails[item.rarity].text or colors.text_main
-    local rankText = item.type == "weapon" and "Arma" or "Item"
+    local rankText = "Item"
+    if item.type == "weapon" then
+        rankText = "Arma"
+    elseif item.type == "artefact" then
+        rankText = "Artefato"
+    end
     table.insert(mainSectionTextLines, {
         text = rankText .. " Ranking " .. item.rarity,
         font = fonts.main_small,
@@ -259,49 +268,6 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
         currentYInternal = currentYInternal + STAT_SPACING
     end
 
-
-    -- Rodapé (Requerimentos, Valor, Durabilidade)
-    local hasFooterContent = false
-    if baseItemData.requiredLevel and baseItemData.requiredLevel > 0 then
-        hasFooterContent = true
-        local reqMet = true
-        local reqColor = reqMet and colors.text_label or colors.red
-        table.insert(tooltipLines, {
-            text = "Nível Requerido: " .. baseItemData.requiredLevel,
-            font = fonts.main_small,
-            color = reqColor,
-            height = LINE_HEIGHT_SMALL
-        })
-        currentYInternal = currentYInternal + LINE_HEIGHT_SMALL
-    end
-
-    if item.sellValue and item.sellValue > 0 then
-        hasFooterContent = true
-        table.insert(tooltipLines, {
-            text = "Valor: " .. item.sellValue,
-            font = fonts.main_small,
-            color = colors.text_gold or colors.text_label,
-            height = LINE_HEIGHT_SMALL
-        })
-        currentYInternal = currentYInternal + LINE_HEIGHT_SMALL
-    end
-
-    if item.durability and item.maxDurability then
-        hasFooterContent = true
-        table.insert(tooltipLines, {
-            text = string.format("Durabilidade: %d/%d", item.durability, item.maxDurability),
-            font = fonts.main_small,
-            color = colors.text_label,
-            height = LINE_HEIGHT_SMALL
-        })
-        currentYInternal = currentYInternal + LINE_HEIGHT_SMALL
-    end
-
-    if hasFooterContent then
-        table.insert(tooltipLines, { type = "spacer", height = SECTION_SPACING / 2 })
-        currentYInternal = currentYInternal + SECTION_SPACING / 2
-    end
-
     if baseItemData.type == "consumable" and baseItemData.useDetails then
         table.insert(tooltipLines, { type = "spacer", height = SECTION_SPACING / 2 })
         currentYInternal = currentYInternal + SECTION_SPACING / 2
@@ -372,10 +338,8 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
     x = math.max(0, x)
     y = math.max(0, y)
 
-    local rankStyleData = colors.rankDetails[item.rarity or "E"] or colors.rankDetails["E"]
     local gradStartColor = rankStyleData.gradientStart
     local gradEndColor = rankStyleData.gradientEnd
-    local rankTextColor = rankStyleData.text or colors.text_label
     local cornerRadius = 5
 
     local rarityBorderWidths = { E = 1, D = 1, C = 2, B = 2, A = 3, S = 3, SS = 4 }

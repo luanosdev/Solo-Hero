@@ -93,12 +93,6 @@ local Camera = require("src.config.camera")
 local Logger = require("src.libs.logger")
 local Constants = require("src.config.constants")
 local AsyncSpawnProcessor = require("src.controllers.async_spawn_processor")
-local SpawnPerformanceMonitor = require("src.utils.spawn_performance_monitor")
-
----@class SpawnRequest
----@field enemyClass table
----@field position { x: number, y: number }
----@field options table|nil
 
 ---@class SpawnController
 ---@field enemyManager EnemyManager
@@ -119,7 +113,6 @@ local SpawnPerformanceMonitor = require("src.utils.spawn_performance_monitor")
 ---@field totalPauseTime number Tempo total acumulado de pausa
 ---@field isPermanentlyPaused boolean Indica se os spawns foram pausados permanentemente (último boss)
 ---@field asyncProcessor AsyncSpawnProcessor Processador assíncrono de spawns
----@field performanceMonitor SpawnPerformanceMonitor Monitor de performance do sistema
 local SpawnController = {}
 SpawnController.__index = SpawnController
 
@@ -157,12 +150,6 @@ function SpawnController:new(enemyManager, playerManager, mapManager)
     -- Processador Assíncrono de Spawns
     instance.asyncProcessor = AsyncSpawnProcessor:new()
 
-    -- Monitor de Performance
-    instance.performanceMonitor = SpawnPerformanceMonitor:new({
-        autoOptimizeEnabled = true,
-        maxSnapshotHistory = 300 -- 5 minutos a 60fps
-    })
-
     return instance
 end
 
@@ -182,16 +169,6 @@ function SpawnController:setup(hordeConfig)
         self.asyncProcessor:clear()
     else
         self.asyncProcessor = AsyncSpawnProcessor:new()
-    end
-
-    -- Reseta o monitor de performance
-    if self.performanceMonitor then
-        self.performanceMonitor:reset()
-    else
-        self.performanceMonitor = SpawnPerformanceMonitor:new({
-            autoOptimizeEnabled = true,
-            maxSnapshotHistory = 300
-        })
     end
 
     if not self.worldConfig or not self.worldConfig.cycles or #self.worldConfig.cycles == 0 then
@@ -231,11 +208,6 @@ function SpawnController:update(dt)
     -- Atualiza o processador assíncrono
     if self.asyncProcessor then
         self.asyncProcessor:update(dt)
-    end
-
-    -- Coleta métricas de performance
-    if self.performanceMonitor then
-        self.performanceMonitor:collectSnapshot(self, dt)
     end
 
     -- Verifica se há boss ativo e ajusta o estado de pausa
@@ -800,50 +772,5 @@ function SpawnController:cleanup()
     Logger.info("[SpawnController:cleanup]", "SpawnController completamente limpo")
 end
 
---- Obtém relatório detalhado de performance do sistema
----@return table Relatório completo de performance
-function SpawnController:getPerformanceReport()
-    if self.performanceMonitor then
-        return self.performanceMonitor:generateReport()
-    else
-        return { error = "Monitor de performance não inicializado" }
-    end
-end
-
---- Configura o monitor de performance
----@param config table Configurações do monitor
-function SpawnController:configurePerformanceMonitor(config)
-    if self.performanceMonitor then
-        if config.enabled ~= nil then
-            self.performanceMonitor:setEnabled(config.enabled)
-        end
-        if config.autoOptimization ~= nil then
-            self.performanceMonitor:setAutoOptimization(config.autoOptimization)
-        end
-        Logger.info("[SpawnController:configurePerformanceMonitor]", "Monitor de performance reconfigurado")
-    else
-        Logger.warn("[SpawnController:configurePerformanceMonitor]", "Monitor de performance não inicializado")
-    end
-end
-
---- Obtém estatísticas agregadas de performance
----@return table Estatísticas agregadas
-function SpawnController:getAggregatedPerformanceStats()
-    if self.performanceMonitor then
-        return self.performanceMonitor:getAggregatedStats()
-    else
-        return { error = "Monitor de performance não inicializado" }
-    end
-end
-
---- Reseta o histórico de performance
-function SpawnController:resetPerformanceHistory()
-    if self.performanceMonitor then
-        self.performanceMonitor:reset()
-        Logger.info("[SpawnController:resetPerformanceHistory]", "Histórico de performance resetado")
-    else
-        Logger.warn("[SpawnController:resetPerformanceHistory]", "Monitor de performance não inicializado")
-    end
-end
 
 return SpawnController

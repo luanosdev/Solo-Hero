@@ -41,9 +41,6 @@
     4. Retorna spawns prontos para execução
 ]]
 
-local Logger = require("src.libs.logger")
-local Constants = require("src.config.constants")
-
 ---@class SpawnRequest
 ---@field enemyClass table Classe do inimigo
 ---@field position { x: number, y: number } Posição de spawn

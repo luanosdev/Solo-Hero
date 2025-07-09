@@ -51,6 +51,11 @@ function DropManager:init(config)
     self.floatingTextManager = config.floatingTextManager
     self.itemDataManager = config.itemDataManager
 
+    -- Obtém ArtefactManager do Registry
+    local ManagerRegistry = require("src.managers.manager_registry")
+    ---@type ArtefactManager
+    self.artefactManager = ManagerRegistry:tryGet("artefactManager")
+
     -- DEBUG: Print the type right after assignment
     Logger.debug("DropManager:init",
         string.format("[DropManager:init] self.itemDataManager type: %s", type(self.itemDataManager)))
@@ -58,6 +63,11 @@ function DropManager:init(config)
     -- Validação
     if not self.playerManager or not self.enemyManager or not self.runeManager or not self.floatingTextManager or not self.itemDataManager then
         error("ERRO CRÍTICO [DropManager]: Uma ou mais dependências não foram injetadas!")
+    end
+
+    if not self.artefactManager then
+        Logger.warn("DropManager:init",
+            "[DropManager:init] ArtefactManager não encontrado - artefatos não serão processados")
     end
 
     Logger.debug("DropManager:init", "DropManager inicializado")
@@ -106,6 +116,11 @@ function DropManager:processEntityDrop(entity)
     -- Garante que o multiplicador não seja negativo.
     if luckMultiplier < 0 then
         luckMultiplier = 0
+    end
+
+    -- Processa artefatos dimensionais (automaticamente coletados)
+    if self.artefactManager then
+        self.artefactManager:processEnemyDrop(entity.artefactDrops, entity.isMVP or false, luckMultiplier)
     end
 
     -- Se a entidade for um MVP, processa o drop garantido de MVP.

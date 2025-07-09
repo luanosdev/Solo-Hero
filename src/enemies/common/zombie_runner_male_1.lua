@@ -17,6 +17,7 @@ ZombieRunnerMale1.experienceValue = data.experienceValue
 ZombieRunnerMale1.size = data.size
 ZombieRunnerMale1.dropTable = data.dropTable
 ZombieRunnerMale1.spriteData = data.instanceDefaults
+ZombieRunnerMale1.artefactDrops = data.artefactDrops
 
 setmetatable(ZombieRunnerMale1, { __index = BaseEnemy })
 return ZombieRunnerMale1

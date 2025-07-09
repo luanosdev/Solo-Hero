@@ -29,7 +29,7 @@ end
 
 -- Obtém um manager registrado
 ---@param name string
----@return table
+---@return any
 function ManagerRegistry:get(name)
     if not self.managers[name] then
         error(string.format("Manager '%s' não encontrado", name))
@@ -40,7 +40,7 @@ end
 
 -- Obtém um manager registrado, mas retorna nil se não encontrado
 ---@param name string
----@return table|nil
+---@return any|nil
 function ManagerRegistry:tryGet(name)
     if not self.managers[name] then
         Logger.error("ManagerRegistry:tryGet", string.format("Manager '%s' não encontrado", name))
