@@ -39,7 +39,8 @@ local CONFIG = {
         }
     },
     constants = {
-        STRENGTH_TO_PIERCING_FACTOR = 0.1
+        STRENGTH_TO_PIERCING_FACTOR = 0.1,
+        SHOTGUN_SPREAD_FACTOR = 0.3 -- Variação de velocidade/alcance para criar efeito de "espingarda"
     }
 }
 
@@ -105,9 +106,6 @@ function BurstProjectile:castSpecific(args)
         love.timer.getTime()
     )
 
-    -- Calcula ângulos de dispersão
-    local projectileAngles = self:calculateProjectileAnglesOptimized(multiResult.totalAttacks)
-
     -- Obtém SpatialGrid uma vez
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager.spatialGrid
@@ -115,32 +113,14 @@ function BurstProjectile:castSpecific(args)
         error("BurstProjectile:castSpecific SpatialGrid não encontrado")
     end
 
-    -- Dispara todos os projéteis
-    for _, projectileAngle in ipairs(projectileAngles) do
+    -- Dispara todos os projéteis com dispersão aleatória
+    for _ = 1, multiResult.totalAttacks do
+        local randomAngleOffset = (math.random() - 0.5) * self.currentSpreadAngle
+        local projectileAngle = self.currentAngle + randomAngleOffset
         self:fireSingleProjectileOptimized(projectileAngle, spatialGrid)
     end
 
     return true
-end
-
---- Calcula ângulos de projéteis otimizado
----@param totalProjectiles number Número total de projéteis
----@return number[] Lista de ângulos
-function BurstProjectile:calculateProjectileAnglesOptimized(totalProjectiles)
-    local angles = {}
-
-    if totalProjectiles == 1 then
-        table.insert(angles, self.currentAngle)
-    else
-        local angleStep = self.currentSpreadAngle / (totalProjectiles - 1)
-        local startAngle = self.currentAngle - self.currentSpreadAngle / 2
-
-        for i = 0, totalProjectiles - 1 do
-            table.insert(angles, startAngle + i * angleStep)
-        end
-    end
-
-    return angles
 end
 
 --- Dispara um projétil otimizado
@@ -167,6 +147,11 @@ function BurstProjectile:fireSingleProjectileOptimized(projectileAngle, spatialG
     local currentRange = baseData.range * (stats.range or 1)
     local areaScale = stats.attackArea or 1
 
+    -- Variação para efeito de "espingarda" (frente e trás)
+    local spreadFactor = CONFIG.constants.SHOTGUN_SPREAD_FACTOR
+    local randomSpeedMultiplier = 1 + (math.random() - 0.5) * spreadFactor
+    local randomRangeMultiplier = 1 + (math.random() - 0.5) * spreadFactor
+
     -- Calcula posição de spawn com offset do raio do player
     local spawnPos = self:calculateSpawnPosition(projectileAngle)
 
@@ -175,8 +160,8 @@ function BurstProjectile:fireSingleProjectileOptimized(projectileAngle, spatialG
     params.x = spawnPos.x
     params.y = spawnPos.y
     params.angle = projectileAngle
-    params.speed = CONFIG.visual.attack.projectileSpeed
-    params.range = currentRange
+    params.speed = CONFIG.visual.attack.projectileSpeed * randomSpeedMultiplier
+    params.range = currentRange * randomRangeMultiplier
     params.damage = finalDamage
     params.isCritical = isCritical
     params.isSuperCritical = isSuperCritical
