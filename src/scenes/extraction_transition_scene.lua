@@ -24,6 +24,14 @@ local EXTRACTION_PROCESSING_TEXTS = {
         }
     },
     {
+        technical = "Verificando artefatos dimensionais...",
+        thematic = {
+            title = "Analisando Artefatos Coletados",
+            subtitle = "Verificando integridade e estabilidade",
+            detail = "Registrando assinaturas de energia..."
+        }
+    },
+    {
         technical = "Limpando recursos do gameplay...",
         thematic = {
             title = "Encerrando Sistemas de Combate",
@@ -163,6 +171,7 @@ function ExtractionTransitionScene:_initializeProcessingTasks()
     local taskFunctions = {
         function() return self:_initializeTransition() end,
         function() return self:_captureGameplayData() end,
+        function() return self:_processArtefacts() end,
         function() return self:_cleanupGameplayResources() end,
         function() return self:_processExtractedItemsChunked() end,
         function() return self:_calculateReputationAndRewards() end,
@@ -288,6 +297,7 @@ function ExtractionTransitionScene:_initializeTransition()
         hunterData = nil,
         wasSuccess = nil,
         extractedItems = {},
+        extractedArtefacts = {},
         extractedEquipment = {},
         gameplayStats = {},
         finalStats = {},
@@ -396,6 +406,53 @@ function ExtractionTransitionScene:_captureGameplayData()
     end
 
     Logger.info("ExtractionTransitionScene", "Dados do gameplay capturados com sucesso")
+    return true
+end
+
+--- Processa os artefatos do jogador (mantém em sucesso, limpa em morte)
+function ExtractionTransitionScene:_processArtefacts()
+    ---@type ArtefactManager|nil
+    local artefactManager = ManagerRegistry:tryGet("artefactManager")
+    if not artefactManager then
+        Logger.warn("ExtractionTransitionScene", "ArtefactManager não encontrado, pulando processamento de artefatos.")
+        self.processedData.extractedArtefacts = {}
+        return true
+    end
+
+    -- Inicializa a lista de artefatos nos dados processados
+    self.processedData.extractedArtefacts = {}
+
+    -- 1. Captura os artefatos atuais para exibição, ANTES de qualquer modificação
+    local allArtefacts = artefactManager:getAllArtefacts()
+
+    -- 2. Enriquece os dados dos artefatos para a tela de sumário
+    for id, quantity in pairs(allArtefacts) do
+        local def = artefactManager:getArtefactDefinition(id)
+        if def then
+            table.insert(self.processedData.extractedArtefacts, {
+                itemBaseId = id, -- Mantém consistência com outros itens
+                name = def.name,
+                icon = def.icon,
+                rarity = def.rank,
+                quantity = quantity,
+                isArtefact = true -- Flag para diferenciar de itens normais
+            })
+        end
+    end
+
+    Logger.info("ExtractionTransitionScene",
+        string.format("Capturados %d tipos de artefatos para o sumário.", #self.processedData.extractedArtefacts))
+
+    -- 3. Se o jogador morreu, limpa todos os artefatos. Se teve sucesso, mantém.
+    if self.extractionType == "death" then
+        Logger.info("ExtractionTransitionScene", "O jogador morreu. Limpando todos os artefatos coletados.")
+        local lostCount = artefactManager:clearAllArtefactsOnDeath()
+        Logger.info("ExtractionTransitionScene", string.format("%d artefatos totais foram perdidos.", lostCount))
+    else
+        artefactManager:saveData()
+        Logger.info("ExtractionTransitionScene", "Extração bem-sucedida. Artefatos mantidos para o próximo portal.")
+    end
+
     return true
 end
 

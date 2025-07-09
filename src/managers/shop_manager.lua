@@ -355,7 +355,7 @@ function ShopManager:sellAllFromLoadout(loadoutManager)
 
     -- Adiciona o dinheiro ao patrimônio do jogador
     if self.patrimonyManager and totalValue > 0 then
-        self.patrimonyManager:sellItem(totalValue, "loadout_bulk_sale") -- Ícone não se aplica a venda em massa
+        self.patrimonyManager:sellItem(totalValue, "Venda do Loadout") -- Ícone não se aplica a venda em massa
     end
 
     -- Log aprimorado

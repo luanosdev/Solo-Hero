@@ -5,6 +5,8 @@ local ItemGridUI = require("src.ui.item_grid_ui")
 local ShopColumn = require("src.ui.components.ShopColumn")
 local HunterLoadoutColumn = require("src.ui.components.HunterLoadoutColumn")
 local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
+local ArtefactsDisplay = require("src.ui.components.ArtefactsDisplay")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 ---@class ShoppingScreen
 ---@field itemDataManager ItemDataManager
@@ -15,6 +17,7 @@ local ItemDetailsModalManager = require("src.managers.item_details_modal_manager
 ---@field storageGridArea table
 ---@field loadoutGridArea table
 ---@field shopArea table
+---@field artefactsArea table
 ---@field itemToShowTooltip table|nil
 local ShoppingScreen = {}
 ShoppingScreen.__index = ShoppingScreen
@@ -37,6 +40,7 @@ function ShoppingScreen:new(itemDataManager, shopManager, lobbyStorageManager, l
     instance.shopArea = { x = 0, y = 0, w = 0, h = 0 }
     instance.storageGridArea = { x = 0, y = 0, w = 0, h = 0 }
     instance.loadoutGridArea = { x = 0, y = 0, w = 0, h = 0 }
+    instance.artefactsArea = { x = 0, y = 0, w = 0, h = 0 }
     instance.itemToShowTooltip = nil
 
     return instance
@@ -134,6 +138,14 @@ function ShoppingScreen:update(dt, mx, my, dragState)
                 end
             end
         end
+
+        -- Checa hover em artefatos
+        if not self.itemToShowTooltip then
+            local hoveredItem = ArtefactsDisplay.hoveredArtefact
+            if hoveredItem then
+                self.itemToShowTooltip = hoveredItem
+            end
+        end
     end
 
     ItemDetailsModalManager.update(dt, mx, my, self.itemToShowTooltip)
@@ -226,15 +238,45 @@ function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, n
         love.graphics.setColor(colors.white)
     end
 
+    -- Divide o espaço da coluna de loadout entre a mochila e os artefatos
+    local artefactsHeight = 120
+    local artefactsPadding = 15
+    local loadoutFixedHeight = 350
+
     -- 3. Desenha Coluna da Mochila (Loadout)
     if self.loadoutManager and self.itemDataManager then
-        self.loadoutGridArea = HunterLoadoutColumn.draw(loadoutX, contentStartY, loadoutW, sectionContentH,
-            self.loadoutManager, self.itemDataManager)
+        self.loadoutGridArea = HunterLoadoutColumn.draw(
+            loadoutX,
+            contentStartY,
+            loadoutW,
+            loadoutFixedHeight,
+            self.loadoutManager,
+            self.itemDataManager
+        )
     else
         love.graphics.setColor(colors.red)
         love.graphics.printf("Erro: Loadout Manager não inicializado!",
             loadoutX + loadoutW / 2, contentStartY + sectionContentH / 2, 0, "center")
         love.graphics.setColor(colors.white)
+    end
+
+    -- Desenha Display de Artefatos abaixo do loadout
+    if artefactsHeight > 0 then
+        local artefactsY = contentStartY + loadoutFixedHeight + artefactsPadding
+        self.artefactsArea = { x = loadoutX, y = artefactsY, w = loadoutW, h = artefactsHeight }
+        ---@type ArtefactManager
+        local artefactManager = ManagerRegistry:tryGet("artefactManager")
+        if artefactManager then
+            ArtefactsDisplay:draw(
+                self.artefactsArea.x,
+                self.artefactsArea.y,
+                self.artefactsArea.w,
+                self.artefactsArea.h,
+                true, -- showSellButton
+                mx,
+                my
+            )
+        end
     end
 
     -- Desenho do Drag-and-Drop
@@ -318,6 +360,15 @@ function ShoppingScreen:handleMousePress(x, y, buttonIdx)
 
             if clickedTabIndex then
                 self.lobbyStorageManager:setActiveSection(clickedTabIndex)
+                return true, nil
+            end
+        end
+
+        -- Verifica clique no botão de vender artefatos
+        if self.artefactsArea and self.artefactsArea.w > 0 then
+            local consumed = ArtefactsDisplay:handleClick(x, y, self.artefactsArea.x, self.artefactsArea.y,
+                self.artefactsArea.w, self.artefactsArea.h)
+            if consumed then
                 return true, nil
             end
         end

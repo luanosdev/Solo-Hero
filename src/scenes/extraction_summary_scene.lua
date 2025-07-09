@@ -4,7 +4,6 @@ local colors = require("src.ui.colors")
 local elements = require("src.ui.ui_elements")
 local Constants = require("src.config.constants")
 local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
-local ManagerRegistry = require("src.managers.manager_registry")
 local HunterStatsColumn = require("src.ui.components.HunterStatsColumn")
 local ReputationSummaryColumn = require("src.ui.components.ReputationSummaryColumn")
 local GameStatsColumn = require("src.ui.components.GameStatsColumn")
@@ -42,16 +41,18 @@ function ExtractionSummaryScene:load(processedData)
     -- Garantir que listas de itens existem
     self.processedData.extractedEquipment = self.processedData.extractedEquipment or {}
     self.processedData.extractedItems = self.processedData.extractedItems or {}
+    self.processedData.extractedArtefacts = self.processedData.extractedArtefacts or {}
 
     Logger.info("ExtractionSummaryScene",
-        string.format("Cena carregada instantaneamente - %s com %d equipamentos e %d itens",
+        string.format("Cena carregada instantaneamente - %s com %d equipamentos, e %d outros itens/artefatos",
             self.processedData.extractionTitle or "Sumário",
             (function()
                 local count = 0;
                 for _ in pairs(self.processedData.extractedEquipment) do count = count + 1 end;
                 return count
             end)(),
-            #self.processedData.extractedItems))
+            #self.processedData.extractedItems + #self.processedData.extractedArtefacts
+        ))
 end
 
 --- Atualiza a lógica da cena.
@@ -210,7 +211,7 @@ function ExtractionSummaryScene:draw()
     local itemBatchCount = 0
     local maxItemsPerFrame = RENDER_BATCH_SIZE
 
-    local function drawItemEntry(itemInstance, currentItemY)
+    local function drawItemEntry(itemInstance, currentItemY, columnX, colWidth)
         -- Verificação robusta para itemInstance e itemBaseId
         if not itemInstance or not itemInstance.itemBaseId or
             itemInstance.itemBaseId == "" or type(itemInstance.itemBaseId) ~= "string" then
@@ -236,11 +237,11 @@ function ExtractionSummaryScene:draw()
 
         -- Usar dados já processados (nome, raridade, etc.) da transition scene
         local itemName = itemInstance.name or "Item Desconhecido"
-        local itemRarity = itemInstance.rarity or 'E'
+        local itemRarity = itemInstance.rarity or itemInstance.rank or 'E'
         local rankStyle = colors.rankDetails[itemRarity]
         local rankTextColor = (rankStyle and rankStyle.text) or theme.text_primary
 
-        local entryDrawX = extractedItemsX + (columnWidth - itemCardW) / 2
+        local entryDrawX = columnX + (colWidth - itemCardW) / 2
         local entryDrawY = currentItemY
 
         table.insert(self.allItemsDisplayAreas, {
@@ -320,39 +321,60 @@ function ExtractionSummaryScene:draw()
         return currentItemY + itemCardH + itemLineSpacing, false
     end
 
-    local hasDrawnAnyEquipment = false
+    local hasDrawnAnyItem = false
+
+    -- 1. Desenha equipamentos
     if self.processedData and self.processedData.extractedEquipment then
         local displayOrder = Constants.EQUIPMENT_SLOTS_ORDER or {}
         for _, slotId in ipairs(displayOrder) do
             local itemInstance = self.processedData.extractedEquipment[slotId]
-            -- Items já foram validados na transition scene
             if itemInstance and itemInstance.itemBaseId and itemInstance.itemBaseId ~= "" then
                 local newY, hasOverflowed
-                itemDisplayY, hasOverflowed = drawItemEntry(itemInstance, itemDisplayY)
+                itemDisplayY, hasOverflowed = drawItemEntry(itemInstance, itemDisplayY, extractedItemsX, columnWidth)
                 if hasOverflowed then break end
-                hasDrawnAnyEquipment = true
+                hasDrawnAnyItem = true
             end
         end
     end
 
-    if self.processedData and self.processedData.extractedItems and #self.processedData.extractedItems > 0 then
-        if hasDrawnAnyEquipment and itemDisplayY + (itemFont:getHeight() * 0.5) < columnTopY + columnContentHeight then
+    -- 2. Desenha artefatos
+    local hasArtefacts = self.processedData.extractedArtefacts and #self.processedData.extractedArtefacts > 0
+    if hasArtefacts then
+        if hasDrawnAnyItem and itemDisplayY + (itemFont:getHeight() * 0.5) < columnTopY + columnContentHeight then
+            local sepY = itemDisplayY - itemLineSpacing / 2
+            love.graphics.setColor(theme.accent_primary)
+            love.graphics.rectangle("fill", extractedItemsX + 10, sepY, columnWidth - 20, 1)
+            love.graphics.setColor(colors.white)
+        end
+        for _, artefactInstance in ipairs(self.processedData.extractedArtefacts) do
+            local newY, hasOverflowed
+            itemDisplayY, hasOverflowed = drawItemEntry(artefactInstance, itemDisplayY, extractedItemsX, columnWidth)
+            if hasOverflowed then break end
+            hasDrawnAnyItem = true
+        end
+    end
+
+    -- 3. Desenha itens normais
+    local hasNormalItems = self.processedData.extractedItems and #self.processedData.extractedItems > 0
+    if hasNormalItems then
+        if hasDrawnAnyItem and itemDisplayY + (itemFont:getHeight() * 0.5) < columnTopY + columnContentHeight then
             local sepY = itemDisplayY - itemLineSpacing / 2
             love.graphics.setColor(theme.accent_primary)
             love.graphics.rectangle("fill", extractedItemsX + 10, sepY, columnWidth - 20, 1)
             love.graphics.setColor(colors.white)
         end
         for _, itemInstance in ipairs(self.processedData.extractedItems) do
-            -- Items já foram validados na transition scene
             if itemInstance and itemInstance.itemBaseId and itemInstance.itemBaseId ~= "" then
                 local newY, hasOverflowed
-                itemDisplayY, hasOverflowed = drawItemEntry(itemInstance, itemDisplayY)
+                itemDisplayY, hasOverflowed = drawItemEntry(itemInstance, itemDisplayY, extractedItemsX, columnWidth)
                 if hasOverflowed then break end
+                hasDrawnAnyItem = true
             end
         end
     end
 
-    if #self.allItemsDisplayAreas == 0 then
+
+    if not hasDrawnAnyItem then
         love.graphics.setColor(theme.text_secondary)
         love.graphics.setFont(fonts.main_small)
         local noItemsText = isDeath and "Nenhum item foi perdido." or "Nenhum item extraído."

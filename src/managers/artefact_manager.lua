@@ -4,8 +4,9 @@
 ------------------------------------------------------------------------------------------------
 
 local PersistenceManager = require("src.core.persistence_manager")
-local artefactDefinitions = require("src.data.artefacts")
+local artefactDefinitions = require("src.data.items.artefacts")
 local artefactDrops = require("src.data.artefact_drops")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 ---@class ArtefactManager
 ---@field collectedArtefacts table<string, number> Artefatos coletados (id -> quantidade)
@@ -229,7 +230,8 @@ end
 --- Vende todos os artefatos coletados
 ---@return number totalValue Valor total vendido
 function ArtefactManager:sellAllArtefacts()
-    local patrimonyManager = getManager("PatrimonyManager")
+    ---@type PatrimonyManager
+    local patrimonyManager = ManagerRegistry:tryGet("patrimonyManager")
     local totalValue = self:getTotalArtefactsValue()
 
     if totalValue <= 0 then
@@ -251,7 +253,7 @@ function ArtefactManager:sellAllArtefacts()
 
     -- Adiciona ouro ao patrimônio
     if patrimonyManager then
-        patrimonyManager:addGold(totalValue, "artefacts_bulk_sale")
+        patrimonyManager:sellItem(totalValue, "Venda de Artefatos")
     end
 
     Logger.info(
@@ -262,6 +264,38 @@ function ArtefactManager:sellAllArtefacts()
 
     self:saveData()
     return totalValue
+end
+
+--- Limpa todos os artefatos coletados sem recompensa (e.g., em caso de morte)
+---@return number totalLost Contagem total de artefatos perdidos
+function ArtefactManager:clearAllArtefactsOnDeath()
+    local totalLost = self:getTotalArtefactsCount()
+
+    if totalLost <= 0 then
+        Logger.info("artefact_manager.clear_on_death",
+            "[ArtefactManager:clearAllArtefactsOnDeath] Nenhum artefato para perder.")
+        return 0
+    end
+
+    -- Registra os artefatos perdidos para log
+    local lostItems = {}
+    for artefactId, quantity in pairs(self.collectedArtefacts) do
+        local artefactData = self.artefactDefinitions[artefactId]
+        if artefactData then
+            table.insert(lostItems, quantity .. "x " .. artefactData.name)
+        end
+    end
+
+    Logger.info(
+        "artefact_manager.clear_on_death",
+        "[ArtefactManager:clearAllArtefactsOnDeath] Artefatos perdidos na morte: " .. table.concat(lostItems, ", ")
+    )
+
+    -- Limpa a coleção
+    self.collectedArtefacts = {}
+    self:saveData()
+
+    return totalLost
 end
 
 --- Processa drops de artefatos quando um inimigo morre
