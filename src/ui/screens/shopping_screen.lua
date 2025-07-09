@@ -239,7 +239,7 @@ function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, n
     end
 
     -- Divide o espaço da coluna de loadout entre a mochila e os artefatos
-    local artefactsHeight = 120
+    local artefactsHeight = 200
     local artefactsPadding = 15
     local loadoutFixedHeight = 350
 
@@ -272,7 +272,6 @@ function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, n
                 self.artefactsArea.y,
                 self.artefactsArea.w,
                 self.artefactsArea.h,
-                true, -- showSellButton
                 mx,
                 my
             )
@@ -363,16 +362,6 @@ function ShoppingScreen:handleMousePress(x, y, buttonIdx)
                 return true, nil
             end
         end
-
-        -- Verifica clique no botão de vender artefatos
-        if self.artefactsArea and self.artefactsArea.w > 0 then
-            local consumed = ArtefactsDisplay:handleClick(x, y, self.artefactsArea.x, self.artefactsArea.y,
-                self.artefactsArea.w, self.artefactsArea.h)
-            if consumed then
-                return true, nil
-            end
-        end
-
         -- 2. Verifica clique na área da loja (para comprar itens ou vender tudo)
         if self.shopManager and x >= self.shopArea.x and x < self.shopArea.x + self.shopArea.w and
             y >= self.shopArea.y and y < self.shopArea.y + self.shopArea.h then
@@ -385,6 +374,17 @@ function ShoppingScreen:handleMousePress(x, y, buttonIdx)
                         "shopping_screen.sell_all",
                         "[ShoppingScreen.handleMousePress] Vendidos itens do loadout por: " .. totalValue
                     )
+                    return true, nil
+                elseif shopItem.action == "sell_all_artefacts" then
+                    ---@type ArtefactManager
+                    local artefactManager = ManagerRegistry:tryGet("artefactManager")
+                    if artefactManager then
+                        local totalValue = artefactManager:sellAllArtefacts()
+                        Logger.info(
+                            "shopping_screen.sell_all_artefacts",
+                            "[ShoppingScreen.handleMousePress] Vendidos artefatos por: " .. totalValue
+                        )
+                    end
                     return true, nil
                 end
 

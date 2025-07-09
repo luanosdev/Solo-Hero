@@ -245,6 +245,7 @@ function ArtefactManager:sellAllArtefacts()
         local artefactData = self.artefactDefinitions[artefactId]
         if artefactData then
             table.insert(soldItems, quantity .. "x " .. artefactData.name)
+            NotificationDisplay.showItemSale(artefactData.name, artefactData.icon, totalValue)
         end
     end
 

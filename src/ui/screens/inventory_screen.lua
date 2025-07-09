@@ -220,7 +220,7 @@ function InventoryScreen.draw(dragState)
 
     -- Usa altura fixa mais razoável para o inventário
     local inventoryFixedHeight = 350 -- Altura fixa razoável para o inventário
-    local artefactsHeight = 120      -- Altura da seção de artefatos
+    local artefactsHeight = 300      -- Altura da seção de artefatos
     local artefactsPadding = 15      -- Padding entre inventário e artefatos
 
     -- Desenha Coluna de Inventário (usando HunterInventoryColumn)
@@ -241,7 +241,6 @@ function InventoryScreen.draw(dragState)
             artefactsY,
             innerColW,
             artefactsHeight,
-            false,
             InventoryScreen.mouseX,
             InventoryScreen.mouseY
         )

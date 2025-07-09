@@ -241,13 +241,6 @@ function PatrimonyManager:sellItem(sellPrice, itemName, icon)
             "[PatrimonyManager:sellItem] Venda realizada. Item: " ..
             itemName .. ", Preço: " .. sellPrice .. ", Novo total: " .. self.currentGold
         )
-
-        -- Exibir notificação de venda
-        if NotificationDisplay then
-            NotificationDisplay.showItemSale(itemName, icon, sellPrice)
-            Logger.debug("patrimony_manager.notification.sale",
-                "[PatrimonyManager:sellItem] Notificação de venda exibida: " .. itemName .. " por " .. sellPrice)
-        end
     end
 
     return success

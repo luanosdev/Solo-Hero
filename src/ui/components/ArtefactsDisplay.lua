@@ -20,12 +20,9 @@ end
 ---@param y number Posição Y inicial
 ---@param w number Largura disponível
 ---@param h number Altura disponível
----@param showSellButton boolean Se deve mostrar botão de venda
 ---@param mx number Posição X do mouse (para hover)
 ---@param my number Posição Y do mouse (para hover)
----@return table|nil sellButtonArea Área do botão de venda se mostrado
----@return table|nil hoveredArtefact Artefato sob o mouse (para ItemDetailsModal)
-function ArtefactsDisplay:draw(x, y, w, h, showSellButton, mx, my)
+function ArtefactsDisplay:draw(x, y, w, h, mx, my)
     ---@type ArtefactManager
     local artefactManager = ManagerRegistry:tryGet("artefactManager")
 
@@ -61,41 +58,6 @@ function ArtefactsDisplay:draw(x, y, w, h, showSellButton, mx, my)
         love.graphics.printf("Nenhum artefato coletado", x, contentStartY + availableContentH / 2, w, "center")
         love.graphics.setColor(colors.white)
         return nil, nil
-    end
-
-    -- Área para botão de venda (se mostrado)
-    local sellButtonArea = nil
-    local sellButtonHeight = 30
-    local sellButtonPadding = 5
-    local artefactsContentH = availableContentH
-
-    if showSellButton then
-        artefactsContentH = availableContentH - sellButtonHeight - sellButtonPadding
-
-        -- Calcula área do botão de venda
-        sellButtonArea = {
-            x = x,
-            y = contentStartY + artefactsContentH + sellButtonPadding,
-            w = w,
-            h = sellButtonHeight
-        }
-
-        -- Desenha botão de venda
-        local isHoverSell = mx >= sellButtonArea.x and mx < sellButtonArea.x + sellButtonArea.w and
-            my >= sellButtonArea.y and my < sellButtonArea.y + sellButtonArea.h
-
-        local buttonColor = isHoverSell and colors.button_primary.hoverColor or colors.button_primary.bgColor
-        love.graphics.setColor(buttonColor)
-        love.graphics.rectangle("fill", sellButtonArea.x, sellButtonArea.y, sellButtonArea.w, sellButtonArea.h)
-
-        love.graphics.setColor(colors.button_border)
-        love.graphics.rectangle("line", sellButtonArea.x, sellButtonArea.y, sellButtonArea.w, sellButtonArea.h)
-
-        love.graphics.setColor(colors.text_default)
-        love.graphics.setFont(fonts.main)
-        local sellText = string.format("Vender Todos (%dG)", totalValue)
-        love.graphics.printf(sellText, sellButtonArea.x,
-            sellButtonArea.y + (sellButtonArea.h - fonts.main:getHeight()) / 2, sellButtonArea.w, "center")
     end
 
     -- Configuração do grid (artefatos são 1.5x1.5)
@@ -150,7 +112,7 @@ function ArtefactsDisplay:draw(x, y, w, h, showSellButton, mx, my)
         end
 
         -- Verifica se ainda cabe na altura disponível
-        if currentY + itemVisualSize > contentStartY + artefactsContentH then
+        if currentY + itemVisualSize > contentStartY + availableContentH then
             -- Desenha indicador de "mais itens"
             love.graphics.setColor(colors.text_muted)
             love.graphics.printf("...", currentX, currentY, w - (currentX - x), "left")
@@ -263,16 +225,16 @@ function ArtefactsDisplay:draw(x, y, w, h, showSellButton, mx, my)
 
     -- Desenha resumo no final
     if #sortedArtefacts > 0 then
-        local summaryY = math.min(currentY + itemVisualSize + padding * 2,
-            contentStartY + artefactsContentH - fonts.main_small:getHeight())
+        local summaryY = math.min(
+            currentY + itemVisualSize + padding * 2, contentStartY + availableContentH - fonts.main_small:getHeight()
+        )
         love.graphics.setColor(colors.text_muted)
         love.graphics.setFont(fonts.main_small)
-        local summaryText = string.format("Total: %d artefatos (%dG)", totalArtefacts, totalValue)
+        local summaryText = string.format("Total: %d artefatos R$: (%d)", totalArtefacts, totalValue)
         love.graphics.printf(summaryText, x, summaryY, w, "center")
     end
 
     love.graphics.setColor(colors.white) -- Reset cor
-    return sellButtonArea, hoveredArtefact
 end
 
 --- Detecta cliques no display de artefatos (especialmente botão de venda)

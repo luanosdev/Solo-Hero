@@ -47,20 +47,36 @@ function ShopColumn.draw(x, y, w, h, shopManager, itemDataManager, mx, my)
     love.graphics.printf(timeText, x + padding, currentY, w - padding * 2, "center")
     currentY = currentY + (fonts.main_small and fonts.main_small:getHeight() or 12) + padding
 
-    -- Botão "Vender Tudo"
+    -- Botões de venda (Loadout e Artefatos)
     local sellButtonH = 30
     local sellButtonY = currentY
-    local isHoveringSellButton = mx >= x + padding and mx <= x + w - padding and
-        my >= sellButtonY and my <= sellButtonY + sellButtonH
+    local buttonSpacing = 6
+    local totalButtonW = w - padding * 2
+    local buttonW = (totalButtonW - buttonSpacing) / 2
 
-    local sellButtonColor = isHoveringSellButton and colors.button_primary.hoverColor or colors.button_primary.bgColor
-    love.graphics.setColor(sellButtonColor)
-    love.graphics.rectangle("fill", x + padding, sellButtonY, w - padding * 2, sellButtonH)
+    -- Botão Loadout
+    local loadoutBtnX = x + padding
+    local isHoverLoadout = mx >= loadoutBtnX and mx <= loadoutBtnX + buttonW and
+        my >= sellButtonY and my <= sellButtonY + sellButtonH
+    local loadoutBtnColor = isHoverLoadout and colors.button_primary.hoverColor or colors.button_primary.bgColor
+    love.graphics.setColor(loadoutBtnColor)
+    love.graphics.rectangle("fill", loadoutBtnX, sellButtonY, buttonW, sellButtonH)
 
     love.graphics.setColor(colors.text_default)
     love.graphics.setFont(fonts.main or love.graphics.newFont(14))
-    love.graphics.printf("Vender Tudo do Loadout", x + padding, sellButtonY + sellButtonH / 2 - 7,
-        w - padding * 2, "center")
+    love.graphics.printf("Vender Loadout", loadoutBtnX, sellButtonY + sellButtonH / 2 - 7, buttonW, "center")
+
+    -- Botão Artefatos
+    local arteBtnX = loadoutBtnX + buttonW + buttonSpacing
+    local isHoverArte = mx >= arteBtnX and mx <= arteBtnX + buttonW and
+        my >= sellButtonY and my <= sellButtonY + sellButtonH
+    local arteBtnColor = isHoverArte and colors.button_primary.hoverColor or colors.button_primary.bgColor
+    love.graphics.setColor(arteBtnColor)
+    love.graphics.rectangle("fill", arteBtnX, sellButtonY, buttonW, sellButtonH)
+
+    love.graphics.setColor(colors.text_default)
+    love.graphics.setFont(fonts.main or love.graphics.newFont(14))
+    love.graphics.printf("Vender Artefatos", arteBtnX, sellButtonY + sellButtonH / 2 - 7, buttonW, "center")
 
     currentY = currentY + sellButtonH + padding * 2
 
@@ -384,7 +400,7 @@ end
 ---@param y number Posição Y do mouse
 ---@param shopArea table Área da loja {x, y, w, h}
 ---@param shopManager ShopManager Gerenciador da loja
----@return ShopItem|nil item Item clicado se houver
+---@return ShopItem|{action: string}|nil item Item clicado se houver
 function ShopColumn.getItemAtPosition(x, y, shopArea, shopManager)
     if not shopArea or not shopArea.y or not shopManager then return nil end
 
@@ -401,11 +417,23 @@ function ShopColumn.getItemAtPosition(x, y, shopArea, shopManager)
     -- Timer de atualização
     currentY = currentY + (fonts.main_small and fonts.main_small:getHeight() or 12) + padding
 
-    -- Verifica botão "Vender Tudo"
+    -- Verifica botões de venda
     local sellButtonY = currentY
-    if x >= shopArea.x + padding and x <= shopArea.x + shopArea.w - padding and
+    local buttonSpacing = 6
+    local totalButtonW = shopArea.w - padding * 2
+    local buttonW = (totalButtonW - buttonSpacing) / 2
+
+    -- Área botão Loadout
+    if x >= shopArea.x + padding and x <= shopArea.x + padding + buttonW and
         y >= sellButtonY and y <= sellButtonY + 30 then
         return { action = "sell_all" }
+    end
+
+    -- Área botão Artefatos
+    local arteBtnX = shopArea.x + padding + buttonW + buttonSpacing
+    if x >= arteBtnX and x <= arteBtnX + buttonW and
+        y >= sellButtonY and y <= sellButtonY + 30 then
+        return { action = "sell_all_artefacts" }
     end
 
     currentY = currentY + 30 + padding * 2

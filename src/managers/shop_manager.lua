@@ -348,6 +348,7 @@ function ShopManager:sellAllFromLoadout(loadoutManager)
             -- Adiciona à lista para log
             table.insert(itemsToBulkSell, { name = baseData.name, quantity = item.quantity, value = sellValue })
 
+            NotificationDisplay.showItemSale(baseData.name, baseData.icon, sellValue)
             -- Remove o item do loadout
             loadoutManager:removeItemInstance(instanceId)
         end
