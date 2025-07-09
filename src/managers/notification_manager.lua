@@ -18,6 +18,8 @@ local NotificationManager = {}
 --- @field targetY number Posição Y de destino
 --- @field currentY number Posição Y atual
 --- @field alpha number Transparência atual (0-1)
+--- @field isUpdatingValue boolean Se o valor está animando
+--- @field valueAnimationTime number Temporizador para a animação de valor
 
 --- @type NotificationData[]
 local activeNotifications = {}
@@ -62,7 +64,9 @@ function NotificationManager._createEmptyNotification()
         animationTime = 0,
         targetY = 0,
         currentY = 0,
-        alpha = 1.0
+        alpha = 1.0,
+        isUpdatingValue = false,
+        valueAnimationTime = 0
     }
 end
 
@@ -95,6 +99,8 @@ function NotificationManager._returnNotificationToPool(notification)
     notification.targetY = 0
     notification.currentY = 0
     notification.alpha = 1.0
+    notification.isUpdatingValue = false
+    notification.valueAnimationTime = 0
 
     table.insert(notificationPool, notification)
 end
@@ -179,14 +185,29 @@ function NotificationManager.update(dt)
             if existingIndex then
                 -- Remove da posição atual e reinsere no topo
                 local existing = table.remove(activeNotifications, existingIndex)
-                existing.value = data.value or ""
+
+                -- Lógica de incremento para itens
+                if existing.type == NotificationDisplay.NOTIFICATION_TYPES.ITEM_PICKUP then
+                    -- Extrai o número do valor antigo e do novo (formato "x<num>")
+                    local oldValue = tonumber(string.match(existing.value, "x(%d+)")) or 0
+                    local newValue = tonumber(string.match(data.value, "x(%d+)")) or 0
+                    local totalValue = oldValue + newValue
+                    existing.value = "x" .. tostring(totalValue)
+                else
+                    -- Para outros tipos, apenas substitui o valor
+                    existing.value = data.value or ""
+                end
+
                 existing.createdAt = love.timer.getTime()
                 existing.animationPhase = "sliding_in"
                 existing.animationTime = 0
-                existing.alpha = 1.0
+                existing.alpha = NotificationDisplay.NOTIFICATION_SYSTEM.INITIAL_ALPHA
+                existing.isUpdatingValue = true
+                existing.valueAnimationTime = 0
                 table.insert(activeNotifications, 1, existing)
                 Logger.debug("notification_manager.update.refreshed_existing",
-                    "[NotificationManager:update] Notificação atualizada: " .. existing.title)
+                    "[NotificationManager:update] Notificação atualizada: " ..
+                    existing.title .. " para " .. existing.value)
             else
                 -- Cria uma nova notificação
                 local notification = NotificationManager._getNotificationFromPool()
@@ -202,7 +223,9 @@ function NotificationManager.update(dt)
                 notification.createdAt = love.timer.getTime()
                 notification.animationPhase = "sliding_in"
                 notification.animationTime = 0
-                notification.alpha = 1.0
+                notification.alpha = NotificationDisplay.NOTIFICATION_SYSTEM.INITIAL_ALPHA
+                notification.isUpdatingValue = false
+                notification.valueAnimationTime = 0
 
                 table.insert(activeNotifications, 1, notification)
                 Logger.debug("notification_manager.update.new_notification",
@@ -218,6 +241,16 @@ function NotificationManager.update(dt)
     -- Iterar de trás para frente para permitir remoção segura
     for i = #activeNotifications, 1, -1 do
         local notification = activeNotifications[i]
+
+        -- Lida com a animação de atualização do valor
+        if notification.isUpdatingValue then
+            notification.valueAnimationTime = notification.valueAnimationTime + dt
+            if notification.valueAnimationTime >= NotificationDisplay.NOTIFICATION_SYSTEM.VALUE_UPDATE_ANIMATION_DURATION then
+                notification.isUpdatingValue = false
+                notification.valueAnimationTime = 0
+            end
+        end
+
         local elapsedTime = currentTime - notification.createdAt
 
         -- Verificar se deve começar a fade out

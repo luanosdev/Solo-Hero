@@ -256,7 +256,7 @@ function ShopManager:purchaseItem(itemId, quantity)
         end
 
         -- Processa a compra
-        local purchased = self.patrimonyManager:purchaseItem(totalCost, itemId, itemBase.name, itemIcon)
+        local purchased = self.patrimonyManager:purchaseItem(totalCost, itemBase.name, itemIcon)
         if not purchased then
             return false
         end
@@ -311,7 +311,7 @@ function ShopManager:sellItem(itemInstance)
     if sellPrice > 0 then
         -- Adiciona dinheiro ao patrimônio do jogador
         if self.patrimonyManager then
-            self.patrimonyManager:sellItem(sellPrice, itemInstance.itemBaseId, itemInstance.name, itemInstance.icon)
+            self.patrimonyManager:sellItem(sellPrice, itemInstance.name, itemInstance.icon)
         end
 
         Logger.info(
@@ -335,6 +335,7 @@ function ShopManager:sellAllFromLoadout(loadoutManager)
     if not loadoutManager then return 0 end
 
     local totalValue = 0
+    local itemsToBulkSell = {}
     local loadoutItems = loadoutManager:getItems()
 
     for instanceId, item in pairs(loadoutItems) do
@@ -344,6 +345,9 @@ function ShopManager:sellAllFromLoadout(loadoutManager)
             local sellValue = (baseData.value or 1) * item.quantity
             totalValue = totalValue + sellValue
 
+            -- Adiciona à lista para log
+            table.insert(itemsToBulkSell, { name = baseData.name, quantity = item.quantity, value = sellValue })
+
             -- Remove o item do loadout
             loadoutManager:removeItemInstance(instanceId)
         end
@@ -351,12 +355,19 @@ function ShopManager:sellAllFromLoadout(loadoutManager)
 
     -- Adiciona o dinheiro ao patrimônio do jogador
     if self.patrimonyManager and totalValue > 0 then
-        self.patrimonyManager:sellItem(totalValue, "loadout_bulk_sale", "Venda de itens do loadout", nil)
+        self.patrimonyManager:sellItem(totalValue, "loadout_bulk_sale") -- Ícone não se aplica a venda em massa
+    end
+
+    -- Log aprimorado
+    local itemNames = {}
+    for _, itemInfo in ipairs(itemsToBulkSell) do
+        table.insert(itemNames, itemInfo.quantity .. "x " .. itemInfo.name)
     end
 
     Logger.info(
         "shop_manager.sell_all_from_loadout",
-        "[ShopManager.sellAllFromLoadout] Vendidos itens por valor total: " .. totalValue
+        "[ShopManager.sellAllFromLoadout] Vendidos itens (" ..
+        table.concat(itemNames, ", ") .. ") por valor total: " .. totalValue
     )
     return totalValue
 end

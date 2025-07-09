@@ -34,6 +34,12 @@ NotificationDisplay.NOTIFICATION_SYSTEM = {
     POOL_SIZE = 10,
     -- Distância da animação de slide (pixels fora da tela)
     SLIDE_DISTANCE = 350,
+    -- Alpha inicial da notificação
+    INITIAL_ALPHA = 0.8,
+    -- Duração da animação de "bump" do valor
+    VALUE_UPDATE_ANIMATION_DURATION = 0.4,
+    -- Escala máxima do valor durante a animação
+    VALUE_UPDATE_SCALE = 1.5,
 }
 
 -- Tipos de notificação para diferentes contextos
@@ -96,7 +102,7 @@ function NotificationDisplay._drawNotification(notification)
     end
 
     -- Aplicar transparência
-    local alpha = notification.alpha or 1.0
+    local alpha = notification.alpha or NotificationDisplay.NOTIFICATION_SYSTEM.INITIAL_ALPHA
 
     -- Salvar estado gráfico
     love.graphics.push()
@@ -194,8 +200,8 @@ function NotificationDisplay._drawText(x, yContainer, containerWidth, notificati
     -- Configurar fontes e cores
     local titleFont = NotificationDisplay.titleFont
     local valueFont = NotificationDisplay.valueFont
-    local textColor = Colors.text_main
-    love.graphics.setColor(textColor[1], textColor[2], textColor[3], alpha)
+    local titleColor = Colors.text_main
+    local valueColor = Colors.white
 
     local title = notification.title or ""
     local valueText = tostring(notification.value or "")
@@ -206,25 +212,43 @@ function NotificationDisplay._drawText(x, yContainer, containerWidth, notificati
     local y = yContainer + (containerHeight - textHeight) / 2
 
     if valueText ~= "" then
-        love.graphics.setColor(Colors.white[1], Colors.white[2], Colors.white[3], alpha)
         love.graphics.setFont(valueFont)
+        love.graphics.setColor(valueColor[1], valueColor[2], valueColor[3], alpha)
         local valueWidth = valueFont:getWidth(valueText)
-
-        -- Calcular espaço disponível para o título para não sobrepor o valor
-        local titleMaxWidth = containerWidth - valueWidth - 10 -- 10px de espaço
-        love.graphics.setFont(titleFont)
-        local truncatedTitle = NotificationDisplay._truncateText(title, titleFont, titleMaxWidth)
-
-        -- Desenhar título
-        love.graphics.print(truncatedTitle, x, y)
-
-        -- Desenhar valor alinhado à direita
-        love.graphics.setFont(valueFont)
+        local valueHeight = valueFont:getHeight()
         local valueX = x + containerWidth - valueWidth
-        love.graphics.print(valueText, valueX, y)
-    else
-        -- Apenas desenhar o título se não houver valor
+
+        -- Animação de escala do valor ao ser atualizado
+        local valueScale = 1.0
+        if notification.isUpdatingValue then
+            local animDuration = NotificationDisplay.NOTIFICATION_SYSTEM.VALUE_UPDATE_ANIMATION_DURATION
+            local maxScale = NotificationDisplay.NOTIFICATION_SYSTEM.VALUE_UPDATE_SCALE
+            local progress = notification.valueAnimationTime / animDuration
+
+            -- Animação de "bounce": sobe e desce
+            if progress < 0.5 then
+                local t = progress * 2                                         -- 0 -> 1
+                valueScale = 1.0 + (maxScale - 1.0) * (1 - math.pow(1 - t, 2)) -- EaseOut
+            else
+                local t = (progress - 0.5) * 2                                 -- 0 -> 1
+                valueScale = maxScale - (maxScale - 1.0) * (t * t)             -- EaseIn
+            end
+        end
+
+        -- Desenha o valor com a animação de escala
+        local ox = valueWidth / 2
+        local oy = valueHeight / 2
+        love.graphics.print(valueText, valueX + ox, y + oy, 0, valueScale, valueScale, ox, oy)
+
         love.graphics.setFont(titleFont)
+        love.graphics.setColor(titleColor[1], titleColor[2], titleColor[3], alpha)
+        local titleMaxWidth = containerWidth - valueWidth - 10 -- 10px de espaçamento
+        local truncatedTitle = NotificationDisplay._truncateText(title, titleFont, titleMaxWidth)
+        love.graphics.print(truncatedTitle, x, y)
+    else
+        -- Apenas o título
+        love.graphics.setFont(titleFont)
+        love.graphics.setColor(titleColor[1], titleColor[2], titleColor[3], alpha)
         local truncatedTitle = NotificationDisplay._truncateText(title, titleFont, containerWidth)
         love.graphics.print(truncatedTitle, x, y)
     end
