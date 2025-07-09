@@ -324,7 +324,7 @@ function ShopColumn.drawShopItem(x, y, w, h, shopItem, itemDataManager, mx, my, 
 
         -- Preço em promoção (centralizado, abaixo do preço original)
         love.graphics.setFont(fonts.resource_value or fonts.main_large)
-        priceText = Formatters.formatCompactNumber(shopItem.salePrice)
+        priceText = Formatters.formatCompactNumber(shopItem.salePrice, 2)
         priceText = "R$ " .. priceText
         local priceHeight = (fonts.resource_value or fonts.main_large):getHeight()
         finalPriceY = priceCenterY - 15
@@ -340,7 +340,7 @@ function ShopColumn.drawShopItem(x, y, w, h, shopItem, itemDataManager, mx, my, 
         end
     else
         -- Preço normal (centralizado)
-        priceText = Formatters.formatCompactNumber(shopItem.price)
+        priceText = Formatters.formatCompactNumber(shopItem.price, 2)
         priceText = "R$ " .. priceText
         local priceHeight = (fonts.resource_value or fonts.main_large):getHeight()
         finalPriceY = priceCenterY - priceHeight / 2

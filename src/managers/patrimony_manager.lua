@@ -97,6 +97,13 @@ function PatrimonyManager:addGold(amount, reason)
         "[PatrimonyManager:addGold] +" .. amount .. " gold (" .. reason .. "). Total: " .. self.currentGold
     )
 
+    -- Exibir notificação de mudança de patrimônio
+    if NotificationDisplay then
+        NotificationDisplay.showMoneyChange(amount)
+        Logger.debug("patrimony_manager.notification.money_change",
+            "[PatrimonyManager:addGold] Notificação de mudança de patrimônio exibida: +" .. amount)
+    end
+
     self:saveData()
     return true
 end
@@ -129,6 +136,13 @@ function PatrimonyManager:removeGold(amount, reason)
         "patrimony_manager.remove_gold",
         "[PatrimonyManager:removeGold] -" .. amount .. " gold (" .. reason .. "). Total: " .. self.currentGold
     )
+
+    -- Exibir notificação de mudança de patrimônio (exceto para compras/vendas que já têm notificações próprias)
+    if NotificationDisplay then
+        NotificationDisplay.showMoneyChange(-amount)
+        Logger.debug("patrimony_manager.notification.money_change",
+            "[PatrimonyManager:removeGold] Notificação de mudança de patrimônio exibida: -" .. amount)
+    end
 
     self:saveData()
     return true
@@ -178,9 +192,11 @@ end
 
 --- Processa transação de compra
 ---@param itemPrice number Preço do item
----@param itemName string Nome do item (para log)
+---@param itemId string ID do item
+---@param itemName string Nome do item
+---@param icon love.Image|nil Ícone do item
 ---@return boolean success Se a compra foi bem-sucedida
-function PatrimonyManager:purchaseItem(itemPrice, itemName)
+function PatrimonyManager:purchaseItem(itemPrice, itemId, itemName, icon)
     itemName = itemName or "unknown_item"
 
     if not self:hasEnoughGold(itemPrice) then
@@ -192,13 +208,20 @@ function PatrimonyManager:purchaseItem(itemPrice, itemName)
         return false
     end
 
-    local success = self:removeGold(itemPrice, "purchase_" .. itemName)
+    local success = self:removeGold(itemPrice, "purchase_" .. itemId)
     if success then
         Logger.info(
             "patrimony_manager.purchase",
             "[PatrimonyManager:purchaseItem] Compra realizada. Item: " ..
             itemName .. ", Preço: " .. itemPrice .. ", Novo total: " .. self.currentGold
         )
+
+        -- Exibir notificação de compra
+        if NotificationDisplay then
+            NotificationDisplay.showItemPurchase(itemName, icon, itemPrice)
+            Logger.debug("patrimony_manager.notification.purchase",
+                "[PatrimonyManager:purchaseItem] Notificação de compra exibida: " .. itemName .. " por " .. itemPrice)
+        end
     end
 
     return success
@@ -206,18 +229,27 @@ end
 
 --- Processa transação de venda
 ---@param sellPrice number Preço de venda do item
----@param itemName string Nome do item (para log)
+---@param itemId string ID do item
+---@param itemName string Nome do item
+---@param icon love.Image|nil Ícone do item
 ---@return boolean success Se a venda foi bem-sucedida
-function PatrimonyManager:sellItem(sellPrice, itemName)
+function PatrimonyManager:sellItem(sellPrice, itemId, itemName, icon)
     itemName = itemName or "unknown_item"
 
-    local success = self:addGold(sellPrice, "sale_" .. itemName)
+    local success = self:addGold(sellPrice, "sale_" .. itemId)
     if success then
         Logger.info(
             "patrimony_manager.sell",
             "[PatrimonyManager:sellItem] Venda realizada. Item: " ..
             itemName .. ", Preço: " .. sellPrice .. ", Novo total: " .. self.currentGold
         )
+
+        -- Exibir notificação de venda
+        if NotificationDisplay then
+            NotificationDisplay.showItemSale(itemName, icon, sellPrice)
+            Logger.debug("patrimony_manager.notification.sale",
+                "[PatrimonyManager:sellItem] Notificação de venda exibida: " .. itemName .. " por " .. sellPrice)
+        end
     end
 
     return success

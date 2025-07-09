@@ -136,6 +136,13 @@ function ArtefactManager:addArtefact(artefactId, quantity)
         ". Total: " .. self.collectedArtefacts[artefactId]
     )
 
+    -- Exibir notificação de coleta de artefato
+    if NotificationDisplay and artefactData then
+        NotificationDisplay.showItemPickup(artefactData.name, quantity, artefactData.icon, artefactData.rank)
+        Logger.debug("artefact_manager.notification.pickup",
+            "[ArtefactManager:addArtefact] Notificação de artefato exibida: " .. artefactData.name .. " x" .. quantity)
+    end
+
     return true
 end
 

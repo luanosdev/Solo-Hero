@@ -413,6 +413,24 @@ function DropManager:applyDrop(dropConfig)
                     baseOffsetY = -40, -- Offset Y base (acima da cabeça do jogador)
                     baseOffsetX = 0
                 })
+
+                -- Exibir notificação de coleta de item
+                if NotificationDisplay then
+                    local itemIcon = nil
+                    if baseData and baseData.icon then
+                        if type(baseData.icon) == "string" then
+                            itemIcon = love.graphics.newImage(baseData.icon)
+                        else
+                            itemIcon = baseData.icon
+                        end
+                    end
+
+                    NotificationDisplay.showItemPickup(itemName, addedQuantity, itemIcon, itemRarity)
+                    Logger.debug(
+                        "drop_manager.notification.item_pickup",
+                        "[DropManager:applyDrop] Notificação de coleta exibida: " .. itemName .. " x" .. addedQuantity
+                    )
+                end
             else
                 Logger.debug("DropManager:applyDrop",
                     string.format("Falha ao coletar %s (Inventário cheio?).", itemBaseId))

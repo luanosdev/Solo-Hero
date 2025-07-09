@@ -13,6 +13,8 @@ local AgencyManager = require("src.managers.agency_manager")
 local ReputationManager = require("src.managers.reputation_manager")
 local GameStatisticsManager = require("src.managers.game_statistics_manager")
 local ArtefactManager = require("src.managers.artefact_manager")
+local NotificationManager = require("src.managers.notification_manager")
+local NotificationDisplay = require("src.ui.components.notification_display")
 local fonts = require("src.ui.fonts")
 
 local lovebird = require("src.libs.lovebird")
@@ -119,11 +121,24 @@ function love.load()
     local artefactMgr = ArtefactManager:new()
     artefactMgr:initialize()
     ManagerRegistry:register("artefactManager", artefactMgr)
+
+    -- Inicializar sistema de notificações global
+    NotificationManager.init()
+    NotificationDisplay.init()
+    _G.NotificationManager = NotificationManager
+    _G.NotificationDisplay = NotificationDisplay
+
+    Logger.info("main.notifications.initialized", "[main.love.load] Sistema de notificações inicializado globalmente")
 end
 
 function love.update(dt)
     -- Delega o update para a cena atual (se não for encerrar)
     SceneManager.update(dt)
+
+    -- Atualizar sistema de notificações
+    if NotificationManager then
+        NotificationManager.update(dt)
+    end
 
     if LOGS_ON_CONSOLE then
         lovebird.update()
@@ -140,6 +155,11 @@ function love.draw()
 
     -- Desenha a cena ativa
     SceneManager.draw()
+
+    -- Desenhar notificações globais (sobre todas as cenas)
+    if NotificationDisplay then
+        NotificationDisplay.draw()
+    end
 
     -- Info básica de debug (modo DEV)
     if DEV then
@@ -292,5 +312,35 @@ _G.GSDropItem = function(itemId, quantity)
         scene:debugDropItemAtPlayer(itemId, quantity)
     else
         error("Não foi possível chamar debugDropItemAtPlayer. Cena atual ou método não encontrado.")
+    end
+end
+
+-- Função global para testar o sistema de notificações
+_G.GSTestNotifications = function()
+    if NotificationDisplay then
+        Logger.info("main.test_notifications", "[GSTestNotifications] Testando sistema de notificações...")
+
+        -- Teste de coleta de item comum
+        NotificationDisplay.showItemPickup("Espada de Ferro", 1, nil, "E")
+
+        -- Aguardar um pouco e testar item raro
+        love.timer.sleep(1)
+        NotificationDisplay.showItemPickup("Espada Lendária", 1, nil, "A")
+
+        -- Teste de mudança de patrimônio
+        love.timer.sleep(1)
+        NotificationDisplay.showMoneyChange(500)
+
+        -- Teste de compra
+        love.timer.sleep(1)
+        NotificationDisplay.showItemPurchase("Poção de Vida", 25)
+
+        -- Teste de venda
+        love.timer.sleep(1)
+        NotificationDisplay.showItemSale("Equipamento Velho", 15)
+
+        Logger.info("main.test_notifications", "[GSTestNotifications] Testes de notificação enviados!")
+    else
+        error("Sistema de notificações não está disponível.")
     end
 end

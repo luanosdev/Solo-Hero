@@ -247,8 +247,16 @@ function ShopManager:purchaseItem(itemId, quantity)
             return false
         end
 
+        -- Pega o item base
+        local itemBase = self.itemDataManager:getBaseItemData(itemId)
+        -- Pega a imagem do item base
+        local itemIcon = nil
+        if itemBase and itemBase.icon then
+            itemIcon = love.graphics.newImage(itemBase.icon)
+        end
+
         -- Processa a compra
-        local purchased = self.patrimonyManager:purchaseItem(totalCost, itemId)
+        local purchased = self.patrimonyManager:purchaseItem(totalCost, itemId, itemBase.name, itemIcon)
         if not purchased then
             return false
         end
@@ -303,7 +311,7 @@ function ShopManager:sellItem(itemInstance)
     if sellPrice > 0 then
         -- Adiciona dinheiro ao patrimônio do jogador
         if self.patrimonyManager then
-            self.patrimonyManager:sellItem(sellPrice, itemInstance.itemBaseId)
+            self.patrimonyManager:sellItem(sellPrice, itemInstance.itemBaseId, itemInstance.name, itemInstance.icon)
         end
 
         Logger.info(
@@ -343,7 +351,7 @@ function ShopManager:sellAllFromLoadout(loadoutManager)
 
     -- Adiciona o dinheiro ao patrimônio do jogador
     if self.patrimonyManager and totalValue > 0 then
-        self.patrimonyManager:sellItem(totalValue, "loadout_bulk_sale")
+        self.patrimonyManager:sellItem(totalValue, "loadout_bulk_sale", "Venda de itens do loadout", nil)
     end
 
     Logger.info(
