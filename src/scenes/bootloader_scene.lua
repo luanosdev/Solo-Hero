@@ -12,7 +12,9 @@ local displayTimer = 0
 local minDisplayTime = 1.5 -- Tempo mínimo em segundos que a cena ficará visível
 
 local logo = nil
+local gameLogo = nil
 local logoPath = "assets/images/FDK_LOGO_WHITE.png" -- Caminho para a imagem da logo
+local gameLogoPath = "assets/images/logo.png"
 local titleText = "Solo Hero"
 local loadingText = "Loading..."
 
@@ -36,12 +38,14 @@ function BootloaderScene:load(args)
     -- Carrega a logo
     local imgSuccess, imgErr = pcall(function()
         logo = love.graphics.newImage(logoPath)
+        gameLogo = love.graphics.newImage(gameLogoPath)
     end)
     if imgSuccess and logo then
         print("Logo carregada com sucesso.")
     else
         print(string.format("Erro ao carregar a logo '%s': %s", logoPath, tostring(imgErr or "Imagem não encontrada")))
         logo = nil -- Garante que logo é nil se falhar
+        gameLogo = nil
     end
 
     -- Marca o carregamento como completo para permitir a transição após o tempo mínimo.
@@ -83,7 +87,19 @@ function BootloaderScene:draw()
 
     local logoY = 0                    -- Inicializa para evitar erro se logo não carregar
     local logoDrawH = 0                -- Altura da logo desenhada (para posicionar texto abaixo)
-    local logoScale = 0.5              -- Fator de escala (0.5 = 50% do tamanho original). Ajuste conforme necessário!
+    local logoScale = 0.1              -- Fator de escala (0.5 = 50% do tamanho original). Ajuste conforme necessário!
+    local gameLogoScale = 0.7
+    local gameLogoDrawH = 0
+
+    if gameLogo then
+        local gameLogoW = gameLogo:getWidth()
+        local gameLogoH = gameLogo:getHeight()
+        local scaledGameLogoW = gameLogoW * gameLogoScale
+        local scaledGameLogoH = gameLogoH * gameLogoScale
+        gameLogoDrawH = scaledGameLogoH -- Guarda a altura que será efetivamente desenhada
+        local gameLogoX = (w / 2) - (scaledGameLogoW / 2)
+        love.graphics.draw(gameLogo, gameLogoX, logoY, 0, gameLogoScale, gameLogoScale)
+    end
 
     -- Desenha a Logo (se carregada)
     if logo then
@@ -96,9 +112,9 @@ function BootloaderScene:draw()
 
         -- Calcula posição para centralizar a logo *redimensionada*
         local logoX = (w / 2) - (scaledLogoW / 2)
-        logoY = (h / 2) - (scaledLogoH / 2) - 30 -- Centraliza um pouco acima do meio
+        logoY = (h / 2) - (scaledLogoH / 2) + gameLogoDrawH / 2 -- Centraliza um pouco acima do meio
 
-        love.graphics.setColor(1, 1, 1, 1)       -- Cor branca padrão
+        love.graphics.setColor(1, 1, 1, 1)                      -- Cor branca padrão
         -- Desenha a logo com a escala aplicada nos parâmetros 5 e 6
         love.graphics.draw(logo, logoX, logoY, 0, logoScale, logoScale)
     end
