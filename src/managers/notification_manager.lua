@@ -189,10 +189,10 @@ function NotificationManager.update(dt)
                 -- Lógica de incremento para itens
                 if existing.type == NotificationDisplay.NOTIFICATION_TYPES.ITEM_PICKUP then
                     -- Extrai o número do valor antigo e do novo (formato "x<num>")
-                    local oldValue = tonumber(string.match(existing.value, "x(%d+)")) or 0
-                    local newValue = tonumber(string.match(data.value, "x(%d+)")) or 0
+                    local oldValue = tonumber(string.match(existing.value, "+ (%d+)")) or 0
+                    local newValue = tonumber(string.match(data.value, "+ (%d+)")) or 0
                     local totalValue = oldValue + newValue
-                    existing.value = "x" .. tostring(totalValue)
+                    existing.value = "+ " .. tostring(totalValue)
                 else
                     -- Para outros tipos, apenas substitui o valor
                     existing.value = data.value or ""
