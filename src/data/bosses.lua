@@ -65,7 +65,7 @@ local bosses = {
         name = "O Imortal Apodrecido",
 
         -- Stats
-        maxHealth = 30000,
+        maxHealth = 50000,
         experienceValue = 1000,
         damage = 200,
         speed = 60,
