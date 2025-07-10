@@ -217,7 +217,7 @@ function PatrimonyManager:purchaseItem(itemPrice, itemName, icon)
 
         -- Exibir notificação de compra
         if NotificationDisplay then
-            NotificationDisplay.showItemPurchase(itemName, icon, itemPrice)
+            NotificationDisplay.showItemPurchase(itemName, icon, 1)
             Logger.debug("patrimony_manager.notification.purchase",
                 "[PatrimonyManager:purchaseItem] Notificação de compra exibida: " .. itemName .. " por " .. itemPrice)
         end

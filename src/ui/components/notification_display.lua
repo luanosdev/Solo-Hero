@@ -51,6 +51,7 @@ NotificationDisplay.NOTIFICATION_TYPES = {
     ITEM_SALE = "item_sale",
     LEVEL_UP = "level_up",
     ACHIEVEMENT = "achievement",
+    INSUFFICIENT_FUNDS = "insufficient_funds",
 }
 
 --- Inicializa o sistema de renderização de notificações
@@ -313,7 +314,7 @@ end
 --- @param rarity string|nil
 function NotificationDisplay.showItemPickup(itemName, quantity, icon, rarity)
     local title = itemName
-    local value = quantity and ("x" .. tostring(quantity)) or ""
+    local value = quantity and ("+ " .. tostring(quantity)) or ""
     local rarityColor = NotificationDisplay.getRarityColor(rarity)
 
     NotificationManager.show({
@@ -330,7 +331,8 @@ end
 --- @param amount number
 function NotificationDisplay.showMoneyChange(amount)
     local title = amount >= 0 and "Patrimônio Ganho" or "Patrimônio Gasto"
-    local value = "R$" .. tostring(Formatters.formatCompactNumber(amount, 2))
+    local gainOrLoss = amount >= 0 and "+" or "-"
+    local value = gainOrLoss .. "R$" .. tostring(Formatters.formatCompactNumber(amount, 2))
     local color = amount >= 0 and Colors.extraction_transition.success.background or
         Colors.extraction_transition.death.background
 
@@ -346,34 +348,45 @@ end
 --- Cria uma notificação para compra de item
 --- @param itemName string
 --- @param icon love.Image|nil
---- @param cost number
-function NotificationDisplay.showItemPurchase(itemName, icon, cost)
+--- @param amount number
+function NotificationDisplay.showItemPurchase(itemName, icon, amount)
     local title = itemName
-    local value = "R$ " .. tostring(Formatters.formatCompactNumber(cost, 2))
+    local value = " + " .. tostring(Formatters.formatCompactNumber(amount, 2))
 
     NotificationManager.show({
         type = NotificationDisplay.NOTIFICATION_TYPES.ITEM_PURCHASE,
         title = title,
         value = value,
         icon = icon,
-        rarityColor = Colors.black,
+        rarityColor = Colors.extraction_transition.success.background,
         duration = NotificationDisplay.NOTIFICATION_SYSTEM.DEFAULT_DURATION
     })
 end
 
 --- Cria uma notificação para venda de item
 --- @param itemName string
---- @param earnings number
-function NotificationDisplay.showItemSale(itemName, icon, earnings)
+--- @param amount number
+function NotificationDisplay.showItemSale(itemName, icon, amount)
     local title = itemName
-    local value = "R$ " .. tostring(Formatters.formatCompactNumber(earnings, 2))
+    local value = " - " .. tostring(Formatters.formatCompactNumber(amount, 2))
 
     NotificationManager.show({
         type = NotificationDisplay.NOTIFICATION_TYPES.ITEM_SALE,
         title = title,
         value = value,
         icon = icon,
-        rarityColor = Colors.black,
+        rarityColor = Colors.extraction_transition.death.background,
+        duration = NotificationDisplay.NOTIFICATION_SYSTEM.DEFAULT_DURATION
+    })
+end
+
+-- Cria uma notificação para saldo insuficiente
+function NotificationDisplay.showInsufficientFunds()
+    NotificationManager.show({
+        type = NotificationDisplay.NOTIFICATION_TYPES.INSUFFICIENT_FUNDS,
+        title = "Saldo Insuficiente",
+        value = "",
+        rarityColor = Colors.extraction_transition.death.background,
         duration = NotificationDisplay.NOTIFICATION_SYSTEM.DEFAULT_DURATION
     })
 end

@@ -239,6 +239,7 @@ function ShopManager:purchaseItem(itemId, quantity)
 
     if self.patrimonyManager then
         if not self.patrimonyManager:hasEnoughGold(totalCost) then
+            NotificationDisplay.showInsufficientFunds()
             Logger.warn(
                 "shop_manager.purchase_item.insufficient_funds",
                 "[ShopManager.purchaseItem] Fundos insuficientes para comprar " .. itemId ..
@@ -252,7 +253,11 @@ function ShopManager:purchaseItem(itemId, quantity)
         -- Pega a imagem do item base
         local itemIcon = nil
         if itemBase and itemBase.icon then
-            itemIcon = love.graphics.newImage(itemBase.icon)
+            if type(itemBase.icon) == "string" then
+                itemIcon = love.graphics.newImage(itemBase.icon)
+            else
+                itemIcon = itemBase.icon
+            end
         end
 
         -- Processa a compra
@@ -309,6 +314,7 @@ function ShopManager:sellItem(itemInstance)
     local sellPrice = self:calculateSellPrice(itemInstance)
 
     if sellPrice > 0 then
+        NotificationDisplay.showItemSale(itemInstance.name, itemInstance.icon, 1)
         -- Adiciona dinheiro ao patrimônio do jogador
         if self.patrimonyManager then
             self.patrimonyManager:sellItem(sellPrice, itemInstance.name, itemInstance.icon)
@@ -348,7 +354,7 @@ function ShopManager:sellAllFromLoadout(loadoutManager)
             -- Adiciona à lista para log
             table.insert(itemsToBulkSell, { name = baseData.name, quantity = item.quantity, value = sellValue })
 
-            NotificationDisplay.showItemSale(baseData.name, baseData.icon, sellValue)
+            NotificationDisplay.showItemSale(baseData.name, baseData.icon, item.quantity)
             -- Remove o item do loadout
             loadoutManager:removeItemInstance(instanceId)
         end
