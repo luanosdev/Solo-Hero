@@ -608,7 +608,9 @@ function BaseEnemy:takeDamage(amount, isCritical, isSuperCritical)
 
     self.currentHealth = self.currentHealth - amount
 
-    DamageNumberManager:show(self, amount, isCritical, isSuperCritical)
+    -- TODO: Desativado temporariamente para testes
+    -- implementar uma configuração para desativar o sistema de dano
+    -- DamageNumberManager:show(self, amount, isCritical, isSuperCritical)
 
     if self.currentHealth <= 0 then
         self.currentHealth = 0
