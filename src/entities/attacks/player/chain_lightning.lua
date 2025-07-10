@@ -8,6 +8,7 @@ local BaseAttackAbility = require("src.entities.attacks.base_attack_ability")
 local MultiAttackCalculator = require("src.utils.multi_attack_calculator")
 local CombatHelpers = require("src.utils.combat_helpers")
 local TablePool = require("src.utils.table_pool")
+local Constants = require("src.config.constants")
 
 ---@class ChainLightningVisualAttack
 ---@field segmentDuration number
@@ -58,7 +59,7 @@ function ChainLightning:new(playerManager, weaponInstance)
 
     -- Estado específico
     o.activeChains = {}
-    o.currentRange = o.cachedBaseData.range
+    o.currentRange = Constants.metersToPixels(o.cachedBaseData.range)
     o.currentThickness = CONFIG.visual.attack.thickness
     o.jumpRangeDecay = CONFIG.constants.JUMP_RANGE_DECAY
 
@@ -79,7 +80,7 @@ function ChainLightning:onStatsUpdated()
     local baseData = self.cachedBaseData
 
     -- Recalcula valores baseados nos stats
-    self.currentRange = baseData.range * stats.range
+    self.currentRange = Constants.metersToPixels(baseData.range) * stats.range
     self.currentThickness = CONFIG.visual.attack.thickness * stats.attackArea
 end
 

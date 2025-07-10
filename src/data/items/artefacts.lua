@@ -1,3 +1,22 @@
+--- Função auxiliar para adicionar métodos de localização às armas
+---@param artefactData table A definição do artefato
+---@return table artefactData A artefato com métodos de localização adicionados
+local function addLocalizationMethods(artefactData)
+    --- Obtém o nome localizado da arma
+    ---@return string localizedName
+    function artefactData:getLocalizedName()
+        return _T("artefacts." .. self.id .. ".name")
+    end
+
+    --- Obtém a descrição localizada da arma
+    ---@return string localizedDescription
+    function artefactData:getLocalizedDescription()
+        return _T("artefacts." .. self.id .. ".description")
+    end
+
+    return artefactData
+end
+
 ---@class ArtefactDefinition
 ---@field id string ID único do artefato
 ---@field name string Nome do artefato
@@ -58,5 +77,10 @@ local artefacts = {
         value = 500,
     },
 }
+
+-- Aplica métodos de localização a todos os artefatos
+for _, artefactData in pairs(artefacts) do
+    addLocalizationMethods(artefactData)
+end
 
 return artefacts

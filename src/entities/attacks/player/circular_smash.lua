@@ -8,11 +8,11 @@ local BaseAttackAbility = require("src.entities.attacks.base_attack_ability")
 local AttackAnimationSystem = require("src.utils.attack_animation_system")
 local MultiAttackCalculator = require("src.utils.multi_attack_calculator")
 local CombatHelpers = require("src.utils.combat_helpers")
+local Constants = require("src.config.constants")
 
 ---@class CircularSmashVisualAttack
 ---@field animationDuration number
 ---@field color table
-
 
 ---@class CircularSmash : BaseAttackAbility
 ---@field isAttacking boolean Se está executando animação
@@ -61,8 +61,8 @@ function CircularSmash:new(playerManager, weaponInstance)
     o.currentAttackRadius = 0
 
     -- Valores calculados (atualizados em onStatsUpdated)
-    o.impactDistance = o.cachedBaseData.baseAreaEffectRadius
-    o.explosionRadius = o.cachedBaseData.baseAreaEffectRadius
+    o.impactDistance = Constants.metersToPixels(o.cachedBaseData.baseAreaEffectRadius)
+    o.explosionRadius = Constants.metersToPixels(o.cachedBaseData.baseAreaEffectRadius)
 
     -- Cores da weaponInstance
     if weaponInstance.previewColor then
@@ -77,7 +77,7 @@ end
 
 --- Hook para atualização quando stats mudam
 function CircularSmash:onStatsUpdated()
-    local baseRadius = self.cachedBaseData.baseAreaEffectRadius
+    local baseRadius = Constants.metersToPixels(self.cachedBaseData.baseAreaEffectRadius)
     local areaMultiplier = self.cachedStats.attackArea
 
     self.impactDistance = baseRadius * areaMultiplier

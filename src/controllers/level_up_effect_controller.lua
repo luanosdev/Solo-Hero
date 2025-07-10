@@ -128,7 +128,7 @@ function LevelUpEffectController:applyLevelUpKnockback()
     )
 
     -- Encontra inimigos na área
-    local enemiesInArea = CombatHelpers.findEnemiesInCircularArea(
+    local enemiesInArea = CombatHelpers.findEnemiesInCircularAreaOptimized(
         playerPosition,
         knockbackRadius,
         self.playerManager:getPlayerSprite()

@@ -164,7 +164,7 @@ function ArrowProjectile:fireSingleArrowOptimized(arrowAngle, spatialGrid)
     local currentPiercing = self.cachedBaseData.piercing + strengthBonusPiercing
 
     -- Calcula alcance e escala
-    local currentRange = self.cachedBaseData.range * stats.range
+    local currentRange = Constants.metersToPixels(self.cachedBaseData.range) * stats.range
     local areaScale = stats.attackArea or 1
 
     -- Calcula posição de spawn com offset do raio do player

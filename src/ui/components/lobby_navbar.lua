@@ -176,8 +176,8 @@ function LobbyNavbar:_drawHunterSection(x, y, sectionWidth)
         -- Nenhum caçador ativo
         love.graphics.setFont(fonts.main)
         love.graphics.setColor(colors.red)
-        love.graphics.printf("Nenhum Caçador Ativo", x, y + 10, sectionWidth, "left")
-        love.graphics.printf("Recrute um caçador!", x, y + 30, sectionWidth, "left")
+        love.graphics.printf(_T("ui.agency.no_active_hunter"), x, y + 10, sectionWidth, "left")
+        love.graphics.printf(_T("ui.agency.no_active_hunter_description"), x, y + 30, sectionWidth, "left")
         return
     end
 
@@ -185,11 +185,11 @@ function LobbyNavbar:_drawHunterSection(x, y, sectionWidth)
     if not hunterData then
         love.graphics.setFont(fonts.main)
         love.graphics.setColor(colors.red)
-        love.graphics.printf("Erro: Caçador não encontrado", x, y + 15, sectionWidth, "left")
+        love.graphics.printf(_T("ui.agency.no_active_hunter_error"), x, y + 15, sectionWidth, "left")
         return
     end
 
-    local hunterName = hunterData.name or "Caçador Desconhecido"
+    local hunterName = hunterData.name or _T("ui.hunter.unknown")
     local hunterRank = hunterData.finalRankId or "E"
     local rankDetails = colors.rankDetails[hunterRank]
     local rankColor = rankDetails and rankDetails.text or colors.text_default
@@ -201,7 +201,7 @@ function LobbyNavbar:_drawHunterSection(x, y, sectionWidth)
 
     -- Rank do caçador com cor do ranking e sombra
     love.graphics.setFont(fonts.main)
-    local rankText = "Rank " .. hunterRank
+    local rankText = _T("ui.rank") .. " " .. hunterRank
     drawTextWithShadow(rankText, x, y + 32, rankColor, shadowColor, 1)
 end
 
@@ -215,11 +215,11 @@ function LobbyNavbar:_drawAgencySection(x, y, sectionWidth)
     if not agencyData then
         love.graphics.setFont(fonts.main)
         love.graphics.setColor(colors.red)
-        love.graphics.printf("Agência não encontrada", x, y + 15, sectionWidth, "center")
+        love.graphics.printf(_T("ui.agency.unknown"), x, y + 15, sectionWidth, "center")
         return
     end
 
-    local agencyName = agencyData.name or "Agência Desconhecida"
+    local agencyName = agencyData.name or _T("ui.agency.unknown")
     local agencyRank = agencyData.rank or "E"
     local currentReputation = agencyData.reputation or 0
     local rankDetails = colors.rankDetails[agencyRank]
@@ -227,7 +227,7 @@ function LobbyNavbar:_drawAgencySection(x, y, sectionWidth)
     local shadowColor = colors.black_transparent_more or { 0, 0, 0, 0.7 }
 
     -- Nome da agência e ranking na mesma linha com cor do ranking e sombra
-    local agencyText = agencyName .. " • Rank " .. agencyRank
+    local agencyText = agencyName .. " • " .. _T("ui.rank") .. " " .. agencyRank
     love.graphics.setFont(fonts.main_large or fonts.main)
     local currentFont = fonts.main_large or fonts.main
     local textWidth = currentFont:getWidth(agencyText)
@@ -281,7 +281,7 @@ function LobbyNavbar:_drawAgencySection(x, y, sectionWidth)
         -- Rank máximo
         love.graphics.setFont(fonts.main_small or fonts.main)
         love.graphics.setColor(colors.text_muted)
-        love.graphics.printf("RANK MÁXIMO", x, y + 38, sectionWidth, "center")
+        love.graphics.printf(_T("ui.agency.max_rank"), x, y + 38, sectionWidth, "center")
     end
 end
 
@@ -297,7 +297,7 @@ end
 ---@param changeText string|nil Texto de mudança (+1000, -500, etc)
 ---@param changeAlpha number Alpha do texto de mudança
 local function drawResourceCard(x, y, w, h, label, icon, value, color, changeText, changeAlpha)
-    local labelFont = fonts.main_small or fonts.main
+    local labelFont = fonts.main
     local valueFont = fonts.resource_value or fonts.main
 
     local labelHeight = labelFont:getHeight()
@@ -305,7 +305,7 @@ local function drawResourceCard(x, y, w, h, label, icon, value, color, changeTex
     local totalContentHeight = labelHeight + valueHeight + 5 -- 5px de espaçamento entre label e valor
 
     -- Calcula posições para centralizar verticalmente o conteúdo total
-    local contentStartY = y + (h - totalContentHeight) / 2
+    local contentStartY = y + (h - totalContentHeight) / 2 + 5
 
     -- Label centralizado
     love.graphics.setFont(labelFont)
@@ -317,7 +317,7 @@ local function drawResourceCard(x, y, w, h, label, icon, value, color, changeTex
     local valueText = icon .. " " .. Formatters.formatCompactNumber(math.floor(value), 2)
     local valueTextWidth = valueFont:getWidth(valueText)
     local valueX = x + (w - valueTextWidth) / 2
-    local valueY = contentStartY + labelHeight + 5
+    local valueY = contentStartY + labelHeight - 5
 
     drawTextWithShadow(valueText, valueX, valueY, color, { 0, 0, 0, 0.5 }, 1)
 
@@ -347,9 +347,7 @@ end
 function LobbyNavbar:_drawResourceSection(x, y, sectionWidth)
     -- Obtém valores animados do patrimônio
     local patrimony = self.animatedGold
-    local tickets = 0 -- TODO: Implementar sistema de tickets quando necessário
-
-    local cardWidth = (sectionWidth - 10) / 2
+    local cardWidth = (sectionWidth - 10)
     local cardHeight = NAVBAR_HEIGHT - 10
 
     -- Card do Patrimônio (com animação)
@@ -358,27 +356,12 @@ function LobbyNavbar:_drawResourceSection(x, y, sectionWidth)
         y + 5,
         cardWidth,
         cardHeight,
-        "PATRIMÔNIO",
+        _T("agency.patrimony"),
         "R$ ",
         patrimony,
         colors.navbar_money,
         self.goldChangeText,
         self.goldChangeAlpha
-    )
-
-    -- Card dos Tickets
-    local ticketCardX = x + cardWidth + 10
-    drawResourceCard(
-        ticketCardX,
-        y + 5,
-        cardWidth,
-        cardHeight,
-        "TICKETS",
-        "§",
-        tickets,
-        colors.navbar_tickets,
-        nil,
-        0
     )
 end
 

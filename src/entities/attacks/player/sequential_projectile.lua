@@ -162,7 +162,7 @@ function SequentialProjectile:fireSingleProjectileOptimized(projectileAngle, spa
     local currentPiercing = baseData.piercing + strengthBonusPiercing
 
     -- Calcula alcance e escala
-    local currentRange = baseData.range * stats.range
+    local currentRange = (Constants.metersToPixels(baseData.range) * stats.range) / 2
     local areaScale = stats.attackArea
 
     -- Calcula posição de spawn com offset do raio do player
@@ -224,7 +224,8 @@ function SequentialProjectile:drawPreviewOptimized()
     love.graphics.setColor(self.visual.preview.color)
 
     local cx, cy = self.playerPosition.x, self.playerPosition.y
-    local range = (self.cachedBaseData.range * self.cachedStats.range) / 2
+    local cachedRange = Constants.metersToPixels(self.cachedBaseData.range)
+    local range = (cachedRange * self.cachedStats.range) / 2
 
     -- Linha simples na direção da mira
     local endX = cx + math.cos(self.currentAngle) * range

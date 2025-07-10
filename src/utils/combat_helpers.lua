@@ -1,3 +1,5 @@
+local Constants = require("src.config.constants")
+
 ---@class CombatHelpers
 local CombatHelpers = {
     HIT_TOLERANCE_MULTIPLIER = 1.2,
@@ -155,12 +157,13 @@ function CombatHelpers.findEnemiesInConeArea(coneArea, requestingEntity)
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager.spatialGrid
     local enemiesHit = TablePool.getArray()
+    local cachedRange = Constants.metersToPixels(coneArea.range or 0)
 
-    if not coneArea or not coneArea.range or coneArea.range <= 0 or not coneArea.halfWidth or coneArea.halfWidth <= 0 then
+    if not coneArea or not cachedRange or cachedRange <= 0 or not coneArea.halfWidth or coneArea.halfWidth <= 0 then
         return enemiesHit
     end
 
-    local nearbyEnemies = spatialGrid:getNearbyEntities(coneArea.position.x, coneArea.position.y, coneArea.range,
+    local nearbyEnemies = spatialGrid:getNearbyEntities(coneArea.position.x, coneArea.position.y, cachedRange,
         requestingEntity)
 
     for i = 1, #nearbyEnemies do
@@ -171,7 +174,7 @@ function CombatHelpers.findEnemiesInConeArea(coneArea, requestingEntity)
             local distanceSq = dx * dx + dy * dy
 
             -- Verificação de distância permissiva
-            local combinedRange = coneArea.range + CombatHelpers.getPermissiveRadius(enemy)
+            local combinedRange = cachedRange + CombatHelpers.getPermissiveRadius(enemy)
             if distanceSq <= (combinedRange * combinedRange) then
                 local pointAngle = math.atan2(dy, dx)
                 local relativeAngle = normalizeAngle(pointAngle - coneArea.angle)
@@ -199,13 +202,18 @@ function CombatHelpers.findEnemiesInConeHalfArea(coneArea, checkLeft, requesting
     local enemyManager = ManagerRegistry:get("enemyManager")
     local spatialGrid = enemyManager.spatialGrid
     local enemiesHit = TablePool.getArray()
+    local cachedRange = Constants.metersToPixels(coneArea.range or 0)
 
-    if not coneArea or not coneArea.range or coneArea.range <= 0 or not coneArea.halfWidth or coneArea.halfWidth <= 0 then
+    if not coneArea or not cachedRange or cachedRange <= 0 or not coneArea.halfWidth or coneArea.halfWidth <= 0 then
         return enemiesHit
     end
 
-    local nearbyEnemies = spatialGrid:getNearbyEntities(coneArea.position.x, coneArea.position.y, coneArea.range,
-        requestingEntity)
+    local nearbyEnemies = spatialGrid:getNearbyEntities(
+        coneArea.position.x,
+        coneArea.position.y,
+        cachedRange,
+        requestingEntity
+    )
 
     for i = 1, #nearbyEnemies do
         local enemy = nearbyEnemies[i]
@@ -214,7 +222,7 @@ function CombatHelpers.findEnemiesInConeHalfArea(coneArea, checkLeft, requesting
             local dy = enemy.position.y - coneArea.position.y
             local distanceSq = dx * dx + dy * dy
 
-            local combinedRange = coneArea.range + CombatHelpers.getPermissiveRadius(enemy)
+            local combinedRange = cachedRange + CombatHelpers.getPermissiveRadius(enemy)
             if distanceSq <= (combinedRange * combinedRange) then
                 local pointAngle = math.atan2(dy, dx)
                 local relativeAngle = normalizeAngle(pointAngle - coneArea.angle)

@@ -5,6 +5,7 @@ local colors = require("src.ui.colors")
 local fonts = require("src.ui.fonts")
 local elements = require("src.ui.ui_elements")
 local Formatters = require("src.utils.formatters")
+local Constants = require("src.config.constants")
 
 -- Constantes para layout
 local PADDING = 10
@@ -53,7 +54,7 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
 
     -- 1. Nome do Item (ocupa a largura total do tooltip)
     table.insert(tooltipLines, {
-        text = baseItemData.name or "Nome Desconhecido",
+        text = baseItemData:getLocalizedName(),
         font = fonts.title_large or fonts.title,
         color = colors.rankDetails[item.rarity or "E"].text or colors.text_title,
         alignment = "center",
@@ -68,14 +69,19 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
 
     -- Coluna da Direita (Tipo, Raridade, Dano, APS)
     local rankColor = colors.rankDetails[item.rarity].text or colors.text_main
-    local rankText = "Item"
+    local rankText = _T("item.type.item")
     if item.type == "weapon" then
-        rankText = "Arma"
+        rankText = _T("item.type.weapon")
     elseif item.type == "artefact" then
-        rankText = "Artefato"
+        rankText = _T("item.type.artefact")
+    elseif item.type == "rune" then
+        rankText = _T("item.type.rune")
+    elseif item.type == "teleport_stone" then
+        rankText = _T("item.type.teleport_stone")
     end
+
     table.insert(mainSectionTextLines, {
-        text = rankText .. " Ranking " .. item.rarity,
+        text = _T("ui.item_details_modal.type_and_rank", { type_t = rankText, rank = item.rarity }),
         font = fonts.main_small,
         color = rankColor,
         height = LINE_HEIGHT_SMALL,
@@ -98,7 +104,7 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
             is_main_damage_value = true
         })
         table.insert(mainSectionTextLines, {
-            text = "Dano",
+            text = _T("ui.item_details_modal.damage"),
             font = fonts.main_small,
             color = colors.text_label,
             height = LINE_HEIGHT_SMALL,
@@ -108,12 +114,20 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
             local attacksPerSecond = baseItemData.cooldown
             if attacksPerSecond then
                 table.insert(mainSectionTextLines, {
-                    text = string.format("%.2f Ataques por Segundo", attacksPerSecond),
-                    font = fonts.main,
+                    text = _P("ui.item_details_modal.attacks_per_second", { attacksPerSecond = attacksPerSecond }),
+                    font = fonts.main_small_bold,
                     color = colors.text_default,
                     height = LINE_HEIGHT_NORMAL,
                 })
             end
+            local damagePerSecond = baseItemData.damage / baseItemData.cooldown
+            damagePerSecond = Formatters.formatCompactNumber(damagePerSecond, 2)
+            table.insert(mainSectionTextLines, {
+                text = _P("ui.item_details_modal.damage_per_second", { damagePerSecond = damagePerSecond }),
+                font = fonts.main_small_bold,
+                color = colors.text_default,
+                height = LINE_HEIGHT_NORMAL,
+            })
         end
     end
 
@@ -128,7 +142,7 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
     if baseItemData.type == "weapon" then
         local attackClass = baseItemData.attackClass or "N/A"
         table.insert(baseAttributesSection, {
-            text = "Tipo de Ataque: " .. attackClass,
+            text = _P("ui.item_details_modal.attack_type", { attackType_t = _T("attack_types." .. attackClass) }),
             font = fonts.main_small,
             color = colors.text_label,
             height = LINE_HEIGHT_SMALL
@@ -136,17 +150,19 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
 
         if baseItemData.range then
             table.insert(baseAttributesSection, {
-                text = "Alcance: " .. string.format("%.1f", baseItemData.range),
+                text = _P("item.attributes.range", { range = string.format("%.1f", baseItemData.range) }),
                 font = fonts.main_small,
                 color = colors.text_label,
                 height = LINE_HEIGHT_SMALL
             })
         end
 
-        local areaStat = baseItemData.area or baseItemData.baseAreaEffectRadius
+        local areaStat = baseItemData.baseAreaEffectRadius
         if areaStat then
+            local areaStatText = Constants.pixelsToMeters(areaStat)
             table.insert(baseAttributesSection, {
-                text = "Área: " .. string.format("%.1f", areaStat),
+                text = _P("item.attributes.base_area_effect_radius",
+                    { baseAreaEffectRadius = string.format("%.1f", areaStatText) }),
                 font = fonts.main_small,
                 color = colors.text_label,
                 height = LINE_HEIGHT_SMALL
@@ -155,9 +171,36 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
 
         if baseItemData.angle then
             local angleDegrees = math.deg(baseItemData.angle)
-            local angleText = "Ângulo de Ataque: " .. angleDegrees .. "°"
             table.insert(baseAttributesSection, {
-                text = angleText,
+                text = _P("item.attributes.angle", { angle = angleDegrees }),
+                font = fonts.main_small,
+                color = colors.text_label,
+                height = LINE_HEIGHT_SMALL
+            })
+        end
+
+        if baseItemData.knockbackPower then
+            local knockbackPowerText = Constants.knockbackPowerToText(baseItemData.knockbackPower)
+            table.insert(baseAttributesSection, {
+                text = _P("item.attributes.knockback", { knockbackPower = knockbackPowerText }),
+                font = fonts.main_small,
+                color = colors.text_label,
+                height = LINE_HEIGHT_SMALL
+            })
+        end
+
+        if baseItemData.projectiles then
+            table.insert(baseAttributesSection, {
+                text = _P("item.attributes.projectiles", { projectiles = baseItemData.projectiles }),
+                font = fonts.main_small,
+                color = colors.text_label,
+                height = LINE_HEIGHT_SMALL
+            })
+        end
+
+        if baseItemData.chainCount then
+            table.insert(baseAttributesSection, {
+                text = _P("item.attributes.chain_count", { chainCount = baseItemData.chainCount }),
                 font = fonts.main_small,
                 color = colors.text_label,
                 height = LINE_HEIGHT_SMALL
@@ -176,22 +219,25 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
     local descriptionSectionStartY = currentYInternal
     local descriptionTextLines = {}
     local descriptionContentHeight = 0 -- Altura apenas do CONTEÚDO de texto da descrição
-    if baseItemData.description and string.len(baseItemData.description) > 0 then
+    if baseItemData:getLocalizedDescription() and string.len(baseItemData:getLocalizedDescription()) > 0 then
         local descFont = fonts.tooltip or fonts.main_small
-        local wrappedDesc, numDescLines = descFont:getWrap(baseItemData.description, tooltipWidth - PADDING * 4) -- PADDING*2 de cada lado da descrição
+        local _, numDescLines = descFont:getWrap(baseItemData:getLocalizedDescription(), tooltipWidth - PADDING * 4) -- PADDING*2 de cada lado da descrição
         for i = 1, #numDescLines do
             table.insert(descriptionTextLines, {
                 text = numDescLines[i],
                 font = descFont,
-                color = rankTextColor, -- <<< MODIFICADO: Usa a cor do texto do ranking
+                color = rankTextColor,
                 height = LINE_HEIGHT_SMALL
             })
             descriptionContentHeight = descriptionContentHeight + LINE_HEIGHT_SMALL
         end
         if #descriptionTextLines > 0 then
             -- descriptionHeight (altura total da caixa de descrição) agora é calculada separadamente
-            table.insert(tooltipLines,
-                { type = "description_marker_start", calculated_text_height = descriptionContentHeight, height = 0 }) -- Marcador, height aqui é para espaçamento se necessário, não para o texto
+            table.insert(tooltipLines, {
+                type = "description_marker_start",
+                calculated_text_height = descriptionContentHeight,
+                height = 0
+            })
             for _, line in ipairs(descriptionTextLines) do table.insert(tooltipLines, line) end
             table.insert(tooltipLines, { type = "description_marker_end", height = 0 })
             -- A altura total da seção de descrição (descriptionHeightVisual) será descriptionContentHeight + PADDING * 2 (para paddings internos)
@@ -272,8 +318,8 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
         table.insert(tooltipLines, { type = "spacer", height = SECTION_SPACING / 2 })
         currentYInternal = currentYInternal + SECTION_SPACING / 2
         table.insert(tooltipLines, {
-            text = "(Botão Direito para Usar)",
-            font = fonts.tooltip_italic or fonts.main_small,
+            text = _T("ui.item_details_modal.use_details"),
+            font = fonts.main_small,
             color = colors.text_label,
             alignment = "center",
             height = LINE_HEIGHT_SMALL
@@ -288,7 +334,7 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
     if hasValueSection then
         local quantity = item.quantity or 1
         sellPrice = baseItemData.value * quantity
-        formattedPrice = Formatters.formatCompactNumber(sellPrice)
+        formattedPrice = Formatters.formatCompactNumber(sellPrice, 2)
     end
 
     -- Calcular altura total e largura máxima real usando currentYInternal (que já contém toda a altura do conteúdo)
@@ -594,7 +640,7 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
     -- Desenha o valor fixo na parte inferior
     if hasValueSection then
         local valueSectionY = y + contentHeight + SECTION_SPACING
-        local valueText = "Valor: R$ " .. formattedPrice
+        local valueText = _P("ui.item_details_modal.value", { value = formattedPrice })
         local valueFont = fonts.main_small
         local valueColor = colors.text_gold or colors.white
 

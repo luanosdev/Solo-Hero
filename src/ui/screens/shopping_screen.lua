@@ -194,9 +194,9 @@ function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, n
     -- Desenha títulos das seções
     love.graphics.setFont(titleFont)
     love.graphics.setColor(colors.text_highlight)
-    love.graphics.printf("MERCADO", shopX, sectionTopY, shopW, "center")
-    love.graphics.printf("ARMAZENAMENTO", storageX, sectionTopY, storageW, "center")
-    love.graphics.printf("MOCHILA", loadoutX, sectionTopY, loadoutW, "center")
+    love.graphics.printf(_T("shop.title"), shopX, sectionTopY, shopW, "center")
+    love.graphics.printf(_T("storage.title"), storageX, sectionTopY, storageW, "center")
+    love.graphics.printf(_T "loadout.title", loadoutX, sectionTopY, loadoutW, "center")
     love.graphics.setColor(colors.white)
     love.graphics.setFont(fonts.main or titleFont)
 
@@ -213,10 +213,7 @@ function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, n
             my
         )
     else
-        love.graphics.setColor(colors.red)
-        love.graphics.printf("Erro: Shop Manager não inicializado!",
-            shopX + shopW / 2, contentStartY + sectionContentH / 2, 0, "center")
-        love.graphics.setColor(colors.white)
+        error("Shop Manager não inicializado!")
     end
 
     -- 2. Desenha Grade do Armazenamento (Storage)
@@ -231,11 +228,7 @@ function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, n
             self.storageGridArea.x, self.storageGridArea.y, self.storageGridArea.w, self.storageGridArea.h,
             self.itemDataManager, sectionInfo)
     else
-        love.graphics.setColor(colors.red)
-        love.graphics.printf("Erro: Storage Manager não inicializado!",
-            self.storageGridArea.x + self.storageGridArea.w / 2,
-            self.storageGridArea.y + self.storageGridArea.h / 2, 0, "center")
-        love.graphics.setColor(colors.white)
+        error("Storage Manager não inicializado!")
     end
 
     -- Divide o espaço da coluna de loadout entre a mochila e os artefatos
@@ -254,10 +247,7 @@ function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, n
             self.itemDataManager
         )
     else
-        love.graphics.setColor(colors.red)
-        love.graphics.printf("Erro: Loadout Manager não inicializado!",
-            loadoutX + loadoutW / 2, contentStartY + sectionContentH / 2, 0, "center")
-        love.graphics.setColor(colors.white)
+        error("Loadout Manager não inicializado!")
     end
 
     -- Desenha Display de Artefatos abaixo do loadout

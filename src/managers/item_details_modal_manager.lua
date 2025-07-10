@@ -20,7 +20,7 @@ ItemDetailsModalManager.isVisible = false
 --- @param mx number Posição X do mouse.
 --- @param my number Posição Y do mouse.
 --- @param owner? string Identificador opcional de quem está solicitando o tooltip.
-function ItemDetailsModalManager.show(item, mx, my, owner) -- Owner é opcional agora
+function ItemDetailsModalManager.show(item, mx, my, owner)
     if not item or not item.itemBaseId then
         ItemDetailsModalManager.hide()
         return

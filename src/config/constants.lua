@@ -139,7 +139,7 @@ Constants.KNOCKBACK_POWER = {
     HIGH      = 10, -- Armas pesadas, martelo, explosões
     VERY_HIGH = 15, -- Ultimates, armas divinas, ataques especiais
 }
-
+--- Valor que representa a "força" do knockback, que define a distância percorrida pelo inimigo
 Constants.KNOCKBACK_FORCE = {
     NONE         = 0,   -- Magias de dano contínuo, projéteis fracos
     CHAIN_LASER  = 0,   -- Lança-chamas com alto knockback
@@ -206,4 +206,19 @@ function Constants.moveSpeedToPixels(metersPerSecond)
     return metersPerSecond * Constants.METER_TO_PIXELS
 end
 
+function Constants.knockbackPowerToText(knockbackPower)
+    if knockbackPower == Constants.KNOCKBACK_POWER.NONE then
+        return _T("item.attributes.knockback_power.none")
+    elseif knockbackPower == Constants.KNOCKBACK_POWER.VERY_LOW then
+        return _T("item.attributes.knockback_power.very_low")
+    elseif knockbackPower == Constants.KNOCKBACK_POWER.LOW then
+        return _T("item.attributes.knockback_power.low")
+    elseif knockbackPower == Constants.KNOCKBACK_POWER.MEDIUM then
+        return _T("item.attributes.knockback_power.medium")
+    elseif knockbackPower == Constants.KNOCKBACK_POWER.HIGH then
+        return _T("item.attributes.knockback_power.high")
+    elseif knockbackPower == Constants.KNOCKBACK_POWER.VERY_HIGH then
+        return _T("item.attributes.knockback_power.very_high")
+    end
+end
 return Constants

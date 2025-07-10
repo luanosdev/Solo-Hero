@@ -8,6 +8,7 @@ local BaseAttackAbility = require("src.entities.attacks.base_attack_ability")
 local AttackAnimationSystem = require("src.utils.attack_animation_system")
 local MultiAttackCalculator = require("src.utils.multi_attack_calculator")
 local CombatHelpers = require("src.utils.combat_helpers")
+local Constants = require("src.config.constants")
 
 ---@class AlternatingConeStrikeVisualAttack
 ---@field animationDuration number
@@ -87,7 +88,7 @@ function AlternatingConeStrike:onStatsUpdated()
     local baseData = self.cachedBaseData
     local stats = self.cachedStats
 
-    local newRange = baseData.range * stats.range
+    local newRange = Constants.metersToPixels(baseData.range) * stats.range
     local newAngleWidth = baseData.angle * stats.attackArea
 
     if newRange ~= self.area.range or newAngleWidth ~= self.area.angleWidth then

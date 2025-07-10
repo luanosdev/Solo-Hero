@@ -144,7 +144,7 @@ function BurstProjectile:fireSingleProjectileOptimized(projectileAngle, spatialG
     local currentPiercing = (baseData.piercing or 0) + strengthBonusPiercing
 
     -- Calcula alcance e escala
-    local currentRange = baseData.range * (stats.range or 1)
+    local currentRange = Constants.metersToPixels(baseData.range) * (stats.range or 1)
     local areaScale = stats.attackArea or 1
 
     -- Variação para efeito de "espingarda" (frente e trás)

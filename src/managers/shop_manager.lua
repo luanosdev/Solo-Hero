@@ -53,6 +53,8 @@ ShopManager.shopItemsPool = {
     { itemId = "flamethrower",                  weight = 20, minStock = 1, maxStock = 2 },
     { itemId = "chain_laser",                   weight = 20, minStock = 1, maxStock = 2 },
     { itemId = "hammer",                        weight = 20, minStock = 1, maxStock = 2 },
+    { itemId = "burst_projectile_e_001",        weight = 20, minStock = 1, maxStock = 2 },
+    { itemId = "sequential_projectile_e_001",   weight = 20, minStock = 1, maxStock = 2 },
 
     -- Pedras de teleporte (peso baixo) - assumindo que existem
     { itemId = "teleport_stone_a",              weight = 15, minStock = 1, maxStock = 2 },

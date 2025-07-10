@@ -32,6 +32,9 @@ function love.load()
     Logger.setVisibleLevels({ debug = false, info = true, warn = true, error = false })
     _G.Logger = Logger
 
+    --- Inicializa o sistema de localização global
+    require("src.utils.localization_init")
+
     Logger.debug("love.load.start", "[love.load] Iniciando love.load()...")
     Logger.debug("love.load.dev", "[love.load] Modo DEV: " .. tostring(DEV))
 

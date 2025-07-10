@@ -93,7 +93,8 @@ function FlameStream:onStatsUpdated()
     local baseData = self.cachedBaseData
 
     -- Recalcula lifetime baseado no alcance e força
-    local baseLifetime = baseData.range * stats.range / CONFIG.visual.attack.particleSpeed
+    local cachedRange = Constants.metersToPixels(baseData.range)
+    local baseLifetime = (cachedRange * stats.range) / CONFIG.visual.attack.particleSpeed
     local strengthMultiplier = 1 + (stats.strength * CONFIG.constants.STRENGTH_LIFETIME_FACTOR)
     self.currentLifetime = baseLifetime * strengthMultiplier
 
@@ -181,7 +182,8 @@ function FlameStream:fireSingleParticleOptimized(particleIndex, spatialGrid)
     -- Calcula lifetime baseado no alcance e força
     local baseLifetime = baseData.baseLifetime or CONFIG.constants.BASE_LIFETIME
     local strengthMultiplier = 1 + (stats.strength / 100)
-    local rangeMultiplier = stats.range
+    local cachedRange = Constants.metersToPixels(baseData.range)
+    local rangeMultiplier = cachedRange * stats.range
     local finalLifetime = baseLifetime * strengthMultiplier * rangeMultiplier
 
     -- Escala das partículas

@@ -1,5 +1,24 @@
 -- Definições básicas para runas como itens
 
+--- Função auxiliar para adicionar métodos de localização às armas
+---@param runeData table A definição da runa
+---@return table runeData A runa com métodos de localização adicionados
+local function addLocalizationMethods(runeData)
+    --- Obtém o nome localizado da runa
+    ---@return string localizedName
+    function runeData:getLocalizedName()
+        return _T("runes." .. self.id .. ".name")
+    end
+
+    --- Obtém a descrição localizada da runa
+    ---@return string localizedDescription
+    function runeData:getLocalizedDescription()
+        return _T("runes." .. self.id .. ".description")
+    end
+
+    return runeData
+end
+
 local runes = {
     -- Runa Orbital
     rune_orbital_e = {
@@ -63,5 +82,10 @@ local runes = {
     }
     -- Adicione outras runas aqui...
 }
+
+-- Aplica métodos de localização a todas as runas
+for _, runeData in pairs(runes) do
+    addLocalizationMethods(runeData)
+end
 
 return runes

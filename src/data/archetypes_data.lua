@@ -26,6 +26,44 @@
 
 local ArchetypesData = {}
 
+--- Função auxiliar para adicionar métodos de localização aos arquétipos
+---@param archetypeData table A definição do arquétipo
+---@return table archetypeData O arquétipo com métodos de localização adicionados
+local function addLocalizationMethods(archetypeData)
+    --- Obtém o nome localizado do arquétipo
+    ---@return string localizedName
+    function archetypeData:getLocalizedName()
+        return _T("archetypes." .. self.id .. ".name")
+    end
+
+    --- Obtém a descrição localizada do arquétipo
+    ---@return string localizedDescription
+    function archetypeData:getLocalizedDescription()
+        return _T("archetypes." .. self.id .. ".description")
+    end
+
+    return archetypeData
+end
+
+--- Função auxiliar para adicionar métodos de localização aos ranks
+---@param rankData table A definição do rank
+---@return table rankData O rank com métodos de localização adicionados
+local function addRankLocalizationMethods(rankData)
+    --- Obtém o nome localizado do rank
+    ---@return string localizedName
+    function rankData:getLocalizedName()
+        return _T("ranks." .. self.id .. ".name")
+    end
+
+    --- Obtém a descrição localizada do rank
+    ---@return string localizedDescription
+    function rankData:getLocalizedDescription()
+        return _T("ranks." .. self.id .. ".description")
+    end
+
+    return rankData
+end
+
 -- Definição das propriedades de cada Rank
 ArchetypesData.Ranks = {
     E = { id = "E", name = "Rank E", archetype_count_min = 1, archetype_count_max = 3, recruitment_weight = 40 },
@@ -596,13 +634,23 @@ ArchetypesData.Archetypes = {
         description =
         "Poder Arcano Imenso: Dano crítico, área de ataque e redução de recarga significativamente aumentados, mas com grande sacrifício de vida.",
         modifiers = {
-            { stat = "critDamage",        type = "base",       value = 0.75 },                 -- +75% Dano Crítico
-            { stat = "attackArea",        type = "percentage", value = 50 },                   -- +50% Área
-            { stat = "cooldownReduction", type = "percentage", value = 30 },                   -- +30% Redução Recarga
-            { stat = "health",            type = "percentage", value = -60 }                   -- -60% Vida Máxima
+            { stat = "critDamage",        type = "base",       value = 0.75 }, -- +75% Dano Crítico
+            { stat = "attackArea",        type = "percentage", value = 50 },   -- +50% Área
+            { stat = "cooldownReduction", type = "percentage", value = 30 },   -- +30% Redução Recarga
+            { stat = "health",            type = "percentage", value = -60 }   -- -60% Vida Máxima
         }
     }
     -- Adicionar MUITOS outros arquétipos aqui para cada rank...
 }
+
+-- Aplica métodos de localização a todos os ranks
+for _, rankData in pairs(ArchetypesData.Ranks) do
+    addRankLocalizationMethods(rankData)
+end
+
+-- Aplica métodos de localização a todos os arquétipos
+for _, archetypeData in pairs(ArchetypesData.Archetypes) do
+    addLocalizationMethods(archetypeData)
+end
 
 return ArchetypesData

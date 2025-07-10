@@ -76,6 +76,25 @@
 
 local Constants = require("src.config.constants")
 
+--- Função auxiliar para adicionar métodos de localização às armas
+---@param weaponData table A definição da arma
+---@return table weaponData A arma com métodos de localização adicionados
+local function addLocalizationMethods(weaponData)
+    --- Obtém o nome localizado da arma
+    ---@return string localizedName
+    function weaponData:getLocalizedName()
+        return _T("weapons." .. self.id .. ".name")
+    end
+
+    --- Obtém a descrição localizada da arma
+    ---@return string localizedDescription
+    function weaponData:getLocalizedDescription()
+        return _T("weapons." .. self.id .. ".description")
+    end
+
+    return weaponData
+end
+
 local weapons = {
     --- Ranking E
     ---@type CircularSmashWeapon
@@ -93,7 +112,7 @@ local weapons = {
         maxStack = 1,
         damage = 300,
         cooldown = 1.6,
-        baseAreaEffectRadius = 80,
+        baseAreaEffectRadius = 6.0, -- 6.0m
         attackClass = "circular_smash",
         weaponClass = "base_weapon",
         knockbackPower = Constants.KNOCKBACK_POWER.HIGH,
@@ -124,7 +143,7 @@ local weapons = {
         maxStack = 1,
         damage = 200,
         cooldown = 0.9,
-        range = 120,
+        range = 8.0, -- 8m
         angle = math.rad(30),
         attackClass = "cone_slash",
         weaponClass = "base_weapon",
@@ -155,7 +174,7 @@ local weapons = {
         maxStack = 1,
         damage = 100,
         cooldown = 0.4,
-        range = 120,
+        range = 5.5, -- 5.5m
         angle = math.rad(150),
         attackClass = "alternating_cone_strike",
         weaponClass = "base_weapon",
@@ -183,7 +202,7 @@ local weapons = {
         maxStack = 1,
         damage = 50,
         cooldown = 0.2,
-        range = 150,
+        range = 10.0, -- 10m
         angle = math.rad(30),
         attackClass = "flame_stream",
         weaponClass = "base_weapon",
@@ -215,7 +234,7 @@ local weapons = {
         maxStack = 1,
         damage = 200,
         cooldown = 0.9,
-        range = 250,
+        range = 18.0, -- 15m
         angle = math.rad(6),
         -- Atributos específicos do Arco
         projectiles = 1,
@@ -249,7 +268,7 @@ local weapons = {
         maxStack = 1,
         damage = 100,
         cooldown = 0.5,
-        range = 150,
+        range = 9.0, -- 9m
         -- Atributos específicos da Bobina
         chainCount = 3,
         jumpRange = 100,
@@ -259,7 +278,7 @@ local weapons = {
         knockbackForce = Constants.KNOCKBACK_FORCE.NONE,
         modifiers = {
             { stat = "multiAttack", type = "base", value = 0.5 },
-            { stat = "critDamage", type = "base", value = 0.5 },
+            { stat = "critDamage",  type = "base", value = 0.5 },
         },
         value = 100,
     },
@@ -276,9 +295,9 @@ local weapons = {
         gridHeight = 2,
         stackable = false,
         maxStack = 1,
-        damage = 80, -- Dano por projétil
+        damage = 80,                 -- Dano por projétil
         cooldown = 1.5,
-        range = 200,
+        range = 20.0,                -- 20m
         angle = math.rad(25),        -- Abertura do leque de 25 graus
         -- Atributos específicos
         projectiles = 6,             -- 6 projéteis por disparo
@@ -307,9 +326,9 @@ local weapons = {
         gridHeight = 2,
         stackable = false,
         maxStack = 1,
-        damage = 33,    -- Dano por projétil
-        cooldown = 0.8, -- Tempo de espera entre as rajadas
-        range = 250,
+        damage = 33,     -- Dano por projétil
+        cooldown = 0.8,  -- Tempo de espera entre as rajadas
+        range = 15.0,    -- 15m
         -- Atributos específicos
         projectiles = 5, -- 5 projéteis por rajada
         cadence = 0.08,  -- Tempo entre os disparos da mesma rajada
@@ -341,8 +360,8 @@ local weapons = {
         stackable = false,
         maxStack = 1,
         damage = 120,
-        cooldown = 1.2,            -- Cooldown base em segundos (era attackSpeed = 0.83)
-        baseAreaEffectRadius = 30, -- Raio da área de impacto
+        cooldown = 1.2,              -- Cooldown base em segundos (era attackSpeed = 0.83)
+        baseAreaEffectRadius = 15.0, -- Raio da área de impacto
         attackClass = "circular_smash",
         weaponClass = "generic_circular_smash",
         knockbackPower = Constants.KNOCKBACK_POWER.HIGH,   -- Alto poder de iniciar knockback
@@ -364,7 +383,7 @@ local weapons = {
         maxStack = 1,
         damage = 80,
         cooldown = 1.4,       -- Cooldown base em segundos (AJUSTE SE NECESSÁRIO)
-        range = 150,          -- Alcance do cone (AJUSTE SE NECESSÁRIO)
+        range = 10.0,         -- Alcance do cone (AJUSTE SE NECESSÁRIO)
         angle = math.rad(60), -- Ângulo do cone (60 graus) (AJUSTE SE NECESSÁRIO)
         attackClass = "cone_slash",
         weaponClass = "generic_cone_slash",
@@ -387,7 +406,7 @@ local weapons = {
         maxStack = 1,
         damage = 200,
         cooldown = 1.2,
-        range = 200,
+        range = 14.0,
         angle = math.rad(60),
         attackClass = "cone_slash",
         weaponClass = "generic_cone_slash",
@@ -410,7 +429,7 @@ local weapons = {
         maxStack = 1,
         damage = 40,
         cooldown = 1,
-        range = 100,
+        range = 10.0,
         angle = math.rad(150),
         attackClass = "alternating_cone_strike",
         weaponClass = "generic_alternating_cone_strike",
@@ -435,7 +454,7 @@ local weapons = {
         -- Stats de combate (exemplo)
         damage = 45,
         cooldown = 0.4,           -- Tempo entre ataques (mais rápido)
-        range = 50,               -- Curto alcance
+        range = 10.0,             -- Curto alcance
         angle = math.rad(150),
         criticalChance = 10,      -- Chance de crítico base da arma
         criticalMultiplier = 1.8, -- Multiplicador base da arma
@@ -464,7 +483,7 @@ local weapons = {
         maxStack = 1,
         damage = 20,          -- Dano por partícula/tick?
         cooldown = 0.18,      -- Cooldown base MUITO baixo para fluxo contínuo (era attackSpeed = 5.56)
-        range = 180,          -- Distância máxima das partículas
+        range = 10.0,         -- Distância máxima das partículas
         angle = math.rad(15), -- Ângulo de DISPERSÃO do fluxo (15 graus)
         attackClass = "flame_stream",
         weaponClass = "base_weapon",
@@ -492,7 +511,7 @@ local weapons = {
         maxStack = 1,
         damage = 33,
         cooldown = 1.5,       -- Cooldown base em segundos (era attackSpeed = 1.25)
-        range = 150,          -- Alcance máximo das flechas
+        range = 15.0,         -- Alcance máximo das flechas
         angle = math.rad(30), -- Ângulo do cone de disparo (30 graus)
         projectiles = 1,      -- Número base de flechas
         piercing = 2,         -- NOVA PROPRIEDADE: Perfuração base da flecha
@@ -518,7 +537,7 @@ local weapons = {
         maxStack = 1,
         damage = 35,
         cooldown = 0.7,  -- Cooldown base em segundos (era attackSpeed = 1.43)
-        range = 100,     -- Alcance inicial para encontrar o primeiro alvo
+        range = 10.0,    -- Alcance inicial para encontrar o primeiro alvo
         chainCount = 3,  -- Número de saltos para inimigos adicionais (total 4 alvos)
         jumpRange = 100, -- Distância máxima para saltar entre inimigos
         attackClass = "chain_lightning",
@@ -528,5 +547,10 @@ local weapons = {
         value = 1000,
     },
 }
+
+-- Aplica métodos de localização a todas as armas
+for _, weaponData in pairs(weapons) do
+    addLocalizationMethods(weaponData)
+end
 
 return weapons

@@ -1,3 +1,22 @@
+--- Função auxiliar para adicionar métodos de localização às armas
+---@param teleportStoneData table A definição da pedra de teleporte
+---@return table teleportStoneData A pedra de teleporte com métodos de localização adicionados
+local function addLocalizationMethods(teleportStoneData)
+    --- Obtém o nome localizado da pedra de teleporte
+    ---@return string localizedName
+    function teleportStoneData:getLocalizedName()
+        return _T("teleport_stones." .. self.id .. ".name")
+    end
+
+    --- Obtém a descrição localizada da pedra de teleporte
+    ---@return string localizedDescription
+    function teleportStoneData:getLocalizedDescription()
+        return _T("teleport_stones." .. self.id .. ".description")
+    end
+
+    return teleportStoneData
+end
+
 local teleport_stones = {
     teleport_stone_d = {
         name = "Pedra de Teleporte (D)",
@@ -72,5 +91,10 @@ local teleport_stones = {
         value = 10000,
     },
 }
+
+-- Aplica métodos de localização a todas as pedras de teleporte
+for _, teleportStoneData in pairs(teleport_stones) do
+    addLocalizationMethods(teleportStoneData)
+end
 
 return teleport_stones
