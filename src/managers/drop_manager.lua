@@ -1,6 +1,8 @@
 ------------------------------------------------
 -- Drop Manager
 -- Gerencia os drops de bosses e outros inimigos
+-- Usa o spritesheet beam_drop.png para animação dos drops
+-- Coleta automática ao atingir a área de pickup
 ------------------------------------------------
 
 local DropEntity = require("src.entities.drop_entity")
@@ -26,15 +28,7 @@ local DropManager = {
     dropPool = {},    -- Pool de drops inativos para reutilização
 }
 
--- Adicione esta tabela dentro do DropManager, logo após a definição da tabela DropManager = {}
-local raritySettings = {
-    -- Raridades de Itens (Contagem de Feixes Aumentada)
-    ["E"] = { color = { 0.8, 0.8, 0.8 }, height = 80, glow = 0.8, beamCount = 1 },  -- 1 total
-    ["D"] = { color = { 0.2, 0.5, 1.0 }, height = 110, glow = 1.0, beamCount = 3 }, -- 3 total (1 central + 1 par)
-    ["C"] = { color = { 1.0, 1.0, 0.2 }, height = 140, glow = 1.2, beamCount = 3 }, -- 3 total
-    ["B"] = { color = { 1.0, 0.6, 0.0 }, height = 170, glow = 1.5, beamCount = 5 }, -- 5 total (1 central + 2 pares)
-    ["A"] = { color = { 1.0, 0.2, 0.2 }, height = 200, glow = 1.8, beamCount = 7 }, -- 7 total (1 central + 3 pares)
-}
+-- Configurações de raridade removidas - agora controladas pelo DropEntity
 
 --[[
     Inicializa o gerenciador de drops
@@ -297,57 +291,25 @@ function DropManager:_processMvpDrops(entity, dropsCreated)
     end
 end
 
---- Obtém as configurações visuais (cor, altura, brilho) para um drop.
----@param dropConfig table A configuração do drop.
----@return table Cor {r, g, b}.
----@return number Altura do feixe.
----@return number Escala do brilho base.
----@return number Contagem de feixes.
-function DropManager:_getDropVisualSettings(dropConfig)
-    local settingsKey = "E"
-    local isItemWithRarity = false
-
-    if dropConfig.type == "item" and dropConfig.itemId then
-        local baseData = self.itemDataManager:getBaseItemData(dropConfig.itemId)
-        if baseData and baseData.rarity then
-            settingsKey = baseData.rarity
-            isItemWithRarity = true
-        end
-    elseif raritySettings[dropConfig.type] then
-        settingsKey = dropConfig.type
-    end
-
-    -- Lógica específica para Runas (se aplicável)
-    -- if dropConfig.type == "rune" and dropConfig.rarity then ... end
-
-    local finalSettings = raritySettings[settingsKey]
-    if not finalSettings then
-        Logger.debug("DropManager:_getDropVisualSettings",
-            string.format("Aviso crítico: Chave '%s' não encontrada em raritySettings. Usando 'E'.", settingsKey))
-        finalSettings = raritySettings["E"]
-    end
-
-    -- Retorna todos os valores, incluindo beamCount (com fallback para 1)
-    return finalSettings.color, finalSettings.height, finalSettings.glow, finalSettings.beamCount or 1
-end
-
 --- Cria uma entidade de drop no mundo
 ---@param dropConfig table Configuração do drop (ex: {type="rune", rarity="D"} ou {type="item", itemId="sword_01"})
 ---@param position table Posição {x, y} do drop
 function DropManager:createDrop(dropConfig, position)
-    -- Determina as propriedades visuais
-    local color, height, glowScale, beamCount = self:_getDropVisualSettings(dropConfig)
-
+    Logger.info("drop_manager.create_drop", "[DropManager:createDrop] Criando drop " .. dropConfig.itemId)
     -- Tenta reutilizar um drop do pool
     local dropEntity = table.remove(self.dropPool)
     if dropEntity then
+        Logger.info("drop_manager.create_drop.drop_entity", "[DropManager:createDrop] Reutilizando drop do pool")
         -- Se reutilizou, reseta o estado
-        dropEntity:reset(position, dropConfig, color, height, glowScale, beamCount)
+        dropEntity:reset(position, dropConfig)
     else
+        Logger.info("drop_manager.create_drop.new_drop", "[DropManager:createDrop] Criando novo drop do pool")
         -- Se o pool está vazio, cria uma nova entidade
-        dropEntity = DropEntity:new(position, dropConfig, color, height, glowScale, beamCount)
+        dropEntity = DropEntity:new(position, dropConfig)
     end
 
+    Logger.info("drop_manager.create_drop.insert_active_drops",
+        "[DropManager:createDrop] Inserindo drop na lista de drops ativos")
     table.insert(self.activeDrops, dropEntity)
 end
 
@@ -357,13 +319,13 @@ function DropManager:returnDropToPool(dropEntity)
     table.insert(self.dropPool, dropEntity)
 end
 
---- Atualiza os drops ativos
+--- Atualiza os drops ativos (coleta automática ao atingir área)
 ---@param dt number Delta time
 function DropManager:update(dt)
     for i = #self.activeDrops, 1, -1 do
         local drop = self.activeDrops[i]
         if drop:update(dt, self.playerManager) then
-            -- Se o drop foi coletado, aplica seus efeitos
+            -- Se o drop foi coletado automaticamente, aplica seus efeitos
             self:applyDrop(drop.config) -- Passa a configuração original do drop
 
             -- Remove o drop da lista ativa e o devolve para o pool
@@ -445,7 +407,7 @@ function DropManager:applyDrop(dropConfig)
 end
 
 --- Coleta os drops renderizáveis para a lista de renderização da cena.
----@param renderPipeline RenderPipeline RenderPipeline para adicionar os dados de renderização do jogador.
+---@param renderPipeline RenderPipeline RenderPipeline para adicionar os dados de renderização dos drops.
 function DropManager:collectRenderables(renderPipeline)
     if not self.activeDrops or #self.activeDrops == 0 then
         return

@@ -12,6 +12,7 @@ local portalDefinitions = require("src.data.portals.portal_definitions")
 local Constants = require("src.config.constants")
 local Culling = require("src.core.culling")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
+local weapons = require("src.data.items.weapons")
 
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
@@ -22,7 +23,7 @@ GameplayScene.gameOverManager = nil         -- Instância do GameOverManager
 GameplayScene.bossPresentationManager = nil -- Instância do BossPresentationManager
 
 function GameplayScene:load(args)
-    Logger.debug("GameplayScene", "GameplayScene:load - Iniciando orquestração de gameplay...")
+    Logger.debug("gameplay_scene.load.sart", "[GameplayScene:load] - Iniciando orquestração de gameplay...")
 
     -- NOVA ARQUITETURA: Obtém dados já configurados pelo game_loading_scene
     if args and args.renderPipeline then
@@ -35,14 +36,15 @@ function GameplayScene:load(args)
         self.hordeConfig = args.hordeConfig
         self.hunterId = args.hunterId
         self.currentPortalData = args.currentPortalData
-        Logger.info("GameplayScene", "Recebidos dados configurados do game_loading_scene")
+        Logger.info("gameplay_scene.load.args", "[GameplayScene:load] Recebidos dados configurados do game_loading_scene")
     else
         -- Fallback para compatibilidade (args antigos)
         self.portalId = args and args.portalId or "floresta_assombrada"
         self.hordeConfig = args and args.hordeConfig or nil
         self.hunterId = args and args.hunterId or nil
         self.currentPortalData = portalDefinitions[self.portalId]
-        Logger.error("GameplayScene", "Usando fallback - dados não vieram do game_loading_scene!")
+        Logger.error("gameplay_scene.load.args",
+            "[GameplayScene:load] Usando fallback - dados não vieram do game_loading_scene!")
     end
 
     -- Estado inicial da UI (mínimo necessário)
@@ -67,9 +69,9 @@ function GameplayScene:load(args)
     if success then
         elements.setGlowShader(shaderOrErr)
         InventoryScreen.setGlowShader(shaderOrErr)
-        Logger.debug("GameplayScene", "Glow shader carregado.")
+        Logger.debug("gameplay_scene.load.glow_shader", "[GameplayScene:load] Glow shader carregado.")
     else
-        Logger.warn("GameplayScene", "Aviso - Falha ao carregar glow shader.")
+        Logger.warn("gameplay_scene.load.glow_shader", "[GameplayScene:load] Aviso - Falha ao carregar glow shader.")
     end
 
     -- Inicializa camera
@@ -86,14 +88,14 @@ function GameplayScene:load(args)
 
     -- DEBUG: Spawna uma arma de rank E aleatória perto do jogador
     local rankEWeapons = {
-        "circular_smash_e_001",
-        "cone_slash_e_001",
-        "alternating_cone_strike_e_001",
-        "flame_stream_e_001",
-        "arrow_projectile_e_001",
-        "chain_lightning_e_001",
-        "sequential_projectile_e_001",
-        "burst_projectile_e_001",
+        weapons.circular_smash_e_001.id,
+        weapons.cone_slash_e_001.id,
+        weapons.alternating_cone_strike_e_001.id,
+        weapons.flame_stream_e_001.id,
+        weapons.arrow_projectile_e_001.id,
+        weapons.chain_lightning_e_001.id,
+        weapons.sequential_projectile_e_001.id,
+        weapons.burst_projectile_e_001.id,
     }
     local randomWeaponId = rankEWeapons[math.random(#rankEWeapons)]
     self:createDropNearPlayer(randomWeaponId)
@@ -136,14 +138,22 @@ function GameplayScene:load(args)
 end
 
 function GameplayScene:createDropNearPlayer(dropId)
+    Logger.info("gameplay_scene.create_drop_near_player",
+        "[GameplayScene:createDropNearPlayer] Criando drop perto do jogador")
+
+    ---@type PlayerManager
     local playerMgr = ManagerRegistry:get("playerManager")
+    ---@type DropManager
     local dropMgr = ManagerRegistry:get("dropManager")
+    ---@type ItemDataManager
     local itemDataMgr = ManagerRegistry:get("itemDataManager")
 
     local playerPos = playerMgr:getPlayerPosition()
     if itemDataMgr:getBaseItemData(dropId) then
-        dropMgr:createDrop({ type = "item", itemId = dropId, quantity = 1 },
-            { x = playerPos.x + 250, y = playerPos.y })
+        dropMgr:createDrop(
+            { type = "item", itemId = dropId, quantity = 1 },
+            { x = playerPos.x + love.math.random(-250, 250), y = playerPos.y + love.math.random(-250, 250) }
+        )
     end
 end
 
