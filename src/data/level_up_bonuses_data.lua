@@ -224,7 +224,7 @@ LevelUpBonusesData.Bonuses = {
         id = "crit_damage_base",
         name = "Golpe Devastador",
         description = "Aumenta o |Dano Crítico| base em |0.1|.",
-        image_path = "assets/imagens/skills/crit_damage.png",
+        image_path = "assets/images/skills/crit_damage.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "critDamage", type = "base", value = 0.1 }
