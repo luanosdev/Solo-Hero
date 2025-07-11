@@ -85,6 +85,36 @@ local artefact_drops = {
             }
         }
     },
+
+    the_rotten_immortal = {
+        normal = {
+            guaranteed = {
+                {
+                    type = "artefact",
+                    artefactId = "eternal_decay_relic",
+                    amount = { min = 1, max = 1 }
+                },
+                {
+                    type = "artefact",
+                    artefactId = "empty_stone",
+                    amount = { min = 20, max = 100 }
+                },
+                {
+                    type = "artefact",
+                    artefactId = "crystal_fragment",
+                    amount = { min = 10, max = 40 }
+                },
+                {
+                    type = "artefact",
+                    artefactId = "putrefied_core",
+                    amount = { min = 10, max = 20 }
+                }
+            },
+            chance = {
+            }
+        },
+        mvp = {},
+    }
 }
 
 return artefact_drops

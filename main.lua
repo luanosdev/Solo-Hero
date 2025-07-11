@@ -13,6 +13,7 @@ local AgencyManager = require("src.managers.agency_manager")
 local ReputationManager = require("src.managers.reputation_manager")
 local GameStatisticsManager = require("src.managers.game_statistics_manager")
 local ArtefactManager = require("src.managers.artefact_manager")
+local PatrimonyManager = require("src.managers.patrimony_manager")
 local NotificationManager = require("src.managers.notification_manager")
 local NotificationDisplay = require("src.ui.components.notification_display")
 local fonts = require("src.ui.fonts")
@@ -122,8 +123,10 @@ function love.load()
     ManagerRegistry:register("gameStatisticsManager", gameStatsMgr)
 
     local artefactMgr = ArtefactManager:new()
-    artefactMgr:initialize()
     ManagerRegistry:register("artefactManager", artefactMgr)
+
+    local patrimonyMgr = PatrimonyManager:new()
+    ManagerRegistry:register("patrimonyManager", patrimonyMgr)
 
     -- Inicializar sistema de notificações global
     NotificationManager.init()

@@ -24,14 +24,8 @@ end
 ---@param my number Posição Y do mouse (para hover)
 function ArtefactsDisplay:draw(x, y, w, h, mx, my)
     ---@type ArtefactManager
-    local artefactManager = ManagerRegistry:tryGet("artefactManager")
-
-    if not artefactManager then
-        love.graphics.setColor(colors.red)
-        love.graphics.printf("ArtefactManager não disponível", x, y + h / 2, w, "center")
-        love.graphics.setColor(colors.white)
-        return nil, nil
-    end
+    local artefactManager = ManagerRegistry:get("artefactManager")
+    local itemDataManager = ManagerRegistry:get("itemDataManager")
 
     local padding = 8
     local titleFont = fonts.title or love.graphics.getFont()
@@ -193,8 +187,8 @@ function ArtefactsDisplay:draw(x, y, w, h, mx, my)
 
         -- Prepara dados do artefato para ItemDetailsModal se hover
         if isHover then
+            local baseItemData = itemDataManager:getBaseItemData(artefact.id)
             self.hoveredArtefact = {
-                -- Dados da instância do item
                 itemBaseId = artefact.id,
                 instanceId = artefact.id .. "_artefact",
                 rarity = artefactData.rank,
@@ -203,16 +197,9 @@ function ArtefactsDisplay:draw(x, y, w, h, mx, my)
                 quantity = quantity,
                 sellValue = artefactData.value * quantity,
                 value = artefactData.value,
-                -- Dados base do item (simulando o que viria do ItemDataManager)
-                _baseItemData = {
-                    name = artefactData.name,
-                    description = artefactData.description,
-                    type = "artefact",
-                    rarity = artefactData.rank,
-                    icon = artefactData.icon,
-                    value = artefactData.value,
-                    category = artefactData.category
-                }
+                _baseItemData = baseItemData,
+                getLocalizedName = baseItemData.getLocalizedName,
+                getLocalizedDescription = baseItemData.getLocalizedDescription,
             }
         elseif self.hoveredArtefact and not isHover and self.hoveredArtefact.instanceId == artefact.id .. "_artefact" then
             self.hoveredArtefact = nil

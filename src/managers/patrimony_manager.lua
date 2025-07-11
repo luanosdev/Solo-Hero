@@ -18,13 +18,10 @@ function PatrimonyManager:new()
     local instance = setmetatable({}, PatrimonyManager)
     instance.currentGold = 0
     instance.filename = "patrimony.dat"
-    return instance
-end
 
---- Inicializa o gerenciador carregando dados salvos
-function PatrimonyManager:initialize()
-    self:loadData()
-    Logger.info("patrimony_manager.initialize", "[PatrimonyManager:initialize] Sistema de patrimônio inicializado")
+    instance:loadData()
+    Logger.info("patrimony_manager.new", "[PatrimonyManager:new] Sistema de patrimônio inicializado")
+    return instance
 end
 
 --- Carrega dados do patrimônio

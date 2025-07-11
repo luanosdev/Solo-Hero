@@ -21,6 +21,7 @@ TheRottenImmortal.abilityCooldown = data.abilityCooldown
 TheRottenImmortal.abilities = data.abilities
 TheRottenImmortal.unitType = data.unitType
 TheRottenImmortal.spriteData = data.instanceDefaults
+TheRottenImmortal.artefactDrops = data.artefactDrops
 
 setmetatable(TheRottenImmortal, { __index = BaseBoss })
 

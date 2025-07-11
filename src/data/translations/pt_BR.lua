@@ -179,9 +179,30 @@ local translations = {
     -- === ARTEFATOS ===
     artefacts = {
         -- Rank E
-        chain_lightning_e_001 = {
-            name = "Bobina Improvisada",
-            description = "Uma bobina improvisada que causa dano em área ao redor do impacto."
+        empty_stone = {
+            name = "Pedra do Vazio",
+            description =
+            "Uma pedra que aparenta armazenar uma energia poderosa, porem quase vazia. Existem algumas tecnicas que fazem o pouco que resta dessa energia se tornarem fontes de energia poderosas.",
+        },
+        crystal_fragment = {
+            name = "Fragmento de Cristal",
+            description =
+            "O modo que este artefato absorve a luz é único. Converte a luz em calor em questões de segundos.",
+        },
+        putrefied_core = {
+            name = "Núcleo Putrefato",
+            description =
+            "Um núcleo pulsante envolto em carne necrosada e cristalizações fúngicas. Emite um leve calor e um odor adocicado, que estranhamente atrai alguns comerciantes itinerantes. Dizem que pode ser usado como catalisador em rituais ou como reagente raro em alquimia negra.",
+        },
+        unstable_core = {
+            name = "Núcleo Instável",
+            description =
+            "Uma esfera pulsante extraída do coração de um monstro de elite. Seu interior fervilha com energia comprimida e instável, oscilando entre colapsar e explodir. Manipular esse artefato sem o devido preparo pode ser fatal.",
+        },
+        eternal_decay_relic = {
+            name = "Relíquia da Decadência Eterna",
+            description =
+            "Uma esfera de cristal negro, trincada, pulsando com uma aura mórbida de decadência e morte, um olho de um caçador que ja foi uma lenda quando os primeiros portais apareceram - que agora, não passa de uma pilha de carne que parece ter sofrido serios ferimetos de uma batalha anterior previa a sua morte. Agora ele vaga dentre os portais, sempre aparecendo misteriosamente atacando quaisquer caçador que aparece a sua frente. Colecionadores pagam caro do fragmento para estudar o que pode acontecido no dia de ruptura",
         },
     },
 
@@ -206,7 +227,8 @@ local translations = {
     teleport_stones = {
         teleport_stone_d = {
             name = "Pedra de Teleporte (D)",
-            description = "Te teleporta em menos de 1 segundo. Apenas equipamentos são levados, util para saidas de emergência.",
+            description =
+            "Te teleporta em menos de 1 segundo. Apenas equipamentos são levados, util para saidas de emergência.",
         },
         teleport_stone_b = {
             name = "Pedra de Teleporte (B)",

@@ -52,6 +52,8 @@ function ItemDetailsModal.draw(item, baseItemData, x, y, playerStats, equippedIt
     local textColumnWidth = tooltipWidth * 0.6          -- 60% para o texto ao lado
     local textColumnXOffset = iconColumnWidth + PADDING -- Offset para a coluna de texto, PADDING entre ícone e texto
 
+    Logger.info("item_details_modal.draw.fd",
+        "[ItemDetailsModal.draw] Desenhando tooltip para item: " .. Logger.dumpTable(baseItemData, 2))
     -- 1. Nome do Item (ocupa a largura total do tooltip)
     table.insert(tooltipLines, {
         text = baseItemData:getLocalizedName(),

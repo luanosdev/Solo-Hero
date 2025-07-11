@@ -297,7 +297,7 @@ local weapons = {
         maxStack = 1,
         damage = 80,                 -- Dano por projétil
         cooldown = 1.5,
-        range = 20.0,                -- 20m
+        range = 15.0,                -- 20m
         angle = math.rad(25),        -- Abertura do leque de 25 graus
         -- Atributos específicos
         projectiles = 6,             -- 6 projéteis por disparo
@@ -328,7 +328,7 @@ local weapons = {
         maxStack = 1,
         damage = 33,     -- Dano por projétil
         cooldown = 0.8,  -- Tempo de espera entre as rajadas
-        range = 15.0,    -- 15m
+        range = 40.0,    -- 15m
         -- Atributos específicos
         projectiles = 5, -- 5 projéteis por rajada
         cadence = 0.08,  -- Tempo entre os disparos da mesma rajada

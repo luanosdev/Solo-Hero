@@ -255,7 +255,7 @@ function ShoppingScreen:draw(screenW, screenH, tabSettings, dragState, mx, my, n
         local artefactsY = contentStartY + loadoutFixedHeight + artefactsPadding
         self.artefactsArea = { x = loadoutX, y = artefactsY, w = loadoutW, h = artefactsHeight }
         ---@type ArtefactManager
-        local artefactManager = ManagerRegistry:tryGet("artefactManager")
+        local artefactManager = ManagerRegistry:get("artefactManager")
         if artefactManager then
             ArtefactsDisplay:draw(
                 self.artefactsArea.x,

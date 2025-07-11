@@ -370,7 +370,7 @@ ArchetypesData.Archetypes = {
         rank = "A",
         description = "Concede um slot de runa adicional e melhora a redução de recarga.",
         modifiers = {
-            { stat = "runeSlots",         type = "fixed",      value = 1 },
+            { stat = "runeSlots",         type = "base",      value = 1 },
             { stat = "cooldownReduction", type = "percentage", value = 40 }
         }
     },

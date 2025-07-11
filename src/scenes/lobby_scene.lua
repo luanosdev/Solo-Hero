@@ -129,9 +129,7 @@ function LobbyScene:load(args)
     LobbyScene.agencyManager = ManagerRegistry:get("agencyManager")
     LobbyScene.reputationManager = ManagerRegistry:get("reputationManager")
     LobbyScene.portalManager = LobbyPortalManager:new()
-
-    LobbyScene.patrimonyManager = PatrimonyManager:new()
-    LobbyScene.patrimonyManager:initialize()
+    LobbyScene.patrimonyManager = ManagerRegistry:get("patrimonyManager")
 
     LobbyScene.shopManager = ShopManager:new(self.itemDataManager, self.patrimonyManager)
 

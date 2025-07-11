@@ -26,6 +26,9 @@ function ArtefactManager:new()
     -- Carrega ícones dos artefatos
     instance:loadArtefactIcons()
 
+    instance:loadData()
+    Logger.info("artefact_manager.new", "[ArtefactManager:new] Sistema de artefatos inicializado")
+
     return instance
 end
 
@@ -49,28 +52,22 @@ function ArtefactManager:loadArtefactIcons()
                 loadedCount = loadedCount + 1
                 Logger.info("artefact_manager.load_icon",
                     "[ArtefactManager] ✓ Ícone carregado para " ..
-                    artefactData.name .. ": " .. artefactData.icon:getWidth() .. "x" .. artefactData.icon:getHeight())
+                    artefactData.id .. ": " .. artefactData.icon:getWidth() .. "x" .. artefactData.icon:getHeight())
             else
                 failedCount = failedCount + 1
                 Logger.warn("artefact_manager.load_icon",
                     "[ArtefactManager] ✗ Falha ao carregar ícone para " ..
-                    artefactData.name .. " (" .. iconPath .. "): " .. tostring(iconImage))
+                    artefactData.id .. " (" .. iconPath .. "): " .. tostring(iconImage))
                 artefactData.icon = nil
             end
         else
             Logger.warn("artefact_manager.load_icon",
-                "[ArtefactManager] Ícone inválido para " .. artefactData.name .. ": " .. tostring(artefactData.icon))
+                "[ArtefactManager] Ícone inválido para " .. artefactData.id .. ": " .. tostring(artefactData.icon))
         end
     end
 
     Logger.info("artefact_manager.load_icon",
         "[ArtefactManager] Carregamento concluído. Sucessos: " .. loadedCount .. ", Falhas: " .. failedCount)
-end
-
---- Inicializa o gerenciador carregando dados salvos
-function ArtefactManager:initialize()
-    self:loadData()
-    Logger.info("artefact_manager.initialize", "[ArtefactManager:initialize] Sistema de artefatos inicializado")
 end
 
 --- Carrega dados dos artefatos coletados
@@ -133,15 +130,15 @@ function ArtefactManager:addArtefact(artefactId, quantity)
     local artefactData = self.artefactDefinitions[artefactId]
     Logger.info(
         "artefact_manager.add_artefact",
-        "[ArtefactManager:addArtefact] +" .. quantity .. "x " .. artefactData.name ..
+        "[ArtefactManager:addArtefact] +" .. quantity .. "x " .. artefactData.id ..
         ". Total: " .. self.collectedArtefacts[artefactId]
     )
 
     -- Exibir notificação de coleta de artefato
     if NotificationDisplay and artefactData then
-        NotificationDisplay.showItemPickup(artefactData.name, quantity, artefactData.icon, artefactData.rank)
+        NotificationDisplay.showItemPickup(artefactData.id, quantity, artefactData.icon, artefactData.rank)
         Logger.debug("artefact_manager.notification.pickup",
-            "[ArtefactManager:addArtefact] Notificação de artefato exibida: " .. artefactData.name .. " x" .. quantity)
+            "[ArtefactManager:addArtefact] Notificação de artefato exibida: " .. artefactData.id .. " x" .. quantity)
     end
 
     return true
@@ -177,7 +174,7 @@ function ArtefactManager:removeArtefact(artefactId, quantity)
     Logger.info(
         "artefact_manager.remove_artefact",
         "[ArtefactManager:removeArtefact] -" ..
-        quantity .. "x " .. (artefactData and artefactData.name or artefactId) ..
+        quantity .. "x " .. (artefactData and artefactData.id or artefactId) ..
         ". Restante: " .. (self.collectedArtefacts[artefactId] or 0)
     )
 
@@ -231,7 +228,7 @@ end
 ---@return number totalValue Valor total vendido
 function ArtefactManager:sellAllArtefacts()
     ---@type PatrimonyManager
-    local patrimonyManager = ManagerRegistry:tryGet("patrimonyManager")
+    local patrimonyManager = ManagerRegistry:get("patrimonyManager")
     local totalValue = self:getTotalArtefactsValue()
 
     if totalValue <= 0 then
@@ -244,8 +241,8 @@ function ArtefactManager:sellAllArtefacts()
     for artefactId, quantity in pairs(self.collectedArtefacts) do
         local artefactData = self.artefactDefinitions[artefactId]
         if artefactData then
-            table.insert(soldItems, quantity .. "x " .. artefactData.name)
-            NotificationDisplay.showItemSale(artefactData.name, artefactData.icon, quantity)
+            table.insert(soldItems, quantity .. "x " .. artefactData.id)
+            NotificationDisplay.showItemSale(artefactData.id, artefactData.icon, quantity)
         end
     end
 
@@ -253,9 +250,7 @@ function ArtefactManager:sellAllArtefacts()
     self.collectedArtefacts = {}
 
     -- Adiciona ouro ao patrimônio
-    if patrimonyManager then
-        patrimonyManager:sellItem(totalValue, "Venda de Artefatos")
-    end
+    patrimonyManager:sellItem(totalValue, "Venda de Artefatos")
 
     Logger.info(
         "artefact_manager.sell_all",
@@ -283,7 +278,7 @@ function ArtefactManager:clearAllArtefactsOnDeath()
     for artefactId, quantity in pairs(self.collectedArtefacts) do
         local artefactData = self.artefactDefinitions[artefactId]
         if artefactData then
-            table.insert(lostItems, quantity .. "x " .. artefactData.name)
+            table.insert(lostItems, quantity .. "x " .. artefactData.id)
         end
     end
 

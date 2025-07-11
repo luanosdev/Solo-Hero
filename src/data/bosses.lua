@@ -3,6 +3,7 @@
 --
 
 local Constants = require("src.config.constants")
+local ArtefactDrops = require("src.data.artefact_drops")
 
 -- Tipagem para habilidades de Boss
 ---@class BossAbility
@@ -44,6 +45,8 @@ local Constants = require("src.config.constants")
 ---@field dropTable table Tabela de drops do boss.
 ---@field abilityCooldown number Tempo de espera entre o fim de uma habilidade e o início da próxima.
 ---@field abilities BossAbility[] Lista de habilidades do boss.
+---@field artefactDrops ArtefactDropTable Drops de artefatos.
+
 
 local default_boss_grids = {
     walk = { frameWidth = 192, frameHeight = 192, numAnimationFrames = 15 },
@@ -62,7 +65,7 @@ local bosses = {
     the_rotten_immortal = {
         className = "TheRottenImmortal",
         unitType = "the_rotten_immortal",
-        name = "O Imortal Apodrecido",
+        name = "Zeno, o Imortal Apodrecido",
 
         -- Stats
         maxHealth = 50000,
@@ -99,6 +102,7 @@ local bosses = {
             }
         },
         dropTable = {},
+        artefactDrops = ArtefactDrops.the_rotten_immortal,
 
         -- Habilidades
         abilityCooldown = 1, -- Tempo mínimo entre o fim de uma habilidade e o início de outra

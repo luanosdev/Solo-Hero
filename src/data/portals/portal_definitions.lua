@@ -171,7 +171,7 @@ local portalDefinitions = {
             },
             bossConfig = {
                 spawnTimes = {
-                    { time = 10, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "E" }
+                    { time = 10, class = TheRottenImmortal, unitType = "the_rotten_immortal", rank = "A" }
                 }
             },
             cycles = {
