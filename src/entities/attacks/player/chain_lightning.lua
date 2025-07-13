@@ -105,9 +105,12 @@ function ChainLightning:castSpecific(args)
     -- Calcula posição de spawn com offset do raio do player
     local spawnPos = self:calculateSpawnPosition(self.currentAngle)
 
+    local chainCount = self.cachedStats._baseBonuses["chainCount"] or 0
+    local baseChainCount = self.cachedBaseData.chainCount
+
     -- Calcula correntes usando calculadora unificada
     local multiResult = MultiAttackCalculator.calculateChains(
-        self.cachedBaseData.chainCount,
+        baseChainCount + chainCount,
         self.cachedStats,
         love.timer.getTime()
     )
@@ -253,8 +256,10 @@ end
 ---@param excludedIDs table IDs excluídos
 ---@return BaseEnemy|nil
 function ChainLightning:findNextTargetOptimized(currentPos, jumpIndex, excludedIDs)
-    local baseJumpRange = self.cachedBaseData.jumpRange or 100
-    local decayedRange = baseJumpRange * (self.jumpRangeDecay ^ jumpIndex)
+    local baseJumpRange = self.cachedBaseData.jumpRange
+    local jumpRange = self.cachedStats._baseBonuses["jumpRange"] or 0
+
+    local decayedRange = (baseJumpRange + jumpRange) * (self.jumpRangeDecay ^ jumpIndex)
     local finalRange = decayedRange * (self.cachedStats.attackArea or 1)
 
     -- Usa CombatHelpers otimizado

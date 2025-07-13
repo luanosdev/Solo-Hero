@@ -86,8 +86,14 @@ function ConeSlash:onStatsUpdated()
     local baseData = self.cachedBaseData
     local stats = self.cachedStats
 
+    local baseBonusArea = stats._baseBonuses["attackArea"] or 0
+    local multiplierBonusArea = stats._multiplierBonuses["attackArea"] or 1
+
+    --- Essa conta é para o trait cone_slash_path1_var2_ultimate funcionar corretamente
+    --- ja que nao usamos base bonus para o area
+    local newAngleWidth = (baseData.angle + baseBonusArea) * (1 + (multiplierBonusArea / 100))
+
     local newRange = (Constants.metersToPixels(baseData.range) * stats.range)
-    local newAngleWidth = baseData.angle * stats.attackArea
 
     if newRange ~= self.area.range or newAngleWidth ~= self.area.angleWidth then
         self.area.range = newRange

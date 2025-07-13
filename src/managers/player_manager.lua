@@ -22,6 +22,7 @@ local AutoAttackController = require('src.controllers.auto_attack_controller')
 local WeaponController = require('src.controllers.weapon_controller')
 local RuneController = require('src.controllers.rune_controller')
 local MovementController = require('src.controllers.movement_controller')
+local WeaponTraitsController = require('src.controllers.weapon_traits_controller')
 
 ---@class PlayerSprite
 ---@field position Vector2D Posição do sprite do jogador
@@ -47,6 +48,7 @@ local PlayerManager = {
     dashController = nil, ---@type DashController
     levelUpEffectController = nil, ---@type LevelUpEffectController
     potionController = nil, ---@type PotionController
+    weaponTraitsController = nil, ---@type WeaponTraitsController
 
     -- Game Stats
     gameTime = 0,
@@ -184,6 +186,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
     self.dashController = DashController:new(self)
     self.levelUpEffectController = LevelUpEffectController:new(self)
     self.potionController = PotionController:new(self)
+    self.weaponTraitsController = WeaponTraitsController:new(self)
 
     -- 5. Configura o sprite do jogador
     self.movementController:setupPlayerSprite(finalStats)

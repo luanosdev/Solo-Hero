@@ -1,4 +1,3 @@
-local elements = require("src.ui.ui_elements")
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
@@ -276,7 +275,7 @@ function LevelUpCard:drawContent(alpha)
 
     -- Nome da melhoria (negrito)
     love.graphics.setFont(fonts.title_large)
-    local nameText = self.optionData.name or "Melhoria Desconhecida"
+    local nameText = self.optionData.name .. " " .. Formatters.formatRomanNumber(nextLevel)
 
     if self.optionData.is_ultimate then
         -- Brilho animado para melhorias ultimate
@@ -392,7 +391,7 @@ function LevelUpCard:getImprovementType()
     local bonusId = self.optionData.id or ""
     if string.find(bonusId, "rune") then
         return "Melhoria de Runa"
-    elseif string.find(bonusId, "weapon") then
+    elseif string.find(bonusId, "path") then
         return "Melhoria de Arma"
     else
         return "Melhoria de Nível"
@@ -665,6 +664,7 @@ function LevelUpModal:generateOptions()
     self.options = {}
     local availableBonuses = {}
     local availableUltimates = {}
+    local availableWeaponTraits = {}
 
     if not self.playerManager or not self.playerManager.stateController or not self.playerManager.stateController:getLearnedLevelUpBonuses() then
         error(
@@ -672,6 +672,26 @@ function LevelUpModal:generateOptions()
     end
 
     local learned = self.playerManager.stateController:getLearnedLevelUpBonuses()
+
+    -- Coleta traits de arma disponíveis
+    if self.playerManager.weaponTraitsController then
+        local weaponTraits = self.playerManager.weaponTraitsController:getAvailableTraitsForEquippedWeapon()
+        for _, trait in ipairs(weaponTraits) do
+            local learnedTraits = self.playerManager.weaponTraitsController:getLearnedWeaponTraits()
+            local currentLevel = learnedTraits[trait.id] or 0
+
+            local optionData = {}
+            for k, v in pairs(trait) do optionData[k] = v end
+            optionData.current_level_for_display = currentLevel
+            optionData.is_weapon_trait = true
+
+            if trait.is_ultimate then
+                table.insert(availableUltimates, optionData)
+            else
+                table.insert(availableWeaponTraits, optionData)
+            end
+        end
+    end
 
     -- Primeiro, coleta melhorias normais disponíveis
     for bonusId, bonusData in pairs(LevelUpBonusesData.Bonuses) do
@@ -681,6 +701,7 @@ function LevelUpModal:generateOptions()
                 local optionData = {}
                 for k, v in pairs(bonusData) do optionData[k] = v end
                 optionData.current_level_for_display = currentLevel
+                optionData.is_weapon_trait = false
                 table.insert(availableBonuses, optionData)
             end
         end
@@ -724,13 +745,35 @@ function LevelUpModal:generateOptions()
             string.format("Melhoria ultimate adicionada: %s", availableUltimates[randomUltimateIndex].name))
     end
 
-    -- Preenche o resto com melhorias normais
-    local numNormalSlots = math.min(4 - numUltimateSlots, #availableBonuses)
-    for i = 1, numNormalSlots do
-        if #availableBonuses > 0 then
-            local randomIndex = love.math.random(1, #availableBonuses)
-            table.insert(self.options, availableBonuses[randomIndex])
-            table.remove(availableBonuses, randomIndex)
+    -- Combina todas as opções disponíveis (traits de arma + melhorias normais) com mesmo peso
+    local allAvailableOptions = {}
+
+    -- Adiciona traits de arma
+    for _, weaponTrait in ipairs(availableWeaponTraits) do
+        table.insert(allAvailableOptions, weaponTrait)
+    end
+
+    -- Adiciona melhorias normais
+    for _, bonus in ipairs(availableBonuses) do
+        table.insert(allAvailableOptions, bonus)
+    end
+
+    -- Preenche os slots restantes (4 - ultimates) com peso igual para todas as opções
+    local remainingSlots = 4 - numUltimateSlots
+    local numOptionsSelected = 0
+
+    for i = 1, remainingSlots do
+        if #allAvailableOptions > 0 then
+            local randomIndex = love.math.random(1, #allAvailableOptions)
+            table.insert(self.options, allAvailableOptions[randomIndex])
+            table.remove(allAvailableOptions, randomIndex)
+            numOptionsSelected = numOptionsSelected + 1
+
+            local optionType = self.options[#self.options].is_weapon_trait and "weapon trait" or "normal bonus"
+            Logger.debug(
+                "level_up_modal.generate_options.option_added",
+                string.format("Opção adicionada (%s): %s", optionType, self.options[#self.options].name)
+            )
         else
             break
         end
@@ -740,7 +783,11 @@ function LevelUpModal:generateOptions()
         Logger.debug("level_up_modal.generate_options.no_options", "Nenhuma opção de bônus disponível")
     else
         Logger.debug("level_up_modal.generate_options.summary",
-            string.format("Opções geradas: %d normais, %d ultimate", #self.options - numUltimateSlots, numUltimateSlots))
+            string.format(
+                "[LevelUpModal:generateOptions] Opções geradas: %d opções normais, %d ultimate",
+                numOptionsSelected, numUltimateSlots
+            )
+        )
     end
 end
 
@@ -866,22 +913,62 @@ function LevelUpModal:applyUpgrade(optionData)
         error("ERRO [LevelUpModal:applyUpgrade]: optionData inválido ou sem ID.")
     end
 
-    LevelUpBonusesData.ApplyBonus(self.playerManager.stateController, optionData.id)
+    local upgradeId = optionData.id
+    local upgradeName = optionData.name or "Melhoria Desconhecida"
 
-    local bonusId = optionData.id
-    local learnedBonuses = self.playerManager.stateController:getLearnedLevelUpBonuses()
-    learnedBonuses[bonusId] = (learnedBonuses[bonusId] or 0) + 1
-    self.playerManager:invalidateStatsCache()
+    if optionData.is_weapon_trait then
+        -- Aplica trait de arma
+        if self.playerManager.weaponTraitsController then
+            local success = self.playerManager.weaponTraitsController:applyTrait(upgradeId)
+            if success then
+                local learnedTraits = self.playerManager.weaponTraitsController:getLearnedWeaponTraits()
+                local newLevel = learnedTraits[upgradeId] or 0
 
-    -- Registra a escolha para as estatísticas
-    local gameStatsManager = self.playerManager.gameStatisticsManager
-    if gameStatsManager then
-        local choiceText = optionData.name or "Melhoria Desconhecida"
-        gameStatsManager:registerLevelUpChoice(learnedBonuses[bonusId], choiceText)
+                -- Registra a escolha para as estatísticas
+                local gameStatsManager = self.playerManager.gameStatisticsManager
+                if gameStatsManager then
+                    gameStatsManager:registerLevelUpChoice(newLevel, upgradeName)
+                end
+
+                Logger.debug(
+                    "level_up_modal.apply_upgrade",
+                    string.format(
+                        "[LevelUpModal:applyUpgrade] Trait de arma '%s' (ID: %s) aplicado. Novo nível: %d",
+                        upgradeName, upgradeId, newLevel
+                    )
+                )
+            else
+                error(
+                    string.format(
+                        "[LevelUpModal:applyUpgrade] Falha ao aplicar trait de arma '%s' (ID: %s)",
+                        upgradeName, upgradeId
+                    )
+                )
+            end
+        end
+    else
+        -- Aplica bônus normal
+        LevelUpBonusesData.ApplyBonus(self.playerManager.stateController, upgradeId)
+
+        local learnedBonuses = self.playerManager.stateController:getLearnedLevelUpBonuses()
+        learnedBonuses[upgradeId] = (learnedBonuses[upgradeId] or 0) + 1
+
+        -- Registra a escolha para as estatísticas
+        local gameStatsManager = self.playerManager.gameStatisticsManager
+        if gameStatsManager then
+            gameStatsManager:registerLevelUpChoice(learnedBonuses[upgradeId], upgradeName)
+        end
+
+        Logger.debug("level_up_modal.apply_upgrade",
+            string.format(
+                "[LevelUpModal:applyUpgrade] Bônus '%s' (ID: %s) aplicado. Novo nível: %d",
+                upgradeName, upgradeId, learnedBonuses[upgradeId]
+            )
+        )
     end
 
-    Logger.debug("level_up_modal.apply_upgrade", string.format("Bônus '%s' (ID: %s) aplicado. Novo nível: %d",
-        optionData.name, bonusId, learnedBonuses[bonusId]))
+    -- Invalida cache de stats em ambos os casos
+    self.playerManager:invalidateStatsCache()
 end
 
 function LevelUpModal:draw()

@@ -35,6 +35,8 @@ local Constants = require("src.config.constants")
 ---@field potionFlasks number Bônus base de frascos de poção (flat)
 ---@field potionHealAmount number Bônus base de cura por poção (flat)
 ---@field potionFillRate number Bônus base de velocidade de preenchimento (flat)
+---@field chainCount number Bônus base de quantidade de cadeias (flat)
+---@field jumpRange number Bônus base de alcance de pulo (flat)
 
 ---@class MultiplierBonus Bônus multiplicadores (%) aplicados ao stat base
 ---@field maxHealth number Bônus multiplicador de vida (%)
@@ -111,6 +113,8 @@ local Constants = require("src.config.constants")
 ---@field potionFlasks number Frascos de poção finais
 ---@field potionHealAmount number Cura por poção final
 ---@field potionFillRate number Velocidade de preenchimento final
+---@field piercing number Penetração final
+---@field projectiles number Projetéis finais
 ---@field _baseBonuses BaseBonus Bônus base (para referência)
 ---@field _multiplierBonuses MultiplierBonus Bônus multiplicadores (para referência)
 ---@field _learnedLevelUpBonuses LearnedLevelUpBonuses Bônus aprendidos (para referência)
@@ -156,6 +160,10 @@ local Constants = require("src.config.constants")
 ---@field potionFlasks number Quantidade base de frascos de poção
 ---@field potionHealAmount number Vida base recuperada por frasco
 ---@field potionFillRate number Multiplicador base de velocidade de preenchimento
+---@field piercing number Penetração base
+---@field projectiles number Projetéis base
+---@field chainCount number Quantidade de cadeias base
+---@field jumpRange number Alcance de pulo base
 ---@field baseBonuses BaseBonus Bônus base (flat) de todas as fontes
 ---@field multiplierBonuses MultiplierBonus Bônus multiplicadores (%) de todas as fontes
 ---@field statusModifiers StatusModifier[] Modificadores de status temporários
@@ -498,7 +506,8 @@ function PlayerStateController:getCurrentFinalStats()
         "healingBonus", "pickupRadius", "healthRegenDelay", "range", "luck",
         "attackArea", "healthPerTick", "cooldownReduction", "healthRegenCooldown",
         "dashCharges", "dashCooldown", "dashDistance", "dashDuration",
-        "potionFlasks", "potionHealAmount", "potionFillRate"
+        "potionFlasks", "potionHealAmount", "potionFillRate",
+        "chainCount", "jumpRange", "projectiles", "piercing"
     }
 
     for _, statName in ipairs(allStats) do

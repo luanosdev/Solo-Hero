@@ -10,6 +10,7 @@ local Constants = {}
     - moveSpeed é definido em metros por segundo (m/s)
     - pickupRadius é definido em metros
     - dashDistance é definido em metros
+    - range das armas é definido em metros
 
     Conversões automáticas:
     - Use Constants.metersToPixels(meters) para converter metros → pixels
@@ -221,4 +222,5 @@ function Constants.knockbackPowerToText(knockbackPower)
         return _T("item.attributes.knockback_power.very_high")
     end
 end
+
 return Constants

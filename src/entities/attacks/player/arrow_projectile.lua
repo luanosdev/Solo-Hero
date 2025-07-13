@@ -97,9 +97,11 @@ end
 ---@param args table Argumentos do cast
 ---@return boolean success
 function ArrowProjectile:castSpecific(args)
+    local baseProjectiles = self.cachedStats.projectiles or 0
+    local totalProjectiles = baseProjectiles + self.cachedBaseData.projectiles
     -- Calcula projéteis usando calculadora unificada
     local multiResult = MultiAttackCalculator.calculateProjectiles(
-        self.cachedBaseData.projectiles or 1,
+        totalProjectiles,
         self.cachedStats.multiAttackChance,
         love.timer.getTime()
     )
@@ -130,14 +132,19 @@ end
 function ArrowProjectile:calculateArrowAnglesOptimized(totalArrows)
     local angles = {}
 
+    -- Gambiarra: vamos usar o base de area para calcular o angulo de cada flecha
+    local baseAngle = self.currentAngle
+    local statsBaseAngle = self.cachedStats._baseBonuses["attackArea"] or 0
+    local totalAngle = baseAngle + statsBaseAngle
+
     if totalArrows == 1 then
-        table.insert(angles, self.currentAngle)
+        table.insert(angles, baseAngle)
     else
-        local angleStep = self.currentSpreadAngle / (totalArrows - 1)
-        local startAngleOffset = -self.currentSpreadAngle / 2
+        local angleStep = totalAngle / (totalArrows - 1)
+        local startAngleOffset = -totalAngle / 2
 
         for i = 0, totalArrows - 1 do
-            table.insert(angles, self.currentAngle + startAngleOffset + (i * angleStep))
+            table.insert(angles, baseAngle + startAngleOffset + (i * angleStep))
         end
     end
 
@@ -159,9 +166,10 @@ function ArrowProjectile:fireSingleArrowOptimized(arrowAngle, spatialGrid)
         critBonus
     )
 
+    local piercingBonus = stats.piercing or 0
     -- Calcula perfuração
     local strengthBonusPiercing = math.floor(stats.strength * CONFIG.constants.STRENGTH_TO_PIERCING_FACTOR)
-    local currentPiercing = self.cachedBaseData.piercing + strengthBonusPiercing
+    local currentPiercing = self.cachedBaseData.piercing + piercingBonus + strengthBonusPiercing
 
     -- Calcula alcance e escala
     local currentRange = Constants.metersToPixels(self.cachedBaseData.range) * stats.range

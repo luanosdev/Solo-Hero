@@ -88,7 +88,13 @@ function AlternatingConeStrike:onStatsUpdated()
     local baseData = self.cachedBaseData
     local stats = self.cachedStats
 
-    local newRange = Constants.metersToPixels(baseData.range) * stats.range
+    local baseBonusRange = stats._baseBonuses["range"] or 0
+    local multiplierBonusRange = stats._multiplierBonuses["range"] or 1
+
+    --- Essa conta é para o trait alternating_cone_strike_path1_var2_ultimate funcionar corretamente
+    --- ja que nao usamos base bonus para o area
+    local newRange = (Constants.metersToPixels(baseData.range + baseBonusRange) * (1 + (multiplierBonusRange / 100)))
+
     local newAngleWidth = baseData.angle * stats.attackArea
 
     if newRange ~= self.area.range or newAngleWidth ~= self.area.angleWidth then

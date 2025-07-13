@@ -200,7 +200,7 @@ local translations = {
             "Uma esfera pulsante extraída do coração de um monstro de elite. Seu interior fervilha com energia comprimida e instável, oscilando entre colapsar e explodir. Manipular esse artefato sem o devido preparo pode ser fatal.",
         },
         eternal_decay_relic = {
-            name = "Relíquia da Decadência Eterna",
+            name = "Decadência Eterna",
             description =
             "Uma esfera de cristal negro, trincada, pulsando com uma aura mórbida de decadência e morte, um olho de um caçador que ja foi uma lenda quando os primeiros portais apareceram - que agora, não passa de uma pilha de carne que parece ter sofrido serios ferimetos de uma batalha anterior previa a sua morte. Agora ele vaga dentre os portais, sempre aparecendo misteriosamente atacando quaisquer caçador que aparece a sua frente. Colecionadores pagam caro do fragmento para estudar o que pode acontecido no dia de ruptura",
         },
@@ -565,6 +565,283 @@ local translations = {
         invalid_key = "Chave de tradução inválida: {key}",
         language_changed = "Idioma alterado para: {language}",
         language_error = "Erro ao alterar idioma: {error}"
+    },
+
+    -- Weapons Traits - Sistema de traits por arma
+    weapon_traits = {
+        -- === Cone Slash ===
+        path1 = "Proficiência com Espada",
+        -- Cone Slash - Proficiência com Espada
+        cone_slash_path1_coverage = {
+            name = "Cobertura",
+            description = "Aumenta a {attributeName} em {attributeValue}."
+        },
+        cone_slash_path1_technique = {
+            name = "Técnica",
+            description = "Aprimora a precisão e dano dos ataques."
+        },
+        cone_slash_path1_coverage_ultimate = {
+            name = "Maestria Devastadora",
+            description = "O poder supremo da cobertura total."
+        },
+        cone_slash_path1_technique_ultimate = {
+            name = "Técnica Perfeita",
+            description = "A arte da espada em sua forma mais pura."
+        },
+        cone_slash_path2_precision = {
+            name = "Precisão",
+            description = "Aumenta a chance e dano de ataques críticos."
+        },
+        cone_slash_path2_velocity = {
+            name = "Velocidade",
+            description = "Acelera drasticamente os ataques de espada."
+        },
+        cone_slash_path2_precision_ultimate = {
+            name = "Lâmina Fantasma",
+            description = "Multiplica os ataques através de ilusões."
+        },
+        cone_slash_path2_velocity_ultimate = {
+            name = "Corte Sônico",
+            description = "Velocidade que rompe a barreira do som."
+        },
+
+        -- Alternating Cone Strike - Proficiência com Adagas
+        alternating_cone_strike_path1_flurry = {
+            name = "Rajada",
+            description = "Aumenta a velocidade e multiplicidade dos ataques."
+        },
+        alternating_cone_strike_path1_poison = {
+            name = "Veneno",
+            description = "Impregna as lâminas com toxinas mortais."
+        },
+        alternating_cone_strike_path1_flurry_ultimate = {
+            name = "Tempestade de Lâminas",
+            description = "Uma infinidade de golpes simultâneos."
+        },
+        alternating_cone_strike_path1_poison_ultimate = {
+            name = "Veneno Letal",
+            description = "Toxinas concentradas em cada golpe."
+        },
+        alternating_cone_strike_path2_mobility = {
+            name = "Mobilidade",
+            description = "Combina movimento e área de ataque."
+        },
+        alternating_cone_strike_path2_evasion = {
+            name = "Evasão",
+            description = "Técnicas defensivas aprimoradas."
+        },
+        alternating_cone_strike_path2_mobility_ultimate = {
+            name = "Dança da Morte",
+            description = "Movimento hipnótico e letal."
+        },
+        alternating_cone_strike_path2_evasion_ultimate = {
+            name = "Fantasma",
+            description = "Transcende a forma física."
+        },
+
+        -- Circular Smash - Proficiência com Martelos
+        circular_smash_path1_impact = {
+            name = "Impacto",
+            description = "Concentra força devastadora em cada golpe."
+        },
+        circular_smash_path1_earthquake = {
+            name = "Terremoto",
+            description = "Multiplica o impacto através da força pura."
+        },
+        circular_smash_path1_impact_ultimate = {
+            name = "Cratera",
+            description = "Um golpe que racheia a própria terra."
+        },
+        circular_smash_path1_earthquake_ultimate = {
+            name = "Devastação",
+            description = "Destrói tudo em um raio imenso."
+        },
+        circular_smash_path2_endurance = {
+            name = "Resistência",
+            description = "Fortalece a constituição do guerreiro."
+        },
+        circular_smash_path2_recovery = {
+            name = "Recuperação",
+            description = "Acelera a regeneração entre combates."
+        },
+        circular_smash_path2_endurance_ultimate = {
+            name = "Fortaleza",
+            description = "Torna-se uma muralha inabalável."
+        },
+        circular_smash_path2_recovery_ultimate = {
+            name = "Regeneração",
+            description = "Cura constante em pleno combate."
+        },
+
+        -- Arrow Projectile - Proficiência com Arcos
+        arrow_projectile_path1_marksmanship = {
+            name = "Tiro Certeiro",
+            description = "Aprimora precisão e alcance dos disparos."
+        },
+        arrow_projectile_path1_penetration = {
+            name = "Penetração",
+            description = "Aumenta o poder de perfuração das flechas."
+        },
+        arrow_projectile_path1_marksmanship_ultimate = {
+            name = "Tiro Perfeito",
+            description = "Nunca erra o alvo pretendido."
+        },
+        arrow_projectile_path1_penetration_ultimate = {
+            name = "Flecha Destruidora",
+            description = "Uma única flecha com poder devastador."
+        },
+        arrow_projectile_path2_volley = {
+            name = "Rajada",
+            description = "Dispara múltiplas flechas rapidamente."
+        },
+        arrow_projectile_path2_spread = {
+            name = "Dispersão",
+            description = "Cobre uma área maior com os disparos."
+        },
+        arrow_projectile_path2_volley_ultimate = {
+            name = "Chuva de Flechas",
+            description = "O céu escurece com projéteis."
+        },
+        arrow_projectile_path2_spread_ultimate = {
+            name = "Tempestade de Flechas",
+            description = "Cobertura total da área de batalha."
+        },
+
+        -- Chain Lightning - Proficiência com Raios
+        chain_lightning_path1_power = {
+            name = "Potência",
+            description = "Amplifica o poder destrutivo dos raios."
+        },
+        chain_lightning_path1_conduit = {
+            name = "Condutor",
+            description = "Multiplica e estende o alcance elétrico."
+        },
+        chain_lightning_path1_power_ultimate = {
+            name = "Raio Devastador",
+            description = "Um único raio com poder apocalíptico."
+        },
+        chain_lightning_path1_conduit_ultimate = {
+            name = "Tempestade Elétrica",
+            description = "Raios infinitos em todas as direções."
+        },
+        chain_lightning_path2_frequency = {
+            name = "Frequência",
+            description = "Acelera a geração de descargas elétricas."
+        },
+        chain_lightning_path2_efficiency = {
+            name = "Eficiência",
+            description = "Otimiza precisão e mobilidade elétrica."
+        },
+        chain_lightning_path2_frequency_ultimate = {
+            name = "Raio Contínuo",
+            description = "Descarga elétrica permanente."
+        },
+        chain_lightning_path2_efficiency_ultimate = {
+            name = "Raio Fantasma",
+            description = "Eletricidade que transcende limites físicos."
+        },
+
+        -- Flame Stream - Proficiência com Fogo
+        flame_stream_path1_intensity = {
+            name = "Intensidade",
+            description = "Concentra o calor em chamas mais destrutivas."
+        },
+        flame_stream_path1_duration = {
+            name = "Duração",
+            description = "Estende o alcance e persistência do fogo."
+        },
+        flame_stream_path1_intensity_ultimate = {
+            name = "Inferno",
+            description = "Chamas que consomem tudo ao redor."
+        },
+        flame_stream_path1_duration_ultimate = {
+            name = "Fluxo Eterno",
+            description = "Fogo que nunca se extingue."
+        },
+        flame_stream_path2_speed = {
+            name = "Velocidade",
+            description = "Acelera a propagação das chamas."
+        },
+        flame_stream_path2_critical = {
+            name = "Crítico",
+            description = "Chamas que explodem em pontos vitais."
+        },
+        flame_stream_path2_speed_ultimate = {
+            name = "Metralhadora de Fogo",
+            description = "Rajadas contínuas de projéteis ígneos."
+        },
+        flame_stream_path2_critical_ultimate = {
+            name = "Chama Azul",
+            description = "Fogo concentrado de temperatura extrema."
+        },
+
+        -- Burst Projectile - Proficiência com Espingardas
+        burst_projectile_path1_spread = {
+            name = "Dispersão",
+            description = "Amplia o padrão de dispersão dos projéteis."
+        },
+        burst_projectile_path1_power = {
+            name = "Poder",
+            description = "Concentra força devastadora em cada tiro."
+        },
+        burst_projectile_path1_spread_ultimate = {
+            name = "Dispersão Total",
+            description = "Cobertura completa da área frontal."
+        },
+        burst_projectile_path1_power_ultimate = {
+            name = "Canhão",
+            description = "Um único tiro com poder de artilharia."
+        },
+        burst_projectile_path2_speed = {
+            name = "Rapidez",
+            description = "Acelera drasticamente a cadência de tiro."
+        },
+        burst_projectile_path2_mobility = {
+            name = "Mobilidade",
+            description = "Combina movimento com alcance estendido."
+        },
+        burst_projectile_path2_speed_ultimate = {
+            name = "Rajada Automática",
+            description = "Tiros contínuos em alta velocidade."
+        },
+        burst_projectile_path2_mobility_ultimate = {
+            name = "Guerreiro Móvel",
+            description = "Combate em movimento extremo."
+        },
+
+        -- Sequential Projectile - Proficiência com Metralhadoras
+        sequential_projectile_path1_suppression = {
+            name = "Supressão",
+            description = "Mantém pressão constante com múltiplos tiros."
+        },
+        sequential_projectile_path1_piercing = {
+            name = "Perfuração",
+            description = "Aumenta o poder de penetração dos projéteis."
+        },
+        sequential_projectile_path1_suppression_ultimate = {
+            name = "Chuva de Balas",
+            description = "Saturação total da área de combate."
+        },
+        sequential_projectile_path1_piercing_ultimate = {
+            name = "Perfurador",
+            description = "Projéteis que atravessam qualquer defesa."
+        },
+        sequential_projectile_path2_precision = {
+            name = "Precisão",
+            description = "Melhora a pontaria em tiros sequenciais."
+        },
+        sequential_projectile_path2_mobility = {
+            name = "Mobilidade",
+            description = "Atira com precisão mesmo em movimento."
+        },
+        sequential_projectile_path2_precision_ultimate = {
+            name = "Atirador de Elite",
+            description = "Precisão cirúrgica em cada disparo."
+        },
+        sequential_projectile_path2_mobility_ultimate = {
+            name = "Fantasma da Guerra",
+            description = "Combate hipermóvel e elusivo."
+        }
     }
 }
 

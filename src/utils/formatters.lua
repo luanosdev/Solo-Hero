@@ -238,6 +238,23 @@ function Formatters.getStatLabel(statKey)
     return statDisplayNames[statKey]
 end
 
--- Adicionar outras funções de formatação aqui no futuro, se necessário.
+--- Formata numeros inteiros em romano
+---@param num number O número a ser formatado.
+---@return string value O número formatado em romano.
+function Formatters.formatRomanNumber(num)
+    local roman = {
+        [1] = "I",
+        [2] = "II",
+        [3] = "III",
+        [4] = "IV",
+        [5] = "V",
+        [6] = "VI",
+        [7] = "VII",
+        [8] = "VIII",
+        [9] = "IX",
+        [10] = "X",
+    }
+    return roman[num]
+end
 
 return Formatters
