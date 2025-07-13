@@ -159,7 +159,7 @@ function SequentialProjectile:fireSingleProjectileOptimized(projectileAngle, spa
 
     -- Calcula perfuração
     local strengthBonusPiercing = math.floor(stats.strength * CONFIG.constants.STRENGTH_TO_PIERCING_FACTOR)
-    local currentPiercing = baseData.piercing + strengthBonusPiercing
+    local currentPiercing = baseData.piercing + strengthBonusPiercing + stats.piercing
 
     -- Calcula alcance e escala
     local currentRange = (Constants.metersToPixels(baseData.range) * stats.range) / 2

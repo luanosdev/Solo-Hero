@@ -1011,7 +1011,8 @@ WeaponTraitsData.Traits = {
     burst_projectile_path2_var1_ultimate = {
         id = "burst_projectile_path2_var1_ultimate",
         name = "Velocidade - Explosão",
-        description = "Aumenta o |Dano| base em |100| e a |Chance de Ataque Múltiplo| base em |80%|.",
+        description =
+        "Aumenta o |Dano| base em |100|, aumenta a chance de |Ataque Múltiplo| base em |2.0| e reduz o |Alcance| base em |50%|.",
         image_path = tempIconPath,
         max_level = 1,
         attack_class = "burst_projectile",
@@ -1020,7 +1021,8 @@ WeaponTraitsData.Traits = {
         is_ultimate = true,
         modifiers_per_level = {
             { stat = "damage",            type = "base", value = 100 },
-            { stat = "multiAttackChance", type = "base", value = 80 }
+            { stat = "multiAttackChance", type = "base", value = 2.0 },
+            { stat = "range",             type = "base", value = -50 },
         },
         color = PATH_COLORS.ultimate
     },
@@ -1029,11 +1031,11 @@ WeaponTraitsData.Traits = {
     -- SEQUENTIAL PROJECTILE (Metralhadoras)
     ---------------------------------------------------------------------------------
     -- Caminho 1: Supressão
-    -- Variação 1: Volume de Fogo
+    -- Variação 1: Cadência
     sequential_projectile_path1_var1 = {
         id = "sequential_projectile_path1_var1",
-        name = "Supressão",
-        description = "Aumenta a |Velocidade de Ataque| em |25%| e a |Chance de Ataque Múltiplo| em |8%|.",
+        name = "Supressão - Cadência",
+        description = "Aumenta a |Velocidade de Ataque| em |10%| e a |Chance de Ataque Múltiplo| em |10%|.",
         image_path = tempIconPath,
         max_level = 4,
         attack_class = "sequential_projectile",
@@ -1041,16 +1043,16 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = false,
         modifiers_per_level = {
-            { stat = "attackSpeed",       type = "percentage", value = 25 },
-            { stat = "multiAttackChance", type = "percentage", value = 8 }
+            { stat = "attackSpeed",       type = "percentage", value = 10 },
+            { stat = "multiAttackChance", type = "percentage", value = 10 }
         },
         color = PATH_COLORS.path1
     },
     sequential_projectile_path1_var1_ultimate = {
         id = "sequential_projectile_path1_var1_ultimate",
-        name = "Metralhadora Infernal",
+        name = "Supressão - Rajada",
         description =
-        "A supressão suprema. |Velocidade de Ataque| |+300%| e |Chance de Ataque Múltiplo| |+150%|, mas |Dano| |-60%|.",
+        "Aumenta a |Velocidade de Ataque| base em |2.0|, aumenta a chance de |Ataque Múltiplo| base em |1.0| e reduz o |Dano| em |90%|.",
         image_path = tempIconPath,
         max_level = 1,
         attack_class = "sequential_projectile",
@@ -1058,9 +1060,9 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = true,
         modifiers_per_level = {
-            { stat = "attackSpeed",       type = "percentage", value = 300 },
-            { stat = "multiAttackChance", type = "percentage", value = 150 },
-            { stat = "damage",            type = "percentage", value = -60 }
+            { stat = "attackSpeed",       type = "base",       value = 2.0 },
+            { stat = "multiAttackChance", type = "base",       value = 1.0 },
+            { stat = "damage",            type = "percentage", value = -90 }
         },
         color = PATH_COLORS.ultimate
     },
@@ -1069,8 +1071,8 @@ WeaponTraitsData.Traits = {
     -- Variação 1: Controle
     sequential_projectile_path2_var1 = {
         id = "sequential_projectile_path2_var1",
-        name = "Controle de Recuo",
-        description = "Aumenta a |Chance Crítica| em |6%| e o |Dano Crítico| em |8%|.",
+        name = "Precisão - Controle",
+        description = "Aumenta a |Chance Crítica| em |20%| e o |Dano Crítico| em |20%|.",
         image_path = tempIconPath,
         max_level = 4,
         attack_class = "sequential_projectile",
@@ -1078,16 +1080,16 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = false,
         modifiers_per_level = {
-            { stat = "critChance", type = "percentage", value = 6 },
-            { stat = "critDamage", type = "percentage", value = 8 }
+            { stat = "critChance", type = "percentage", value = 20 },
+            { stat = "critDamage", type = "percentage", value = 20 }
         },
         color = PATH_COLORS.path2
     },
     sequential_projectile_path2_var1_ultimate = {
         id = "sequential_projectile_path2_var1_ultimate",
-        name = "Atirador de Elite",
+        name = "Precisão - Elite",
         description =
-        "A precisão suprema. |Chance Crítica| |+80%| e |Dano Crítico| |+100%|, mas |Velocidade de Ataque| |-30%|.",
+        "Aumenta o |Alcance| base em |5.0|m, aumenta a |Perfuração| base em |10| e reduz a chance de |Ataque Múltiplo| base em |-1.0|.",
         image_path = tempIconPath,
         max_level = 1,
         attack_class = "sequential_projectile",
@@ -1095,9 +1097,9 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = true,
         modifiers_per_level = {
-            { stat = "critChance",  type = "percentage", value = 80 },
-            { stat = "critDamage",  type = "percentage", value = 100 },
-            { stat = "attackSpeed", type = "percentage", value = -30 }
+            { stat = "rage",              type = "base", value = 5.0 },
+            { stat = "piercing",          type = "base", value = 10 },
+            { stat = "multiAttackChance", type = "base", value = -1.0 },
         },
         color = PATH_COLORS.ultimate
     },
