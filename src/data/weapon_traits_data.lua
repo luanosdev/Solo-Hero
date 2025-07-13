@@ -36,6 +36,7 @@ local WeaponTraitsData = {}
 local PATH_COLORS = {
     path1 = Colors.attribute_colors.damage,
     path2 = Colors.attribute_colors.range,
+    path3 = Colors.attribute_colors.attack_area,
     ultimate = Colors.rankDetails.S.text
 }
 
@@ -883,6 +884,7 @@ WeaponTraitsData.Traits = {
             { stat = "damage",      type = "base", value = 50 },
             { stat = "attackSpeed", type = "base", value = -1 }
         },
+        color = PATH_COLORS.ultimate
     },
     -- Caminho 2: Preparação
     -- Variação 1: Recuperação

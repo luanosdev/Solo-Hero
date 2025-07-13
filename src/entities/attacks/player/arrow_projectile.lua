@@ -133,18 +133,18 @@ function ArrowProjectile:calculateArrowAnglesOptimized(totalArrows)
     local angles = {}
 
     -- Gambiarra: vamos usar o base de area para calcular o angulo de cada flecha
-    local baseAngle = self.currentAngle
+    local baseSpreadAngle = self.currentSpreadAngle
     local statsBaseAngle = self.cachedStats._baseBonuses["attackArea"] or 0
-    local totalAngle = baseAngle + statsBaseAngle
+    local totalSpreadAngle = baseSpreadAngle + statsBaseAngle
 
     if totalArrows == 1 then
-        table.insert(angles, baseAngle)
+        table.insert(angles, self.currentAngle)
     else
-        local angleStep = totalAngle / (totalArrows - 1)
-        local startAngleOffset = -totalAngle / 2
+        local angleStep = totalSpreadAngle / (totalArrows - 1)
+        local startAngleOffset = -totalSpreadAngle / 2
 
         for i = 0, totalArrows - 1 do
-            table.insert(angles, baseAngle + startAngleOffset + (i * angleStep))
+            table.insert(angles, self.currentAngle + startAngleOffset + (i * angleStep))
         end
     end
 
