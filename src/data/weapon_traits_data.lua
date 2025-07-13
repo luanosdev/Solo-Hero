@@ -815,16 +815,15 @@ WeaponTraitsData.Traits = {
         },
         color = PATH_COLORS.ultimate
     },
-
     ---------------------------------------------------------------------------------
     -- FLAME STREAM (Lança-chamas)
     ---------------------------------------------------------------------------------
-    -- Caminho 1: Intensidade
-    -- Variação 1: Calor
+    -- Caminho 1: Manipulação
+    -- Variação 1: Destreza
     flame_stream_path1_var1 = {
         id = "flame_stream_path1_var1",
-        name = "Chama Intensa",
-        description = "Aumenta o |Dano| em |12%| e a |Área de Ataque| em |8%|.",
+        name = "Manipulação - Destreza",
+        description = "Aumenta o |Dano| em |20%| e aumenta a |Força| em |10%|.",
         image_path = tempIconPath,
         max_level = 4,
         attack_class = "flame_stream",
@@ -832,16 +831,15 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = false,
         modifiers_per_level = {
-            { stat = "damage",     type = "percentage", value = 12 },
-            { stat = "attackArea", type = "percentage", value = 8 }
+            { stat = "damage",   type = "percentage", value = 20 },
+            { stat = "strength", type = "percentage", value = 10 },
         },
         color = PATH_COLORS.path1
     },
     flame_stream_path1_var1_ultimate = {
         id = "flame_stream_path1_var1_ultimate",
-        name = "Inferno Ardente",
-        description =
-        "A intensidade suprema. |Dano| |+200%| e |Área de Ataque| |+100%|, mas |Velocidade de Movimento| |-50%|.",
+        name = "Manipulação - Super Aquecimento",
+        description = "Aumenta a |Velocidade de Ataque| base em |3.0| e a |Área| base em |35|°.",
         image_path = tempIconPath,
         max_level = 1,
         attack_class = "flame_stream",
@@ -849,19 +847,49 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = true,
         modifiers_per_level = {
-            { stat = "damage",     type = "percentage", value = 200 },
-            { stat = "attackArea", type = "percentage", value = 100 },
-            { stat = "moveSpeed",  type = "percentage", value = -50 }
+            { stat = "attackSpeed", type = "base", value = 3.0 },
+            { stat = "attackArea",  type = "base", value = math.rad(35) },
         },
         color = PATH_COLORS.ultimate
     },
-
-    -- Caminho 2: Velocidade
-    -- Variação 1: Fluxo
+    -- Caminho 1: Manipulação
+    -- Variação 2: Agilidade
+    flame_stream_path1_var2 = {
+        id = "flame_stream_path1_var2",
+        name = "Manipulação - Agilidade",
+        description = "Aumenta a |Velocidade de Ataque| em |15%|.",
+        image_path = tempIconPath,
+        max_level = 4,
+        attack_class = "flame_stream",
+        path_id = "path1",
+        variation_id = "variation2",
+        is_ultimate = false,
+        modifiers_per_level = {
+            { stat = "attackSpeed", type = "percentage", value = 15 },
+        },
+        color = PATH_COLORS.path1
+    },
+    flame_stream_path1_var2_ultimate = {
+        id = "flame_stream_path1_var2_ultimate",
+        name = "Manipulação - Incêndio",
+        description = "Aumenta o |Dano| base em |50| e reduz a |Velocidade de Ataque| base em |1|.",
+        image_path = tempIconPath,
+        max_level = 1,
+        attack_class = "flame_stream",
+        path_id = "path1",
+        variation_id = "variation2",
+        is_ultimate = true,
+        modifiers_per_level = {
+            { stat = "damage",      type = "base", value = 50 },
+            { stat = "attackSpeed", type = "base", value = -1 }
+        },
+    },
+    -- Caminho 2: Preparação
+    -- Variação 1: Recuperação
     flame_stream_path2_var1 = {
         id = "flame_stream_path2_var1",
-        name = "Fluxo Rápido",
-        description = "Aumenta a |Velocidade de Ataque| em |18%| e o |Alcance| em |0.8|m.",
+        name = "Preparação - Recuperação",
+        description = "Aumenta a |Regeneração de Vida| em |10%| e a |Velocidade de Movimento| em |5%|.",
         image_path = tempIconPath,
         max_level = 4,
         attack_class = "flame_stream",
@@ -869,15 +897,15 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = false,
         modifiers_per_level = {
-            { stat = "attackSpeed", type = "percentage", value = 18 },
-            { stat = "range",       type = "base",       value = 0.8 }
+            { stat = "healthRegen", type = "percentage", value = 10 },
+            { stat = "moveSpeed",   type = "percentage", value = 5 }
         },
         color = PATH_COLORS.path2
     },
     flame_stream_path2_var1_ultimate = {
         id = "flame_stream_path2_var1_ultimate",
-        name = "Torrente Flamejante",
-        description = "O fluxo supremo. |Velocidade de Ataque| |+150%| e |Alcance| |+5.0|m, mas |Dano| |-40%|.",
+        name = "Preparação - Queimadura",
+        description = "Aumenta o |Dano| em |30%|.",
         image_path = tempIconPath,
         max_level = 1,
         attack_class = "flame_stream",
@@ -885,13 +913,44 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = true,
         modifiers_per_level = {
-            { stat = "attackSpeed", type = "percentage", value = 150 },
-            { stat = "range",       type = "base",       value = 5.0 },
-            { stat = "damage",      type = "percentage", value = -40 }
+            { stat = "damage", type = "percentage", value = 30 }
         },
         color = PATH_COLORS.ultimate
     },
-
+    -- Caminho 2: Preparação
+    -- Variação 2: Recuperação
+    flame_stream_path2_var2 = {
+        id = "flame_stream_path2_var2",
+        name = "Preparação - Recuperação",
+        description = "Aumenta a |Vida Máxima| em |10%| e aumenta a |Defesa| em |10%|.",
+        image_path = tempIconPath,
+        max_level = 4,
+        attack_class = "flame_stream",
+        path_id = "path2",
+        variation_id = "variation2",
+        is_ultimate = false,
+        modifiers_per_level = {
+            { stat = "maxHealth", type = "percentage", value = 10 },
+            { stat = "defense",   type = "percentage", value = 10 },
+        },
+        color = PATH_COLORS.path2
+    },
+    flame_stream_path2_var2_ultimate = {
+        id = "flame_stream_path2_var2_ultimate",
+        name = "Preparação - Explosão",
+        description = "Aumenta o |Dano| base em |100|.",
+        image_path = tempIconPath,
+        max_level = 1,
+        attack_class = "flame_stream",
+        path_id = "path2",
+        variation_id = "variation2",
+        is_ultimate = true,
+        modifiers_per_level = {
+            { stat = "damage", type = "percentage", value = 100 }
+        },
+        color = PATH_COLORS.ultimate,
+    },
+    --------------------------------- Atualizar Futuramente ---------------------------------
     ---------------------------------------------------------------------------------
     -- BURST PROJECTILE (Shotguns)
     ---------------------------------------------------------------------------------
@@ -899,8 +958,8 @@ WeaponTraitsData.Traits = {
     -- Variação 1: Cobertura
     burst_projectile_path1_var1 = {
         id = "burst_projectile_path1_var1",
-        name = "Dispersão Ampla",
-        description = "Aumenta a |Área de Ataque| em |15%| e o |Alcance| em |0.5|m.",
+        name = "Dispersão - Alcance",
+        description = "Aumenta o |Alcance| em |10%|.",
         image_path = tempIconPath,
         max_level = 4,
         attack_class = "burst_projectile",
@@ -908,16 +967,14 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = false,
         modifiers_per_level = {
-            { stat = "attackArea", type = "percentage", value = 15 },
-            { stat = "range",      type = "base",       value = 0.5 }
+            { stat = "range", type = "percentage", value = 10 }
         },
         color = PATH_COLORS.path1
     },
     burst_projectile_path1_var1_ultimate = {
         id = "burst_projectile_path1_var1_ultimate",
-        name = "Canhão Devastador",
-        description =
-        "A dispersão suprema. |Área de Ataque| |+120%| e |Alcance| |+4.0|m, mas |Velocidade de Ataque| |-45%|.",
+        name = "Dispersão - Explosão",
+        description = "Aumenta a |Área| base em |40|° e aumenta os |Projéteis| base em |10|.",
         image_path = tempIconPath,
         max_level = 1,
         attack_class = "burst_projectile",
@@ -925,8 +982,8 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = true,
         modifiers_per_level = {
-            { stat = "attackArea", type = "percentage", value = 200 },
-            { stat = "damage",     type = "percentage", value = -50 }
+            { stat = "attackArea",  type = "base", value = math.rad(40) },
+            { stat = "projectiles", type = "base", value = 10 }
         },
         color = PATH_COLORS.ultimate
     },
@@ -935,8 +992,8 @@ WeaponTraitsData.Traits = {
     -- Variação 1: Cadência
     burst_projectile_path2_var1 = {
         id = "burst_projectile_path2_var1",
-        name = "Cadência Rápida",
-        description = "Aumenta a |Velocidade de Ataque| em |20%| e a |Chance de Ataque Múltiplo| em |6%|.",
+        name = "Velocidade - Cadência",
+        description = "Aumenta a |Velocidade de Ataque| em |10%| e a |Chance de Ataque Múltiplo| em |6%|.",
         image_path = tempIconPath,
         max_level = 4,
         attack_class = "burst_projectile",
@@ -944,16 +1001,15 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = false,
         modifiers_per_level = {
-            { stat = "attackSpeed",       type = "percentage", value = 20 },
+            { stat = "attackSpeed",       type = "percentage", value = 10 },
             { stat = "multiAttackChance", type = "percentage", value = 6 }
         },
         color = PATH_COLORS.path2
     },
     burst_projectile_path2_var1_ultimate = {
         id = "burst_projectile_path2_var1_ultimate",
-        name = "Rajada Interminável",
-        description =
-        "A cadência suprema. |Velocidade de Ataque| |+200%| e |Chance de Ataque Múltiplo| |+80%|, mas |Dano| |-50%|.",
+        name = "Velocidade - Explosão",
+        description = "Aumenta o |Dano| base em |100| e a |Chance de Ataque Múltiplo| base em |80%|.",
         image_path = tempIconPath,
         max_level = 1,
         attack_class = "burst_projectile",
@@ -961,9 +1017,8 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = true,
         modifiers_per_level = {
-            { stat = "attackSpeed",       type = "percentage", value = 200 },
-            { stat = "multiAttackChance", type = "percentage", value = 80 },
-            { stat = "damage",            type = "percentage", value = -50 }
+            { stat = "damage",            type = "base", value = 100 },
+            { stat = "multiAttackChance", type = "base", value = 80 }
         },
         color = PATH_COLORS.ultimate
     },
