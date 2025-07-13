@@ -731,17 +731,17 @@ WeaponTraitsData.Traits = {
         },
         color = PATH_COLORS.path1
     },
-    chain_lightning_path2_var1 = {
-        id = "chain_lightning_path2_var1",
-        name = "Poder - Condutividade",
+    chain_lightning_path1_var2_ultimate = {
+        id = "chain_lightning_path1_var2_ultimate",
+        name = "Poder - Trovão",
         description =
         "Aumenta o |Dano| base em |50|, aumenta a |Chance de Crítico| base em |33%| e reduz a quantidade de |Cadeias| base em |1| e o |Alcance de Pulo| base em |100|m.",
         image_path = tempIconPath,
         max_level = 4,
         attack_class = "chain_lightning",
-        path_id = "path2",
-        variation_id = "variation1",
-        is_ultimate = false,
+        path_id = "path1",
+        variation_id = "variation2",
+        is_ultimate = true,
         modifiers_per_level = {
             { stat = "damage",     type = "base", value = 50 },
             { stat = "critChance", type = "base", value = 0.33 },
@@ -750,11 +750,27 @@ WeaponTraitsData.Traits = {
         },
         color = PATH_COLORS.path2
     },
+    -- Caminho 2: Fisico
+    -- Variação 1: Velocidade
+    chain_lightning_path2_var1 = {
+        id = "chain_lightning_path2_var1_ultimate",
+        name = "Fisico - Velocidade",
+        description = "Aumenta a |Velocidade de Movimento| em |10%|.",
+        image_path = tempIconPath,
+        max_level = 4,
+        attack_class = "chain_lightning",
+        path_id = "path2",
+        variation_id = "variation1",
+        is_ultimate = false,
+        modifiers_per_level = {
+            { stat = "moveSpeed", type = "percentage", value = 10 },
+        },
+        color = PATH_COLORS.path2
+    },
     chain_lightning_path2_var1_ultimate = {
         id = "chain_lightning_path2_var1_ultimate",
-        name = "Tempestade Elétrica",
-        description =
-        "A condutividade suprema. |Velocidade de Ataque| |+120%| e aumenta |Chance de Ataque Múltiplo| |+60%|, mas reduz |Dano| |-35%|.",
+        name = "Fisico - Explosão",
+        description = "Aumenta a |Dano| em |50%|.",
         image_path = tempIconPath,
         max_level = 1,
         attack_class = "chain_lightning",
@@ -762,9 +778,40 @@ WeaponTraitsData.Traits = {
         variation_id = "variation1",
         is_ultimate = true,
         modifiers_per_level = {
-            { stat = "attackSpeed",       type = "percentage", value = 120 },
-            { stat = "multiAttackChance", type = "percentage", value = 60 },
-            { stat = "damage",            type = "percentage", value = -35 }
+            { stat = "damage", type = "percentage", value = 50 },
+        },
+        color = PATH_COLORS.ultimate
+    },
+    -- Caminho 2: Fisico
+    -- Variação 2: Resistência
+    chain_lightning_path2_var2 = {
+        id = "chain_lightning_path2_var2",
+        name = "Fisico - Resistência",
+        description = "Aumenta a |Vida Máxima| em |10%| e a |Defesa| base em |10|.",
+        image_path = tempIconPath,
+        max_level = 4,
+        attack_class = "chain_lightning",
+        path_id = "path2",
+        variation_id = "variation2",
+        is_ultimate = false,
+        modifiers_per_level = {
+            { stat = "maxHealth", type = "percentage", value = 10 },
+            { stat = "defense",   type = "base",       value = 10 }
+        },
+        color = PATH_COLORS.path2
+    },
+    chain_lightning_path2_var2_ultimate = {
+        id = "chain_lightning_path2_var2_ultimate",
+        name = "Fisico - Explosão",
+        description = "Aumenta o |Dano| base em |100|.",
+        image_path = tempIconPath,
+        max_level = 1,
+        attack_class = "chain_lightning",
+        path_id = "path2",
+        variation_id = "variation2",
+        is_ultimate = true,
+        modifiers_per_level = {
+            { stat = "damage", type = "percentage", value = 100 }
         },
         color = PATH_COLORS.ultimate
     },
