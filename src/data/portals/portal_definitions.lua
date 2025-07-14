@@ -229,8 +229,8 @@ local portalDefinitions = {
                 {
                     duration = 120,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1,   weight = 1, unitType = "zombie_walker_male_1" },
-                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" }
+                        { class = ZombieRunnerMale1,   weight = 1, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
                         interval = 15,
@@ -248,10 +248,10 @@ local portalDefinitions = {
                 {
                     duration = 120,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1,   weight = 3, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerMale1,   weight = 1, unitType = "zombie_walker_male_1" },
                         { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1,   weight = 1, unitType = "zombie_runner_male_1" },
-                        { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
+                        { class = ZombieRunnerMale1,   weight = 3, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 3, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
                         interval = 12,
@@ -269,10 +269,10 @@ local portalDefinitions = {
                 {
                     duration = 120,
                     allowedEnemies = {
-                        { class = ZombieWalkerMale1,   weight = 1, unitType = "zombie_walker_male_1" },
-                        { class = ZombieWalkerFemale1, weight = 1, unitType = "zombie_walker_female_1" },
-                        { class = ZombieRunnerMale1,   weight = 3, unitType = "zombie_runner_male_1" },
-                        { class = ZombieRunnerFemale1, weight = 3, unitType = "zombie_runner_female_1" }
+                        { class = ZombieWalkerMale1,   weight = 3, unitType = "zombie_walker_male_1" },
+                        { class = ZombieWalkerFemale1, weight = 3, unitType = "zombie_walker_female_1" },
+                        { class = ZombieRunnerMale1,   weight = 1, unitType = "zombie_runner_male_1" },
+                        { class = ZombieRunnerFemale1, weight = 1, unitType = "zombie_runner_female_1" }
                     },
                     majorSpawn = {
                         interval = 10,

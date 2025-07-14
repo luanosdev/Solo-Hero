@@ -31,10 +31,10 @@ local enemies = {
         unitType = "zombie_walker_male_1",
         name = "Zombie Walker",
 
-        speed = 30,
-        health = 200,
-        damage = 18,
-        experienceValue = 30,
+        speed = 50,
+        health = 400,
+        damage = 50,
+        experienceValue = 60,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
         assetPaths = {
@@ -45,14 +45,13 @@ local enemies = {
         grids = default_enemy_grids,
         angles = default_enemy_angles,
         frameTimes = {
-            walk = 0.08, -- Segundos por frame
-            run = 0.10,  -- Segundos por frame
-            death_die1 = 0.12,
-            death_die2 = 0.12
+            walk = 0.08,
+            death_die1 = 0.06,
+            death_die2 = 0.06
         },
 
         instanceDefaults = {
-            scale = 1,
+            scale = 1.2,
             animation = {
                 activeMovementType = 'walk' -- Começa andando
             }
@@ -64,10 +63,10 @@ local enemies = {
         unitType = "zombie_runner_male_1",
         name = "Zombie Runner",
 
-        speed = 50,
+        speed = 70,
         health = 100,
         damage = 30,
-        experienceValue = 45,
+        experienceValue = 40,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
         assetPaths = {
@@ -78,9 +77,9 @@ local enemies = {
         grids = default_enemy_grids,
         angles = default_enemy_angles,
         frameTimes = {
-            run = 0.06,
-            death_die1 = 0.12,
-            death_die2 = 0.12
+            run = 0.04,
+            death_die1 = 0.06,
+            death_die2 = 0.06
         },
 
         instanceDefaults = {
@@ -96,10 +95,10 @@ local enemies = {
         unitType = "zombie_walker_female_1",
         name = "Zombie Walker",
 
-        speed = 30,
-        health = 200,
-        damage = 18,
-        experienceValue = 30,
+        speed = 50,
+        health = 400,
+        damage = 50,
+        experienceValue = 60,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
         assetPaths = {
@@ -111,12 +110,12 @@ local enemies = {
         angles = default_enemy_angles,
         frameTimes = {
             walk = 0.08,
-            death_die1 = 0.12,
-            death_die2 = 0.12
+            death_die1 = 0.06,
+            death_die2 = 0.06
         },
 
         instanceDefaults = {
-            scale = 1,
+            scale = 1.2,
             animation = {
                 activeMovementType = 'walk' -- Começa andando
             }
@@ -128,10 +127,10 @@ local enemies = {
         unitType = "zombie_runner_female_1",
         name = "Zombie Runner",
 
-        speed = 50,
+        speed = 70,
         health = 100,
         damage = 30,
-        experienceValue = 45,
+        experienceValue = 40,
         size = Constants.ENEMY_SPRITE_SIZES.MEDIUM,
 
         assetPaths = {
@@ -142,9 +141,9 @@ local enemies = {
         grids = default_enemy_grids,
         angles = default_enemy_angles,
         frameTimes = {
-            run = 0.06,
-            death_die1 = 0.12,
-            death_die2 = 0.12
+            run = 0.04,
+            death_die1 = 0.06,
+            death_die2 = 0.06
         },
 
         instanceDefaults = {
