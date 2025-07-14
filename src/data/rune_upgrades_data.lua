@@ -4,6 +4,8 @@
 -- Cada runa tem melhorias específicas que só afetam seus próprios atributos
 -- Melhorias são limitadas por número de usos e removidas quando a runa atinge nível máximo
 ---------------------------------------------------------------------------------
+-- Padronizar nomeclatura com level_up_data.lua
+
 
 local Colors = require("src.ui.colors")
 
@@ -87,7 +89,7 @@ RuneUpgradesData.Upgrades = {
         is_ultra = false,
         required_level = 1,
         effects = {
-            { type = "rotation_speed", value = 20, is_percentage = true }
+            { type = "rotationSpeed", value = 20, is_percentage = true }
         },
         color = UPGRADE_COLORS.normal
     },
@@ -103,7 +105,7 @@ RuneUpgradesData.Upgrades = {
         is_ultra = false,
         required_level = 2,
         effects = {
-            { type = "orbit_radius", value = 15, is_percentage = true }
+            { type = "orbitRadius", value = 15, is_percentage = true }
         },
         color = UPGRADE_COLORS.normal
     },
