@@ -665,6 +665,7 @@ function LevelUpModal:generateOptions()
     local availableBonuses = {}
     local availableUltimates = {}
     local availableWeaponTraits = {}
+    local availableRuneUpgrades = {}
 
     if not self.playerManager or not self.playerManager.stateController or not self.playerManager.stateController:getLearnedLevelUpBonuses() then
         error(
@@ -689,6 +690,29 @@ function LevelUpModal:generateOptions()
                 table.insert(availableUltimates, optionData)
             else
                 table.insert(availableWeaponTraits, optionData)
+            end
+        end
+    end
+
+    -- Coleta melhorias de runas disponíveis
+    if self.playerManager.runeController then
+        local runeUpgrades = self.playerManager.runeController:getAvailableRuneUpgrades()
+        for _, upgrade in ipairs(runeUpgrades) do
+            local usedUpgrades = self.playerManager.runeController:getUsedRuneUpgrades()
+            local timesUsed = usedUpgrades[upgrade.id] or 0
+
+            local optionData = {}
+            for k, v in pairs(upgrade) do optionData[k] = v end
+
+            -- Usa as informações já calculadas pelo RuneController
+            optionData.current_level_for_display = upgrade.current_level_for_display or 1
+            optionData.max_level = upgrade.max_level or 5
+            optionData.is_rune_upgrade = true
+
+            if upgrade.is_ultra then
+                table.insert(availableUltimates, optionData)
+            else
+                table.insert(availableRuneUpgrades, optionData)
             end
         end
     end
@@ -745,7 +769,7 @@ function LevelUpModal:generateOptions()
             string.format("Melhoria ultimate adicionada: %s", availableUltimates[randomUltimateIndex].name))
     end
 
-    -- Combina todas as opções disponíveis (traits de arma + melhorias normais) com mesmo peso
+    -- Combina todas as opções disponíveis (traits de arma + melhorias normais + melhorias de runas) com mesmo peso
     local allAvailableOptions = {}
 
     -- Adiciona traits de arma
@@ -756,6 +780,11 @@ function LevelUpModal:generateOptions()
     -- Adiciona melhorias normais
     for _, bonus in ipairs(availableBonuses) do
         table.insert(allAvailableOptions, bonus)
+    end
+
+    -- Adiciona melhorias de runas
+    for _, runeUpgrade in ipairs(availableRuneUpgrades) do
+        table.insert(allAvailableOptions, runeUpgrade)
     end
 
     -- Preenche os slots restantes (4 - ultimates) com peso igual para todas as opções
@@ -769,7 +798,12 @@ function LevelUpModal:generateOptions()
             table.remove(allAvailableOptions, randomIndex)
             numOptionsSelected = numOptionsSelected + 1
 
-            local optionType = self.options[#self.options].is_weapon_trait and "weapon trait" or "normal bonus"
+            local optionType = "normal bonus"
+            if self.options[#self.options].is_weapon_trait then
+                optionType = "weapon trait"
+            elseif self.options[#self.options].is_rune_upgrade then
+                optionType = "rune upgrade"
+            end
             Logger.debug(
                 "level_up_modal.generate_options.option_added",
                 string.format("Opção adicionada (%s): %s", optionType, self.options[#self.options].name)
@@ -941,6 +975,36 @@ function LevelUpModal:applyUpgrade(optionData)
                 error(
                     string.format(
                         "[LevelUpModal:applyUpgrade] Falha ao aplicar trait de arma '%s' (ID: %s)",
+                        upgradeName, upgradeId
+                    )
+                )
+            end
+        end
+    elseif optionData.is_rune_upgrade then
+        -- Aplica melhoria de runa
+        if self.playerManager.runeController then
+            local success = self.playerManager.runeController:applyRuneUpgrade(upgradeId)
+            if success then
+                local usedUpgrades = self.playerManager.runeController:getUsedRuneUpgrades()
+                local timesUsed = usedUpgrades[upgradeId] or 0
+
+                -- Registra a escolha para as estatísticas
+                local gameStatsManager = self.playerManager.gameStatisticsManager
+                if gameStatsManager then
+                    gameStatsManager:registerLevelUpChoice(timesUsed, upgradeName)
+                end
+
+                Logger.debug(
+                    "level_up_modal.apply_upgrade",
+                    string.format(
+                        "[LevelUpModal:applyUpgrade] Melhoria de runa '%s' (ID: %s) aplicada. Vezes usada: %d",
+                        upgradeName, upgradeId, timesUsed
+                    )
+                )
+            else
+                error(
+                    string.format(
+                        "[LevelUpModal:applyUpgrade] Falha ao aplicar melhoria de runa '%s' (ID: %s)",
                         upgradeName, upgradeId
                     )
                 )

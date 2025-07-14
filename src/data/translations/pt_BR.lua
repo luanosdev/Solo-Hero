@@ -223,6 +223,67 @@ local translations = {
         },
     },
 
+    -- === MELHORIAS DE RUNAS ===
+    rune_upgrades = {
+        -- Runa Orbital
+        rune_orbital_damage_boost = {
+            name = "Energia Concentrada",
+            description = "As esferas orbitais causam mais dano."
+        },
+        rune_orbital_rotation_speed = {
+            name = "Rotação Acelerada",
+            description = "As esferas orbitais giram mais rápido."
+        },
+        rune_orbital_orbit_radius = {
+            name = "Órbita Expandida",
+            description = "As esferas orbitam mais distante do herói."
+        },
+        rune_orbital_orb_size = {
+            name = "Esferas Ampliadas",
+            description = "As esferas orbitais são maiores."
+        },
+        rune_orbital_ultra_constellation = {
+            name = "Constelação Orbital",
+            description = "Ganha uma esfera orbital adicional com trade-off de dano."
+        },
+
+        -- Runa de Trovão
+        rune_thunder_damage_boost = {
+            name = "Tempestade Furiosa",
+            description = "Os raios causam mais dano."
+        },
+        rune_thunder_frequency = {
+            name = "Descarga Rápida",
+            description = "Os raios caem mais frequentemente."
+        },
+        rune_thunder_range = {
+            name = "Alcance Estendido",
+            description = "Os raios atingem inimigos mais distantes."
+        },
+        rune_thunder_ultra_storm = {
+            name = "Tempestade Devastadora",
+            description = "Raios devastadores com maior dano mas menor frequência."
+        },
+
+        -- Runa de Aura
+        rune_aura_damage_boost = {
+            name = "Aura Tóxica",
+            description = "A aura causa mais dano por tick."
+        },
+        rune_aura_frequency = {
+            name = "Pulso Acelerado",
+            description = "A aura causa dano mais frequentemente."
+        },
+        rune_aura_range = {
+            name = "Aura Expandida",
+            description = "A aura tem maior alcance."
+        },
+        rune_aura_ultra_lethal = {
+            name = "Aura Devastadora",
+            description = "Aura letal com maior dano mas menor alcance."
+        },
+    },
+
     -- === TELEPORT STONES ===
     teleport_stones = {
         teleport_stone_d = {

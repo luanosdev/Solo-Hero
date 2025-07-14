@@ -6,10 +6,22 @@
 local Constants = require("src.config.constants")
 local TablePool = require("src.utils.table_pool")
 local RenderPipeline = require("src.core.render_pipeline")
+local RuneUpgradesData = require("src.data.rune_upgrades_data")
+
+---@class RuneAbilityInstance : BaseRuneInstance
+---@field update fun(self, dt: number, enemies: any[], finalStats: any)
+---@field draw fun(self)
+---@field cast fun(self, x: number, y: number)
+---@field applyUpgrade fun(self, upgrade: RuneUpgrade, level: number)
+---@field cooldownRemaining number|nil
+---@field defaultDepth number
 
 ---@class RuneController
 ---@field playerManager PlayerManager Referência ao PlayerManager
----@field activeRuneAbilities table<ItemSlotId, any> Tabela de habilidades de runas ativas por slot
+---@field activeRuneAbilities table<ItemSlotId, RuneAbilityInstance> Tabela de habilidades de runas ativas por slot
+---@field runeUpgrades table<string, table> Tabela de melhorias por runa (runeId -> upgradeId -> level)
+---@field usedRuneUpgrades table<string, number> Tabela de melhorias usadas por ID (upgradeId -> timesUsed)
+---@field runeLevels table<string, number> Tabela de níveis atuais por runa (runeId -> currentLevel)
 local RuneController = {}
 RuneController.__index = RuneController
 
@@ -26,8 +38,53 @@ function RuneController:new(playerManager)
 
     instance.playerManager = playerManager
     instance.activeRuneAbilities = {}
+    instance.runeUpgrades = {}
+    instance.usedRuneUpgrades = {}
+    instance.runeLevels = {}
 
     return instance
+end
+
+--- Obtém o nível atual de uma runa específica
+---@param runeId string ID da runa
+---@return number currentLevel
+function RuneController:getRuneLevel(runeId)
+    return self.runeLevels[runeId] or 1
+end
+
+--- Obtém o nível máximo de uma runa baseado na raridade
+---@param runeId string ID da runa
+---@return number maxLevel
+function RuneController:getRuneMaxLevel(runeId)
+    -- Encontra a runa ativa para obter a raridade
+    for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
+        if abilityInstance and abilityInstance.item and
+            abilityInstance.item.itemBaseId == runeId then
+            local baseData = self.playerManager.itemDataManager:getBaseItemData(runeId)
+            if baseData and baseData.rarity then
+                return RuneUpgradesData.GetMaxLevelByRarity(baseData.rarity)
+            end
+        end
+    end
+
+    -- Fallback para rank E se não encontrar
+    return RuneUpgradesData.GetMaxLevelByRarity("E")
+end
+
+--- Incrementa o nível de uma runa
+---@param runeId string ID da runa
+function RuneController:incrementRuneLevel(runeId)
+    local currentLevel = self:getRuneLevel(runeId)
+    local maxLevel = self:getRuneMaxLevel(runeId)
+
+    if currentLevel < maxLevel then
+        self.runeLevels[runeId] = currentLevel + 1
+        Logger.info(
+            "rune_controller.level_up",
+            string.format("[RuneController:incrementRuneLevel] Runa %s subiu para nível %d/%d",
+                runeId, self.runeLevels[runeId], maxLevel)
+        )
+    end
 end
 
 --- Atualiza todas as habilidades de runas ativas
@@ -75,6 +132,11 @@ function RuneController:setupInitialRunes(equippedItems)
         local runeItem = equippedItems[slotId]
         if runeItem then
             self:activateRuneAbility(slotId, runeItem)
+
+            -- Inicializa o nível da runa se não existir
+            if not self.runeLevels[runeItem.itemBaseId] then
+                self.runeLevels[runeItem.itemBaseId] = 1
+            end
         end
     end
 
@@ -114,6 +176,12 @@ function RuneController:activateRuneAbility(slotId, runeItemInstance)
             local abilityInstance = AbilityClass:new(self.playerManager, runeItemInstance)
             if abilityInstance then
                 self.activeRuneAbilities[slotId] = abilityInstance
+
+                -- Inicializa o nível da runa se não existir
+                if not self.runeLevels[runeItemInstance.itemBaseId] then
+                    self.runeLevels[runeItemInstance.itemBaseId] = 1
+                end
+
                 Logger.info(
                     "rune_controller.activate.success",
                     string.format("[RuneController:activateRuneAbility] Habilidade da runa '%s' ativada para o slot %s.",
@@ -151,7 +219,7 @@ end
 function RuneController:deactivateRuneAbility(slotId)
     if self.activeRuneAbilities[slotId] then
         local abilityInstance = self.activeRuneAbilities[slotId]
-        local runeName = (abilityInstance.runeItemData and abilityInstance.runeItemData.name) or slotId
+        local runeName = (abilityInstance.item and abilityInstance.item.name) or slotId
 
         Logger.info(
             "rune_controller.deactivate",
@@ -256,8 +324,8 @@ function RuneController:getActiveRunesInfo()
         }
 
         -- Adiciona informações do item se disponível
-        if abilityInstance.runeItemData then
-            info[slotId].runeItemData = abilityInstance.runeItemData
+        if abilityInstance.item then
+            info[slotId].runeItemData = abilityInstance.item
         end
     end
     return info
@@ -304,6 +372,144 @@ function RuneController:updateRuneInSlot(slotId, newRuneItem)
     if newRuneItem then
         self:activateRuneAbility(slotId, newRuneItem)
     end
+end
+
+--- Obtém as melhorias de runas disponíveis para runas equipadas
+---@return RuneUpgrade[]
+function RuneController:getAvailableRuneUpgrades()
+    Logger.info("rune_controller.debug.start",
+        "[RuneController:getAvailableRuneUpgrades] Iniciando busca por melhorias de runa...")
+    local availableUpgrades = {}
+
+    local activeCount = self:getActiveRuneCount()
+    Logger.info("rune_controller.debug.count",
+        string.format("[RuneController:getAvailableRuneUpgrades] Encontradas %d runas ativas.", activeCount))
+
+    -- Verifica todas as runas equipadas
+    for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
+        if abilityInstance and abilityInstance.item and abilityInstance.item.itemBaseId then
+            local fullRuneId = abilityInstance.item.itemBaseId
+
+            -- Pega os dados base do item para garantir que temos o runeFamilyId
+            local runeBaseData = self.playerManager.itemDataManager:getBaseItemData(fullRuneId)
+
+            if not runeBaseData or not runeBaseData.runeFamilyId then
+                Logger.warn("rune_controller.debug.invalid_rune_data",
+                    string.format(
+                        "[RuneController:getAvailableRuneUpgrades] Runa %s não tem runeFamilyId em seus dados base.",
+                        fullRuneId))
+                goto continue
+            end
+
+            local runeFamilyId = runeBaseData.runeFamilyId
+            local runeLevel = self:getRuneLevel(runeFamilyId)
+            local maxLevel = self:getRuneMaxLevel(fullRuneId) -- Max level ainda depende da raridade do item
+
+            Logger.info("rune_controller.debug.rune_info",
+                string.format(
+                "[RuneController:getAvailableRuneUpgrades] Verificando Runa: %s (Família: %s) | Nível: %d/%d",
+                    fullRuneId, runeFamilyId, runeLevel, maxLevel))
+
+            -- A lógica de filtragem (incluindo nível máximo e ultras) agora é tratada pelo RuneUpgradesData
+            local upgradesForRune = RuneUpgradesData.GetAvailableUpgrades(runeFamilyId, runeLevel, self.usedRuneUpgrades)
+            Logger.info("rune_controller.debug.upgrades_found",
+                string.format("[RuneController:getAvailableRuneUpgrades] Encontradas %d melhorias para %s.",
+                    #upgradesForRune, runeFamilyId))
+
+            for _, upgrade in ipairs(upgradesForRune) do
+                -- Adiciona informações de nível para o modal
+                upgrade.current_level_for_display = runeLevel
+                upgrade.max_level = maxLevel
+                -- Garante que a melhoria está associada ao ID da família correto
+                upgrade.rune_id = runeFamilyId
+                table.insert(availableUpgrades, upgrade)
+            end
+        else
+            Logger.warn("rune_controller.debug.invalid_rune",
+                string.format(
+                    "[RuneController:getAvailableRuneUpgrades] Runa no slot %s é inválida ou não possui itemBaseId.",
+                    slotId))
+        end
+        ::continue::
+    end
+
+    Logger.info("rune_controller.debug.finish",
+        string.format("[RuneController:getAvailableRuneUpgrades] Retornando %d melhorias disponíveis.",
+            #availableUpgrades))
+    return availableUpgrades
+end
+
+--- Obtém as melhorias de runas já utilizadas
+---@return table<string, number>
+function RuneController:getUsedRuneUpgrades()
+    return self.usedRuneUpgrades
+end
+
+--- Retorna as melhorias de uma runa específica
+---@param runeId string ID da runa
+---@return table<string, number>
+function RuneController:getRuneUpgrades(runeId)
+    return self.runeUpgrades[runeId]
+end
+
+--- Aplica uma melhoria de runa
+---@param upgradeId string ID da melhoria
+---@return boolean success
+function RuneController:applyRuneUpgrade(upgradeId)
+    local upgrade = RuneUpgradesData.Upgrades[upgradeId]
+    if not upgrade then
+        Logger.error(
+            "rune_controller.apply_upgrade.not_found",
+            string.format("[RuneController:applyRuneUpgrade] Melhoria '%s' não encontrada", upgradeId)
+        )
+        return false
+    end
+
+    local runeFamilyId = upgrade.rune_id
+    -- Encontra a instância da runa correspondente
+    local runeInstance = nil
+    for slotId, abilityInstance in pairs(self.activeRuneAbilities) do
+        if abilityInstance and abilityInstance.item and abilityInstance.item.itemBaseId then
+            local runeBaseData = self.playerManager.itemDataManager:getBaseItemData(abilityInstance.item.itemBaseId)
+            if runeBaseData and runeBaseData.runeFamilyId == runeFamilyId then
+                runeInstance = abilityInstance
+                break
+            end
+        end
+    end
+
+    if not runeInstance then
+        Logger.error(
+            "rune_controller.apply_upgrade.rune_not_found",
+            string.format("[RuneController:applyRuneUpgrade] Runa da família '%s' não encontrada entre as runas ativas.",
+                runeFamilyId)
+        )
+        return false
+    end
+
+    -- Aplica a melhoria
+    RuneUpgradesData.ApplyRuneUpgrade(runeInstance, upgradeId)
+
+    -- Atualiza o contador de uso
+    self.usedRuneUpgrades[upgradeId] = (self.usedRuneUpgrades[upgradeId] or 0) + 1
+
+    -- Registra o upgrade para a runa
+    if not self.runeUpgrades[runeFamilyId] then
+        self.runeUpgrades[runeFamilyId] = {}
+    end
+    self.runeUpgrades[runeFamilyId][upgradeId] = (self.runeUpgrades[runeFamilyId][upgradeId] or 0) + 1
+
+    -- Incrementa o nível da runa
+    self:incrementRuneLevel(runeFamilyId)
+
+    Logger.info(
+        "rune_controller.apply_upgrade.success",
+        string.format("[RuneController:applyRuneUpgrade] Melhoria '%s' aplicada à runa '%s'. Nível atual: %d/%d",
+            upgrade.name, runeFamilyId, self:getRuneLevel(runeFamilyId),
+            self:getRuneMaxLevel(runeInstance.item.itemBaseId))
+    )
+
+    return true
 end
 
 return RuneController

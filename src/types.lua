@@ -28,3 +28,35 @@
 ---@alias StatKey "moveSpeed" | "potionFillRate" | "health" | "defense" | "attackSpeed" | "critChance" | "critDamage" | "healthRegen" | "multiAttackChance" | "runeSlots" | "strength" | "expBonus" | "healingBonus" | "pickupRadius" | "healthRegenDelay" | "range" | "luck" | "attackArea" | "healthPerTick" | "cooldownReduction" | "healthRegenCooldown" | "dashCharges" | "dashCooldown" | "dashDistance" | "dashDuration" | "potionFlasks" | "potionHealAmount" | "potionFillRate"
 
 ---@alias Color table<number, number>
+
+---@class ItemInstance
+---@field id string ID da instância (único)
+---@field itemBaseId string ID do item base (ex: "rune_orbital_e")
+---@field name string Nome do item
+---@field rarity Rarity
+---@field description string Descrição do item
+---@field type ItemType
+---@field icon string Caminho para o ícone
+---@field equipped boolean
+
+---@class RuneItemInstance : ItemInstance
+---@field runeFamilyId string
+---@field damage number|nil
+---@field tick_interval number|nil
+---@field radius number|nil
+---@field rotationSpeed number|nil
+---@field orbitRadius number|nil
+---@field orbSize number|nil
+---@field orbCount number|nil
+---@field range number|nil
+---@field num_targets number|nil
+---@field chain_chance number|nil
+---@field chain_damage_reduction number|nil
+---@field chain_max_jumps number|nil
+---@field pulseDuration number|nil
+
+---@alias ItemType "weapon" | "rune" | "artefact" | "material" | "consumable" | "sellable"
+
+---@alias Rarity "E" | "D" | "C" | "B" | "A" | "S"
+
+---@alias ColorRGBA {[1]: number, [2]: number, [3]: number, [4]: number}

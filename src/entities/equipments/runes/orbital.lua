@@ -1,257 +1,450 @@
 --[[
-    Orbital Rune
+    Runa Orbital
+    Herda de BaseRune para funcionalidades comuns
     Cria orbes que orbitam ao redor do jogador e causam dano aos inimigos próximos
+
+    Atributos Específicos:
+    - damage: Dano dos orbes
+    - orbitRadius: Raio da órbita dos orbes
+    - orbCount: Número de orbes
+    - orbRadius: Raio visual/colisão dos orbes
+    - rotationSpeed: Velocidade de rotação dos orbes
+    - orbDamageCooldown: Cooldown geral do orbe
+    - enemyCooldownPerOrb: Cooldown por inimigo
 ]]
 
-local RenderPipeline = require("src.core.render_pipeline")
+local BaseRune = require("src.entities.equipments.runes.base_rune")
 local TablePool = require("src.utils.table_pool")
+local CombatHelpers = require("src.utils.combat_helpers")
 
-local OrbitalRune = {}
-OrbitalRune.__index = OrbitalRune -- Para permitir que instâncias herdem métodos
+---@class OrbitalConfig : BaseRuneConfig
+---@field damage number Dano dos orbes
+---@field orbitRadius number Raio da órbita dos orbes
+---@field orbCount number Número de orbes
+---@field orbRadius number Raio visual/colisão dos orbes
+---@field rotationSpeed number Velocidade de rotação dos orbes
+---@field orbDamageCooldown number Cooldown geral do orbe
+---@field enemyCooldownPerOrb number Cooldown por inimigo
 
--- Propriedades padrão da classe
-OrbitalRune.identifier = "rune_orbital"
-OrbitalRune.defaultDepth = RenderPipeline.DEPTH_ENTITIES
-OrbitalRune.defaultDamage = 100
-OrbitalRune.defaultOrbitRadius = 90
-OrbitalRune.defaultOrbCount = 3
-OrbitalRune.defaultOrbRadius = 20
-OrbitalRune.defaultRotationSpeed = 2       -- rad/s
-OrbitalRune.defaultOrbDamageCooldown = 0.1 -- Cooldown GERAL do orbe após atingir QUALQUER inimigo
-OrbitalRune.defaultEnemyCooldownPerOrb = 2 -- Cooldown para o MESMO ORBE atingir o MESMO inimigo
+---@class OrbitalOrb
+---@field angle number Ângulo atual do orbe (em radianos)
+---@field damagedEnemies table<string, number> Inimigos danificados e seus cooldowns
+---@field lastDamageTime number Tempo desde o último dano aplicado
+---@field position Vector2D Posição atual do orbe no mundo
 
--- Configuração base da animação (compartilhada)
-local baseAnimationConfig = {
-    width = 67,
-    height = 67,
-    frameCount = 7,
-    frameTime = 0.1,
-    scale = 1, -- Será ajustado com base no orbRadius da instância
+---@class OrbitalAnimation
+---@field scale number Escala da animação baseada no raio do orbe
+---@field globalFrames love.Image[] Frames globais da animação
+---@field loaded boolean Se os frames foram carregados
+---@field width number Largura base do frame
+---@field height number Altura base do frame
+
+---@class OrbitalInstance : BaseRuneInstance
+---@field baseConfig OrbitalConfig Configuração base específica da orbital
+---@field currentConfig OrbitalConfig Configuração atual específica da orbital
+---@field orbs OrbitalOrb[] Lista de orbes ativos
+---@field orbitalAnimation OrbitalAnimation Configuração da animação orbital
+---@field lastDamageStatistics table<string, number> Cache de estatísticas de dano
+
+---@class Orbital : BaseRune
+local Orbital = setmetatable({}, { __index = BaseRune })
+Orbital.__index = Orbital
+
+-- Configurações específicas da Orbital
+Orbital.identifier = "rune_orbital"
+Orbital.animationPath = "assets/abilities/orbital/orbital_"
+Orbital.animationFrameCount = 7
+Orbital.animationFrameTime = 0.1
+Orbital.animationWidth = 67
+Orbital.animationHeight = 67
+
+-- Valores padrão específicos
+Orbital.defaultDamage = 100
+Orbital.defaultOrbitRadius = 90
+Orbital.defaultOrbCount = 3
+Orbital.defaultOrbRadius = 20
+Orbital.defaultRotationSpeed = 2.0
+Orbital.defaultOrbDamageCooldown = 0.1
+Orbital.defaultEnemyCooldownPerOrb = 2.0
+
+-- Configuração global da animação (compartilhada entre instâncias)
+local globalAnimationConfig = {
     frames = {},
-    loaded = false
+    loaded = false,
+    width = Orbital.animationWidth,
+    height = Orbital.animationHeight,
+    frameCount = Orbital.animationFrameCount
 }
 
-local function deepcopy(orig)
-    local orig_type = type(orig)
-    local copy
-    if orig_type == 'table' then
-        copy = {}
-        for orig_key, orig_value in next, orig, nil do
-            copy[deepcopy(orig_key)] = deepcopy(orig_value)
+--- Carrega frames da animação globalmente (uma vez)
+--- @return boolean success True se todos os frames foram carregados
+local function loadGlobalAnimationFrames()
+    if globalAnimationConfig.loaded then return true end
+
+    local success = true
+    globalAnimationConfig.frames = TablePool.getArray()
+
+    for i = 1, globalAnimationConfig.frameCount do
+        local framePath = Orbital.animationPath .. i .. ".png"
+        local frameSuccess, frame = pcall(love.graphics.newImage, framePath)
+
+        if frameSuccess then
+            globalAnimationConfig.frames[i] = frame
+            Logger.debug("orbital.animation.load_frame",
+                string.format("[Orbital:loadGlobalAnimationFrames] Frame %d carregado: %s", i, framePath))
+        else
+            Logger.error("orbital.animation.load_failed",
+                string.format("[Orbital:loadGlobalAnimationFrames] Erro ao carregar frame %d: %s", i, framePath))
+            success = false
         end
-        setmetatable(copy, deepcopy(getmetatable(orig)))
-    else -- number, string, boolean, etc
-        copy = orig
     end
-    return copy
+
+    globalAnimationConfig.loaded = success
+    return success
 end
 
--- Carrega os frames da animação globalmente (uma vez)
-local function loadAnimationFrames()
-    if not baseAnimationConfig.loaded then
-        for i = 1, baseAnimationConfig.frameCount do
-            local success, img = pcall(love.graphics.newImage, "assets/abilities/orbital/orbital_" .. i .. ".png")
-            if success then
-                baseAnimationConfig.frames[i] = img
-            else
-                print("ERRO ao carregar frame da animação orbital: assets/abilities/orbital/orbital_" .. i .. ".png")
-            end
-        end
-        baseAnimationConfig.loaded = true
-    end
+--- Cria configuração base específica da Orbital
+--- @param runeBaseData table Dados base da runa do ItemDataManager
+--- @return OrbitalConfig Configuração base da orbital
+function Orbital:createBaseConfig(runeBaseData)
+    local config = TablePool.getGeneric()
+
+    config.damage = runeBaseData.damage or self.defaultDamage
+    config.orbitRadius = runeBaseData.orbitRadius or self.defaultOrbitRadius
+    config.orbCount = runeBaseData.orbCount or self.defaultOrbCount
+    config.orbRadius = runeBaseData.orbRadius or self.defaultOrbRadius
+    config.rotationSpeed = runeBaseData.rotationSpeed or self.defaultRotationSpeed
+    config.orbDamageCooldown = runeBaseData.orb_damage_cooldown or self.defaultOrbDamageCooldown
+    config.enemyCooldownPerOrb = runeBaseData.enemy_cooldown_per_orb or self.defaultEnemyCooldownPerOrb
+
+    return config
 end
 
---- Construtor para uma instância da habilidade Orbital.
---- @param playerManager PlayerManager Instância do gerenciador do jogador.
---- @param runeItemData table Dados da instância do item da runa.
---- @return table Instância da habilidade da runa.
-function OrbitalRune:new(playerManager, runeItemData)
-    loadAnimationFrames() -- Garante que as animações globais estão carregadas
+--- Construtor da Orbital
+--- @param playerManager PlayerManager Instância do gerenciador do jogador
+--- @param itemData RuneItemInstance Dados da instância do item da runa
+--- @return OrbitalInstance Instância da runa orbital
+function Orbital:new(playerManager, itemData)
+    -- Carrega animações globais
+    loadGlobalAnimationFrames()
 
-    local instance = setmetatable({}, self)
+    local instance = BaseRune.new(self, playerManager, itemData)
 
-    instance.playerManager = playerManager
-    instance.runeItemData = runeItemData
+    -- Inicializa dados específicos da Orbital
+    instance.orbs = TablePool.getArray()
+    instance.lastDamageStatistics = TablePool.getGeneric()
 
-    instance.name = runeItemData.name or "Orbes Orbitais (Instância)"
-    instance.damage = runeItemData.damage or self.defaultDamage
-    instance.orbitRadius = runeItemData.orbitRadius or self.defaultOrbitRadius
-    instance.orbCount = runeItemData.orbCount or self.defaultOrbCount
-    instance.orbRadius = runeItemData.orbRadius or self.defaultOrbRadius
-    instance.rotationSpeed = runeItemData.rotationSpeed or self.defaultRotationSpeed
-    instance.orbDamageCooldown = runeItemData.orb_damage_cooldown or self.defaultOrbDamageCooldown
-    instance.enemyCooldownPerOrb = runeItemData.enemy_cooldown_per_orb or self.defaultEnemyCooldownPerOrb
+    -- Configuração da animação orbital
+    instance.orbitalAnimation = TablePool.getGeneric()
+    instance.orbitalAnimation.scale = instance.currentConfig.orbRadius / (globalAnimationConfig.width / 2)
+    instance.orbitalAnimation.globalFrames = globalAnimationConfig.frames
+    instance.orbitalAnimation.loaded = globalAnimationConfig.loaded
+    instance.orbitalAnimation.width = globalAnimationConfig.width
+    instance.orbitalAnimation.height = globalAnimationConfig.height
 
-    -- Configuração da animação para ESTA instância (copia a base, ajusta a escala)
-    instance.animation = deepcopy(baseAnimationConfig)
-    instance.animation.scale = instance.orbRadius / (baseAnimationConfig.width / 2) -- Ajusta escala ao raio do orbe
-    instance.animation.currentFrame = 1
-    instance.animation.timer = 0
+    -- Cria orbes iniciais
+    instance:createOrbs()
 
-    -- Estado dos orbes (específico da instância)
-    instance.orbs = {}
-    for i = 1, instance.orbCount do
-        table.insert(instance.orbs, {
-            angle = (i - 1) * (2 * math.pi / instance.orbCount),
-            damagedEnemies = {},
-            lastDamageTime = 0
-        })
-    end
+    -- Aplica upgrades se existirem
+    instance:applyUpgrades()
 
-    print(string.format("Instância de OrbitalRune criada: Dmg=%d, Count=%d, Radius=%.1f", instance.damage,
-        instance.orbCount, instance.orbitRadius))
+    Logger.info("orbital.create",
+        string.format("[Orbital:new] Orbital criada: Dano=%d, Orbes=%d, Raio=%.1f",
+            instance.currentConfig.damage, instance.currentConfig.orbCount, instance.currentConfig.orbitRadius))
+
     return instance
 end
 
---- Atualiza a habilidade da Orbital.
---- @param dt number Tempo de atualização.
---- @param enemies BaseEnemy[] Lista de inimigos.
---- @param finalStats table Estatísticas finais do jogador.
-function OrbitalRune:update(dt, enemies, finalStats)
-    self.animation.timer = self.animation.timer + dt
-    if self.animation.timer >= self.animation.frameTime then
-        self.animation.timer = self.animation.timer - self.animation.frameTime
-        self.animation.currentFrame = self.animation.currentFrame + 1
-        if self.animation.currentFrame > self.animation.frameCount then
-            self.animation.currentFrame = 1
-        end
-    end
-
-    for i, orb in ipairs(self.orbs) do
-        orb.angle = orb.angle + self.rotationSpeed * dt
-        orb.lastDamageTime = orb.lastDamageTime + dt
-
-        local enemiesToRemoveFromOrbCD = TablePool.get()
-        for enemyId, time in pairs(orb.damagedEnemies) do
-            orb.damagedEnemies[enemyId] = time - dt
-            if orb.damagedEnemies[enemyId] <= 0 then
-                table.insert(enemiesToRemoveFromOrbCD, enemyId)
+--- Cria orbes baseado na configuração atual
+function Orbital:createOrbs()
+    -- Limpa orbes existentes
+    if self.orbs then
+        for _, orb in ipairs(self.orbs) do
+            if orb.damagedEnemies then
+                TablePool.releaseGeneric(orb.damagedEnemies)
             end
+            TablePool.releaseGeneric(orb)
         end
-        for _, enemyId in ipairs(enemiesToRemoveFromOrbCD) do
-            orb.damagedEnemies[enemyId] = nil
-        end
-        TablePool.release(enemiesToRemoveFromOrbCD)
-
-        self:applyOrbitalDamage(orb, i, dt, enemies, finalStats)
+        TablePool.releaseArray(self.orbs)
     end
+
+    -- Cria novos orbes
+    self.orbs = TablePool.getArray()
+    for i = 1, self.currentConfig.orbCount do
+        local orb = TablePool.getGeneric()
+        orb.angle = (i - 1) * (2 * math.pi / self.currentConfig.orbCount)
+        orb.damagedEnemies = TablePool.getGeneric()
+        orb.lastDamageTime = 0
+        orb.position = { x = 0, y = 0 }
+
+        table.insert(self.orbs, orb)
+    end
+
+    Logger.debug("orbital.orbs.create",
+        string.format("[Orbital:createOrbs] Criados %d orbes", self.currentConfig.orbCount))
 end
 
-function OrbitalRune:draw()
-    if not self.playerManager or not self.playerManager.player or not self.playerManager.player.position then return end
+--- Aplica efeito específico de upgrade da Orbital
+--- @param effect table Efeito do upgrade
+--- @param count number Quantidade de aplicações
+function Orbital:applyUpgradeEffect(effect, count)
+    local effectType = effect.type
+    local value = effect.value
+    local isPercentage = effect.is_percentage
 
-    local playerX = self.playerManager.player.position.x
-    local playerY = self.playerManager.player.position.y + 25
+    if effectType == "extra_orb" then
+        -- Upgrade especial que adiciona orbes extras
+        local newOrbCount = self.baseConfig.orbCount + (value * count)
+        if newOrbCount > self.currentConfig.orbCount then
+            self.currentConfig.orbCount = newOrbCount
+            self:createOrbs()
+        end
+        return
+    end
 
-    -- Usa os frames globais da baseAnimationConfig
-    local frameToDraw = baseAnimationConfig.frames[self.animation.currentFrame]
+    if effectType == "orb_size" then
+        -- Aplica modificação no tamanho do orbe
+        if isPercentage then
+            self.currentConfig.orbRadius = self.baseConfig.orbRadius * (1 + (value * count / 100))
+        else
+            self.currentConfig.orbRadius = self.baseConfig.orbRadius + (value * count)
+        end
 
-    if not frameToDraw then return end -- Não desenha se o frame não estiver carregado
+        -- Atualiza escala da animação
+        self.orbitalAnimation.scale = self.currentConfig.orbRadius / (globalAnimationConfig.width / 2)
+        return
+    end
+
+    -- Aplica efeitos padrão
+    if not self.currentConfig[effectType] or not self.baseConfig[effectType] then
+        Logger.warn("orbital.upgrade.unknown_effect",
+            string.format("[Orbital:applyUpgradeEffect] Efeito desconhecido: %s", effectType))
+        return
+    end
+
+    if isPercentage then
+        self.currentConfig[effectType] = self.baseConfig[effectType] * (1 + (value * count / 100))
+    else
+        self.currentConfig[effectType] = self.baseConfig[effectType] + (value * count)
+    end
+
+    Logger.debug("orbital.upgrade.effect",
+        string.format("[Orbital:applyUpgradeEffect] %s: %.2f", effectType, self.currentConfig[effectType]))
+end
+
+--- Atualiza posições dos orbes
+--- @param dt number Delta time
+function Orbital:updateOrbPositions(dt)
+    local playerPos = self.playerManager:getPlayerPosition()
+    if not playerPos then return end
 
     for _, orb in ipairs(self.orbs) do
-        local orbX = playerX + math.cos(orb.angle) * self.orbitRadius
-        local orbY = playerY + math.sin(orb.angle) * self.orbitRadius
+        -- Atualiza ângulo do orbe
+        orb.angle = orb.angle + (self.currentConfig.rotationSpeed * dt)
 
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(
-            frameToDraw, -- Frame global
-            orbX,
-            orbY,
-            0,
-            self.animation.scale, -- Escala da instância
-            self.animation.scale,
-            frameToDraw:getWidth() / 2,
-            frameToDraw:getHeight() / 2
-        )
-    end
-    love.graphics.setColor(1, 1, 1, 1)
-end
+        -- Calcula posição do orbe
+        orb.position.x = playerPos.x + math.cos(orb.angle) * self.currentConfig.orbitRadius
+        orb.position.y = playerPos.y + 25 + math.sin(orb.angle) * self.currentConfig.orbitRadius
 
--- Cast para runas orbitais geralmente não faz nada, elas são passivas.
-function OrbitalRune:cast()
-    return true
-end
+        -- Atualiza cooldowns
+        orb.lastDamageTime = orb.lastDamageTime + dt
 
--- Função auxiliar para aplicar dano a um único alvo.
-function OrbitalRune:applyDamageToTarget(target)
-    if not target then return false end
-
-    local damageAmount = self.damage
-    local died = false
-
-    if target.takeDamage then
-        died = target:takeDamage(damageAmount)
-        if self.playerManager and self.playerManager.registerDamageDealt then
-            self.playerManager:registerDamageDealt(damageAmount, false, { abilityId = self.identifier })
+        -- Limpa cooldowns expirados usando TablePool
+        local expiredEnemies = TablePool.getArray()
+        for enemyId, cooldown in pairs(orb.damagedEnemies) do
+            local newCooldown = cooldown - dt
+            if newCooldown <= 0 then
+                table.insert(expiredEnemies, enemyId)
+            else
+                orb.damagedEnemies[enemyId] = newCooldown
+            end
         end
-        return died
-    elseif target.receiveDamage then
-        target:receiveDamage(damageAmount, "orbital")
-        if self.playerManager and self.playerManager.registerDamageDealt then
-            self.playerManager:registerDamageDealt(damageAmount, false, { abilityId = self.identifier })
+
+        for _, enemyId in ipairs(expiredEnemies) do
+            orb.damagedEnemies[enemyId] = nil
         end
-        return true
-    else
-        print("AVISO [OrbitalRune:applyDamageToTarget]: Alvo inválido ou sem método de dano.")
+        TablePool.releaseArray(expiredEnemies)
     end
-    return false
 end
 
---- Aplica dano ao orbe.
---- @param orb table Orbe.
---- @param orbIndex number Índice do orbe.
---- @param dt number Tempo de atualização.
---- @param enemies BaseEnemy[] Lista de inimigos.
---- @param finalStats table Estatísticas finais do jogador.
-function OrbitalRune:applyOrbitalDamage(orb, orbIndex, dt, enemies, finalStats)
-    if not enemies or not self.playerManager or not self.playerManager.player or not self.playerManager.player.position then return end
-
-    local finalOrbCooldown = self.orbDamageCooldown * (finalStats and finalStats.cooldownReduction or 1)
-    if orb.lastDamageTime < finalOrbCooldown then return end
-
-    local playerPos = self.playerManager.player.position
-    local orbScreenX = playerPos.x + math.cos(orb.angle) * self.orbitRadius
-    local orbScreenY = playerPos.y + 25 + math.sin(orb.angle) * self.orbitRadius -- Ajuste de Y para pés do player
-
-    -- O raio de dano é o raio visual do orbe
-    local damageRadius = self.orbRadius
-
-    local anEnemyWasHitThisOrb = false
+--- Aplica dano orbital aos inimigos
+--- @param enemies BaseEnemy[] Lista de inimigos
+--- @param finalStats FinalStats Estatísticas finais do jogador
+function Orbital:applyOrbitalDamage(enemies, finalStats)
     local enemiesHitThisTick = 0
+    local cooldownReduction = finalStats.cooldownReduction or 1
 
-    for _, enemy in ipairs(enemies) do
-        if enemy.isAlive and enemy.id and enemy.position then
-            local enemyId = enemy.id
+    for _, orb in ipairs(self.orbs) do
+        -- Verifica cooldown geral do orbe
+        local finalOrbCooldown = self.currentConfig.orbDamageCooldown / cooldownReduction
+        if orb.lastDamageTime < finalOrbCooldown then
+            goto continue
+        end
 
-            local dx = enemy.position.x - orbScreenX
-            local dy = (enemy.position.y) - orbScreenY -- Compara com base do inimigo
-            local distance = math.sqrt(dx * dx + dy * dy)
+        -- Encontra inimigos em alcance usando CombatHelpers
+        local enemiesInRange = CombatHelpers.findEnemiesInCircularArea(
+            orb.position,
+            self.currentConfig.orbRadius,
+            self.playerManager:getPlayerSprite()
+        )
 
-            if distance <= (damageRadius + (enemy.radius or 10)) then -- Colisão círculo-círculo simples
+        local orbHitEnemy = false
+        for _, enemy in ipairs(enemiesInRange) do
+            if enemy.isAlive and enemy.isAlive and enemy.id then
+                local enemyId = enemy.id
+
+                -- Verifica cooldown específico do inimigo
                 if not orb.damagedEnemies[enemyId] then
-                    local died = self:applyDamageToTarget(enemy)
-                    enemiesHitThisTick = enemiesHitThisTick + 1
+                    -- Aplica dano usando BaseRune
+                    if self:applyDamageToTarget(enemy, self.currentConfig.damage, "orbital") then
+                        enemiesHitThisTick = enemiesHitThisTick + 1
+                        orbHitEnemy = true
 
-                    local finalEnemyCooldown = self.enemyCooldownPerOrb *
-                        (finalStats and finalStats.cooldownReduction or 1)
-                    orb.damagedEnemies[enemyId] = finalEnemyCooldown
-                    anEnemyWasHitThisOrb = true
-                    -- Não precisa de `enemiesHitThisPass` se o cooldown geral do orbe for curto
-                    -- e o cooldown por inimigo for mais longo.
-                    -- Se um orbe atinge um inimigo, ele entra em cooldown para ESSE inimigo.
-                    -- E o orbe em si entra em um cooldown geral muito curto para evitar hits múltiplos no mesmo frame.
+                        -- Aplica cooldown específico do inimigo
+                        local finalEnemyCooldown = self.currentConfig.enemyCooldownPerOrb / cooldownReduction
+                        orb.damagedEnemies[enemyId] = finalEnemyCooldown
+                    end
                 end
             end
         end
+
+        TablePool.releaseArray(enemiesInRange)
+
+        -- Reseta cooldown geral do orbe se atingiu algum inimigo
+        if orbHitEnemy then
+            orb.lastDamageTime = 0
+        end
+
+        ::continue::
     end
 
+    -- Registra estatísticas
     if enemiesHitThisTick > 0 and self.playerManager.gameStatisticsManager then
         self.playerManager.gameStatisticsManager:registerEnemiesHit(enemiesHitThisTick)
     end
 
-    if anEnemyWasHitThisOrb then
-        orb.lastDamageTime = 0 -- Reseta o cooldown geral DESTE orbe
+    Logger.debug("orbital.damage",
+        string.format("[Orbital:applyOrbitalDamage] Orbitais atingiram %d inimigos", enemiesHitThisTick))
+end
+
+--- Atualiza a lógica da Orbital
+--- @param dt number Delta time
+--- @param enemies BaseEnemy[] Lista de inimigos
+--- @param finalStats FinalStats Estatísticas finais do jogador
+function Orbital:update(dt, enemies, finalStats)
+    -- Chama update da base (cooldown e animação)
+    BaseRune.update(self, dt, enemies, finalStats)
+
+    -- Atualiza posições dos orbes
+    self:updateOrbPositions(dt)
+
+    -- Aplica dano orbital
+    self:applyOrbitalDamage(enemies, finalStats)
+end
+
+--- Desenha os orbes da Orbital
+function Orbital:draw()
+    if not self.orbitalAnimation.loaded or not self.orbitalAnimation.globalFrames then return end
+
+    local frameToDraw = self.orbitalAnimation.globalFrames[self.animation.currentFrame]
+    if not frameToDraw then return end
+
+    love.graphics.setColor(1, 1, 1, 1)
+    for _, orb in ipairs(self.orbs) do
+        love.graphics.draw(
+            frameToDraw,
+            orb.position.x,
+            orb.position.y,
+            0,
+            self.orbitalAnimation.scale,
+            self.orbitalAnimation.scale,
+            self.orbitalAnimation.width / 2,
+            self.orbitalAnimation.height / 2
+        )
     end
 end
 
-return OrbitalRune
+--- Executa a habilidade da Orbital (as orbitais são passivas)
+--- @param x number|nil Posição X (não usado pela Orbital)
+--- @param y number|nil Posição Y (não usado pela Orbital)
+--- @return boolean success True se executada com sucesso
+function Orbital:cast(x, y)
+    -- Orbitais são passivas, sempre retorna true
+    Logger.debug("orbital.cast", "[Orbital:cast] Orbital é passiva, sempre ativa")
+    return true
+end
+
+--- Coleta renderáveis para o pipeline de renderização
+--- @param renderPipeline RenderPipeline Pipeline de renderização
+--- @param sortY number Y base para ordenação
+function Orbital:collectRenderables(renderPipeline, sortY)
+    if not self.orbitalAnimation.loaded then return end
+
+    for _, orb in ipairs(self.orbs) do
+        -- Adiciona cada orbe como renderável independente
+        renderPipeline:addRenderable(
+            orb.position.x,
+            orb.position.y,
+            sortY,
+            self.defaultDepth,
+            function()
+                self:drawSingleOrb(orb)
+            end
+        )
+    end
+end
+
+--- Desenha um único orbe
+--- @param orb OrbitalOrb Orbe a ser desenhado
+function Orbital:drawSingleOrb(orb)
+    if not self.orbitalAnimation.loaded or not self.orbitalAnimation.globalFrames then return end
+
+    local frameToDraw = self.orbitalAnimation.globalFrames[self.animation.currentFrame]
+    if not frameToDraw then return end
+
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(
+        frameToDraw,
+        orb.position.x,
+        orb.position.y,
+        0,
+        self.orbitalAnimation.scale,
+        self.orbitalAnimation.scale,
+        self.orbitalAnimation.width / 2,
+        self.orbitalAnimation.height / 2
+    )
+end
+
+--- Limpa recursos específicos da Orbital
+function Orbital:cleanup()
+    -- Limpa orbes e seus recursos
+    if self.orbs then
+        for _, orb in ipairs(self.orbs) do
+            if orb.damagedEnemies then
+                TablePool.releaseGeneric(orb.damagedEnemies)
+            end
+            TablePool.releaseGeneric(orb)
+        end
+        TablePool.releaseArray(self.orbs)
+        self.orbs = nil
+    end
+
+    -- Limpa animação orbital
+    if self.orbitalAnimation then
+        TablePool.releaseGeneric(self.orbitalAnimation)
+        self.orbitalAnimation = nil
+    end
+
+    -- Limpa estatísticas
+    if self.lastDamageStatistics then
+        TablePool.releaseGeneric(self.lastDamageStatistics)
+        self.lastDamageStatistics = nil
+    end
+
+    -- Chama cleanup da base
+    BaseRune.cleanup(self)
+
+    Logger.debug("orbital.cleanup", "[Orbital:cleanup] Recursos específicos da Orbital liberados")
+end
+
+return Orbital

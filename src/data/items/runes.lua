@@ -23,6 +23,7 @@ local runes = {
     -- Runa Orbital
     rune_orbital_e = {
         itemBaseId = "rune_orbital_e",
+        runeFamilyId = "rune_orbital",
         type = "rune", -- Tipo específico para runas
         name = "Runa Orbital",
         description = "Invoca esferas de energia que orbitam o herói.",
@@ -46,6 +47,7 @@ local runes = {
     -- Runa de Trovão
     rune_thunder_e = {
         itemBaseId = "rune_thunder_e",
+        runeFamilyId = "rune_thunder",
         type = "rune",
         name = "Runa do Trovão",
         description = "Invoca raios periodicamente em inimigos próximos.",
@@ -65,6 +67,7 @@ local runes = {
     -- Runa de Aura
     rune_aura_e = {
         itemBaseId = "rune_aura_e",
+        runeFamilyId = "rune_aura",
         type = "rune",
         name = "Runa de Aura",
         description = "Cria uma aura que causa dano contínuo a inimigos dentro dela.",

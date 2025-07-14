@@ -92,7 +92,7 @@ function TablePool.releaseColor(color)
 end
 
 --- Pega array do pool
----@return table
+---@return any
 function TablePool.getArray()
     local arr
     if #pools.array > 0 then
@@ -121,20 +121,20 @@ end
 
 --- Pega tabela do pool
 --- @deprecated Use TablePool.getGeneric() instead
----@return table
+---@return any
 function TablePool.get()
     return TablePool.getGeneric()
 end
 
 --- Libera tabela para o pool
 --- @deprecated Use TablePool.releaseGeneric() instead
----@param tbl table
+---@param tbl any
 function TablePool.release(tbl)
     TablePool.releaseGeneric(tbl)
 end
 
 --- Pega tabela genérica do pool
----@return table
+---@return any
 function TablePool.getGeneric()
     local tbl
     if #pools.generic > 0 then
@@ -149,7 +149,7 @@ function TablePool.getGeneric()
 end
 
 --- Libera tabela genérica para o pool
----@param tbl table
+---@param tbl any
 function TablePool.releaseGeneric(tbl)
     if tbl then
         -- Limpa todas as chaves
