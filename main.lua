@@ -15,6 +15,7 @@ local GameStatisticsManager = require("src.managers.game_statistics_manager")
 local ArtefactManager = require("src.managers.artefact_manager")
 local PatrimonyManager = require("src.managers.patrimony_manager")
 local NotificationManager = require("src.managers.notification_manager")
+local EventManager = require("src.managers.event_manager")
 local NotificationDisplay = require("src.ui.components.notification_display")
 local fonts = require("src.ui.fonts")
 
@@ -133,6 +134,11 @@ function love.load()
     NotificationDisplay.init()
     _G.NotificationManager = NotificationManager
     _G.NotificationDisplay = NotificationDisplay
+
+    -- Inicializar sistema de eventos global
+    local eventMgr = EventManager:new()
+    ManagerRegistry:register("eventManager", eventMgr)
+    _G.EventManager = eventMgr
 
     Logger.info("main.notifications.initialized", "[main.love.load] Sistema de notificações inicializado globalmente")
 end
