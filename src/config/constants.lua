@@ -5,8 +5,11 @@ local Constants = {}
     SISTEMA DE MEDIDAS DO JOGO
     =========================
 
-    Baseado no conceito do Halls of Torment:
-    - 1 metro = 18 pixels
+    Com a introdução do mapa isométrico infinito, a escala do mundo mudou.
+    A nova convenção é baseada no tamanho lógico dos tiles:
+    - 1 metro = 32 pixels
+
+    Esta medida é usada para converter unidades de jogo (metros) em unidades de tela (pixels).
     - moveSpeed é definido em metros por segundo (m/s)
     - pickupRadius é definido em metros
     - dashDistance é definido em metros
@@ -15,17 +18,17 @@ local Constants = {}
     Conversões automáticas:
     - Use Constants.metersToPixels(meters) para converter metros → pixels
     - Use Constants.pixelsToMeters(pixels) para converter pixels → metros
-    - Use Constants.moveSpeedToPixels(m/s) para converter velocidade
+    - Use Constants.moveSpeedToPixels(m/s) para converter velocidade de movimento
 
-    Exemplos:
-    - moveSpeed = 1.4 m/s = 25.2 pixels/s
-    - pickupRadius = 5.5m = 99 pixels
-    - dashDistance = 5.5m = 99 pixels
+    Exemplos com a nova escala (usando valores de HUNTER_DEFAULT_STATS):
+    - moveSpeed = 5.0 m/s = 320 pixels/s
+    - pickupRadius = 3.0m = 192 pixels
+    - dashDistance = 5.5m = 352 pixels
 --]]
 
 -- Sistema de Medidas do Jogo
--- Baseado no conceito do Halls of Torment: 1 metro = 18 pixels
-Constants.METER_TO_PIXELS = 18
+-- Com o mapa isométrico, a escala de conversão mudou para corresponder ao TILE_SIZE.
+Constants.METER_TO_PIXELS = 32
 
 --- IDs constantes para as abas do Lobby.
 Constants.TabIds = {
@@ -65,7 +68,7 @@ Constants.EQUIPMENT_SLOTS_ORDER = {
 Constants.HUNTER_DEFAULT_STATS = {
     maxHealth = 300,
     attackSpeed = 1.0,         -- Attacks per second
-    moveSpeed = 2.0,           -- Metros por segundo (m/s) - convertido automaticamente para pixels
+    moveSpeed = 5.0,           -- Metros por segundo (m/s) - convertido automaticamente para pixels
     critChance = 0.10,         -- 10%
     critDamage = 1.5,          -- 150% Multiplier
     multiAttackChance = 0.1,   -- 20%
