@@ -158,8 +158,8 @@ function InfinityWrapMapManager:drawTopLayers(playerPosition)
 end
 
 --- Lida com o wrapping do jogador e emite o evento 'player_wrapped'.
----@param playerPosition table A posição do jogador com campos patchX, patchY, tileX, tileY.
----@return table A posição atualizada do jogador.
+---@param playerPosition LogicalPosition A posição do jogador com campos patchX, patchY, tileX, tileY.
+---@return LogicalPosition logicalPosition A posição atualizada do jogador.
 function InfinityWrapMapManager:handleWrapping(playerPosition)
     local wrapped = false
     local direction = ''

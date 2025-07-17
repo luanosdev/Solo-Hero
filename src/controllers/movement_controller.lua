@@ -10,7 +10,7 @@ local Constants = require("src.config.constants")
 ---@field patchX number
 ---@field patchY number
 ---@field tileX number
----@field tileY number  
+---@field tileY number
 
 ---@class MovementController
 ---@field playerManager PlayerManager Referência ao PlayerManager
@@ -142,16 +142,32 @@ function MovementController:update(dt, targetPosition, isPaused)
 
         local moveVector = self.inputManager:getMovementVector()
 
+        -- O vetor para animação é o input bruto, para capturar as direções cardinais/diagonais puras
         self.player.velocity = {
             x = moveVector.x,
             y = moveVector.y
         }
 
         local distanceMovedInTiles = 0
-        if moveVector.x ~= 0 or moveVector.y ~= 0 then
+        local magnitude = math.sqrt(moveVector.x * moveVector.x + moveVector.y * moveVector.y)
+        if magnitude > 0 then
+            local normalizedInputX = moveVector.x / magnitude
+            local normalizedInputY = moveVector.y / magnitude
+
+            -- Rotaciona o vetor de input em -45 graus para alinhar com o grid isométrico
+            local angle = -math.pi / 4 -- -45 graus em radianos
+            local cosAngle = math.cos(angle)
+            local sinAngle = math.sin(angle)
+
+            local rotatedX = normalizedInputX * cosAngle - normalizedInputY * sinAngle
+            local rotatedY = normalizedInputX * sinAngle + normalizedInputY * cosAngle
+
             local moveAmount = moveSpeedInTiles * dt
-            self.logicalPosition.tileX = self.logicalPosition.tileX + moveVector.x * moveAmount
-            self.logicalPosition.tileY = self.logicalPosition.tileY + moveVector.y * moveAmount
+
+            -- Atualiza a posição lógica usando o vetor rotacionado
+            self.logicalPosition.tileX = self.logicalPosition.tileX + rotatedX * moveAmount
+            self.logicalPosition.tileY = self.logicalPosition.tileY + rotatedY * moveAmount
+
             distanceMovedInTiles = moveAmount
         end
 
@@ -190,7 +206,6 @@ function MovementController:setPosition(patchX, patchY, tileX, tileY)
     self.logicalPosition.tileX = tileX
     self.logicalPosition.tileY = tileY
 end
-
 
 --- Para o movimento do jogador (usado quando morre)
 function MovementController:stopMovement()
