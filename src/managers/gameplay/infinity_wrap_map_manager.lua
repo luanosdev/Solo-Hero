@@ -69,13 +69,6 @@ function InfinityWrapMapManager:init()
     self.buildCoroutine = coroutine.create(function()
         self:buildCanvasesAsyncTask(true)
     end)
-
-    EventManager:on(EventManager.EVENTS.PLAYER_WRAPPED, self.onPlayerWrapped, self)
-end
-
---- Listener para o evento de wrap do jogador. Força a reconstrução dos canvases.
-function InfinityWrapMapManager:onPlayerWrapped()
-    self:updateAllCanvases(true)
 end
 
 --- Atualiza o estado do mapa, principalmente o processo de carregamento.
@@ -96,6 +89,28 @@ function InfinityWrapMapManager:update(dt)
                 -- Força uma reconstrução final síncrona para garantir o estado.
                 self:updateAllCanvases(true)
             end
+        end
+    else
+        -- Após o carregamento inicial, verifica se o jogador mudou de patch
+        ---@type PlayerManager
+        local playerMgr = ManagerRegistry:get("playerManager")
+        if not playerMgr or not playerMgr.movementController then
+            return
+        end
+
+        local worldPosition = playerMgr.movementController:getPosition()
+        local currentTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
+        local currentPatchX = math.floor(currentTilePos.x / self.tilesPerPatch)
+        local currentPatchY = math.floor(currentTilePos.y / self.tilesPerPatch)
+
+        local renderData = self.canvasRenderData
+        if currentPatchX ~= renderData.lastRenderedPatchX or currentPatchY ~= renderData.lastRenderedPatchY then
+            Logger.debug(
+                "infinity_wrap_map_manager.update.player_wrapped",
+                string.format("[InfinityWrapMapManager:update] Player wrapped: %d, %d", currentPatchX, currentPatchY)
+            )
+            EventManager:emit(EventManager.EVENTS.PLAYER_WRAPPED)
+            self:updateAllCanvases(true)
         end
     end
 end

@@ -174,9 +174,6 @@ function MovementController:update(dt, targetPosition, isPaused)
             self.worldPosition.x = self.worldPosition.x + normalizedInputX * moveAmount
             self.worldPosition.y = self.worldPosition.y + normalizedInputY * moveAmount
 
-            -- Lida com o "wrapping" para manter o mundo infinito
-            self:_handleWrapping()
-
             distanceMovedInPixels = moveAmount
         end
 
@@ -191,35 +188,6 @@ function MovementController:update(dt, targetPosition, isPaused)
     end
 
     return nil
-end
-
---- Lida com o wrapping do jogador no mapa infinito, ajustando as coordenadas do mundo.
-function MovementController:_handleWrapping()
-    local wrapped = false
-    local mapW = self.mapPixelWidth
-    local mapH = self.mapPixelHeight
-    local halfW = mapW / 2
-    local halfH = mapH / 2
-
-    if self.worldPosition.x > halfW then
-        self.worldPosition.x = self.worldPosition.x - mapW
-        wrapped = true
-    elseif self.worldPosition.x < -halfW then
-        self.worldPosition.x = self.worldPosition.x + mapW
-        wrapped = true
-    end
-
-    if self.worldPosition.y > halfH then
-        self.worldPosition.y = self.worldPosition.y - mapH
-        wrapped = true
-    elseif self.worldPosition.y < -halfH then
-        self.worldPosition.y = self.worldPosition.y + mapH
-        wrapped = true
-    end
-
-    if wrapped then
-        EventManager:emit(EventManager.EVENTS.PLAYER_WRAPPED)
-    end
 end
 
 --- Obtém a posição ATUAL do jogador no mundo (em pixels)
