@@ -86,7 +86,7 @@ function RenderPipeline:registerSpriteBatch(texture, batch)
 end
 
 --- Define o gerenciador de mapa a ser usado pelo pipeline.
---- @param mapManager (table) A instância do gerenciador de mapa (ex: ProceduralMapManager).
+--- @param mapManager InfinityWrapMapManager A instância do gerenciador de mapa (ex: ProceduralMapManager).
 function RenderPipeline:setMapManager(mapManager)
     self.mapManager = mapManager
 end
@@ -113,23 +113,35 @@ end
 --- Desenha todos os elementos gerenciados pelo pipeline.
 --- Isso inclui o mapa, itens nos buckets (ordenados conforme necessário) e SpriteBatches.
 --- O Camera:attach() e Camera:detach() devem ser chamados externamente, antes e depois desta função.
----@param cameraX number Posição X da câmera (usada para parallax ou culling se o mapManager precisar).
----@param cameraY number Posição Y da câmera.
-function RenderPipeline:draw(cameraX, cameraY)
-    -- 1. Desenha o Mapa (usando a referência interna)
+---@param playerPosition table A posição do jogador, necessária para o map manager.
+function RenderPipeline:draw(playerPosition)
+    -- 1. Desenha as camadas de baixo do Mapa
     if self.mapManager and self.mapManager.draw then
-        self.mapManager:draw(cameraX, cameraY)
+        self.mapManager:draw(playerPosition)
     end
 
-    -- 2. Processa e desenha itens dos buckets
-    -- Ordem explícita para garantir a sequência correta de profundidade.
+    -- 2. Processa e desenha itens dos buckets em ordem de profundidade
     local depthDrawOrder = {
         RenderPipeline.DEPTH_DROPS,
         RenderPipeline.DEPTH_ENTITIES,
         RenderPipeline.DEPTH_EFFECTS_WORLD_UI
     }
 
-    for _, depthValue in ipairs(depthDrawOrder) do
+    self:_processAndDrawBuckets(depthDrawOrder)
+
+    -- 3. Desenha as camadas de cima do Mapa, após as entidades
+    if self.mapManager and self.mapManager.drawTopLayers then
+        self.mapManager:drawTopLayers(playerPosition)
+    end
+
+    -- 4. Desenha os SpriteBatches coletados
+    self:_drawSpriteBatches()
+end
+
+--- Função auxiliar para processar buckets e desenhar itens não-batched.
+---@param depthOrder table Array com as constantes de profundidade na ordem de desenho.
+function RenderPipeline:_processAndDrawBuckets(depthOrder)
+    for _, depthValue in ipairs(depthOrder) do
         local bucket = self.buckets[depthValue]
         if bucket and #bucket > 0 then
             -- A ordenação manual de 'bucket' foi removida.
@@ -155,28 +167,27 @@ function RenderPipeline:draw(cameraX, cameraY)
                         })
                     else
                         print(string.format(
-                            "RenderPipeline AVISO: Lista de dados de SpriteBatch não encontrada para textura: %s",
+                        "RenderPipeline AVISO: Lista de dados de SpriteBatch não encontrada para textura: %s",
                             tostring(item.texture)))
                     end
                 elseif item.drawFunction then
                     -- Para itens que fornecem sua própria função de desenho (jogador, orbs, drops, etc.)
                     item.drawFunction()
-                elseif item.image and item.drawX and item.drawY then -- Desenho básico de imagem
+                elseif item.image and item.drawX and item.drawY then
                     love.graphics.draw(item.image, item.drawX, item.drawY, item.rotation_rad or 0, item.scaleX or 1,
                         item.scaleY or 1, item.ox or 0, item.oy or 0)
-                else
-                    -- print(string.format("RenderPipeline AVISO: Item no bucket sem método de desenho claro: type=%s", item.type))
                 end
             end
         end
     end
+end
 
-    -- 3. Desenha os SpriteBatches
-    -- love.graphics.setColor(1,1,1,1) -- Garante cor branca antes de desenhar batches, se necessário
+--- Função auxiliar para desenhar todos os SpriteBatches com os dados coletados.
+function RenderPipeline:_drawSpriteBatches()
     for texture, dataList in pairs(self.spriteBatchDrawData) do
         local batch = self.spriteBatchReferences[texture]
         if batch and #dataList > 0 then
-            batch:clear() -- Limpa o batch antes de adicionar os sprites do frame atual
+            batch:clear()
             for _, drawArgs in ipairs(dataList) do
                 -- Usa a variante de :add() com o parâmetro de profundidade.
                 -- A profundidade é baseada no sortY (posição Y), garantindo que
@@ -185,8 +196,7 @@ function RenderPipeline:draw(cameraX, cameraY)
                 batch:add(drawArgs.quad, drawArgs.x, drawArgs.y, drawArgs.r, drawArgs.sx, drawArgs.sy, drawArgs.ox,
                     drawArgs.oy, 0, 0, math.floor(drawArgs.depth_in_batch or 0))
             end
-            if batch:getCount() > 0 then -- Verifica se há algo para desenhar
-                -- print(string.format("RenderPipeline: Desenhando batch para textura %s com %d sprites", tostring(texture), batch:getCount()))
+            if batch:getCount() > 0 then
                 love.graphics.draw(batch)
             end
         end

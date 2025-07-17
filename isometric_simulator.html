@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Isométrico - Grid 25x25</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 1000px;
+            height: 700px;
+            background: #16213e;
+            border: 2px solid #0f3460;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        }
+        
+        .controls {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #bdc3c7;
+        }
+        
+        .patch-info {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        
+        .patch-detail {
+            padding: 10px;
+            background: rgba(52, 152, 219, 0.2);
+            border-radius: 5px;
+            border: 1px solid rgba(52, 152, 219, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Simulador Isométrico - Grid 25×25 Tiles</h1>
+    
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
+    </div>
+    
+    <div class="controls">
+        <div><strong>Controles:</strong> WASD ou Setas para mover</div>
+        <div class="info">Cada patch tem 25×25 tiles | Mapa 2×2 com wrapping infinito</div>
+        
+        <div class="patch-info">
+            <div class="patch-detail">
+                <strong>Patch:</strong> <span id="currentPatch">0, 0</span>
+            </div>
+            <div class="patch-detail">
+                <strong>Tile:</strong> <span id="tilePosition">12, 12</span>
+            </div>
+            <div class="patch-detail">
+                <strong>Posição Global:</strong> <span id="globalPosition">12, 12</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class IsometricGridSimulator {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Configurações do tile isométrico
+                this.tileWidth = 32;
+                this.tileHeight = 16;
+                this.patchSize = 2; // Mapa 2×2 patches
+                this.tilesPerPatch = 25; // 25×25 tiles por patch
+                
+                // Posição do jogador (em tiles)
+                this.player = {
+                    patchX: 0,
+                    patchY: 0,
+                    tileX: 12,  // Centro do patch
+                    tileY: 12,
+                    size: 6
+                };
+                
+                // Configuração da câmera
+                this.camera = {
+                    x: 0,
+                    y: 0
+                };
+                
+                // Cores dos patches para diferenciação
+                this.patchColors = [
+                    ['#e74c3c', '#f39c12'], // Vermelho, Laranja
+                    ['#2ecc71', '#3498db']  // Verde, Azul
+                ];
+                
+                this.setupControls();
+                this.updateCamera();
+                this.gameLoop();
+            }
+            
+            setupControls() {
+                const keys = {};
+                
+                document.addEventListener('keydown', (e) => {
+                    keys[e.key.toLowerCase()] = true;
+                });
+                
+                document.addEventListener('keyup', (e) => {
+                    keys[e.key.toLowerCase()] = false;
+                });
+                
+                // Movimento por tiles
+                let lastMoveTime = 0;
+                const moveDelay = 150; // ms entre movimentos
+                
+                const checkMovement = () => {
+                    const now = Date.now();
+                    if (now - lastMoveTime < moveDelay) return;
+                    
+                    let moved = false;
+                    
+                    if (keys['w'] || keys['arrowup']) {
+                        this.movePlayer(0, -1);
+                        moved = true;
+                    } else if (keys['s'] || keys['arrowdown']) {
+                        this.movePlayer(0, 1);
+                        moved = true;
+                    }
+                    
+                    if (keys['a'] || keys['arrowleft']) {
+                        this.movePlayer(-1, 0);
+                        moved = true;
+                    } else if (keys['d'] || keys['arrowright']) {
+                        this.movePlayer(1, 0);
+                        moved = true;
+                    }
+                    
+                    if (moved) {
+                        lastMoveTime = now;
+                        this.updateCamera();
+                        this.updateUI();
+                    }
+                };
+                
+                setInterval(checkMovement, 16);
+            }
+            
+            movePlayer(dx, dy) {
+                // Atualiza posição do tile
+                this.player.tileX += dx;
+                this.player.tileY += dy;
+                
+                // Verifica wrapping e mudança de patch
+                this.handleWrapping();
+            }
+            
+            handleWrapping() {
+                // Wrapping horizontal
+                if (this.player.tileX < 0) {
+                    this.player.tileX = this.tilesPerPatch - 1;
+                    this.player.patchX = (this.player.patchX - 1 + this.patchSize) % this.patchSize;
+                } else if (this.player.tileX >= this.tilesPerPatch) {
+                    this.player.tileX = 0;
+                    this.player.patchX = (this.player.patchX + 1) % this.patchSize;
+                }
+                
+                // Wrapping vertical
+                if (this.player.tileY < 0) {
+                    this.player.tileY = this.tilesPerPatch - 1;
+                    this.player.patchY = (this.player.patchY - 1 + this.patchSize) % this.patchSize;
+                } else if (this.player.tileY >= this.tilesPerPatch) {
+                    this.player.tileY = 0;
+                    this.player.patchY = (this.player.patchY + 1) % this.patchSize;
+                }
+            }
+            
+            updateCamera() {
+                // Posição global do jogador em tiles
+                const globalTileX = this.player.patchX * this.tilesPerPatch + this.player.tileX;
+                const globalTileY = this.player.patchY * this.tilesPerPatch + this.player.tileY;
+                
+                // Converte para coordenadas isométricas
+                const isoX = (globalTileX - globalTileY) * (this.tileWidth / 2);
+                const isoY = (globalTileX + globalTileY) * (this.tileHeight / 2);
+                
+                // Centraliza a câmera no jogador
+                this.camera.x = this.canvas.width / 2 - isoX;
+                this.camera.y = this.canvas.height / 2 - isoY;
+            }
+            
+            cartesianToIsometric(x, y) {
+                const isoX = (x - y) * (this.tileWidth / 2);
+                const isoY = (x + y) * (this.tileHeight / 2);
+                return { x: isoX, y: isoY };
+            }
+            
+            drawTile(tileX, tileY, color, highlight = false) {
+                const iso = this.cartesianToIsometric(tileX, tileY);
+                const screenX = iso.x + this.camera.x;
+                const screenY = iso.y + this.camera.y;
+                
+                // Desenha o losango isométrico
+                this.ctx.fillStyle = color;
+                this.ctx.beginPath();
+                this.ctx.moveTo(screenX, screenY - this.tileHeight / 2);
+                this.ctx.lineTo(screenX + this.tileWidth / 2, screenY);
+                this.ctx.lineTo(screenX, screenY + this.tileHeight / 2);
+                this.ctx.lineTo(screenX - this.tileWidth / 2, screenY);
+                this.ctx.closePath();
+                this.ctx.fill();
+                
+                // Contorno
+                this.ctx.strokeStyle = highlight ? 'rgba(255, 255, 255, 0.8)' : 'rgba(255, 255, 255, 0.2)';
+                this.ctx.lineWidth = highlight ? 2 : 0.5;
+                this.ctx.stroke();
+            }
+            
+            render() {
+                // Limpa o canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Calcula área visível
+                const renderRadius = 30; // tiles ao redor do jogador
+                const playerGlobalX = this.player.patchX * this.tilesPerPatch + this.player.tileX;
+                const playerGlobalY = this.player.patchY * this.tilesPerPatch + this.player.tileY;
+                
+                // Renderiza tiles
+                for (let x = playerGlobalX - renderRadius; x <= playerGlobalX + renderRadius; x++) {
+                    for (let y = playerGlobalY - renderRadius; y <= playerGlobalY + renderRadius; y++) {
+                        // Calcula patch com wrapping
+                        const patchX = Math.floor(x / this.tilesPerPatch);
+                        const patchY = Math.floor(y / this.tilesPerPatch);
+                        const wrappedPatchX = ((patchX % this.patchSize) + this.patchSize) % this.patchSize;
+                        const wrappedPatchY = ((patchY % this.patchSize) + this.patchSize) % this.patchSize;
+                        
+                        // Calcula tile local dentro do patch
+                        const localX = ((x % this.tilesPerPatch) + this.tilesPerPatch) % this.tilesPerPatch;
+                        const localY = ((y % this.tilesPerPatch) + this.tilesPerPatch) % this.tilesPerPatch;
+                        
+                        // Seleciona cor base do patch
+                        let color = this.patchColors[wrappedPatchY][wrappedPatchX];
+                        
+                        // Variação de cor baseada na posição do tile
+                        const variation = (localX + localY) % 3;
+                        if (variation === 1) {
+                            color = this.adjustColor(color, -10);
+                        } else if (variation === 2) {
+                            color = this.adjustColor(color, 10);
+                        }
+                        
+                        // Destaca bordas do patch
+                        const isBorder = localX === 0 || localX === this.tilesPerPatch - 1 || 
+                                       localY === 0 || localY === this.tilesPerPatch - 1;
+                        
+                        this.drawTile(x, y, color, isBorder);
+                    }
+                }
+                
+                // Renderiza marcadores de patch
+                this.drawPatchMarkers();
+                
+                // Renderiza o jogador
+                this.drawPlayer();
+            }
+            
+            adjustColor(color, amount) {
+                // Ajusta o brilho da cor
+                const hex = color.replace('#', '');
+                const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + amount));
+                const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + amount));
+                const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + amount));
+                
+                return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            }
+            
+            drawPatchMarkers() {
+                // Desenha marcadores no centro de cada patch visível
+                const renderRadius = 2;
+                const playerPatchX = this.player.patchX;
+                const playerPatchY = this.player.patchY;
+                
+                for (let px = playerPatchX - renderRadius; px <= playerPatchX + renderRadius; px++) {
+                    for (let py = playerPatchY - renderRadius; py <= playerPatchY + renderRadius; py++) {
+                        const wrappedPx = ((px % this.patchSize) + this.patchSize) % this.patchSize;
+                        const wrappedPy = ((py % this.patchSize) + this.patchSize) % this.patchSize;
+                        
+                        // Centro do patch em tiles globais
+                        const centerX = px * this.tilesPerPatch + Math.floor(this.tilesPerPatch / 2);
+                        const centerY = py * this.tilesPerPatch + Math.floor(this.tilesPerPatch / 2);
+                        
+                        const iso = this.cartesianToIsometric(centerX, centerY);
+                        const screenX = iso.x + this.camera.x;
+                        const screenY = iso.y + this.camera.y;
+                        
+                        // Desenha marcador do patch
+                        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                        this.ctx.font = 'bold 14px Arial';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText(`P${wrappedPx},${wrappedPy}`, screenX, screenY);
+                        
+                        // Círculo de fundo
+                        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                        this.ctx.beginPath();
+                        this.ctx.arc(screenX, screenY - 2, 18, 0, Math.PI * 2);
+                        this.ctx.fill();
+                        
+                        // Texto novamente por cima
+                        this.ctx.fillStyle = 'white';
+                        this.ctx.fillText(`P${wrappedPx},${wrappedPy}`, screenX, screenY);
+                    }
+                }
+            }
+            
+            drawPlayer() {
+                // Posição global do jogador
+                const globalTileX = this.player.patchX * this.tilesPerPatch + this.player.tileX;
+                const globalTileY = this.player.patchY * this.tilesPerPatch + this.player.tileY;
+                
+                const iso = this.cartesianToIsometric(globalTileX, globalTileY);
+                const screenX = iso.x + this.camera.x;
+                const screenY = iso.y + this.camera.y;
+                
+                // Sombra do jogador
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                this.ctx.beginPath();
+                this.ctx.ellipse(screenX, screenY + 3, this.player.size + 2, this.player.size / 2, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Corpo do jogador
+                this.ctx.fillStyle = '#ff6b6b';
+                this.ctx.beginPath();
+                this.ctx.arc(screenX, screenY - 8, this.player.size, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Contorno do jogador
+                this.ctx.strokeStyle = 'white';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+                
+                // Indicador de direção
+                this.ctx.fillStyle = 'white';
+                this.ctx.beginPath();
+                this.ctx.arc(screenX, screenY - 10, 2, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+            
+            updateUI() {
+                document.getElementById('currentPatch').textContent = 
+                    `${this.player.patchX}, ${this.player.patchY}`;
+                
+                document.getElementById('tilePosition').textContent = 
+                    `${this.player.tileX}, ${this.player.tileY}`;
+                
+                const globalTileX = this.player.patchX * this.tilesPerPatch + this.player.tileX;
+                const globalTileY = this.player.patchY * this.tilesPerPatch + this.player.tileY;
+                document.getElementById('globalPosition').textContent = 
+                    `${globalTileX}, ${globalTileY}`;
+            }
+            
+            gameLoop() {
+                this.render();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+        
+        // Inicializa o simulador
+        window.addEventListener('load', () => {
+            new IsometricGridSimulator();
+        });
+    </script>
+</body>
+</html>

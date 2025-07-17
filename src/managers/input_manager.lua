@@ -62,53 +62,6 @@ function InputManager:update(dt, hasActiveModalOrInventory, isGamePaused)
     self.keys.moveDown = love.keyboard.isDown("s") or love.keyboard.isDown("down")
     self.keys.moveLeft = love.keyboard.isDown("a") or love.keyboard.isDown("left")
     self.keys.moveRight = love.keyboard.isDown("d") or love.keyboard.isDown("right")
-
-    local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
-    local playerSprite = playerManager:getPlayerSprite()
-
-    if not playerManager or not playerSprite then
-        return
-    end
-
-    -- Se a UI está bloqueando, o jogador não pode se mover. Zera a velocidade e retorna.
-    if isUIBlockingInput or not self.movementEnabled then
-        playerSprite.velocity.x = 0
-        playerSprite.velocity.y = 0
-        return
-    end
-
-    local moveX, moveY = 0, 0
-    -- Executa movimento se houver input de teclas
-    if self.keys.moveUp or self.keys.moveDown or self.keys.moveLeft or self.keys.moveRight then
-        if self.keys.moveUp then moveY = moveY - 1 end
-        if self.keys.moveDown then moveY = moveY + 1 end
-        if self.keys.moveLeft then moveX = moveX - 1 end
-        if self.keys.moveRight then moveX = moveX + 1 end
-
-        -- Normaliza o vetor de movimento para evitar velocidade maior na diagonal
-        if moveX ~= 0 or moveY ~= 0 then
-            local length = math.sqrt(moveX * moveX + moveY * moveY)
-            moveX = moveX / length
-            moveY = moveY / length
-        end
-
-        -- Aplica o movimento
-        local finalStats = playerManager:getCurrentFinalStats()
-        local moveSpeedInPixels = Constants.moveSpeedToPixels(finalStats.moveSpeed)
-        local playerPos = playerManager:getPlayerPosition()
-        playerManager.movementController:setPosition(
-            playerPos.x + moveX * moveSpeedInPixels * dt,
-            playerPos.y + moveY * moveSpeedInPixels * dt
-        )
-
-        -- Atualiza o vetor de velocidade no playerManager para outros sistemas usarem
-        playerSprite.velocity.x = moveX
-        playerSprite.velocity.y = moveY
-    else
-        -- Se não houver input de movimento, zera a velocidade
-        playerSprite.velocity.x = 0
-        playerSprite.velocity.y = 0
-    end
 end
 
 -- Manipulador de teclas pressionadas

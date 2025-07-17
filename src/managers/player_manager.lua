@@ -72,6 +72,7 @@ local PlayerManager = {
     itemDataManager = nil, ---@type ItemDataManager
     archetypeManager = nil, ---@type ArchetypeManager
     gameStatisticsManager = nil, ---@type GameStatisticsManager
+    mapManager = nil, ---@type InfinityWrapMapManager
 
     currentHunterId = nil, ---@type string|nil ID do caçador atual
     onPlayerDiedCallback = nil, ---@type function|nil Callback chamado quando o jogador morre
@@ -145,6 +146,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
     self.itemDataManager = registry:get("itemDataManager")
     self.archetypeManager = registry:get("archetypeManager")
     self.gameStatisticsManager = registry:get("gameStatisticsManager")
+    self.mapManager = registry:get("mapManager")
 
     -- Validação crucial das dependências
     if not self.inputManager or not self.enemyManager or not self.floatingTextManager or
@@ -182,7 +184,7 @@ function PlayerManager:setupGameplay(registry, hunterId)
     self.autoAttackController = AutoAttackController:new(self)
     self.weaponController = WeaponController:new(self)
     self.runeController = RuneController:new(self)
-    self.movementController = MovementController:new(self)
+    self.movementController = MovementController:new(self, self.mapManager, self.inputManager)
     self.dashController = DashController:new(self)
     self.levelUpEffectController = LevelUpEffectController:new(self)
     self.potionController = PotionController:new(self)

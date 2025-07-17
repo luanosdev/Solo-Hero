@@ -39,7 +39,7 @@ function GameplayScene:load(args)
         Logger.info("gameplay_scene.load.args", "[GameplayScene:load] Recebidos dados configurados do game_loading_scene")
     else
         -- Fallback para compatibilidade (args antigos)
-        self.portalId = args and args.portalId or "floresta_assombrada"
+        self.portalId = args and args.portalId or "portal_jungle_teste"
         self.hordeConfig = args and args.hordeConfig or nil
         self.hunterId = args and args.hunterId or nil
         self.currentPortalData = portalDefinitions[self.portalId]
@@ -397,8 +397,10 @@ function GameplayScene:draw()
 
     Camera:attach()
 
-    -- Desenha tudo que está sob a câmera usando o RenderPipeline
-    self.renderPipeline:draw(Camera.x, Camera.y)
+    if playerMgr.movementController then
+        -- Desenha tudo que está sob a câmera usando o RenderPipeline
+        self.renderPipeline:draw(playerMgr.movementController:getPosition())
+    end
 
     -- DEBUG: Desenha informações de debug dos inimigos (como raios de colisão)
     if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS and enemyMgr and enemyMgr.getEnemies then
@@ -408,7 +410,14 @@ function GameplayScene:draw()
                 if enemyInstance and enemyInstance.isAlive and enemyInstance.drawDebug then
                     -- Verifica se o inimigo está aproximadamente na visão da câmera antes de desenhar debug
                     -- Isso é um culling simples para o debug, pode ser ajustado
-                    if Culling.isInView(enemyInstance, Camera.x, Camera.y, Camera.screenWidth, Camera.screenHeight, 100) then
+                    if Culling.isInView(
+                        enemyInstance,
+                        Camera.x,
+                        Camera.y,
+                        Camera.screenWidth,
+                        Camera.screenHeight,
+                        100
+                    ) then
                         enemyInstance:drawDebug()
                     end
                 end
@@ -699,11 +708,12 @@ end
 function GameplayScene:_cleanupLocalSystems()
     Logger.debug("gameplay_scene.cleanup_local_systems.started", "Limpando sistemas locais do GameplayScene...")
 
-    -- Limpa ProceduralMapManager
+    -- Limpa IsometricPatchMapManager
     if self.mapManager then
         if self.mapManager.destroy and type(self.mapManager.destroy) == "function" then
             self.mapManager:destroy()
-            Logger.debug("gameplay_scene.cleanup_local_systems.map_manager_destroyed", "ProceduralMapManager destruído")
+            Logger.debug("gameplay_scene.cleanup_local_systems.map_manager_destroyed",
+                "IsometricPatchMapManager destruído")
         end
         self.mapManager = nil
     end

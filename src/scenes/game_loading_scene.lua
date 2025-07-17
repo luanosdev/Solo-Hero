@@ -6,6 +6,7 @@ local AnimationLoader = require("src.animations.animation_loader")
 local portalDefinitions = require("src.data.portals.portal_definitions")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local DashCooldownIndicator = require("src.ui.components.dash_cooldown_indicator")
+local InfinityWrapMapManager = require("src.managers.gameplay.infinity_wrap_map_manager")
 
 -- === SISTEMA DE TEXTOS TEMÁTICOS EXPANDIDO ===
 local THEMATIC_LOADING_TEXTS = {
@@ -71,6 +72,14 @@ local THEMATIC_LOADING_TEXTS = {
             title = "Otimizando Sistemas Visuais",
             subtitle = "Preparando pipeline gráfico",
             detail = "Configurando recursos visuais..."
+        }
+    },
+    {
+        technical = "Carregando sistema de mapa infinito...",
+        thematic = {
+            title = "Renderizando Topografia da Zona",
+            subtitle = "Mapeando terreno hostil",
+            detail = "Calculando vetores de incursão..."
         }
     },
     {
@@ -197,6 +206,7 @@ function GameLoadingScene:_initializeLoadingTasks()
         function() return self:_loadBasicAnimations() end,
         function() return self:_loadPortalAnimations() end,
         function() return self:_createSpriteBatchesChunked() end,
+        function() return self:_loadInfiniteMapSystem() end,
         function() return self:_setupPlayerForMission() end,
         function() return self:_optimizeMemory() end,
         function() return self:_finalizeLoading() end
@@ -438,6 +448,24 @@ function GameLoadingScene:_loadPortalAnimations()
     return true
 end
 
+--- NOVO: Carrega e inicializa o sistema de mapa infinito.
+function GameLoadingScene:_loadInfiniteMapSystem()
+    local mapName = self.currentPortalData.map
+    if not mapName then
+        error("GameLoadingScene - O portal não define um 'map'.")
+    end
+
+    self.mapManager = InfinityWrapMapManager:new("jungle")
+    if self.mapManager then
+        ManagerRegistry:register("mapManager", self.mapManager)
+        Logger.info("GameLoadingScene",
+            string.format("InfinityWrapMapManager criado e registrado para mapa: %s", mapName))
+    else
+        error("Falha ao criar o InfinityWrapMapManager para o mapa: " .. mapName)
+    end
+    return true -- A construção real do canvas será assíncrona dentro do manager
+end
+
 --- Cria SpriteBatches em chunks para evitar travamentos
 function GameLoadingScene:_createSpriteBatchesChunked()
     ---@type EnemyManager
@@ -517,17 +545,11 @@ function GameLoadingScene:_setupAllManagersForGameplay()
     local dropMgr = ManagerRegistry:get("dropManager")
 
     if enemyMgr and self.currentPortalData then
-        -- Criar ProceduralMapManager aqui (era criado no gameplay_scene)
-        local AssetManager = require("src.managers.asset_manager")
-        local ProceduralMapManager = require("src.managers.procedural_map_manager")
-
-        local mapName = self.currentPortalData.map
-        if not mapName then
-            error("GameLoadingScene - O portal não define um 'map'.")
-        end
-
-        self.mapManager = ProceduralMapManager:new(mapName, AssetManager)
-        Logger.info("GameLoadingScene", string.format("ProceduralMapManager criado para mapa: %s", mapName))
+        -- Criar IsometricPatchMapManager aqui (substitui o ProceduralMapManager)
+        -- O InfinityWrapMapManager agora é criado em sua própria tarefa de carregamento.
+        -- Apenas obtemos a referência aqui.
+        ---@type InfinityWrapMapManager
+        self.mapManager = self.mapManager or ManagerRegistry:get("mapManager")
 
         -- Configurar EnemyManager com todas as dependências
         local enemyManagerConfig = {
@@ -657,7 +679,7 @@ end
 -- @param args table|nil Argumentos da cena anterior (espera-se { portalId, hordeConfig, ... }).
 function GameLoadingScene:load(args)
     self.sceneArgs = args -- Armazena a tabela de argumentos completa
-    self.portalId = args and args.portalId or "floresta_assombrada"
+    self.portalId = args and args.portalId or "portal_jungle_teste"
     self.hordeConfig = args and args.hordeConfig or nil
     self.hunterId = args and args.hunterId or nil
 

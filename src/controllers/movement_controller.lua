@@ -4,20 +4,30 @@
 -------------------------------------------------------------------------
 
 local SpritePlayer = require('src.animations.sprite_player')
-local Camera = require("src.config.camera")
 local Constants = require("src.config.constants")
+
+---@class LogicalPosition
+---@field patchX number
+---@field patchY number
+---@field tileX number
+---@field tileY number  
 
 ---@class MovementController
 ---@field playerManager PlayerManager Referência ao PlayerManager
+---@field inputManager InputManager Referência ao InputManager
 ---@field player PlayerSprite|nil Referência ao sprite do jogador
 ---@field radius number Raio de colisão do jogador
+---@field mapManager InfinityWrapMapManager|nil Referência ao gerenciador do mapa
+---@field logicalPosition LogicalPosition Posição lógica no mapa
 local MovementController = {}
 MovementController.__index = MovementController
 
 --- Cria uma nova instância do MovementController.
 ---@param playerManager PlayerManager A instância do PlayerManager
+---@param mapManager InfinityWrapMapManager A instância do InfinityWrapMapManager
+---@param inputManager InputManager A instância do InputManager
 ---@return MovementController
-function MovementController:new(playerManager)
+function MovementController:new(playerManager, mapManager, inputManager)
     Logger.debug(
         "movement_controller.new",
         "[MovementController:new] Inicializando controlador de movimento"
@@ -26,8 +36,17 @@ function MovementController:new(playerManager)
     local instance = setmetatable({}, MovementController)
 
     instance.playerManager = playerManager
+    instance.inputManager = inputManager
     instance.player = nil
     instance.radius = 15 -- Tamanho padrão do círculo de colisão
+    instance.mapManager = mapManager
+    -- Posição lógica inicial no mapa
+    instance.logicalPosition = {
+        patchX = 0,
+        patchY = 0,
+        tileX = 12.0, -- Centro do patch inicial
+        tileY = 12.0,
+    }
 
     return instance
 end
@@ -103,89 +122,75 @@ end
 
 --- Atualiza o movimento do jogador
 ---@param dt number Delta time
----@param targetPosition Vector2D Posição alvo para movimento
+---@param targetPosition Vector2D Posição do jogador
+---@param isPaused boolean Se a animação está pausada
 ---@return number|nil distanceMoved Distância movida neste frame
-function MovementController:update(dt, targetPosition)
-    if not self.playerManager:isAlive() then
+function MovementController:update(dt, targetPosition, isPaused)
+    if not self.playerManager:isAlive() then return nil end
+
+    -- Não move se estiver em dash ou UI bloqueando
+    if (self.playerManager.dashController and self.playerManager.dashController:isOnDash()) or isPaused then
+        if self.player then self.player.velocity = { x = 0, y = 0 } end
         return nil
-    end
-
-    self:updateCamera(dt)
-
-    -- Verifica se não está em dash
-    if self.playerManager.dashController and self.playerManager.dashController:isOnDash() then
-        return nil -- Dash controller gerencia o movimento durante dash
     end
 
     -- Atualiza o sprite do player apenas se a animação não estiver pausada
     if not self.player.animationPaused then
         -- Obtém a velocidade atual do jogador baseada nos stats finais
         local finalStats = self.playerManager:getCurrentFinalStats()
-        local currentSpeed = finalStats and Constants.moveSpeedToPixels(finalStats.moveSpeed) or
-            Constants.moveSpeedToPixels(Constants.HUNTER_DEFAULT_STATS.moveSpeed)
+        local moveSpeedInTiles = Constants.moveSpeedToPixels(finalStats.moveSpeed) -- Velocidade em m/s agora é tiles/s
 
-        local distanceMoved = SpritePlayer.update(self.player, dt, targetPosition, currentSpeed)
+        local moveVector = self.inputManager:getMovementVector()
 
-        -- Registra movimento nas estatísticas se houve movimento
-        if distanceMoved and distanceMoved > 0 and self.playerManager.gameStatisticsManager then
-            self.playerManager.gameStatisticsManager:registerMovement(distanceMoved)
+        self.player.velocity = {
+            x = moveVector.x,
+            y = moveVector.y
+        }
+
+        local distanceMovedInTiles = 0
+        if moveVector.x ~= 0 or moveVector.y ~= 0 then
+            local moveAmount = moveSpeedInTiles * dt
+            self.logicalPosition.tileX = self.logicalPosition.tileX + moveVector.x * moveAmount
+            self.logicalPosition.tileY = self.logicalPosition.tileY + moveVector.y * moveAmount
+            distanceMovedInTiles = moveAmount
         end
 
-        return distanceMoved
+        -- Lida com o wrapping do mapa
+        if self.mapManager then
+            self.logicalPosition = self.mapManager:handleWrapping(self.logicalPosition)
+        end
+
+        -- Atualiza animação do sprite
+        SpritePlayer.update(self.player, dt, targetPosition, moveSpeedInTiles)
+
+        if self.playerManager.gameStatisticsManager then
+            self.playerManager.gameStatisticsManager:registerMovement(distanceMovedInTiles)
+        end
+
+        return distanceMovedInTiles
     end
 
     return nil
 end
 
---- Atualiza a câmera para seguir o jogador
----@param dt number Delta time
-function MovementController:updateCamera(dt)
-    if self.player and self.player.position then
-        Camera:follow(self.player.position, dt)
-    end
-end
-
---- Obtém a posição atual do jogador
----@return Vector2D|nil
+--- Obtém a posição ATUAL do jogador (lógica, não em pixels)
+---@return LogicalPosition
 function MovementController:getPosition()
-    if self.player and self.player.position then
-        return self.player.position
-    end
-    return nil
+    return self.logicalPosition
 end
 
---- Define a posição do jogador
----@param x number Coordenada X
----@param y number Coordenada Y
-function MovementController:setPosition(x, y)
-    if self.player and self.player.position then
-        self.player.position.x = x
-        self.player.position.y = y
-    end
+--- Define a posição LÓGICA do jogador
+---@param patchX number
+---@param patchY number
+---@param tileX number
+---@param tileY number
+function MovementController:setPosition(patchX, patchY, tileX, tileY)
+    self.logicalPosition.patchX = patchX
+    self.logicalPosition.patchY = patchY
+    self.logicalPosition.tileX = tileX
+    self.logicalPosition.tileY = tileY
 end
 
---- Obtém a posição de colisão do jogador (nos pés do sprite)
----@return table Tabela com position e radius
-function MovementController:getCollisionPosition()
-    if not self.player or not self.player.position then
-        Logger.warn(
-            "movement_controller.collision.no_player",
-            "[MovementController:getCollisionPosition] Player não inicializado, retornando posição padrão"
-        )
-        return {
-            position = { x = 0, y = 0 },
-            radius = self.radius
-        }
-    end
-
-    return {
-        position = {
-            x = self.player.position.x,
-            y = self.player.position.y + 25, -- Offset para os pés
-        },
-        radius = self.radius
-    }
-end
 
 --- Para o movimento do jogador (usado quando morre)
 function MovementController:stopMovement()
@@ -224,91 +229,6 @@ end
 ---@return boolean
 function MovementController:isAnimationPaused()
     return self.player and self.player.animationPaused or false
-end
-
---- Desenha o sprite do jogador
-function MovementController:draw()
-    if self.player then
-        SpritePlayer.draw(self.player)
-    end
-end
-
---- Obtém informações de debug sobre movimento
----@return table
-function MovementController:getDebugInfo()
-    local info = {
-        hasPlayer = self.player ~= nil,
-        animationPaused = self:isAnimationPaused(),
-        collisionRadius = self.radius
-    }
-
-    if self.player then
-        info.position = self.player.position and {
-            x = self.player.position.x,
-            y = self.player.position.y
-        } or nil
-        info.velocity = self.player.velocity and {
-            x = self.player.velocity.x,
-            y = self.player.velocity.y
-        } or nil
-        info.scale = self.player.scale
-    end
-
-    return info
-end
-
---- Teleporta o jogador para uma posição específica
----@param x number Coordenada X de destino
----@param y number Coordenada Y de destino
-function MovementController:teleportTo(x, y)
-    self:setPosition(x, y)
-
-    -- Para qualquer movimento em andamento
-    if self.player and self.player.velocity then
-        self.player.velocity.x = 0
-        self.player.velocity.y = 0
-    end
-
-    Logger.info(
-        "movement_controller.teleport",
-        string.format("[MovementController:teleportTo] Jogador teleportado para (%.1f, %.1f)", x, y)
-    )
-end
-
---- Move o jogador em uma direção específica por uma distância
----@param directionX number Direção X normalizada
----@param directionY number Direção Y normalizada
----@param distance number Distância a mover
-function MovementController:moveInDirection(directionX, directionY, distance)
-    if not self.player or not self.player.position then return end
-
-    local newX = self.player.position.x + (directionX * distance)
-    local newY = self.player.position.y + (directionY * distance)
-
-    self:setPosition(newX, newY)
-
-    Logger.debug(
-        "movement_controller.move_direction",
-        string.format("[MovementController:moveInDirection] Movido %.1f pixels na direção (%.2f, %.2f)",
-            distance, directionX, directionY)
-    )
-end
-
---- Verifica se o jogador está próximo a uma posição
----@param targetX number Coordenada X do alvo
----@param targetY number Coordenada Y do alvo
----@param threshold number Distância mínima para considerar "próximo"
----@return boolean
-function MovementController:isNearPosition(targetX, targetY, threshold)
-    if not self.player or not self.player.position then
-        return false
-    end
-
-    local dx = self.player.position.x - targetX
-    local dy = self.player.position.y - targetY
-    local distance = math.sqrt(dx * dx + dy * dy)
-
-    return distance <= threshold
 end
 
 --- Obtém a velocidade atual do jogador

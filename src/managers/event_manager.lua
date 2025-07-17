@@ -6,6 +6,10 @@
 local EventManager = {}
 EventManager.__index = EventManager
 
+EventManager.EVENTS = {
+    PLAYER_WRAPPED = 'player_wrapped',
+}
+
 --- Cria uma nova instância do EventManager.
 ---@return EventManager
 function EventManager:new()
