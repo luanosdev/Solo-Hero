@@ -6,19 +6,15 @@
 local SpritePlayer = require('src.animations.sprite_player')
 local Constants = require("src.config.constants")
 
----@class LogicalPosition
----@field patchX number
----@field patchY number
----@field tileX number
----@field tileY number
-
 ---@class MovementController
 ---@field playerManager PlayerManager Referência ao PlayerManager
 ---@field inputManager InputManager Referência ao InputManager
 ---@field player PlayerSprite|nil Referência ao sprite do jogador
 ---@field radius number Raio de colisão do jogador
----@field mapManager InfinityWrapMapManager|nil Referência ao gerenciador do mapa
----@field logicalPosition LogicalPosition Posição lógica no mapa
+---@field mapManager InfinityWrapMapManager Referência ao gerenciador do mapa
+---@field worldPosition Vector2D Posição no mundo em pixels.
+---@field mapPixelWidth number Largura total do mapa em pixels.
+---@field mapPixelHeight number Altura total do mapa em pixels.
 local MovementController = {}
 MovementController.__index = MovementController
 
@@ -40,12 +36,26 @@ function MovementController:new(playerManager, mapManager, inputManager)
     instance.player = nil
     instance.radius = 15 -- Tamanho padrão do círculo de colisão
     instance.mapManager = mapManager
-    -- Posição lógica inicial no mapa
-    instance.logicalPosition = {
-        patchX = 0,
-        patchY = 0,
-        tileX = 12.0, -- Centro do patch inicial
-        tileY = 12.0,
+
+    -- Calcula as dimensões do mapa em pixels para o wrapping
+    if instance.mapManager then
+        local totalWorldTiles = instance.mapManager.patchSize * instance.mapManager.tilesPerPatch
+
+        local isoTopLeft = instance.mapManager:cartesianToIsometric(totalWorldTiles, 0)
+        local isoBottomRight = instance.mapManager:cartesianToIsometric(0, totalWorldTiles)
+        instance.mapPixelWidth = isoTopLeft.x - isoBottomRight.x
+        instance.mapPixelHeight = instance.mapManager:cartesianToIsometric(totalWorldTiles, totalWorldTiles).y
+    else
+        instance.mapPixelWidth = 0
+        instance.mapPixelHeight = 0
+    end
+
+
+    -- Posição inicial no mundo (em pixels)
+    -- Começa no centro do mundo para dar espaço para o wrap em todas as direções.
+    instance.worldPosition = {
+        x = 0,
+        y = 0,
     }
 
     return instance
@@ -99,7 +109,7 @@ function MovementController:setupPlayerSprite(finalStats)
             x = ResolutionUtils.getGameWidth() / 2,
             y = ResolutionUtils.getGameHeight() / 2
         },
-        scale = 1.4,
+        scale = 1,
         appearance = appearance
     })
 
@@ -142,9 +152,7 @@ function MovementController:update(dt, targetPosition, isPaused)
     if self.player and not self.player.animationPaused then
         -- Obtém a velocidade atual do jogador baseada nos stats finais
         local finalStats = self.playerManager:getCurrentFinalStats()
-        -- Com o novo sistema de mapa baseado em tiles, a velocidade de movimento (m/s)
-        -- é diretamente usada como tiles/s.
-        local moveSpeedInTiles = finalStats.moveSpeed
+        local moveSpeedInPixels = Constants.moveSpeedToPixels(finalStats.moveSpeed)
 
         local moveVector = self.inputManager:getMovementVector()
 
@@ -154,7 +162,7 @@ function MovementController:update(dt, targetPosition, isPaused)
             y = moveVector.y
         }
 
-        local distanceMovedInTiles = 0
+        local distanceMovedInPixels = 0
         local magnitude = math.sqrt(moveVector.x * moveVector.x + moveVector.y * moveVector.y)
         if magnitude > 0 then
             local normalizedInputX = moveVector.x / magnitude
@@ -168,47 +176,70 @@ function MovementController:update(dt, targetPosition, isPaused)
             local rotatedX = normalizedInputX * cosAngle - normalizedInputY * sinAngle
             local rotatedY = normalizedInputX * sinAngle + normalizedInputY * cosAngle
 
-            local moveAmount = moveSpeedInTiles * dt
+            local moveAmount = moveSpeedInPixels * dt
 
-            -- Atualiza as coordenadas tile da posição lógica
-            self.logicalPosition.tileX = self.logicalPosition.tileX + rotatedX * moveAmount
-            self.logicalPosition.tileY = self.logicalPosition.tileY + rotatedY * moveAmount
+            -- Atualiza as coordenadas do mundo em pixels
+            self.worldPosition.x = self.worldPosition.x + rotatedX * moveAmount
+            self.worldPosition.y = self.worldPosition.y + rotatedY * moveAmount
 
-            -- Deixa o mapManager lidar com o "wrapping" para manter o mundo infinito
-            self.logicalPosition = self.mapManager:handleWrapping(self.logicalPosition)
+            -- Lida com o "wrapping" para manter o mundo infinito
+            self:_handleWrapping()
 
-            distanceMovedInTiles = moveAmount
+            distanceMovedInPixels = moveAmount
         end
 
         -- Atualiza animação do sprite com os dados corretos
-        SpritePlayer.update(self.player, dt, targetPosition, moveSpeedInTiles)
+        SpritePlayer.update(self.player, dt, targetPosition, moveSpeedInPixels)
 
         if self.playerManager.gameStatisticsManager then
-            self.playerManager.gameStatisticsManager:registerMovement(distanceMovedInTiles)
+            self.playerManager.gameStatisticsManager:registerMovement(Constants.pixelsToMeters(distanceMovedInPixels))
         end
 
-        return distanceMovedInTiles
+        return distanceMovedInPixels
     end
 
     return nil
 end
 
---- Obtém a posição ATUAL do jogador (lógica, não em pixels)
----@return LogicalPosition
-function MovementController:getPosition()
-    return self.logicalPosition
+--- Lida com o wrapping do jogador no mapa infinito, ajustando as coordenadas do mundo.
+function MovementController:_handleWrapping()
+    local wrapped = false
+    local mapW = self.mapPixelWidth
+    local mapH = self.mapPixelHeight
+    local halfW = mapW / 2
+    local halfH = mapH / 2
+
+    if self.worldPosition.x > halfW then
+        self.worldPosition.x = self.worldPosition.x - mapW
+        wrapped = true
+    elseif self.worldPosition.x < -halfW then
+        self.worldPosition.x = self.worldPosition.x + mapW
+        wrapped = true
+    end
+
+    if self.worldPosition.y > halfH then
+        self.worldPosition.y = self.worldPosition.y - mapH
+        wrapped = true
+    elseif self.worldPosition.y < -halfH then
+        self.worldPosition.y = self.worldPosition.y + mapH
+        wrapped = true
+    end
+
+    if wrapped then
+        EventManager:emit(EventManager.EVENTS.PLAYER_WRAPPED)
+    end
 end
 
---- Define a posição LÓGICA do jogador
----@param patchX number
----@param patchY number
----@param tileX number
----@param tileY number
-function MovementController:setPosition(patchX, patchY, tileX, tileY)
-    self.logicalPosition.patchX = patchX
-    self.logicalPosition.patchY = patchY
-    self.logicalPosition.tileX = tileX
-    self.logicalPosition.tileY = tileY
+--- Obtém a posição ATUAL do jogador no mundo (em pixels)
+---@return Vector2D
+function MovementController:getPosition()
+    return self.worldPosition
+end
+
+--- Define a posição do jogador no MUNDO (em pixels)
+---@param worldPosition Vector2D
+function MovementController:setPosition(worldPosition)
+    self.worldPosition = worldPosition
 end
 
 --- Para o movimento do jogador (usado quando morre)

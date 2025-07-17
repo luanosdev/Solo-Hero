@@ -14,6 +14,19 @@ local Culling = require("src.core.culling")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
 local weapons = require("src.data.items.weapons")
 
+---@class GameplayScene
+---@field renderPipeline RenderPipeline
+---@field mapManager InfinityWrapMapManager
+---@field gameOverManager GameOverManager
+---@field bossPresentationManager BossPresentationManager
+---@field portalId string
+---@field hordeConfig table
+---@field hunterId string
+---@field currentPortalData PortalDefinition
+---@field isPaused boolean
+---@field inventoryDragState table
+---@field inventoryEquipmentAreas table
+---@field inventoryGridArea table
 local GameplayScene = {}
 GameplayScene.__index = GameplayScene
 
@@ -38,13 +51,7 @@ function GameplayScene:load(args)
         self.currentPortalData = args.currentPortalData
         Logger.info("gameplay_scene.load.args", "[GameplayScene:load] Recebidos dados configurados do game_loading_scene")
     else
-        -- Fallback para compatibilidade (args antigos)
-        self.portalId = args and args.portalId or "portal_jungle_teste"
-        self.hordeConfig = args and args.hordeConfig or nil
-        self.hunterId = args and args.hunterId or nil
-        self.currentPortalData = portalDefinitions[self.portalId]
-        Logger.error("gameplay_scene.load.args",
-            "[GameplayScene:load] Usando fallback - dados não vieram do game_loading_scene!")
+        error("GameplayScene: Não recebeu dados configurados do game_loading_scene")
     end
 
     -- Estado inicial da UI (mínimo necessário)
@@ -229,9 +236,7 @@ function GameplayScene:update(dt)
         self:checkForBossPresentation()
 
         if self.mapManager then
-            -- Passa a posição do jogador para o update do mapa procedural
-            local playerPosition = playerMgr:getPlayerPosition()
-            self.mapManager:update(dt, playerPosition)
+            self.mapManager:update(dt)
         end
 
         -- Lida com cancelamento de movimento AQUI, APÓS o PlayerManager ter sido atualizado por ManagerRegistry:update(dt)
@@ -400,6 +405,7 @@ function GameplayScene:draw()
         extractionManager:collectRenderables(self.renderPipeline)
     end
 
+    -- Configuração de viewport e câmera
     Camera:attach()
 
     if playerMgr.movementController then

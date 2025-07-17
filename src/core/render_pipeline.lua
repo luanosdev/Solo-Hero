@@ -1,7 +1,7 @@
 ---@class RenderPipeline
 ---@field buckets table<number, table<RenderableItem>> Tabela de buckets de renderização, chaveada por profundidade.
 ---@field spriteBatchReferences table<love.Texture, love.SpriteBatch> Referências a SpriteBatches gerenciados externamente.
----@field spriteBatchDrawData table<love.Texture, table<SpriteBatchDrawArgs>> Dados para desenhar nos SpriteBatches.
+---@field spriteBatchDrawData table<love.Texture, table<number, SpriteBatchDrawArgs>> Dados para desenhar nos SpriteBatches.
 ---@field sortableBuckets table<number, boolean> Configuração de quais buckets devem ser ordenados por sortY.
 local RenderPipeline = {}
 RenderPipeline.__index = RenderPipeline
@@ -51,7 +51,7 @@ function RenderPipeline:reset()
         -- Reutiliza a tabela do bucket, limpando seu conteúdo.
         -- Isso evita a recriação de tabelas a cada frame.
         for i = #bucket, 1, -1 do
-            TablePool.release(bucket[i])
+            TablePool.releaseArray(bucket[i])
             table.remove(bucket, i)
         end
     end
@@ -59,7 +59,7 @@ function RenderPipeline:reset()
     for texture, dataList in pairs(self.spriteBatchDrawData) do
         -- Reutiliza a tabela de dados de desenho, limpando seu conteúdo.
         for i = #dataList, 1, -1 do
-            TablePool.release(dataList[i])
+            TablePool.releaseArray(dataList[i])
             table.remove(dataList, i)
         end
         -- Importante: O SpriteBatch referenciado (self.spriteBatchReferences[texture])
@@ -70,13 +70,12 @@ end
 
 --- Registra um SpriteBatch existente para ser usado pelo pipeline.
 --- O pipeline adicionará sprites a este batch e o desenhará.
----@param texture Texture A textura associada ao SpriteBatch (usada como chave).
+---@param texture love.Texture A textura associada ao SpriteBatch (usada como chave).
 ---@param batch love.SpriteBatch A instância do SpriteBatch.
 function RenderPipeline:registerSpriteBatch(texture, batch)
     if not texture or not batch then
         -- Logger não está disponível aqui, então usamos print para erros críticos de setup.
-        print("RenderPipeline ERRO: Tentativa de registrar SpriteBatch com textura ou batch nulo.")
-        return
+        error("RenderPipeline: Tentativa de registrar SpriteBatch com textura ou batch nulo.")
     end
     self.spriteBatchReferences[texture] = batch
     -- Garante que haja uma lista para armazenar dados de desenho para esta textura.
@@ -97,27 +96,25 @@ end
 -- Exemplo de item para drawFunction: { depth=2, type="player", drawFunction=fn, sortY=1 }
 function RenderPipeline:add(item)
     if not item or not item.depth then
-        print(string.format("RenderPipeline AVISO: Item inválido ou sem 'depth' fornecido: %s", tostring(item)))
-        return
+        error(string.format("RenderPipeline: Item inválido ou sem 'depth' fornecido: %s", tostring(item)))
     end
 
     local bucket = self.buckets[item.depth]
     if bucket then
         table.insert(bucket, item)
     else
-        print(string.format("RenderPipeline AVISO: Tentativa de adicionar item a bucket de profundidade inválida: %d",
-            item.depth))
+        error("RenderPipeline: Tentativa de adicionar item a bucket de profundidade inválida: " .. item.depth)
     end
 end
 
 --- Desenha todos os elementos gerenciados pelo pipeline.
 --- Isso inclui o mapa, itens nos buckets (ordenados conforme necessário) e SpriteBatches.
 --- O Camera:attach() e Camera:detach() devem ser chamados externamente, antes e depois desta função.
----@param playerPosition table A posição do jogador, necessária para o map manager.
-function RenderPipeline:draw(playerPosition)
+---@param worldPlayerPosition Vector2D A posição do jogador, necessária para o map manager.
+function RenderPipeline:draw(worldPlayerPosition)
     -- 1. Desenha as camadas de baixo do Mapa
     if self.mapManager and self.mapManager.draw then
-        self.mapManager:draw(playerPosition)
+        self.mapManager:draw(worldPlayerPosition)
     end
 
     -- 2. Processa e desenha itens dos buckets em ordem de profundidade
@@ -131,7 +128,7 @@ function RenderPipeline:draw(playerPosition)
 
     -- 3. Desenha as camadas de cima do Mapa, após as entidades
     if self.mapManager and self.mapManager.drawTopLayers then
-        self.mapManager:drawTopLayers(playerPosition)
+        self.mapManager:drawTopLayers(worldPlayerPosition)
     end
 
     -- 4. Desenha os SpriteBatches coletados
@@ -166,9 +163,10 @@ function RenderPipeline:_processAndDrawBuckets(depthOrder)
                             depth_in_batch = item.sortY,
                         })
                     else
-                        print(string.format(
-                        "RenderPipeline AVISO: Lista de dados de SpriteBatch não encontrada para textura: %s",
-                            tostring(item.texture)))
+                        Logger.warn("render_pipeline.process_and_draw_buckets.invalid_batch_data",
+                            string.format(
+                                "RenderPipeline AVISO: Lista de dados de SpriteBatch não encontrada para textura: %s",
+                                tostring(item.texture)))
                     end
                 elseif item.drawFunction then
                     -- Para itens que fornecem sua própria função de desenho (jogador, orbs, drops, etc.)
@@ -219,7 +217,7 @@ function RenderPipeline:destroy()
     self.buckets = {}
     self.sortableBuckets = {}
 
-    print("RenderPipeline destruído.")
+    Logger.info("render_pipeline.destroy", "RenderPipeline destruído.")
 end
 
 return RenderPipeline

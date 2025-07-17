@@ -60,3 +60,20 @@
 ---@alias Rarity "E" | "D" | "C" | "B" | "A" | "S"
 
 ---@alias ColorRGBA {[1]: number, [2]: number, [3]: number, [4]: number}
+
+---@class RenderableItem
+---@field depth number
+---@field type string
+---@field texture love.Texture
+---@field quad love.Quad
+---@field x number
+---@field y number
+---@field rotation number
+
+---@class SpriteBatchDrawArgs
+---@field quad love.Quad
+---@field x number
+---@field y number
+---@field r number
+---@field sx number
+---@field sy number

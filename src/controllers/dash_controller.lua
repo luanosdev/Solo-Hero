@@ -110,7 +110,10 @@ function DashController:updateDashMovement(dt)
         local moveX = self.dashDirection.x * self.dashSpeed * dt
         local moveY = self.dashDirection.y * self.dashSpeed * dt
         local playerPos = self.playerManager:getPlayerPosition()
-        self.playerManager.movementController:setPosition(playerPos.x + moveX, playerPos.y + moveY)
+        self.playerManager.movementController:setPosition({
+            x = playerPos.x + moveX,
+            y = playerPos.y + moveY
+        })
     end
 end
 

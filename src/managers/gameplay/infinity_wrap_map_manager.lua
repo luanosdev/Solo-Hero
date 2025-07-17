@@ -69,6 +69,13 @@ function InfinityWrapMapManager:init()
     self.buildCoroutine = coroutine.create(function()
         self:buildCanvasesAsyncTask(true)
     end)
+
+    EventManager:on(EventManager.EVENTS.PLAYER_WRAPPED, self.onPlayerWrapped, self)
+end
+
+--- Listener para o evento de wrap do jogador. Força a reconstrução dos canvases.
+function InfinityWrapMapManager:onPlayerWrapped()
+    self:updateAllCanvases(true)
 end
 
 --- Atualiza o estado do mapa, principalmente o processo de carregamento.
@@ -94,34 +101,30 @@ function InfinityWrapMapManager:update(dt)
 end
 
 --- Desenha as camadas inferiores do mapa (abaixo do jogador).
----@param playerPosition table Posição do jogador com patchX, patchY, tileX, tileY.
-function InfinityWrapMapManager:draw(playerPosition)
-    if self.isLoading then
-        return
-    end
+---@param worldPosition Vector2D posição do jogador no mundo
+function InfinityWrapMapManager:draw(worldPosition)
+    if self.isLoading then return end
 
     local renderData = self.canvasRenderData
-
-    -- Posição global exata do jogador em tiles
-    local playerGlobalTileX = playerPosition.patchX * self.tilesPerPatch + playerPosition.tileX
-    local playerGlobalTileY = playerPosition.patchY * self.tilesPerPatch + playerPosition.tileY
 
     -- Ponto de origem (tile 0,0) do grid que foi renderizado no canvas
     local renderRadius = math.floor(renderData.renderGridDiameter / 2)
     local gridOriginTileX = (renderData.lastRenderedPatchX - renderRadius) * self.tilesPerPatch
     local gridOriginTileY = (renderData.lastRenderedPatchY - renderRadius) * self.tilesPerPatch
 
-    -- Posição do jogador relativa ao ponto de origem do canvas
-    local playerRelativeTileX = playerGlobalTileX - gridOriginTileX
-    local playerRelativeTileY = playerGlobalTileY - gridOriginTileY
+    -- Posição isométrica do ponto de origem do grid
+    local gridOriginIso = self:cartesianToIsometric(gridOriginTileX, gridOriginTileY)
 
-    -- Converte a posição relativa do jogador para coordenadas isométricas
-    local playerIso = self:cartesianToIsometric(playerRelativeTileX, playerRelativeTileY)
+    -- A posição do jogador relativa ao canvas é a posição no mundo menos a origem do grid (em pixels iso)
+    -- mais o offset de renderização interno do canvas.
+    local playerRelativeX = worldPosition.x - gridOriginIso.x
+    local playerRelativeY = worldPosition.y - gridOriginIso.y
 
     -- Para centralizar o jogador na tela, o canvas deve ser desenhado em uma posição que
     -- mova o ponto isométrico do jogador para o centro da tela.
-    local canvasDrawX = ResolutionUtils.getGameWidth() / 2 - playerIso.x - renderData.offsetX
-    local canvasDrawY = ResolutionUtils.getGameHeight() / 2 - playerIso.y - renderData.offsetY
+    local canvasDrawX = ResolutionUtils.getGameWidth() / 2 - playerRelativeX - renderData.offsetX
+    local canvasDrawY = ResolutionUtils.getGameHeight() / 2 - playerRelativeY - renderData.offsetY
+
 
     -- Desenha os canvases na ordem correta, verificando se eles existem
     if self.layerCanvases["ground"] then
@@ -133,21 +136,19 @@ function InfinityWrapMapManager:draw(playerPosition)
 end
 
 --- Desenha as camadas superiores do mapa (acima do jogador).
----@param playerPosition table Posição do jogador com patchX, patchY, tileX, tileY.
-function InfinityWrapMapManager:drawTopLayers(playerPosition)
+---@param worldPosition Vector2D posição do jogador no mundo
+function InfinityWrapMapManager:drawTopLayers(worldPosition)
     if self.isLoading then return end
 
     local renderData = self.canvasRenderData
-    local playerGlobalTileX = playerPosition.patchX * self.tilesPerPatch + playerPosition.tileX
-    local playerGlobalTileY = playerPosition.patchY * self.tilesPerPatch + playerPosition.tileY
     local renderRadius = math.floor(renderData.renderGridDiameter / 2)
     local gridOriginTileX = (renderData.lastRenderedPatchX - renderRadius) * self.tilesPerPatch
     local gridOriginTileY = (renderData.lastRenderedPatchY - renderRadius) * self.tilesPerPatch
-    local playerRelativeTileX = playerGlobalTileX - gridOriginTileX
-    local playerRelativeTileY = playerGlobalTileY - gridOriginTileY
-    local playerIso = self:cartesianToIsometric(playerRelativeTileX, playerRelativeTileY)
-    local canvasDrawX = ResolutionUtils.getGameWidth() / 2 - playerIso.x - renderData.offsetX
-    local canvasDrawY = ResolutionUtils.getGameHeight() / 2 - playerIso.y - renderData.offsetY
+    local gridOriginIso = self:cartesianToIsometric(gridOriginTileX, gridOriginTileY)
+    local playerRelativeX = worldPosition.x - gridOriginIso.x
+    local playerRelativeY = worldPosition.y - gridOriginIso.y
+    local canvasDrawX = ResolutionUtils.getGameWidth() / 2 - playerRelativeX - renderData.offsetX
+    local canvasDrawY = ResolutionUtils.getGameHeight() / 2 - playerRelativeY - renderData.offsetY
 
     if self.layerCanvases["decoration"] then
         love.graphics.draw(self.layerCanvases["decoration"], canvasDrawX, canvasDrawY)
@@ -155,56 +156,6 @@ function InfinityWrapMapManager:drawTopLayers(playerPosition)
     if self.layerCanvases["collision"] then
         love.graphics.draw(self.layerCanvases["collision"], canvasDrawX, canvasDrawY)
     end
-end
-
---- Lida com o wrapping do jogador e emite o evento 'player_wrapped'.
----@param playerPosition LogicalPosition A posição do jogador com campos patchX, patchY, tileX, tileY.
----@return LogicalPosition logicalPosition A posição atualizada do jogador.
-function InfinityWrapMapManager:handleWrapping(playerPosition)
-    local wrapped = false
-    local direction = ''
-    local oldPatchX = playerPosition.patchX
-    local oldPatchY = playerPosition.patchY
-
-    -- Wrapping horizontal
-    if playerPosition.tileX < 0 then
-        playerPosition.tileX = playerPosition.tileX + self.tilesPerPatch
-        playerPosition.patchX = (playerPosition.patchX - 1 + self.patchSize) % self.patchSize
-        wrapped = true
-        direction = 'left'
-    elseif playerPosition.tileX >= self.tilesPerPatch then
-        playerPosition.tileX = playerPosition.tileX - self.tilesPerPatch
-        playerPosition.patchX = (playerPosition.patchX + 1) % self.patchSize
-        wrapped = true
-        direction = 'right'
-    end
-
-    -- Wrapping vertical
-    if playerPosition.tileY < 0 then
-        playerPosition.tileY = playerPosition.tileY + self.tilesPerPatch
-        playerPosition.patchY = (playerPosition.patchY - 1 + self.patchSize) % self.patchSize
-        wrapped = true
-        direction = direction == '' and 'up' or direction .. '-up'
-    elseif playerPosition.tileY >= self.tilesPerPatch then
-        playerPosition.tileY = playerPosition.tileY - self.tilesPerPatch
-        playerPosition.patchY = (playerPosition.patchY + 1) % self.patchSize
-        wrapped = true
-        direction = direction == '' and 'down' or direction .. '-down'
-    end
-
-    if wrapped then
-        EventManager:emit(
-            EventManager.EVENTS.PLAYER_WRAPPED,
-            direction,
-            oldPatchX,
-            oldPatchY,
-            playerPosition.patchX,
-            playerPosition.patchY
-        )
-        self:updateAllCanvases(true)
-    end
-
-    return playerPosition
 end
 
 -- === Funções Auxiliares de Construção ===
@@ -275,15 +226,18 @@ function InfinityWrapMapManager:buildCanvasesAsyncTask(isAsyncTask)
     -- Posição do jogador precisa ser obtida para centralizar a construção.
     ---@type PlayerManager
     local playerMgr = ManagerRegistry:get("playerManager")
-    local playerPosition
+    local worldPosition = { x = 0, y = 0 }
     if playerMgr and playerMgr.movementController then
-        playerPosition = playerMgr.movementController:getPosition()
-    else
-        playerPosition = { patchX = 0, patchY = 0 }
+        worldPosition = playerMgr.movementController:getPosition()
     end
 
-    renderData.lastRenderedPatchX = math.floor(playerPosition.patchX)
-    renderData.lastRenderedPatchY = math.floor(playerPosition.patchY)
+    -- Converte a posição de pixel do mundo para uma posição de tile para encontrar o patch atual
+    local currentTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
+    local currentPatchX = math.floor(currentTilePos.x / self.tilesPerPatch)
+    local currentPatchY = math.floor(currentTilePos.y / self.tilesPerPatch)
+
+    renderData.lastRenderedPatchX = currentPatchX
+    renderData.lastRenderedPatchY = currentPatchY
 
     local totalLayers = 0
     for _ in pairs(self.layerCanvases) do totalLayers = totalLayers + 1 end
@@ -372,6 +326,16 @@ function InfinityWrapMapManager:cartesianToIsometric(x, y)
     local isoX = (x - y) * (self.tileWidth / 2)
     local isoY = (x + y) * (self.tileHeight / 2)
     return { x = isoX, y = isoY }
+end
+
+--- Converte coordenadas isométricas (pixels) para coordenadas de tile cartesianas (ponto flutuante).
+---@param isoX number
+---@param isoY number
+---@return Vector2D
+function InfinityWrapMapManager:isometricToCartesianTile(isoX, isoY)
+    local cartX = (isoX / (self.tileWidth / 2) + isoY / (self.tileHeight / 2)) / 2
+    local cartY = (isoY / (self.tileHeight / 2) - isoX / (self.tileWidth / 2)) / 2
+    return { x = cartX, y = cartY }
 end
 
 return InfinityWrapMapManager

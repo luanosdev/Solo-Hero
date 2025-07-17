@@ -89,7 +89,10 @@ function ExtractionManager:_updateSequence(dt)
             local t = math.min(self.timer / moveDuration, 1.0)
             local newX = lume.lerp(self.playerInitialPos.x, self.config.source.position.x, t)
             local newY = lume.lerp(self.playerInitialPos.y, self.config.source.position.y, t)
-            playerManager.movementController:setPosition(newX, newY)
+            playerManager.movementController:setPosition({
+                x = newX,
+                y = newY
+            })
         end
     end
 
