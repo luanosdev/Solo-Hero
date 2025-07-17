@@ -309,7 +309,7 @@ function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
     -- Tempos de frame base (quando velocidade = valor base)
     local baseFrameTimes = {
         walk = 0.07,
-        walk_backward = 0.07,
+        walk_backward = 0.1,
         strafe_left = 0.07,
         strafe_right = 0.07,
         -- Estes não são afetados pela velocidade de movimento
@@ -378,12 +378,12 @@ function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles)
     -- A direção que o personagem "olha" (para atirar, etc.) é baseada na posição do alvo (mouse).
     local targetDx = targetPosition.x - sprite.position.x
     local targetDy = targetPosition.y - sprite.position.y
+    local facingAngle = math.atan2(targetDy, targetDx)
     if math.abs(targetDx) > 1 or math.abs(targetDy) > 1 then
-        local targetAngle = math.atan2(targetDy, targetDx)
-        local newFacingDirection = SpritePlayer.getDirectionFromAngle(targetAngle)
-        if newFacingDirection ~= sprite.animation.direction then
-            sprite.animation.direction = newFacingDirection
-        end
+        local newFacingDirection = SpritePlayer.getDirectionFromAngle(facingAngle)
+        -- A direção da animação será definida abaixo, dependendo do estado.
+        -- Por padrão, o personagem olha para onde está mirando.
+        sprite.animation.direction = newFacingDirection
     end
 
     -- 2. DETERMINAR ESTADO DA ANIMAÇÃO (IDLE, WALK, ATTACK)
@@ -413,7 +413,45 @@ function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles)
         -- Lógica de animação de movimento/parado
         if isMoving then
             sprite.animation.wasMoving = true
-            newState = 'walk' -- Simplificado, pode ser expandido para strafe etc. depois
+
+            local moveAngle = math.atan2(sprite.velocity.y, sprite.velocity.x)
+            local angleDiff = SpritePlayer._normalizeAngleDiff(moveAngle - facingAngle)
+
+            -- Verifica se o movimento é cardinal (um botão) ou diagonal (dois botões).
+            -- Movimento cardinal tem um eixo predominante (ex: {1, 0}). A diferença absoluta dos componentes é próxima de 1.
+            -- Movimento diagonal tem componentes com magnitudes parecidas (ex: {0.7, 0.7}). A diferença é próxima de 0.
+            local isCardinal = math.abs(math.abs(sprite.velocity.x) - math.abs(sprite.velocity.y)) > 0.95
+
+            if isCardinal then
+                -- Movimento Cardinal (um botão)
+                if math.abs(angleDiff) <= math.pi / 4 then        -- Para frente (±45°)
+                    newState = 'walk'
+                elseif math.abs(angleDiff) > math.pi * 3 / 4 then -- Para trás (±135°)
+                    newState = 'walk_backward'
+                else                                              -- Strafe (laterais)
+                    if angleDiff > 0 then
+                        newState = 'strafe_right'
+                    else
+                        newState = 'strafe_left'
+                    end
+                end
+            else
+                -- Movimento Diagonal (dois botões)
+                if math.abs(angleDiff) > math.pi / 2 then
+                    newState = 'walk_backward'
+                else
+                    newState = 'walk'
+                end
+            end
+
+            -- Define a direção da animação baseado no estado de movimento
+            if newState == 'walk' then
+                -- Para 'walk' (frente), o personagem se vira na direção do movimento.
+                sprite.animation.direction = SpritePlayer.getDirectionFromAngle(moveAngle)
+            else
+                -- Para 'walk_backward' e 'strafe', o personagem sempre olha para a mira.
+                sprite.animation.direction = SpritePlayer.getDirectionFromAngle(facingAngle)
+            end
         else
             if sprite.animation.wasMoving then
                 sprite.animation.currentIdleVariant = SpritePlayer._chooseRandomIdle(sprite.animation.currentIdleVariant)
@@ -422,6 +460,8 @@ function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles)
                 sprite.animation.state = nil
             end
             newState = sprite.animation.currentIdleVariant
+            -- Quando parado, o personagem se vira para a mira
+            sprite.animation.direction = SpritePlayer.getDirectionFromAngle(facingAngle)
         end
     end
 
