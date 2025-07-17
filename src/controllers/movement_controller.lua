@@ -168,19 +168,11 @@ function MovementController:update(dt, targetPosition, isPaused)
             local normalizedInputX = moveVector.x / magnitude
             local normalizedInputY = moveVector.y / magnitude
 
-            -- Rotaciona o vetor de input em -45 graus para alinhar com o grid isométrico
-            local angle = -math.pi / 4 -- -45 graus em radianos
-            local cosAngle = math.cos(angle)
-            local sinAngle = math.sin(angle)
-
-            local rotatedX = normalizedInputX * cosAngle - normalizedInputY * sinAngle
-            local rotatedY = normalizedInputX * sinAngle + normalizedInputY * cosAngle
-
             local moveAmount = moveSpeedInPixels * dt
 
             -- Atualiza as coordenadas do mundo em pixels
-            self.worldPosition.x = self.worldPosition.x + rotatedX * moveAmount
-            self.worldPosition.y = self.worldPosition.y + rotatedY * moveAmount
+            self.worldPosition.x = self.worldPosition.x + normalizedInputX * moveAmount
+            self.worldPosition.y = self.worldPosition.y + normalizedInputY * moveAmount
 
             -- Lida com o "wrapping" para manter o mundo infinito
             self:_handleWrapping()
