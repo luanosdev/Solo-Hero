@@ -21,9 +21,9 @@ local Constants = {}
     - Use Constants.moveSpeedToPixels(m/s) para converter velocidade de movimento
 
     Exemplos com a nova escala (usando valores de HUNTER_DEFAULT_STATS):
-    - moveSpeed = 5.0 m/s = 320 pixels/s
-    - pickupRadius = 3.0m = 192 pixels
-    - dashDistance = 5.5m = 352 pixels
+    - moveSpeed = 5.0 m/s = 160 pixels/s
+    - pickupRadius = 3.0m = 96 pixels
+    - dashDistance = 5.5m = 176 pixels
 --]]
 
 -- Sistema de Medidas do Jogo
