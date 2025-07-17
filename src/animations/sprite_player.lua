@@ -308,10 +308,10 @@ function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
 
     -- Tempos de frame base (quando velocidade = valor base)
     local baseFrameTimes = {
-        walk = 0.12,
-        walk_backward = 0.12,
-        strafe_left = 0.12,
-        strafe_right = 0.12,
+        walk = 0.07,
+        walk_backward = 0.07,
+        strafe_left = 0.07,
+        strafe_right = 0.07,
         -- Estes não são afetados pela velocidade de movimento
         idle = 0.1,
         idle2 = 0.1,
@@ -331,11 +331,11 @@ function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
         if state == "walk" or state == "walk_backward" or
             state == "strafe_left" or state == "strafe_right" then
             -- Aplica a velocidade: mais rápido = frames mais rápidos
-            adjustedFrameTimes[state] = baseTime / speedRatio
+            adjustedFrameTimes[state] = baseTime / (speedRatio > 0 and speedRatio or 1)
 
             -- Limita para evitar animações muito rápidas ou muito lentas
-            local minFrameTime = 0.04 -- Máximo 25 FPS na animação
-            local maxFrameTime = 0.20 -- Mínimo 5 FPS na animação
+            local minFrameTime = 0.02 -- Máximo 25 FPS na animação
+            local maxFrameTime = 0.15 -- Mínimo 5 FPS na animação
             adjustedFrameTimes[state] = math.max(minFrameTime, math.min(maxFrameTime, adjustedFrameTimes[state]))
         else
             -- Outras animações não são afetadas pela velocidade
@@ -346,155 +346,110 @@ function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
     return adjustedFrameTimes
 end
 
---- Atualiza o estado da animação
----@param config PlayerSpriteConfig Configuração do player
+--- Função auxiliar para determinar direção baseada no vetor de velocidade
+---@param dx number Componente x do vetor de velocidade
+---@param dy number Componente y do vetor de velocidade
+---@return string Direção (ex: 'N', 'SE')
+function SpritePlayer.getFacingDirection(dx, dy)
+    if dx == 0 and dy == 0 then
+        -- Se parado, não muda a direção
+        return nil
+    end
+
+    local angle = math.atan2(dy, dx)
+    return SpritePlayer.getDirectionFromAngle(angle)
+end
+
+--- Atualiza o estado da animação.
+--- Esta função agora é muito mais simples. Ela depende que `sprite.velocity` seja
+--- atualizado externamente (pelo MovementController) para refletir a intenção de movimento.
+--- A lógica de posição e input foi removida.
+---@param sprite PlayerSprite A instância do sprite a ser atualizada
 ---@param dt number Delta time
----@param targetPosition Vector2D Posição alvo
----@param currentSpeed number Velocidade atual do jogador (stats finais)
----@return number|nil distanceMoved Distância movida neste frame
-function SpritePlayer.update(config, dt, targetPosition, currentSpeed)
-    local dx, dy = 0, 0
-    local isMoving = false
+---@param targetPosition Vector2D A posição do mouse/alvo para mira
+---@param moveSpeedInTiles number A velocidade de movimento atual em tiles/seg
+function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles)
+    -- O MovementController agora controla a posição lógica.
+    -- O SpritePlayer só se preocupa com a animação baseada na velocidade.
+    local speed = math.sqrt(sprite.velocity.x ^ 2 + sprite.velocity.y ^ 2)
+    local isMoving = speed > 0.1 -- Pequena zona morta para evitar "tremor"
 
-    -- Processa entrada de movimento
-    if love.keyboard.isDown('w') or love.keyboard.isDown('up') then
-        dy = -1
-        isMoving = true
-    end
-    if love.keyboard.isDown('s') or love.keyboard.isDown('down') then
-        dy = dy + 1                      -- Usa += para permitir cancelamento (W+S = 0)
-        isMoving = isMoving or (dy ~= 0) -- Atualiza flag se houve mudança
-    end
-    if love.keyboard.isDown('a') or love.keyboard.isDown('left') then
-        dx = -1
-        isMoving = true
-    end
-    if love.keyboard.isDown('d') or love.keyboard.isDown('right') then
-        dx = dx + 1                      -- Usa += para permitir cancelamento (A+D = 0)
-        isMoving = isMoving or (dx ~= 0) -- Atualiza flag se houve mudança
-    end
-
-    -- Lógica de direção com histerese
-    local currentDirection = config.animation.direction
-    local targetDx = targetPosition.x - config.position.x
-    local targetDy = targetPosition.y - config.position.y
-
-    -- Evita erro com atan2(0,0) e adiciona zona morta MÍNIMA
+    -- 1. ATUALIZAR DIREÇÃO DA MIRA (FACING)
+    -- A direção que o personagem "olha" (para atirar, etc.) é baseada na posição do alvo (mouse).
+    local targetDx = targetPosition.x - sprite.position.x
+    local targetDy = targetPosition.y - sprite.position.y
     if math.abs(targetDx) > 1 or math.abs(targetDy) > 1 then
         local targetAngle = math.atan2(targetDy, targetDx)
-        local newDirection = SpritePlayer.getDirectionFromAngle(targetAngle)
-
-        if newDirection ~= currentDirection then
-            config.animation.direction = newDirection
-            config.animation.currentFrame = 1
-            config.animation.timer = 0
+        local newFacingDirection = SpritePlayer.getDirectionFromAngle(targetAngle)
+        if newFacingDirection ~= sprite.animation.direction then
+            sprite.animation.direction = newFacingDirection
         end
     end
 
-    -- Normaliza o vetor de movimento se necessário
-    local magnitude = math.sqrt(dx * dx + dy * dy)
-    if magnitude > 0 then
-        dx = dx / magnitude
-        dy = dy / magnitude
-    end
-
-    -- Calcula o deslocamento usando a velocidade atual do jogador
-    local moveX = dx * currentSpeed * dt
-    local moveY = dy * currentSpeed * dt
-
-    -- Atualiza a posição
-    config.position.x = config.position.x + moveX
-    config.position.y = config.position.y + moveY
-
-    -- Define o estado da animação
+    -- 2. DETERMINAR ESTADO DA ANIMAÇÃO (IDLE, WALK, ATTACK)
     local newState
-    if config.animation.isAttacking then
-        -- Atualiza timer de ataque
-        config.animation.attackAnimationTimer = config.animation.attackAnimationTimer + dt
+    if sprite.animation.isAttacking then
+        -- Lógica de animação de ataque
+        sprite.animation.attackAnimationTimer = sprite.animation.attackAnimationTimer + dt
 
-        -- Calcula duração real da animação baseada no frameTime atual
-        local dynamicFrameTimes = SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
-        local currentFrameTime = dynamicFrameTimes[config.animation.state] or 0.1
-        local animationDuration = config.animation.framesPerDirection * currentFrameTime
+        local dynamicFrameTimes = SpritePlayer._calculateDynamicFrameTimes(moveSpeedInTiles)
+        local currentAttackAnim = sprite.animation.state
+        local currentFrameTime = dynamicFrameTimes[currentAttackAnim] or 0.1
+        local animationDuration = sprite.animation.framesPerDirection * currentFrameTime
 
-        -- Para a animação quando completa um ciclo
-        if config.animation.attackAnimationTimer >= animationDuration then
-            SpritePlayer.stopAttackAnimation(config)
+        if sprite.animation.attackAnimationTimer >= animationDuration then
+            SpritePlayer.stopAttackAnimation(sprite)
+            -- Após o ataque, volta para idle ou walk
+            newState = isMoving and 'walk' or sprite.animation.currentIdleVariant
         else
-            -- Determina estado de ataque baseado no tipo da arma e movimento
-            if config.appearance.weapon.animationType == "ranged" then
+            -- Mantém a animação de ataque
+            if sprite.appearance.weapon.animationType == "ranged" then
                 newState = isMoving and 'attack_run_ranged' or 'attack_ranged'
             else
                 newState = isMoving and 'attack_run_melee' or 'attack_melee'
             end
         end
     else
-        if not isMoving then
-            -- Detecta se acabou de parar de se mover
-            if config.animation.wasMoving then
-                -- Escolhe uma nova animação idle aleatória
-                config.animation.currentIdleVariant = SpritePlayer._chooseRandomIdle(config.animation.currentIdleVariant)
-                config.animation.wasMoving = false
-
-                -- Reinicia a animação para a nova variante
-                config.animation.currentFrame = 1
-                config.animation.timer = 0
+        -- Lógica de animação de movimento/parado
+        if isMoving then
+            sprite.animation.wasMoving = true
+            newState = 'walk' -- Simplificado, pode ser expandido para strafe etc. depois
+        else
+            if sprite.animation.wasMoving then
+                sprite.animation.currentIdleVariant = SpritePlayer._chooseRandomIdle(sprite.animation.currentIdleVariant)
+                sprite.animation.wasMoving = false
+                -- Força o reset da nova animação idle
+                sprite.animation.state = nil
             end
-
-            newState = config.animation.currentIdleVariant
-        else
-            -- Marca que estava se movendo
-            config.animation.wasMoving = true
-
-            -- Determina o tipo de movimento
-            local movementState = SpritePlayer._getMovementState(dx, dy, config.animation.direction)
-            newState = movementState
+            newState = sprite.animation.currentIdleVariant
         end
     end
 
-    -- Reseta a animação se o estado mudou
-    if newState ~= config.animation.state then
-        config.animation.state = newState
-        config.animation.timer = 0
-
-        -- Configura se a animação deve ser executada em reverso
-        config.animation.isReversed = (newState == 'walk_backward')
-
-        -- Define o frame inicial baseado na direção da animação
-        if config.animation.isReversed then
-            config.animation.currentFrame = config.animation.framesPerDirection -- Começa do último frame
-        else
-            config.animation.currentFrame = 1                                   -- Começa do primeiro frame
-        end
+    -- 3. ATUALIZAR TIMERS E FRAMES DA ANIMAÇÃO
+    if newState ~= sprite.animation.state then
+        sprite.animation.state = newState
+        sprite.animation.timer = 0
+        sprite.animation.isReversed = (newState == 'walk_backward')
+        sprite.animation.currentFrame = sprite.animation.isReversed and sprite.animation.framesPerDirection or 1
     end
 
-    -- Atualiza o timer da animação
-    config.animation.timer = config.animation.timer + dt
+    sprite.animation.timer = sprite.animation.timer + dt
+    local dynamicFrameTimes = SpritePlayer._calculateDynamicFrameTimes(moveSpeedInTiles)
+    local frameTime = dynamicFrameTimes[sprite.animation.state] or 0.1
 
-    -- Calcula tempos de frame dinâmicos baseados na velocidade atual
-    local dynamicFrameTimes = SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
+    if sprite.animation.timer >= frameTime then
+        sprite.animation.timer = sprite.animation.timer - frameTime
+        local maxFrames = sprite.animation.framesPerDirection
 
-    -- Obtém o tempo do frame para o estado atual
-    local frameTime = dynamicFrameTimes[config.animation.state] or 0.1
-
-    -- Avança o frame se o tempo passou
-    if config.animation.timer >= frameTime then
-        config.animation.timer = config.animation.timer - frameTime
-        local maxFrames = config.animation.framesPerDirection
-
-        if config.animation.isReversed then
-            -- Animação reversa: vai de maxFrames para 1
-            config.animation.currentFrame = config.animation.currentFrame - 1
-            if config.animation.currentFrame < 1 then
-                config.animation.currentFrame = maxFrames
+        if sprite.animation.isReversed then
+            sprite.animation.currentFrame = sprite.animation.currentFrame - 1
+            if sprite.animation.currentFrame < 1 then
+                sprite.animation.currentFrame = maxFrames
             end
         else
-            -- Animação normal: vai de 1 para maxFrames
-            config.animation.currentFrame = (config.animation.currentFrame % maxFrames) + 1
+            sprite.animation.currentFrame = (sprite.animation.currentFrame % maxFrames) + 1
         end
     end
-
-    return math.sqrt(moveX * moveX + moveY * moveY)
 end
 
 --- Escolhe uma nova animação idle aleatória diferente da atual

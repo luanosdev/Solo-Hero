@@ -193,9 +193,7 @@ function InfinityWrapMapManager:handleWrapping(playerPosition)
     end
 
     if wrapped then
-        ---@type EventManager
-        local eventManager = ManagerRegistry:get("eventManager")
-        eventManager:emit(
+        EventManager:emit(
             EventManager.EVENTS.PLAYER_WRAPPED,
             direction,
             oldPatchX,

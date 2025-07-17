@@ -131,14 +131,20 @@ function MovementController:update(dt, targetPosition, isPaused)
     -- Não move se estiver em dash ou UI bloqueando
     if (self.playerManager.dashController and self.playerManager.dashController:isOnDash()) or isPaused then
         if self.player then self.player.velocity = { x = 0, y = 0 } end
+        -- Mesmo parado, a animação do sprite (como idle) precisa ser atualizada
+        if self.player and not self.player.animationPaused then
+            SpritePlayer.update(self.player, dt, targetPosition, 0)
+        end
         return nil
     end
 
     -- Atualiza o sprite do player apenas se a animação não estiver pausada
-    if not self.player.animationPaused then
+    if self.player and not self.player.animationPaused then
         -- Obtém a velocidade atual do jogador baseada nos stats finais
         local finalStats = self.playerManager:getCurrentFinalStats()
-        local moveSpeedInTiles = Constants.moveSpeedToPixels(finalStats.moveSpeed) -- Velocidade em m/s agora é tiles/s
+        -- Com o novo sistema de mapa baseado em tiles, a velocidade de movimento (m/s)
+        -- é diretamente usada como tiles/s.
+        local moveSpeedInTiles = finalStats.moveSpeed
 
         local moveVector = self.inputManager:getMovementVector()
 
@@ -164,19 +170,17 @@ function MovementController:update(dt, targetPosition, isPaused)
 
             local moveAmount = moveSpeedInTiles * dt
 
-            -- Atualiza a posição lógica usando o vetor rotacionado
+            -- Atualiza as coordenadas tile da posição lógica
             self.logicalPosition.tileX = self.logicalPosition.tileX + rotatedX * moveAmount
             self.logicalPosition.tileY = self.logicalPosition.tileY + rotatedY * moveAmount
+
+            -- Deixa o mapManager lidar com o "wrapping" para manter o mundo infinito
+            self.logicalPosition = self.mapManager:handleWrapping(self.logicalPosition)
 
             distanceMovedInTiles = moveAmount
         end
 
-        -- Lida com o wrapping do mapa
-        if self.mapManager then
-            self.logicalPosition = self.mapManager:handleWrapping(self.logicalPosition)
-        end
-
-        -- Atualiza animação do sprite
+        -- Atualiza animação do sprite com os dados corretos
         SpritePlayer.update(self.player, dt, targetPosition, moveSpeedInTiles)
 
         if self.playerManager.gameStatisticsManager then

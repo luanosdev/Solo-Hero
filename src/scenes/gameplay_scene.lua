@@ -220,6 +220,11 @@ function GameplayScene:update(dt)
     if not self.isPaused then
         ManagerRegistry:update(dt)
 
+        if playerMgr and playerMgr.movementController and playerMgr.movementController.player then
+            local playerSpritePos = playerMgr.movementController.player.position
+            Camera:follow(playerSpritePos, dt)
+        end
+
         -- Verifica se um boss precisa ser apresentado
         self:checkForBossPresentation()
 
@@ -411,13 +416,13 @@ function GameplayScene:draw()
                     -- Verifica se o inimigo está aproximadamente na visão da câmera antes de desenhar debug
                     -- Isso é um culling simples para o debug, pode ser ajustado
                     if Culling.isInView(
-                        enemyInstance,
-                        Camera.x,
-                        Camera.y,
-                        Camera.screenWidth,
-                        Camera.screenHeight,
-                        100
-                    ) then
+                            enemyInstance,
+                            Camera.x,
+                            Camera.y,
+                            Camera.screenWidth,
+                            Camera.screenHeight,
+                            100
+                        ) then
                         enemyInstance:drawDebug()
                     end
                 end
