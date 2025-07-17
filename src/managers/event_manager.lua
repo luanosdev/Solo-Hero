@@ -1,8 +1,12 @@
+---@class EventListener
+---@field callback function
+---@field context table | nil
+
 ---@class EventManager
 ---@description Um gerenciador de eventos global, desacoplado e de alta performance.
 --- Permite que diferentes partes do sistema se comuniquem sem dependências diretas,
 --- seguindo o padrão publish-subscribe.
----@field listeners table<string, function[]>
+---@field listeners table<string, EventListener[]>
 local EventManager = {}
 EventManager.__index = EventManager
 
@@ -27,13 +31,14 @@ end
 --- Registra um ouvinte (callback) para um evento específico.
 ---@param eventName string O nome do evento a ser ouvido.
 ---@param callback function A função a ser executada quando o evento for emitido.
-function EventManager:on(eventName, callback)
+---@param context table|nil O contexto ('self') a ser aplicado ao callback.
+function EventManager:on(eventName, callback, context)
     if not eventName or not callback then
         error("[EventManager:on] Tentativa de registrar evento com nome ou callback nulo.")
     end
 
     self.listeners[eventName] = self.listeners[eventName] or {}
-    table.insert(self.listeners[eventName], callback)
+    table.insert(self.listeners[eventName], { callback = callback, context = context })
 end
 
 --- Remove um ouvinte específico de um evento.
@@ -45,7 +50,7 @@ function EventManager:off(eventName, callback)
         return
     end
     for i = #self.listeners[eventName], 1, -1 do
-        if self.listeners[eventName][i] == callback then
+        if self.listeners[eventName][i].callback == callback then
             table.remove(self.listeners[eventName], i)
             return -- Retorna após remover para evitar problemas com múltiplos registros do mesmo callback
         end
@@ -65,8 +70,12 @@ function EventManager:emit(eventName, ...)
             table.insert(listenersCopy, listener)
         end
 
-        for _, callback in ipairs(listenersCopy) do
-            callback(...)
+        for _, listener in ipairs(listenersCopy) do
+            if listener.context then
+                listener.callback(listener.context, ...)
+            else
+                listener.callback(...)
+            end
         end
     end
 end
