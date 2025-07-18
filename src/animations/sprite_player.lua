@@ -308,10 +308,10 @@ function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
 
     -- Tempos de frame base (quando velocidade = valor base)
     local baseFrameTimes = {
-        walk = 0.07,
-        walk_backward = 0.1,
-        strafe_left = 0.07,
-        strafe_right = 0.07,
+        walk = 2,
+        walk_backward = 2,
+        strafe_left = 2,
+        strafe_right = 2,
         -- Estes não são afetados pela velocidade de movimento
         idle = 0.1,
         idle2 = 0.1,
@@ -335,7 +335,7 @@ function SpritePlayer._calculateDynamicFrameTimes(currentSpeed)
 
             -- Limita para evitar animações muito rápidas ou muito lentas
             local minFrameTime = 0.02 -- Máximo 25 FPS na animação
-            local maxFrameTime = 0.15 -- Mínimo 5 FPS na animação
+            local maxFrameTime = 4    -- Mínimo 5 FPS na animação
             adjustedFrameTimes[state] = math.max(minFrameTime, math.min(maxFrameTime, adjustedFrameTimes[state]))
         else
             -- Outras animações não são afetadas pela velocidade

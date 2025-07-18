@@ -34,7 +34,7 @@ function MovementController:new(playerManager, mapManager, inputManager)
     instance.playerManager = playerManager
     instance.inputManager = inputManager
     instance.player = nil
-    instance.radius = 15 -- Tamanho padrão do círculo de colisão
+    instance.radius = Constants.PLAYER_RADIUS_COLLISION
     instance.mapManager = mapManager
 
     -- Calcula as dimensões do mapa em pixels para o wrapping
@@ -109,7 +109,7 @@ function MovementController:setupPlayerSprite(finalStats)
             x = ResolutionUtils.getGameWidth() / 2,
             y = ResolutionUtils.getGameHeight() / 2
         },
-        scale = 1,
+        scale = Constants.PLAYER_SCALE,
         appearance = appearance
     })
 

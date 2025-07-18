@@ -96,6 +96,12 @@ Constants.HUNTER_DEFAULT_STATS = {
     potionFillRate = 1.0,      -- Multiplicador da velocidade de preenchimento (1.0 = normal)
 }
 
+-- Tamanho padrão do círculo de colisão
+Constants.PLAYER_RADIUS_COLLISION = 5
+
+-- Tamanho da escala do sprite do jogador
+Constants.PLAYER_SCALE = 1.5
+
 Constants.ENEMY_SPRITE_SIZES = {
     SMALL = 64,
     MEDIUM = 128,
