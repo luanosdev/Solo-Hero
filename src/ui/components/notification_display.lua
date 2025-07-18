@@ -1,6 +1,7 @@
 local Colors = require("src.ui.colors")
 local Fonts = require("src.ui.fonts")
 local Formatters = require("src.utils.formatters")
+local AssetManager = require("src.managers.asset_manager")
 
 --- Componente UI responsável por renderizar notificações com animações
 --- @class NotificationDisplay
@@ -310,12 +311,16 @@ end
 --- Cria uma notificação para coleta de item
 --- @param itemName string
 --- @param quantity number|string
---- @param icon love.Image|nil
+--- @param icon love.Image|string|nil
 --- @param rarity string|nil
 function NotificationDisplay.showItemPickup(itemName, quantity, icon, rarity)
     local title = itemName
     local value = quantity and ("+ " .. tostring(quantity)) or ""
     local rarityColor = NotificationDisplay.getRarityColor(rarity)
+
+    if type(icon) == "string" then
+        icon = AssetManager:getImage(icon)
+    end
 
     NotificationManager.show({
         type = NotificationDisplay.NOTIFICATION_TYPES.ITEM_PICKUP,
