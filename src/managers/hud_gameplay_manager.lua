@@ -9,12 +9,14 @@ local OffscreenIndicator = require("src.ui.components.offscreen_indicator")
 local ExtractionProgressBar = require("src.ui.components.extraction_progress_bar")
 local DashCooldownIndicator = require("src.ui.components.dash_cooldown_indicator")
 local PotionFlasksDisplay = require("src.ui.components.potion_flasks_display")
+local Colors = require("src.ui.colors")
 
 ---@class HUDGameplayManager
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
 ---@field playerHPBar PlayerHPBar|nil Instância da barra de HP do jogador.
 ---@field skillsDisplay ActiveSkillsDisplay|nil Instância do display de cooldowns.
 ---@field portalIndicators table Armazena os indicadores de portal.
+---@field dropIndicators table<any, OffscreenIndicator> Armazena os indicadores de drops fora da tela.
 ---@field extractionProgressBar ExtractionProgressBar|nil Instância da barra de progresso de extração.
 ---@field dashIndicator DashCooldownIndicator|nil Instância do indicador de cooldown de dash.
 ---@field potionDisplay PotionFlasksDisplay|nil Instância do display de frascos de poção.
@@ -32,6 +34,7 @@ local HUDGameplayManager = {
     playerHPBar = nil,
     skillsDisplay = nil,
     portalIndicators = {},
+    dropIndicators = {},
     extractionProgressBar = nil,
     dashIndicator = nil,
     potionDisplay = nil,
@@ -246,7 +249,7 @@ function HUDGameplayManager:update(dt)
         if #self.portalIndicators ~= #extractionPortalManager.portals then
             self.portalIndicators = {} -- Limpa para recriar
             for i, portal in ipairs(extractionPortalManager.portals) do
-                self.portalIndicators[i] = OffscreenIndicator:new({ targetId = i })
+                self.portalIndicators[i] = OffscreenIndicator:new({ targetId = i, color = Colors.purple })
             end
         end
 
@@ -255,6 +258,43 @@ function HUDGameplayManager:update(dt)
         for i, portal in ipairs(extractionPortalManager.portals) do
             if self.portalIndicators[i] then
                 self.portalIndicators[i]:update(portal.position, playerPos)
+            end
+        end
+    end
+
+    -- Update drop indicators
+    ---@type DropManager
+    local dropManager = ManagerRegistry:tryGet("dropManager")
+    ---@type ItemDataManager
+    local itemDataManager = ManagerRegistry:tryGet("itemDataManager")
+    if dropManager and dropManager.activeDrops and itemDataManager then
+        local activeDropIds = {}
+        local playerWorldPos = playerManager.movementController:getPosition()
+
+        for _, dropEntity in ipairs(dropManager.activeDrops) do
+            activeDropIds[dropEntity] = true
+            if not self.dropIndicators[dropEntity] then
+                -- Create indicator for new drop
+                local baseData = itemDataManager:getBaseItemData(dropEntity.config.itemId)
+                if baseData and baseData.rank then
+                    local rankColor = Colors.rankDetails[baseData.rank].gradientStart
+                    self.dropIndicators[dropEntity] = OffscreenIndicator:new({
+                        targetId = dropEntity,
+                        color = { rankColor[1], rankColor[2], rankColor[3], 0.8 }
+                    })
+                end
+            end
+
+            -- Update existing indicator
+            if self.dropIndicators[dropEntity] then
+                self.dropIndicators[dropEntity]:update(dropEntity.position, playerWorldPos)
+            end
+        end
+
+        -- Remove indicators for collected drops
+        for dropEntity, indicator in pairs(self.dropIndicators) do
+            if not activeDropIds[dropEntity] then
+                self.dropIndicators[dropEntity] = nil
             end
         end
     end
@@ -366,19 +406,15 @@ end
 function HUDGameplayManager:draw(isPaused)
     ---@type PlayerManager
     local playerManager = ManagerRegistry:get("playerManager")
-    local playerPos = playerManager:getPlayerPosition()
-    local playerScreenX, playerScreenY = Camera:worldToScreen(
-        playerPos.x,
-        playerPos.y
-    )
+    local playerScreenPosition = playerManager:getPlayerScreenPosition()
     self.progressLevelBar:draw()
     self.playerHPBar:draw()
-    self.playerHPBar:drawOnPlayer(playerScreenX, playerScreenY, isPaused)
+    self.playerHPBar:drawOnPlayer(playerScreenPosition.x, playerScreenPosition.y, isPaused)
     self.skillsDisplay:draw(isPaused)
     BossHealthBarManager:draw()
 
     -- Desenha o indicador de dash
-    self.dashIndicator:draw(playerScreenX, playerScreenY, isPaused)
+    self.dashIndicator:draw(playerScreenPosition.x, playerScreenPosition.y, isPaused)
 
     -- Desenha o display de poções
     if self.potionDisplay and playerManager.potionController then
@@ -393,6 +429,12 @@ function HUDGameplayManager:draw(isPaused)
 
     if self.portalIndicators then
         for _, indicator in ipairs(self.portalIndicators) do
+            indicator:draw()
+        end
+    end
+
+    if self.dropIndicators then
+        for _, indicator in pairs(self.dropIndicators) do
             indicator:draw()
         end
     end
@@ -445,6 +487,7 @@ function HUDGameplayManager:reset()
         self.lastPlayerHP = 100; self.lastPlayerMaxHP = 100; self.lastPlayerName = "Jogador"; self.lastPlayerRank = "N/A"
     end
 
+    self.dropIndicators = {}
     print("HUDGameplayManager: reset chamado")
 end
 

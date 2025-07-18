@@ -425,6 +425,12 @@ function PlayerManager:getPlayerPosition()
     return self.movementController:getPosition()
 end
 
+--- Retorna a posição do jogador na tela
+---@return Vector2D
+function PlayerManager:getPlayerScreenPosition()
+    return self.movementController.player.position
+end
+
 --- Retorna a velocidade atual do jogador
 ---@return Vector2D
 function PlayerManager:getPlayerVelocity()
