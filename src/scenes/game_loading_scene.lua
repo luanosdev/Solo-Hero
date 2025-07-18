@@ -457,6 +457,7 @@ function GameLoadingScene:_loadInfiniteMapSystem()
 
     self.mapManager = InfinityWrapMapManager:new("jungle")
     if self.mapManager then
+        Logger.warn("game_loading_scene.loadInfiniteMapSystem", "Não deveriamos registrar o mapManager aqui")
         ManagerRegistry:register("mapManager", self.mapManager)
         Logger.info("GameLoadingScene",
             string.format("InfinityWrapMapManager criado e registrado para mapa: %s", mapName))
