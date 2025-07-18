@@ -51,7 +51,7 @@ function RenderPipeline:reset()
         -- Reutiliza a tabela do bucket, limpando seu conteúdo.
         -- Isso evita a recriação de tabelas a cada frame.
         for i = #bucket, 1, -1 do
-            TablePool.releaseArray(bucket[i])
+            TablePool.releaseGeneric(bucket[i])
             table.remove(bucket, i)
         end
     end
@@ -59,7 +59,7 @@ function RenderPipeline:reset()
     for texture, dataList in pairs(self.spriteBatchDrawData) do
         -- Reutiliza a tabela de dados de desenho, limpando seu conteúdo.
         for i = #dataList, 1, -1 do
-            TablePool.releaseArray(dataList[i])
+            TablePool.releaseGeneric(dataList[i])
             table.remove(dataList, i)
         end
         -- Importante: O SpriteBatch referenciado (self.spriteBatchReferences[texture])

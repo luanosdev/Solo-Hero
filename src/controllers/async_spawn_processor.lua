@@ -1,9 +1,9 @@
 -- src/controllers/async_spawn_processor.lua
 --[[
-    PROCESSADOR ASSÍNCRONO DE SPAWNS
+    PROCESSADOR ASSÍNCRONO DE SPAWNS PARA MAPAS INFINITOS
 
     Sistema que utiliza coroutines para distribuir o processamento de spawns ao longo de múltiplos frames,
-    evitando travamentos e mantendo performance máxima durante picos de spawn.
+    evitando travamentos e otimizado para mapas infinitos com wrapping de coordenadas.
 
     🚀 FUNCIONALIDADES PRINCIPAIS:
 
@@ -39,6 +39,15 @@
     2. Classifica por prioridade
     3. Processa em batches com yield points
     4. Retorna spawns prontos para execução
+
+    🌍 OTIMIZAÇÕES PARA MAPAS INFINITOS:
+
+    1. LIMPEZA DE SPAWNS DISTANTES
+       - Remove automaticamente requests de spawn que ficaram muito distantes após um "wrap".
+
+    2. RE-PRIORIZAÇÃO DINÂMICA
+       - Re-ordena a fila de spawns pendentes com base na proximidade com a nova posição do jogador.
+       - Garante que inimigos próximos ao jogador sejam spawnados primeiro.
 ]]
 
 ---@class SpawnRequest
@@ -399,6 +408,80 @@ function AsyncSpawnProcessor:updateConfig(config)
     Logger.info("[AsyncSpawnProcessor:updateConfig]",
         string.format("Configuração atualizada: MaxTime=%.1fms, YieldInterval=%d, BatchSize=%d",
             self.maxProcessTimePerFrame, self.yieldCheckInterval, self.batchSize))
+end
+
+--- Limpa requests e spawns que estão muito distantes de uma posição central.
+--- Usado após o jogador fazer "wrap" no mapa infinito.
+---@param centerPosition Vector2D Posição central para a verificação de distância.
+---@param maxDistance number Distância máxima permitida em pixels.
+---@return number O número total de requests/spawns removidos.
+function AsyncSpawnProcessor:cleanupDistantRequests(centerPosition, maxDistance)
+    local removedCount = 0
+    local maxDistSq = maxDistance * maxDistance
+
+    -- Limpa da fila de pendentes
+    for i = #self.pendingRequests, 1, -1 do
+        local request = self.pendingRequests[i]
+        -- Não remove spawns de alta prioridade (bosses)
+        if request and request.position and request.priority > CONFIG.PRIORITY_HIGH then
+            local dx = request.position.x - centerPosition.x
+            local dy = request.position.y - centerPosition.y
+            if (dx * dx + dy * dy) > maxDistSq then
+                table.remove(self.pendingRequests, i)
+                removedCount = removedCount + 1
+            end
+        end
+    end
+
+    -- Limpa da fila de processados (menos comum, mas para garantir)
+    for i = #self.processedSpawns, 1, -1 do
+        local spawn = self.processedSpawns[i]
+        if spawn and spawn.position and spawn.priority > CONFIG.PRIORITY_HIGH then
+            local dx = spawn.position.x - centerPosition.x
+            local dy = spawn.position.y - centerPosition.y
+            if (dx * dx + dy * dy) > maxDistSq then
+                table.remove(self.processedSpawns, i)
+                removedCount = removedCount + 1
+            end
+        end
+    end
+
+    if removedCount > 0 then
+        Logger.debug("[AsyncSpawnProcessor:cleanupDistantRequests]",
+            string.format("Limpou %d requests/spawns distantes.", removedCount))
+    end
+
+    return removedCount
+end
+
+--- Re-prioritiza a fila de spawns pendentes com base na proximidade com a nova posição do jogador.
+---@param playerPosition Vector2D A nova posição do jogador.
+function AsyncSpawnProcessor:optimizeForPosition(playerPosition)
+    if #self.pendingRequests == 0 then return end
+
+    Logger.debug("[AsyncSpawnProcessor:optimizeForPosition]",
+        string.format("Otimizando fila de %d spawns para a nova posição do jogador.", #self.pendingRequests))
+
+    -- Re-ordena a fila
+    table.sort(self.pendingRequests, function(a, b)
+        -- 1. Prioridade principal
+        if a.priority ~= b.priority then
+            return a.priority < b.priority
+        end
+
+        -- 2. Distância para a mesma prioridade
+        local distASq = (a.position.x - playerPosition.x) ^ 2 + (a.position.y - playerPosition.y) ^ 2
+        local distBSq = (b.position.x - playerPosition.x) ^ 2 + (b.position.y - playerPosition.y) ^ 2
+
+        if distASq ~= distBSq then
+            return distASq < distBSq -- Mais perto primeiro
+        end
+
+        -- 3. Fallback para tempo de criação
+        return a.createdAt < b.createdAt
+    end)
+
+    Logger.debug("[AsyncSpawnProcessor:optimizeForPosition]", "Fila de spawns re-prioritizada.")
 end
 
 return AsyncSpawnProcessor

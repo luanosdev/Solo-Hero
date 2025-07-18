@@ -7,7 +7,6 @@
 local Constants = require("src.config.constants")
 local Colors = require("src.ui.colors")
 local ManagerRegistry = require("src.managers.manager_registry")
-local ResolutionUtils = require("src.utils.resolution_utils")
 
 ---@class DropEntity
 local DropEntity = {
@@ -205,16 +204,13 @@ end
 function DropEntity:draw(playerManager)
     if self.collected then return end
 
-    local x, y
-    local playerPos = playerManager.movementController:getPosition()
-    local screenCenterX = ResolutionUtils.getGameWidth() / 2
-    local screenCenterY = ResolutionUtils.getGameHeight() / 2
+    -- Obtém o MapManager para usar a função de offset centralizada
+    ---@type InfinityWrapMapManager
+    local mapManager = ManagerRegistry:get("mapManager")
+    local camOffsetX, camOffsetY = mapManager:getCameraOffsets()
 
-    local camOffsetX = screenCenterX - playerPos.x
-    local camOffsetY = screenCenterY - playerPos.y
-
-    x = self.position.x + camOffsetX
-    y = self.position.y + camOffsetY
+    local x = self.position.x + camOffsetX
+    local y = self.position.y + camOffsetY
 
     -- Calcula frame atual no spritesheet
     local row = (self.currentFrame <= 10) and 0 or 1

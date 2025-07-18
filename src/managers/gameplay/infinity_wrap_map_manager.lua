@@ -1,4 +1,5 @@
 local ManagerRegistry = require("src.managers.manager_registry")
+local ResolutionUtils = require("src.utils.resolution_utils")
 
 ---@class InfinityWrapMapManager
 ---@description Gerencia um mapa isométrico infinito, sua renderização e eventos de "wrap".
@@ -171,6 +172,37 @@ function InfinityWrapMapManager:drawTopLayers(worldPosition)
     if self.layerCanvases["collision"] then
         love.graphics.draw(self.layerCanvases["collision"], canvasDrawX, canvasDrawY)
     end
+end
+
+--- Calcula e retorna os offsets de câmera para alinhar entidades com o mapa.
+--- Esta função centraliza a lógica de cálculo de offset que antes era
+--- duplicada em várias entidades (drops, inimigos, etc).
+---@return number, number Retorna os offsets X e Y da câmera.
+function InfinityWrapMapManager:getCameraOffsets()
+    ---@type PlayerManager
+    local playerMgr = ManagerRegistry:get("playerManager")
+    if not playerMgr or not playerMgr.movementController then
+        return 0, 0
+    end
+
+    local playerPos = playerMgr.movementController:getPosition()
+    local screenCenterX = ResolutionUtils.getGameWidth() / 2
+    local screenCenterY = ResolutionUtils.getGameHeight() / 2
+
+    local camOffsetX = screenCenterX - playerPos.x
+    local camOffsetY = screenCenterY - playerPos.y
+
+    return camOffsetX, camOffsetY
+end
+
+--- Retorna as dimensões totais do mapa base em tiles.
+--- Essencial para a lógica de pathfinding em espaço toroidal.
+---@return number width, number height
+function InfinityWrapMapManager:getWorldTileDimensions()
+    if not self.mapData then
+        return 0, 0
+    end
+    return self.mapData.width, self.mapData.height
 end
 
 -- === Funções Auxiliares de Construção ===

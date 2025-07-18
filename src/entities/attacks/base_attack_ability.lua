@@ -92,7 +92,7 @@ end
 ---@param currentTime number Tempo atual
 function BaseAttackAbility:updateCaches(currentTime)
     -- Atualiza posição do jogador (sempre necessário)
-    local newPos = self.playerManager:getPlayerPosition()
+    local newPos = self.playerManager:getPlayerScreenPosition()
     self.playerPosition.x = newPos.x
     self.playerPosition.y = newPos.y
 

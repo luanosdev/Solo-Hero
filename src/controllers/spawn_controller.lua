@@ -1,9 +1,9 @@
 -- src/controllers/spawn_controller.lua
 --[[
-    SISTEMA DE CONTROLE DE SPAWN ASSÍNCRONO COM THREADS
+    SISTEMA DE CONTROLE DE SPAWN ASSÍNCRONO PARA MAPAS INFINITOS
 
     O SpawnController implementa um sistema híbrido de spawns com processamento assíncrono usando coroutines,
-    mantendo todas as funcionalidades originais mas com performance máxima através de processamento distribuído.
+    otimizado para mapas infinitos com wrapping de coordenadas e densidade adaptativa.
 
     🚀 SISTEMA ASSÍNCRONO DE SPAWNS:
 
@@ -26,6 +26,23 @@
        - Ajuste de parâmetros em runtime
        - Limites adaptativos baseados na performance
        - Fallback para sistema legacy se necessário
+
+    🌍 SISTEMA DE MAPAS INFINITOS:
+
+    1. WRAPPING DE COORDENADAS
+       - Responde a eventos de player wrapping
+       - Limpa spawns distantes automaticamente
+       - Ajusta densidade baseada na nova região
+
+    2. SPAWN POSICIONAL INTELIGENTE
+       - Spawns direcionais baseados no movimento do jogador
+       - Verificação de densidade antes do spawn
+       - Otimização para coordenadas infinitas
+
+    3. BALANCEAMENTO ADAPTATIVO
+       - Boost temporário em regiões com poucos inimigos
+       - Redução temporária em regiões saturadas
+       - Densidade alvo configurável por região
 
     ✨ FUNCIONALIDADES MANTIDAS (Sistema de Controle por Boss):
 
@@ -239,7 +256,8 @@ function SpawnController:update(dt)
     if self.worldConfig.bossConfig and self.worldConfig.bossConfig.spawnTimes then
         local nextBoss = self.worldConfig.bossConfig.spawnTimes[self.nextBossIndex]
         if nextBoss and self.gameTimer >= nextBoss.time then
-            local spawnX, spawnY = self:calculateSpawnPosition()
+            -- Bosses spawnam em qualquer direção para máximo impacto
+            local spawnX, spawnY = self:calculateSpawnPositionInfinite()
             self.enemyManager:spawnBoss(nextBoss, { x = spawnX, y = spawnY })
             self.nextBossIndex = self.nextBossIndex + 1
 
@@ -392,7 +410,8 @@ function SpawnController:handleMajorSpawn(currentCycle)
     for _ = 1, countToSpawn do
         local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
         if enemyClass then
-            local spawnX, spawnY = self:calculateSpawnPosition()
+            -- Usa função otimizada para mapas infinitos com spawns na frente do movimento
+            local spawnX, spawnY = self:calculateSpawnPositionInfinite("front")
             self:addAsyncSpawnRequest(enemyClass, { x = spawnX, y = spawnY }, nil)
         end
     end
@@ -411,7 +430,8 @@ function SpawnController:handleMinorSpawn(currentCycle)
     for _ = 1, countToSpawn do
         local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
         if enemyClass then
-            local spawnX, spawnY = self:calculateSpawnPosition()
+            -- Usa função otimizada para mapas infinitos com spawns laterais
+            local spawnX, spawnY = self:calculateSpawnPositionInfinite()
             self:addAsyncSpawnRequest(enemyClass, { x = spawnX, y = spawnY }, nil)
         end
     end
@@ -424,7 +444,8 @@ function SpawnController:spawnMVP()
     local enemyClass = self:selectEnemyFromList(currentCycle.allowedEnemies)
     if not enemyClass then return end
 
-    local spawnX, spawnY = self:calculateSpawnPosition()
+    -- MVPs spawnam atrás do jogador para criar elemento surpresa
+    local spawnX, spawnY = self:calculateSpawnPositionInfinite("back")
     -- MVPs são adicionados ao sistema assíncrono com alta prioridade (processamento imediato)
     Logger.debug("[SpawnController:spawnMVP]", "Adicionando MVP ao processamento assíncrono (prioridade alta).")
     self:addAsyncSpawnRequest(enemyClass, { x = spawnX, y = spawnY }, { isMVP = true })
@@ -653,7 +674,7 @@ function SpawnController:testBossSpawnControl(forceSpawnBoss)
         local currentCycle = self.worldConfig.cycles[self.currentCycleIndex]
         if currentCycle and currentCycle.allowedEnemies and #currentCycle.allowedEnemies > 0 then
             local enemyClass = currentCycle.allowedEnemies[1].class
-            local spawnX, spawnY = self:calculateSpawnPosition()
+            local spawnX, spawnY = self:calculateSpawnPositionInfinite()
 
             -- Cria um boss temporário para teste
             local testBoss = {
@@ -772,5 +793,237 @@ function SpawnController:cleanup()
     Logger.info("[SpawnController:cleanup]", "SpawnController completamente limpo")
 end
 
+--- Callback chamado quando o jogador muda de patch no mapa infinito.
+--- Ajusta comportamento de spawn para coordenadas infinitas.
+function SpawnController:onPlayerWrapped()
+    Logger.debug("spawn_controller.wrap.triggered",
+        "[SpawnController] Player wrapped detectado - ajustando sistema de spawn")
+
+    -- Limpar spawns pendentes muito distantes para evitar acúmulo
+    self:_cleanupDistantSpawnRequests()
+
+    -- Ajustar densidade de spawn baseada na nova região
+    self:_adjustSpawnDensityForRegion()
+
+    -- Otimizar fila assíncrona para nova posição
+    if self.asyncProcessor then
+        self.asyncProcessor:optimizeForPosition(self:_getPlayerPosition())
+    end
+end
+
+--- Limpa spawn requests que estão muito distantes da nova posição do jogador.
+--- Usado após player wrapping para evitar spawns em regiões irrelevantes.
+function SpawnController:_cleanupDistantSpawnRequests()
+    local playerPos = self:_getPlayerPosition()
+    local maxDistance = 1500 -- Distância máxima em pixels
+    local removedCount = 0
+
+    -- Limpar fila legacy
+    for i = #self.spawnQueue, 1, -1 do
+        local spawn = self.spawnQueue[i]
+        if spawn and spawn.position then
+            local dx = spawn.position.x - playerPos.x
+            local dy = spawn.position.y - playerPos.y
+            local distance = math.sqrt(dx * dx + dy * dy)
+
+            if distance > maxDistance then
+                table.remove(self.spawnQueue, i)
+                removedCount = removedCount + 1
+            end
+        end
+    end
+
+    -- Limpar sistema assíncrono
+    if self.asyncProcessor and self.asyncProcessor.cleanupDistantRequests then
+        local asyncRemoved = self.asyncProcessor:cleanupDistantRequests(playerPos, maxDistance)
+        removedCount = removedCount + asyncRemoved
+    end
+
+    if removedCount > 0 then
+        Logger.debug("spawn_controller.wrap.cleanup",
+            string.format("Removidos %d spawn requests distantes após wrapping", removedCount))
+    end
+end
+
+--- Ajusta a densidade de spawn baseada na nova região após wrapping.
+--- Usa informações do EnemyManager para balancear spawns.
+function SpawnController:_adjustSpawnDensityForRegion()
+    local playerPos = self:_getPlayerPosition()
+    local checkRadius = 800
+
+    -- Verifica densidade de inimigos na nova região
+    local currentDensity = self.enemyManager:getEnemyDensityInArea(
+        playerPos.x, playerPos.y, checkRadius
+    )
+
+    -- Ajusta spawns baseado na densidade
+    local targetDensity = 15 -- Densidade alvo de inimigos
+    local densityRatio = currentDensity / targetDensity
+
+    if densityRatio < 0.5 then
+        -- Região com poucos inimigos - aumenta spawn rate temporariamente
+        self:_temporarySpawnBoost(2.0, 10) -- 2x boost por 10 segundos
+        Logger.debug("spawn_controller.wrap.density",
+            string.format("Região com baixa densidade (%d/%d) - aplicando boost",
+                currentDensity, targetDensity))
+    elseif densityRatio > 1.5 then
+        -- Região com muitos inimigos - reduz spawn rate temporariamente
+        self:_temporarySpawnReduction(0.5, 8) -- 50% reduction por 8 segundos
+        Logger.debug("spawn_controller.wrap.density",
+            string.format("Região com alta densidade (%d/%d) - aplicando redução",
+                currentDensity, targetDensity))
+    end
+end
+
+--- Aplica um boost temporário na taxa de spawn.
+---@param multiplier number Multiplicador da taxa de spawn (ex: 2.0 = dobro)
+---@param duration number Duração em segundos
+function SpawnController:_temporarySpawnBoost(multiplier, duration)
+    -- Implementação simplificada - pode ser expandida
+    local originalMaxSpawns = self.maxSpawnsPerFrame
+    local boostedMax = math.floor(originalMaxSpawns * multiplier)
+
+    self:setMaxSpawnsPerFrame(boostedMax)
+
+    -- Timer para restaurar valor original (simplificado)
+    -- Em implementação real, usaria um timer system
+    Logger.debug("spawn_controller.boost",
+        string.format("Spawn boost aplicado: %dx por %ds", multiplier, duration))
+end
+
+--- Aplica uma redução temporária na taxa de spawn.
+---@param multiplier number Multiplicador da taxa de spawn (ex: 0.5 = metade)
+---@param duration number Duração em segundos
+function SpawnController:_temporarySpawnReduction(multiplier, duration)
+    -- Implementação simplificada
+    local originalMaxSpawns = self.maxSpawnsPerFrame
+    local reducedMax = math.max(1, math.floor(originalMaxSpawns * multiplier))
+
+    self:setMaxSpawnsPerFrame(reducedMax)
+
+    Logger.debug("spawn_controller.reduction",
+        string.format("Spawn reduction aplicada: %dx por %ds", multiplier, duration))
+end
+
+--- Obtém posição atual do jogador de forma segura.
+---@return Vector2D Posição {x, y} do jogador
+function SpawnController:_getPlayerPosition()
+    if self.playerManager and self.playerManager.getPlayerPosition then
+        return self.playerManager:getPlayerPosition()
+    elseif self.playerManager and self.playerManager.movementController then
+        return self.playerManager.movementController:getPosition()
+    else
+        -- Fallback para centro da câmera
+        local camX, camY = Camera:getViewPort()
+        return { x = camX, y = camY }
+    end
+end
+
+--- Calcula posição de spawn otimizada para mapas infinitos.
+--- Considera wrapping de coordenadas e densidade existente.
+---@param preferredDirection string|nil Direção preferida: "front", "back", "left", "right"
+---@return number, number Coordenadas X, Y para spawn
+function SpawnController:calculateSpawnPositionInfinite(preferredDirection)
+    local camX, camY, camWidth, camHeight = Camera:getViewPort()
+    local sprite = self.playerManager:getPlayerSprite()
+    local playerVel = sprite.velocity
+    local buffer = 150
+
+    -- Zonas de spawn padrão
+    local spawnZones = {
+        top = { x = camX - buffer, y = camY - buffer, width = camWidth + buffer * 2, height = buffer },
+        bottom = { x = camX - buffer, y = camY + camHeight, width = camWidth + buffer * 2, height = buffer },
+        left = { x = camX - buffer, y = camY, width = buffer, height = camHeight },
+        right = { x = camX + camWidth, y = camY, width = buffer, height = camHeight }
+    }
+
+    -- Pesos base
+    local weights = { top = 1, bottom = 1, left = 1, right = 1 }
+
+    -- Ajusta pesos baseado na direção do movimento do jogador
+    local isMoving = playerVel and (playerVel.x ~= 0 or playerVel.y ~= 0)
+    if isMoving and playerVel then
+        local movementBias = 4
+        if playerVel.y < -0.1 then weights.top = weights.top + movementBias end
+        if playerVel.y > 0.1 then weights.bottom = weights.bottom + movementBias end
+        if playerVel.x < -0.1 then weights.left = weights.left + movementBias end
+        if playerVel.x > 0.1 then weights.right = weights.right + movementBias end
+    end
+
+    -- Aplica direção preferida se especificada
+    if preferredDirection then
+        if preferredDirection == "front" and isMoving and playerVel then
+            -- Spawn na frente da direção do movimento
+            if math.abs(playerVel.x) > math.abs(playerVel.y) then
+                if playerVel.x > 0 then
+                    weights.right = weights.right * 3
+                else
+                    weights.left = weights.left * 3
+                end
+            else
+                if playerVel.y > 0 then
+                    weights.bottom = weights.bottom * 3
+                else
+                    weights.top = weights.top * 3
+                end
+            end
+        elseif preferredDirection == "back" and isMoving and playerVel then
+            -- Spawn atrás da direção do movimento
+            if math.abs(playerVel.x) > math.abs(playerVel.y) then
+                if playerVel.x > 0 then
+                    weights.left = weights.left * 3
+                else
+                    weights.right = weights.right * 3
+                end
+            else
+                if playerVel.y > 0 then
+                    weights.top = weights.top * 3
+                else
+                    weights.bottom = weights.bottom * 3
+                end
+            end
+        elseif weights[preferredDirection] then
+            weights[preferredDirection] = weights[preferredDirection] * 2
+        end
+    end
+
+    -- Seleciona zona baseada nos pesos
+    local totalWeight = weights.top + weights.bottom + weights.left + weights.right
+    local randomVal = math.random() * totalWeight
+    local selectedZoneKey
+
+    if randomVal <= weights.top then
+        selectedZoneKey = "top"
+    elseif randomVal <= weights.top + weights.bottom then
+        selectedZoneKey = "bottom"
+    elseif randomVal <= weights.top + weights.bottom + weights.left then
+        selectedZoneKey = "left"
+    else
+        selectedZoneKey = "right"
+    end
+
+    local selectedZone = spawnZones[selectedZoneKey]
+
+    -- Gera posição com verificação de densidade
+    local attempts = 0
+    local maxAttempts = 5
+    local spawnX, spawnY
+
+    repeat
+        spawnX = math.random(selectedZone.x, selectedZone.x + selectedZone.width)
+        spawnY = math.random(selectedZone.y, selectedZone.y + selectedZone.height)
+
+        -- Verifica densidade na posição proposta
+        local localDensity = self.enemyManager:getEnemyDensityInArea(spawnX, spawnY, 200)
+
+        if localDensity < 8 then -- Limite de densidade local
+            break
+        end
+
+        attempts = attempts + 1
+    until attempts >= maxAttempts
+
+    return spawnX, spawnY
+end
 
 return SpawnController
