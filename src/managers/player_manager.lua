@@ -414,15 +414,15 @@ function PlayerManager:getCollisionPosition()
     }
 end
 
---- Retorna a posição do jogador
+--- Retorna a posição do jogador no mundo
 ---@return Vector2D
 function PlayerManager:getPlayerPosition()
     if not self.movementController then
-        Logger.warn("player_manager.player_position", "Player não inicializado, retornando posição padrão.")
+        Logger.error("player_manager.player_position", "Player não inicializado, retornando posição padrão.")
         return { x = 0, y = 0 }
     end
 
-    return self.movementController.player.position
+    return self.movementController:getPosition()
 end
 
 --- Retorna a velocidade atual do jogador

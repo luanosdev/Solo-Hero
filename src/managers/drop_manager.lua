@@ -14,9 +14,10 @@ local globalDropTable = require("src.data.global_drops")
 local mvpDropTable = require("src.data.mvp_drops")
 local Culling = require("src.core.culling")
 local Camera = require("src.config.camera")
+local ResolutionUtils = require("src.utils.resolution_utils")
 
 ---@class DropManager
----@field activeDrops table[] Lista de drops ativos no mundo
+---@field activeDrops DropEntity[] Lista de drops ativos no mundo
 ---@field playerManager PlayerManager Gerenciador do jogador
 ---@field enemyManager EnemyManager Gerenciador de inimigos
 ---@field runeManager RuneManager Gerenciador de runas
@@ -322,15 +323,36 @@ end
 --- Atualiza os drops ativos (coleta automática ao atingir área)
 ---@param dt number Delta time
 function DropManager:update(dt)
+    -- Culling: get player world position to define the view area
+    local playerPos = self.playerManager.movementController and self.playerManager.movementController:getPosition()
+
+    -- Fallback if we can't get player position, just update everything
+    if not playerPos then
+        Logger.warn("drop_manager.update.no_player_position",
+            "[DropManager:update] Não foi possível obter a posição do jogador. Pulando update."
+        )
+        return
+    end
+
+    local camWidth = ResolutionUtils.getGameWidth()
+    local camHeight = ResolutionUtils.getGameHeight()
+    local camX = playerPos.x - camWidth / 2
+    local camY = playerPos.y - camHeight / 2
+    local cullMargin = 200 -- A generous margin to ensure drops near the screen edge are updated
+
     for i = #self.activeDrops, 1, -1 do
         local drop = self.activeDrops[i]
-        if drop:update(dt, self.playerManager) then
-            -- Se o drop foi coletado automaticamente, aplica seus efeitos
-            self:applyDrop(drop.config) -- Passa a configuração original do drop
 
-            -- Remove o drop da lista ativa e o devolve para o pool
-            table.remove(self.activeDrops, i)
-            self:returnDropToPool(drop)
+        -- Only update drops that are inside or near the viewport
+        if Culling.isInView(drop, camX, camY, camWidth, camHeight, cullMargin) then
+            if drop:update(dt, self.playerManager) then
+                -- Se o drop foi coletado automaticamente, aplica seus efeitos
+                self:applyDrop(drop.config) -- Passa a configuração original do drop
+
+                -- Remove o drop da lista ativa e o devolve para o pool
+                table.remove(self.activeDrops, i)
+                self:returnDropToPool(drop)
+            end
         end
     end
 end
@@ -364,30 +386,11 @@ function DropManager:applyDrop(dropConfig)
                 local baseData = self.itemDataManager:getBaseItemData(itemBaseId)
                 local itemName = baseData and baseData.name or itemBaseId
                 -- A cor do item não é mais passada diretamente, a raridade controlará a cor no FloatingTextManager
-                local itemRarity = baseData and baseData.rarity or "E" -- Fallback para raridade comum "E"
-                local itemColor = Colors.rarity[itemRarity] or Colors.text_default
-
-                self.playerManager:addFloatingText("+" .. addedQuantity .. " " .. itemName, {
-                    textColor = itemColor,
-                    scale = 1.1,
-                    velocityY = -30,
-                    lifetime = 1.0,
-                    baseOffsetY = -40, -- Offset Y base (acima da cabeça do jogador)
-                    baseOffsetX = 0
-                })
+                local itemRarity = baseData and baseData.rank or baseData.rarity -- Fallback para raridade comum "E"
 
                 -- Exibir notificação de coleta de item
                 if NotificationDisplay then
-                    local itemIcon = nil
-                    if baseData and baseData.icon then
-                        if type(baseData.icon) == "string" then
-                            itemIcon = love.graphics.newImage(baseData.icon)
-                        else
-                            itemIcon = baseData.icon
-                        end
-                    end
-
-                    NotificationDisplay.showItemPickup(itemName, addedQuantity, itemIcon, itemRarity)
+                    NotificationDisplay.showItemPickup(itemName, addedQuantity, baseData.icon, itemRarity)
                     Logger.debug(
                         "drop_manager.notification.item_pickup",
                         "[DropManager:applyDrop] Notificação de coleta exibida: " .. itemName .. " x" .. addedQuantity
@@ -413,28 +416,39 @@ function DropManager:collectRenderables(renderPipeline)
         return
     end
 
-    local camX, camY, camWidth, camHeight = Camera:getViewPort()
+    local playerPos = self.playerManager:getPlayerPosition()
+    if not playerPos then return end
+
+    -- Com o mapa infinito, a "câmera" está sempre centralizada no jogador.
+    -- Portanto, a área visível do mundo é um retângulo em torno da posição do jogador.
+    local camWidth = ResolutionUtils.getGameWidth()
+    local camHeight = ResolutionUtils.getGameHeight()
+    local camX = playerPos.x - camWidth / 2
+    local camY = playerPos.y - camHeight / 2
+
+    -- Captura 'self' para usar dentro da closure
+    local manager = self
 
     for _, dropEntity in ipairs(self.activeDrops) do
+        -- O culling agora usa a visão centrada no jogador
         if not dropEntity.collected and Culling.isInView(dropEntity, camX, camY, camWidth, camHeight, 50) then
             -- A posição do DropEntity é o seu centro no chão.
             local dropWorldX = dropEntity.position.x
             local dropWorldY = dropEntity.position.y
 
-            -- Converte a posição do centro do drop para a "base" isométrica para ordenação.
-            -- A função de desenho da DropEntity já lida com sua posição correta na tela.
-            local isoX = (dropWorldX - dropWorldY) * (Constants.TILE_WIDTH / 2)
-            -- A sortY deve ser o Y isométrico da base do drop.
-            -- Adicionamos TILE_HEIGHT para que a ordenação seja pela "parte de baixo" do tile que o drop ocupa.
+            -- A ordenação de profundidade (sortY) continua usando coordenadas de mundo absolutas,
+            -- o que está correto para garantir que as entidades se sobreponham corretamente.
             local isoY_base = (dropWorldX + dropWorldY) * (Constants.TILE_HEIGHT / 2) + Constants.TILE_HEIGHT
 
-            local renderableItem = TablePool.get()
+            local renderableItem = TablePool.getGeneric()
             renderableItem.type = "drop_entity"
             renderableItem.sortY = isoY_base
             renderableItem.depth = RenderPipeline.DEPTH_ENTITIES
             renderableItem.drawFunction = function()
                 if dropEntity and not dropEntity.collected then
-                    dropEntity:draw()
+                    -- Passa o playerManager para a função de desenho para que ela possa
+                    -- calcular a posição de renderização relativa ao jogador.
+                    dropEntity:draw(manager.playerManager)
                 end
             end
             renderPipeline:add(renderableItem)

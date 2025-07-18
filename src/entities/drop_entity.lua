@@ -7,6 +7,7 @@
 local Constants = require("src.config.constants")
 local Colors = require("src.ui.colors")
 local ManagerRegistry = require("src.managers.manager_registry")
+local ResolutionUtils = require("src.utils.resolution_utils")
 
 ---@class DropEntity
 local DropEntity = {
@@ -182,7 +183,7 @@ function DropEntity:update(dt, playerManager)
     end
 
     -- Verifica coleta automática
-    local playerPos = playerManager:getPlayerPosition()
+    local playerPos = playerManager.movementController:getPosition()
     local dx = playerPos.x - self.position.x
     local dy = playerPos.y - self.position.y
     local distance = math.sqrt(dx * dx + dy * dy)
@@ -200,10 +201,20 @@ function DropEntity:update(dt, playerManager)
 end
 
 --- Desenha o drop usando o spritesheet beam_drop.png
-function DropEntity:draw()
+---@param playerManager PlayerManager Instância do PlayerManager
+function DropEntity:draw(playerManager)
     if self.collected then return end
 
-    local x, y = self.position.x, self.position.y
+    local x, y
+    local playerPos = playerManager.movementController:getPosition()
+    local screenCenterX = ResolutionUtils.getGameWidth() / 2
+    local screenCenterY = ResolutionUtils.getGameHeight() / 2
+
+    local camOffsetX = screenCenterX - playerPos.x
+    local camOffsetY = screenCenterY - playerPos.y
+
+    x = self.position.x + camOffsetX
+    y = self.position.y + camOffsetY
 
     -- Calcula frame atual no spritesheet
     local row = (self.currentFrame <= 10) and 0 or 1
@@ -249,7 +260,7 @@ function DropEntity:draw()
                 self.spritesheet,
                 quad,
                 0,
-                -self.height,
+                0,
                 0,
                 1,
                 1,
