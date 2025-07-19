@@ -146,4 +146,22 @@ function ResolutionUtils.centerVertically(elementHeight)
     return (gameH - elementHeight) / 2
 end
 
+--- Calcula uma distância segura fora da tela, baseada na diagonal da resolução virtual.
+--- Útil para determinar quando uma entidade está longe o suficiente para despawn.
+--- @param buffer? number | nil Uma margem extra a ser adicionada. Padrão 500.
+--- @return number safeDistance A distância segura em pixels.
+function ResolutionUtils.getSafeOffScreenDistance(buffer)
+    local gameW, gameH = ResolutionUtils.getGameDimensions()
+    local halfW = gameW / 2
+    local halfH = gameH / 2
+
+    -- Calcula a distância do centro até o canto (diagonal)
+    local diagonalDistance = math.sqrt(halfW * halfW + halfH * halfH)
+
+    -- Adiciona um buffer de segurança para garantir que está bem fora da tela
+    local safeBuffer = buffer or 500 -- Buffer padrão de 500 pixels
+
+    return diagonalDistance + safeBuffer
+end
+
 return ResolutionUtils

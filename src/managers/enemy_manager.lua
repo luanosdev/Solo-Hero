@@ -11,8 +11,13 @@ local Fonts = require("src.ui.fonts")
 local Constants = require("src.config.constants")
 local SpawnController = require("src.controllers.spawn_controller")
 local Logger = require("src.libs.logger")
+local MathUtils = require("src.utils.math_utils")
+local DespawnController = require("src.controllers.despawn_controller")
 
 ---@class EnemyManager
+---@description Gerenciador de inimigos com suporte a mapas infinitos e sistema de eventos.
+--- Integrado com InfinityWrapMapManager para responder a mudanças de patch do jogador.
+--- Usa SpatialGridIncremental com wrapping infinito para colisão e proximidade.
 ---@field enemies table<number, BaseEnemy>
 ---@field maxEnemies number
 ---@field nextEnemyId number
@@ -24,29 +29,16 @@ local Logger = require("src.libs.logger")
 ---@field dropManager DropManager
 ---@field enemyPool table<string, table<number, BaseEnemy>> Pool de inimigos reutilizáveis, categorizados por classe
 ---@field spawnController SpawnController|nil
----@field spatialGrid SpatialGridIncremental|nil
----@field mapDimensions table
----@field gridCellSize number
----@field despawnMargin number
-local EnemyManager = {
-    enemies = {},     -- Tabela contendo todas as instâncias de inimigos ativos
-    maxEnemies = 800, -- Número máximo de inimigos permitidos na tela simultaneamente
-    nextEnemyId = 1,  -- Próximo ID a ser atribuído a um inimigo
-    enemyPool = {},   -- Pool de inimigos inativos para reutilização
+---@field spatialGrid SpatialGridIncremental|nil Grid espacial infinito para colisões e proximidade
+---@field despawnMargin number Margem em pixels para despawn de inimigos fora da câmera
+---@field despawnController DespawnController|nil
+---@field lastOptimizationTime number Timestamp da última otimização do spatial grid
+local EnemyManager = {}
+EnemyManager.__index = EnemyManager
 
-    -- Estado e Tempo
-    gameTimer = 0, -- Tempo total de jogo decorrido desde o início (em segundos)
-
-    -- Timer para controlar quando esconder a barra de vida do boss após sua morte
-    bossDeathTimer = 0,
-    bossDeathDuration = 3, -- Tempo em segundos para manter a barra visível após a morte
-    lastBossDeathTime = 0, -- Momento em que o último boss morreu
-    spatialGrid = nil,
-    mapDimensions = { width = 3000, height = 3000 },
-    gridCellSize = 64,
-    despawnMargin = 500,
-    spawnController = nil,
-}
+EnemyManager.DEFAULT_MAX_ENEMIES = 100
+EnemyManager.DEFAULT_SPAWN_BUFFER = 150
+EnemyManager.DEFAULT_CULLING_MARGIN = 300
 
 -- Inicializa o gerenciador de inimigos com uma configuração de horda específica
 ---@param config table Tabela de configuração contendo { hordeConfig, playerManager, dropManager, mapManager }
@@ -63,37 +55,157 @@ function EnemyManager:setupGameplay(config)
     self.spawnController = SpawnController:new(self, self.playerManager, self.mapManager)
     self.spawnController:setup(config.hordeConfig)
 
-    -- Para um mapa procedural "infinito", definimos uma grande "área de jogo" para o SpatialGrid.
-    -- Isso garante que o sistema de detecção de colisão tenha limites para operar,
-    -- mesmo que o mapa em si não tenha.
-    local playableAreaSize = 20000 -- Define uma área de 20k x 20k pixels.
-    self.mapDimensions = { width = playableAreaSize, height = playableAreaSize }
-    -- Para um mundo grande, células de grid maiores são mais eficientes.
-    self.gridCellSize = 256
+    -- Cria o controller de despawn
+    self.despawnController = DespawnController:new()
 
-    if self.mapDimensions.width <= 0 or self.mapDimensions.height <= 0 or self.gridCellSize <= 0 then
-        error(string.format(
-            "[EnemyManager:setupGameplay] Erro: Dimensões do mapa (w:%s, h:%s) ou tamanho da célula (%s) inválidos para SpatialGrid.",
-            tostring(self.mapDimensions.width), tostring(self.mapDimensions.height), tostring(self.gridCellSize)))
-    end
+    -- Configuração do grid espacial infinito baseado no sistema de mapa infinito
+    -- Para mapa infinito, usamos um grid de células fixo que faz wrapping
+    local gridCellsWidth = 64 -- 64x64 células no grid físico
+    local gridCellsHeight = 64
+    local cellPixelSize = 256 -- Cada célula representa 256x256 pixels
+
+    Logger.debug("enemy_manager.setup.spatial_grid",
+        string.format("Criando SpatialGrid infinito: %dx%d células, %dx%d pixels por célula",
+            gridCellsWidth, gridCellsHeight, cellPixelSize, cellPixelSize))
 
     -- Destruir grid anterior se existir (ao re-entrar no gameplay, por exemplo)
     if self.spatialGrid and self.spatialGrid.destroy then
         self.spatialGrid:destroy()
     end
-    self.spatialGrid = SpatialGridIncremental:new(self.mapDimensions.width, self.mapDimensions.height, self.gridCellSize,
-        self.gridCellSize)
+
+    -- Criar grid infinito compatível com InfinityWrapMapManager
+    self.spatialGrid = SpatialGridIncremental:new(
+        gridCellsWidth,
+        gridCellsHeight,
+        cellPixelSize,
+        cellPixelSize,
+        true
+    )
+
+    -- Registrar para escutar eventos do sistema de mapa infinito
+    self:_setupMapWrappingEventListeners()
 
     self.enemies = {}
+    self.maxEnemies = EnemyManager.DEFAULT_MAX_ENEMIES
     self.enemyPool = {}
 
     self.nextEnemyId = 1
-    self.gameTimer = 0
+    self.gameTimer = 0 -- Ira virar um manager futuro
+    self.lastOptimizationTime = 0
+    --- TODO: BossController futuro
+    self.lastBossDeathTime = 0
+    self.bossDeathTimer = 0
+    self.bossDeathDuration = 3
+end
+
+--- Configura os event listeners para o sistema de mapa infinito.
+function EnemyManager:_setupMapWrappingEventListeners()
+    if not EventManager then
+        error("EventManager não disponível - eventos de wrapping não serão processados")
+    end
+
+    -- Escuta evento de player wrapping para ajustar spawns
+    EventManager:on(EventManager.EVENTS.PLAYER_WRAPPED, self._onPlayerWrapped, self)
+
+    Logger.debug("enemy_manager.setup.events",
+        "Event listeners configurados para sistema de mapa infinito")
+end
+
+--- Callback chamado quando o jogador muda de patch no mapa infinito.
+function EnemyManager:_onPlayerWrapped()
+    Logger.debug("enemy_manager.wrap.triggered",
+        "[EnemyManager] Player wrapped detectado - ajustando spawns")
+
+    -- Limpar inimigos que estão muito distantes para evitar acúmulo
+    self:_cleanupDistantEnemies()
+
+    -- Notificar spawn controller sobre mudança de patch
+    if self.spawnController and self.spawnController.onPlayerWrapped then
+        self.spawnController:onPlayerWrapped()
+    end
+end
+
+--- Limpa inimigos que estão muito distantes do jogador após wrapping.
+function EnemyManager:_cleanupDistantEnemies()
+    if not self.playerManager then return end
+
+    local playerPosition = self.playerManager:getPlayerPosition()
+    local maxDistance = 2000 -- Distância máxima permitida em pixels
+    local removedCount = 0
+
+    for i = #self.enemies, 1, -1 do
+        local enemy = self.enemies[i]
+        if enemy and enemy.isAlive and not enemy.isBoss and not enemy.isMVP then
+            local dx = enemy.position.x - playerPosition.x
+            local dy = enemy.position.y - playerPosition.y
+            local distance = math.sqrt(dx * dx + dy * dy)
+
+            if distance > maxDistance then
+                -- Remove do spatial grid
+                if self.spatialGrid then
+                    self.spatialGrid:removeEntityCompletely(enemy)
+                end
+
+                -- Retorna ao pool e remove da lista
+                self:returnEnemyToPool(enemy)
+                table.remove(self.enemies, i)
+                removedCount = removedCount + 1
+            end
+        end
+    end
+
+    if removedCount > 0 then
+        Logger.debug("enemy_manager.wrap.cleanup",
+            string.format("Removidos %d inimigos distantes após wrapping", removedCount))
+    end
+end
+
+--- Obtém a densidade de inimigos em uma área específica (útil para spawn balanceado).
+---@param centerX number Coordenada X central da área
+---@param centerY number Coordenada Y central da área
+---@param radius number Raio da área a verificar
+---@return number Número de inimigos na área
+function EnemyManager:getEnemyDensityInArea(centerX, centerY, radius)
+    if not self.spatialGrid then return 0 end
+
+    local nearbyEntities = self.spatialGrid:getNearbyEntities(centerX, centerY, radius, nil)
+    local count = #nearbyEntities
+
+    -- Libera a tabela retornada pelo spatial grid
+    TablePool.releaseArray(nearbyEntities)
+
+    return count
+end
+
+--- Otimiza o grid espacial removendo entidades duplicadas ou inválidas.
+--- Útil para chamadas periódicas em mapas infinitos.
+function EnemyManager:optimizeSpatialGrid()
+    if not self.spatialGrid then return end
+
+    local optimizedCount = 0
+
+    -- Re-indexa todas as entidades no grid para garantir consistência
+    for _, enemy in ipairs(self.enemies) do
+        if enemy and enemy.position and enemy.id then
+            -- Força re-indexação
+            self.spatialGrid:updateEntityInGrid(enemy)
+            optimizedCount = optimizedCount + 1
+        end
+    end
+
+    Logger.debug("enemy_manager.optimize.complete",
+        string.format("SpatialGrid otimizado - %d entidades re-indexadas", optimizedCount))
 end
 
 -- Atualiza o estado do gerenciador de inimigos e todos os inimigos ativos
 function EnemyManager:update(dt)
     self.gameTimer = self.gameTimer + dt
+
+    -- Otimização periódica do spatial grid para mapas infinitos (a cada 10 segundos)
+    if self.spatialGrid and self.spatialGrid.isInfinite and math.floor(self.gameTimer) % 10 == 0 and math.floor(self.gameTimer) ~= self.lastOptimizationTime then
+        self.lastOptimizationTime = math.floor(self.gameTimer)
+        self:optimizeSpatialGrid()
+    end
 
     -- Atualiza o controller de spawn
     if self.spawnController then
@@ -108,52 +220,55 @@ function EnemyManager:update(dt)
         self.bossDeathTimer = self.gameTimer - self.lastBossDeathTime
     end
 
-    -- 4. Atualiza Inimigos Existentes (sempre executa)
-    -- Itera de trás para frente para permitir remoção segura
-    local camX, camY, camWidth, camHeight = Camera:getViewPort() -- Obtém a visão da câmera
-
-    local margin = 300                                           -- Margem para culling de update (isOffScreen)
-
     local playerPosition = self.playerManager:getPlayerPosition()
+
+    -- 1. Lógica de Despawn usando o DespawnController
+    local enemiesToDespawn = self.despawnController:getEntitiesToDespawn(
+    ---@diagnostic disable-next-line: param-type-mismatch
+        self.enemies,
+        playerPosition,
+        self.mapManager
+    )
+
+    -- 2. Itera de trás para frente para atualizar e remover inimigos
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
 
-        -- Lógica de reposicionamento para Boss/MVP
-        if enemy and enemy.isAlive and (enemy.isBoss or enemy.isMVP) then
-            if self.playerManager then
-                local dx = enemy.position.x - playerPosition.x
-                local dy = enemy.position.y - playerPosition.y
-                local distance = math.sqrt(dx * dx + dy * dy)
-                local repositionDistance = 1500 -- Distância em pixels para acionar o teleporte
-
-                if distance > repositionDistance then
-                    Logger.info("[EnemyManager]",
-                        string.format("Reposicionando inimigo especial (ID: %d) por estar muito distante.", enemy.id))
-                    self:repositionBossOrMvp(enemy)
-                end
+        -- Se o inimigo está na lista de despawn, remove-o e pula para o próximo
+        if enemiesToDespawn[enemy.id] then
+            if self.spatialGrid then
+                self.spatialGrid:removeEntityCompletely(enemy)
             end
+            self:returnEnemyToPool(enemy)
+            table.remove(self.enemies, i)
+            goto continue_enemy_loop -- Usando um goto para pular o resto do loop para este inimigo
         end
 
-        -- Lógica de Despawn Inteligente (antes do update do inimigo)
-        if enemy and enemy.isAlive and not enemy.isBoss and not enemy.isMVP then
-            -- Verifica se o inimigo está fora da área (visão da câmera + despawnMargin)
-            if Culling.isOffScreen(enemy, camX, camY, camWidth, camHeight, self.despawnMargin) then
-                -- print(string.format("Despawning enemy ID %d (Class: %s) due to distance.", enemy.id, enemy.className)) -- Para Debug
-                if self.spatialGrid then
-                    self.spatialGrid:removeEntityCompletely(enemy)
-                end
-                self:returnEnemyToPool(enemy)
-                table.remove(self.enemies, i)
-                goto continue_enemy_loop -- Pula o resto do update para este inimigo, já que foi removido
+        -- Lógica de reposicionamento para Boss/MVP
+        if enemy and enemy.isAlive and (enemy.isBoss or enemy.isMVP) then
+            local dx = enemy.position.x - playerPosition.x
+            local dy = enemy.position.y - playerPosition.y
+            local distance = math.sqrt(dx * dx + dy * dy)
+            local repositionDistance = 1500 -- Distância em pixels para acionar o teleporte
+
+            if distance > repositionDistance then
+                Logger.debug(
+                    "enemy_manager.update.reposition",
+                    string.format(
+                        "[EnemyManager:update] Reposicionando inimigo especial (ID: %d) por estar muito distante.",
+                        enemy.id)
+                )
+                self:repositionBossOrMvp(enemy)
             end
         end
 
         -- Determina se o inimigo está dentro da área visível + margem de update
+        local camX, camY, camWidth, camHeight = Camera:getViewPort()
+        local margin = EnemyManager.DEFAULT_CULLING_MARGIN
         local inViewForUpdate = Culling.isInView(enemy, camX, camY, camWidth, camHeight, margin)
 
         -- Atualiza a lógica do inimigo
-        if enemy and (enemy.isAlive or enemy.isDying) then -- MODIFICADO: Permite update para inimigos morrendo
-            -- Atualiza a posição da entidade no grid ANTES de seu update de lógica
+        if enemy and (enemy.isAlive or enemy.isDying) then
             if self.spatialGrid then
                 self.spatialGrid:updateEntityInGrid(enemy)
             end
@@ -180,9 +295,9 @@ function EnemyManager:update(dt)
             end
         end
 
-        -- Remove o inimigo se estiver marcado para remoção (flag setada pelo próprio inimigo em seu update)
+        -- Remove o inimigo se estiver marcado para remoção pelo seu próprio update
         if enemy.shouldRemove then
-            if self.spatialGrid then -- Adicionado: Remove do grid ao remover da lista
+            if self.spatialGrid then
                 self.spatialGrid:removeEntityCompletely(enemy)
             end
 
@@ -221,9 +336,13 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
     local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- Necessário para pegar quads/texturas
 
     -- Obtém informações da câmera e tela
-    local camX = Camera.x
-    local camY = Camera.y
+    local playerPos = self.playerManager.movementController:getPosition()
     local screenW, screenH = ResolutionUtils.getGameDimensions()
+    local camX = playerPos.x - screenW / 2
+    local camY = playerPos.y - screenH / 2
+
+    -- Pega os offsets de câmera da fonte centralizada
+    local camOffsetX, camOffsetY = self.mapManager:getCameraOffsets()
 
     for _, enemy in ipairs(self.enemies) do
         if enemy and enemy.position and enemy.sprite then -- Garante que o inimigo e seu sprite existem
@@ -309,14 +428,14 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
                     -- Usar a base do sprite para ordenação é comum.
                     local sortY = instanceAnimConfig.position.y + oy * instanceAnimConfig.scale
 
-                    local rendable = TablePool.get()
+                    local rendable = TablePool.getArray()
                     rendable.type = "enemy_sprite"
                     rendable.sortY = sortY
                     rendable.depth = RenderPipeline.DEPTH_ENTITIES
                     rendable.texture = enemySheetTexture
                     rendable.quad = quad
-                    rendable.x = instanceAnimConfig.position.x
-                    rendable.y = instanceAnimConfig.position.y
+                    rendable.x = instanceAnimConfig.position.x + camOffsetX
+                    rendable.y = instanceAnimConfig.position.y + camOffsetY
                     rendable.rotation = 0
                     rendable.scale = instanceAnimConfig.scale
                     rendable.ox = ox
@@ -342,21 +461,25 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
 
                     -- <<< NOVA LÓGICA PARA BARRAS DE VIDA DE MVP >>>
                     if enemy.isMVP and enemy.isAlive then
-                        local mvpBarRenderable = TablePool.get()
+                        local mvpBarRenderable = TablePool.getArray()
                         mvpBarRenderable.type = "drawFunction"
                         mvpBarRenderable.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI -- Renderiza sobre os sprites
                         mvpBarRenderable.sortY = sortY + 1000
 
                         local capturedEnemy = enemy
                         mvpBarRenderable.drawFunction = function()
-                            self:drawMvpBar(capturedEnemy, capturedEnemy.position.x, capturedEnemy.position.y)
+                            self:drawMvpBar(
+                                capturedEnemy,
+                                capturedEnemy.position.x + camOffsetX,
+                                capturedEnemy.position.y + camOffsetY
+                            )
                         end
                         renderPipelineInstance:add(mvpBarRenderable)
                     end
 
                     -- <<< LÓGICA PARA EFEITOS DE DESENHO DOS BOSSES >>>
                     if enemy.isBoss and enemy.isAlive and enemy.draw then
-                        local bossEffectsRenderable = TablePool.get()
+                        local bossEffectsRenderable = TablePool.getArray()
                         bossEffectsRenderable.type = "drawFunction"
                         bossEffectsRenderable.depth = RenderPipeline
                             .DEPTH_EFFECTS_WORLD_UI -- Renderiza sobre os sprites
@@ -365,7 +488,10 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
 
                         local capturedBoss = enemy
                         bossEffectsRenderable.drawFunction = function()
-                            capturedBoss:draw()
+                            -- ATENÇÃO: Se a função draw do Boss desenhar algo em coordenadas de mundo,
+                            -- ela também precisará do offset. Por enquanto, a chamada é mantida como está.
+                            -- Se o boss também estiver "preso", sua própria função :draw() precisará ser ajustada.
+                            capturedBoss:draw(camOffsetX, camOffsetY)
                         end
                         renderPipelineInstance:add(bossEffectsRenderable)
                     end
@@ -444,9 +570,20 @@ function EnemyManager:getOrCreateEnemyInstance(enemyClassName, enemyClass)
 end
 
 -- Adiciona um inimigo ao pool para reutilização
+---@param enemy BaseEnemy
 function EnemyManager:returnEnemyToPool(enemy)
     if not enemy or not enemy.className then
-        print("AVISO [EnemyManager:returnEnemyToPool]: Tentativa de retornar inimigo inválido ou sem className ao pool.")
+        Logger.warn("[EnemyManager:returnEnemyToPool]",
+            "Tentativa de retornar inimigo inválido ou sem className ao pool.")
+        return -- Adicionado para evitar erro se enemy for nulo
+    end
+
+    -- DEBUG: Verifica se a tabela currentGridCells está sendo liberada corretamente
+    if enemy.currentGridCells then
+        Logger.debug("enemy_manager.debug.pool",
+            string.format("[Entity ID: %s] Returning to pool. Releasing currentGridCells.", tostring(enemy.id)))
+        TablePool.releaseArray(enemy.currentGridCells)
+        enemy.currentGridCells = nil
     end
 
     -- Reseta o estado do inimigo para um estado "limpo"
@@ -458,8 +595,6 @@ function EnemyManager:returnEnemyToPool(enemy)
         self.enemyPool[enemyClassName] = {}
     end
     table.insert(self.enemyPool[enemyClassName], enemy)
-    -- print(string.format("Inimigo ID %s (Classe: %s) retornado ao pool. Pool para %s agora tem %d.",
-    --     tostring(enemy.id), enemyClassName, enemyClassName, #self.enemyPool[enemyClassName]))
 end
 
 -- Função para transformar um inimigo em MVP
@@ -643,6 +778,12 @@ end
 
 -- Função para ser chamada quando o EnemyManager não for mais necessário (ex: sair do jogo/cena)
 function EnemyManager:destroy()
+    -- Remover event listeners para evitar vazamentos de memória
+    if _G.EventManager then
+        _G.EventManager:off(EventManager.EVENTS.PLAYER_WRAPPED, self._onPlayerWrapped)
+        Logger.debug("enemy_manager.destroy.events", "Event listeners removidos")
+    end
+
     if self.spatialGrid and self.spatialGrid.destroy then
         self.spatialGrid:destroy()
         self.spatialGrid = nil
@@ -728,7 +869,10 @@ end
 --- A nova posição é calculada na direção em que o jogador está se movendo.
 ---@param enemy BaseEnemy O inimigo a ser reposicionado.
 function EnemyManager:repositionBossOrMvp(enemy)
-    local camX, camY, camWidth, camHeight = Camera:getViewPort()
+    local playerPos = self.playerManager.movementController:getPosition()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
+    local camX = playerPos.x - screenW / 2
+    local camY = playerPos.y - screenH / 2
     local playerVel = self.playerManager:getPlayerVelocity()
 
     -- Buffer para garantir que o inimigo seja reposicionado fora da tela
@@ -736,10 +880,10 @@ function EnemyManager:repositionBossOrMvp(enemy)
 
     -- Zonas de reposicionamento ao redor da câmera
     local spawnZones = {
-        top = { x = camX - buffer, y = camY - buffer, width = camWidth + buffer * 2, height = buffer },
-        bottom = { x = camX - buffer, y = camY + camHeight, width = camWidth + buffer * 2, height = buffer },
-        left = { x = camX - buffer, y = camY, width = buffer, height = camHeight },
-        right = { x = camX + camWidth, y = camY, width = buffer, height = camHeight }
+        top = { x = camX - buffer, y = camY - buffer, width = screenW + buffer * 2, height = buffer },
+        bottom = { x = camX - buffer, y = camY + screenH, width = screenW + buffer * 2, height = buffer },
+        left = { x = camX - buffer, y = camY, width = buffer, height = screenH },
+        right = { x = camX + screenW, y = camY, width = buffer, height = screenH }
     }
 
     local weights = { top = 1, bottom = 1, left = 1, right = 1 }
@@ -817,11 +961,19 @@ function EnemyManager:getDebugInfo()
         spawnInfo = self.spawnController:getSpawnQueueInfo()
     end
 
+    -- Informações específicas do sistema infinito
+    local spatialGridInfo = {
+        isInfinite = self.spatialGrid and self.spatialGrid.isInfinite or false,
+        gridSize = self.spatialGrid and
+            string.format("%dx%d", self.spatialGrid.numCols, self.spatialGrid.numRows) or "N/A"
+    }
+
     return {
         totalEnemies = totalEnemies,
         activeBosses = activeBosses,
         activeMVPs = activeMVPs,
         spawnInfo = spawnInfo,
+        spatialGridInfo = spatialGridInfo,
         gameTimer = self.gameTimer
     }
 end

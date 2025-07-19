@@ -9,6 +9,7 @@ local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local TablePool = require("src.utils.table_pool")
 local Constants = require("src.config.constants")
 local DamageNumberManager = require("src.managers.damage_number_manager")
+local MathUtils = require("src.utils.math_utils")
 
 -- Caches globais para otimização
 local positionCache = {}
@@ -235,6 +236,12 @@ end
 --- @param enemyManager EnemyManager The enemy manager.
 --- @param isSlowUpdate boolean Whether to update the enemy slowly.
 function BaseEnemy:update(dt, playerManager, enemyManager, isSlowUpdate)
+    -- LOG: Ponto de partida
+    if self.id == 10 then
+        Logger.debug("base_enemy.update.start",
+            string.format("[ID 10] FRAME START - Pos: (%.1f, %.1f)", self.position.x, self.position.y))
+    end
+
     if self.isDying then
         local finished = AnimatedSpritesheet.update(self.unitType, self.sprite, dt, self.sprite.position)
         if finished then
@@ -259,6 +266,12 @@ function BaseEnemy:update(dt, playerManager, enemyManager, isSlowUpdate)
         self:updateMovementOptimized(dt, playerManager, isSlowUpdate)
         self:applySeparationOptimized(enemyManager, dt)
         self:checkPlayerCollisionOptimized(dt, playerManager)
+    end
+
+    -- LOG: Posição após todo o movimento e antes do wrap
+    if self.id == 10 then
+        Logger.debug("base_enemy.update.post_move",
+            string.format("[ID 10] POST-MOVE - Pos: (%.1f, %.1f)", self.position.x, self.position.y))
     end
 
     -- Update animação (otimizado para referenciar diretamente)
@@ -328,6 +341,15 @@ function BaseEnemy:applySeparationOptimized(enemyManager, dt)
                 local ody = self.position.y - other.position.y
                 local distSq = odx * odx + ody * ody
 
+                -- LOG DE DIAGNÓSTICO DE SEPARAÇÃO (TODOS OS INIMIGOS)
+                if distSq > (500 * 500) then -- Log se a distância for suspeitosamente grande (> 500 pixels)
+                    Logger.debug("base_enemy.separation.check", string.format(
+                        "[ID %s] VIZINHO DISTANTE? Self: (%.1f, %.1f), Other ID %s: (%.1f, %.1f), Dist: %.1f",
+                        tostring(self.id), self.position.x, self.position.y, tostring(other.id), other.position.x,
+                        other.position.y, math.sqrt(distSq)
+                    ))
+                end
+
                 if distSq > 0 then
                     local dist = math.sqrt(distSq)
                     -- Aumenta distância desejada para melhor separação
@@ -355,6 +377,14 @@ function BaseEnemy:applySeparationOptimized(enemyManager, dt)
     local scale = dt * 4.0 -- Aumentado de 2.5 para 4.0
     sepX = sepX * scale
     sepY = sepY * scale
+
+    -- LOG DE DIAGNÓSTICO DE SEPARAÇÃO (TODOS OS INIMIGOS)
+    if (math.abs(sepX) > 100 or math.abs(sepY) > 100) then -- Log se a força for muito grande
+        Logger.debug("base_enemy.separation.force", string.format(
+            "[ID %s] FORÇA DE SEPARAÇÃO ALTA: sepX: %.1f, sepY: %.1f",
+            tostring(self.id), sepX, sepY
+        ))
+    end
 
     -- Atualiza cache com timestamp
     separationCache[cacheKey] = {
@@ -462,14 +492,42 @@ function BaseEnemy:updateMovementOptimized(dt, playerManager, isSlowUpdate)
     if currentTime - self.lastDirectionUpdate >= self.directionUpdateInterval then
         self.lastDirectionUpdate = currentTime
 
-        local dx = playerPos.position.x - self.position.x
-        local dy = playerPos.position.y - self.position.y
+        ---@type InfinityWrapMapManager
+        local mapManager = ManagerRegistry:get("mapManager")
 
-        local lenSq = dx * dx + dy * dy
+        -- LÓGICA DE PATHFINDING TOROIDAL (MÉTODO DE PONTO-ALVO)
+        local worldWidth, worldHeight = mapManager:getWorldTileDimensions()
+        local enemyTilePos = mapManager:isometricToCartesianTile(self.position.x, self.position.y)
+        local playerTilePos = mapManager:isometricToCartesianTile(playerPos.position.x, playerPos.position.y)
+
+        -- 1. Calcula o vetor de deslocamento mais curto em tiles
+        local deltaTileX, deltaTileY = MathUtils.calculateShortestTorusVector(
+            enemyTilePos.x,
+            enemyTilePos.y,
+            playerTilePos.x,
+            playerTilePos.y,
+            worldWidth,
+            worldHeight
+        )
+
+        -- 2. Calcula a posição do "próximo passo" do inimigo no espaço de tiles.
+        --    Não usamos o delta inteiro, apenas um passo na direção dele para evitar saltos.
+        local nextStepTileX = enemyTilePos.x + deltaTileX
+        local nextStepTileY = enemyTilePos.y + deltaTileY
+
+        -- 3. Converte a posição do "próximo passo" de volta para o espaço isométrico (pixels)
+        local targetIsoPos = mapManager:cartesianToIsometric(nextStepTileX, nextStepTileY)
+
+        -- 4. Calcula o vetor de direção final a partir da posição atual para a posição alvo
+        local directionX = targetIsoPos.x - self.position.x
+        local directionY = targetIsoPos.y - self.position.y
+
+        -- 5. Normaliza o vetor de direção
+        local lenSq = directionX * directionX + directionY * directionY
         if lenSq > 0 then
-            local invLen = 1 / math.sqrt(lenSq) -- Otimização: evita divisão
-            self.cachedDirection.x = dx * invLen
-            self.cachedDirection.y = dy * invLen
+            local invLen = 1 / math.sqrt(lenSq)
+            self.cachedDirection.x = directionX * invLen
+            self.cachedDirection.y = directionY * invLen
         else
             self.cachedDirection.x = 0
             self.cachedDirection.y = 0
