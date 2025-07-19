@@ -706,9 +706,6 @@ function BaseEnemy:startDeathAnimation()
     end
 end
 
---- Resets the enemy
---- @param position table Position.
---- @param id number Unique ID.
 --- Reset otimizado para pooling (reutiliza objetos)
 ---@param position table
 ---@param id number
@@ -810,6 +807,18 @@ end
 
 --- Draws debug information for the enemy, like its collision radius.
 function BaseEnemy:drawDebug()
+    ---@type InfinityWrapMapManager
+    local mapManager = ManagerRegistry:get("mapManager")
+    local camOffsetX, camOffsetY = mapManager:getCameraOffsets()
+
+    -- Desenha o ID do inimigo
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print(
+        string.format("ID: %d", self.id),
+        self.position.x - self.radius + camOffsetX,
+        self.position.y - self.radius + camOffsetY
+    )
+
     if not DEBUG_SHOW_PARTICLE_COLLISION_RADIUS then return end
     if not self.isAlive then return end
 

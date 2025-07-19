@@ -1,6 +1,9 @@
+--------------------------------------------------------------------------------
+--- Extraction Portal Manager
+--- Gerencia a criação e atualização dos portais de extração
+--------------------------------------------------------------------------------
+
 local ExtractionPortal = require("src.entities.extraction_portal")
-local Culling = require("src.core.culling")
-local Camera = require("src.config.camera")
 local ManagerRegistry = require("src.managers.manager_registry")
 local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
 
@@ -8,6 +11,16 @@ local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
 ---@field portals table<ExtractionPortal>
 local ExtractionPortalManager = {}
 ExtractionPortalManager.__index = ExtractionPortalManager
+
+ExtractionPortalManager.CULL_MARGIN_DRAW = 50
+ExtractionPortalManager.CULL_MARGIN_UPDATE = 200
+ExtractionPortalManager.MIN_PORTAL_DIST = 10000
+ExtractionPortalManager.MAX_PORTAL_DIST = 15000
+--- TODO: ExtractionPortalManager.NUM_PORTALS - Essa propriedade deve vir do mapa
+ExtractionPortalManager.NUM_PORTALS = 2
+ExtractionPortalManager.ATTEMPTS = 50
+ExtractionPortalManager.PORTAL_INTERACTION_RADIUS = 64
+ExtractionPortalManager.PORTAL_SEQUENCE_DURATION = 2.5
 
 -- Cria uma nova instância do ExtractionPortalManager
 function ExtractionPortalManager:new()
@@ -23,18 +36,13 @@ function ExtractionPortalManager:spawnPortals()
     local playerManager = ManagerRegistry:get("playerManager")
 
     local playerPos = playerManager:getPlayerPosition()
-    local minPlayerDist = 10000 -- Minimum distance from player
-    local maxPlayerDist = 15000 -- Maximum distance from player
-    local minPortalDist = 10000 -- Minimum distance between portals
-    local numPortals = 2
-    local attempts = 50        -- Max attempts to find a valid position
 
-    for i = 1, numPortals do
+    for i = 1, self.NUM_PORTALS do
         local validPositionFound = false
         local x, y
-        for _ = 1, attempts do
+        for _ = 1, self.ATTEMPTS do
             local angle = math.random() * 2 * math.pi
-            local distance = minPlayerDist + math.random() * (maxPlayerDist - minPlayerDist)
+            local distance = self.MIN_PORTAL_DIST + math.random() * (self.MAX_PORTAL_DIST - self.MIN_PORTAL_DIST)
             x = playerPos.x + math.cos(angle) * distance
             y = playerPos.y + math.sin(angle) * distance
 
@@ -42,7 +50,7 @@ function ExtractionPortalManager:spawnPortals()
             local isPositionClear = true
             for _, otherPortal in ipairs(self.portals) do
                 local distToPortal = math.sqrt((x - otherPortal.position.x) ^ 2 + (y - otherPortal.position.y) ^ 2)
-                if distToPortal < minPortalDist then
+                if distToPortal < self.MIN_PORTAL_DIST then
                     isPositionClear = false
                     break
                 end
@@ -71,35 +79,39 @@ function ExtractionPortalManager:update(dt)
     local playerManager = ManagerRegistry:get("playerManager")
     ---@type ExtractionManager
     local extractionManager = ManagerRegistry:get("extractionManager")
+    ---@type CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager")
 
     local playerPos = playerManager:getPlayerPosition()
-    local interactionRadius = 64 -- Same as portal radius, more or less
+    local interactionRadius = self.PORTAL_INTERACTION_RADIUS
     local isPlayerOnAnyPortalThisFrame = false
 
     for _, portal in ipairs(self.portals) do
-        local distToPlayer = math.sqrt((portal.position.x - playerPos.x) ^ 2 + (portal.position.y - playerPos.y) ^ 2)
+        if cullingManager:isInView(portal, self.CULL_MARGIN_UPDATE) then
+            local distToPlayer = math.sqrt((portal.position.x - playerPos.x) ^ 2 + (portal.position.y - playerPos.y) ^ 2)
 
-        if distToPlayer <= interactionRadius then
-            isPlayerOnAnyPortalThisFrame = true
-            if portal.state == "idle" then
-                portal:startActivation()
-                extractionManager:showExtractionTimerProgress(portal.activationDuration, "Extraindo...")
+            if distToPlayer <= interactionRadius then
+                isPlayerOnAnyPortalThisFrame = true
+                if portal.state == "idle" then
+                    portal:startActivation()
+                    extractionManager:showExtractionTimerProgress(portal.activationDuration, "Extraindo...")
+                end
+
+                if portal.state == "activating" and HUDGameplayManager:isExtractionFinished() then
+                    portal.state = "activated"
+                    extractionManager:stopExtractionTimer()
+
+                    -- Inicia a nova sequência de extração através do manager unificado
+                    extractionManager:startExtractionSequence({
+                        type = 'portal',
+                        source = portal,
+                        duration = self.PORTAL_SEQUENCE_DURATION,
+                        details = { portalData = portal.portalData }
+                    })
+                end
             end
-
-            if portal.state == "activating" and HUDGameplayManager:isExtractionFinished() then
-                portal.state = "activated"
-                extractionManager:stopExtractionTimer()
-
-                -- Inicia a nova sequência de extração através do manager unificado
-                extractionManager:startExtractionSequence({
-                    type = 'portal',
-                    source = portal,
-                    duration = 2.5, -- Duração total da sequência do portal
-                    details = { portalData = portal.portalData }
-                })
-            end
+            portal:update(dt)
         end
-        portal:update(dt)
     end
 
     -- Esta condição agora verifica corretamente se o jogador ACABOU de sair da área do portal.
@@ -118,11 +130,23 @@ end
 -- Coleta os renderizáveis dos portais
 ---@param renderPipeline RenderPipeline
 function ExtractionPortalManager:collectRenderables(renderPipeline)
+    ---@type CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager")
+
     for _, portal in ipairs(self.portals) do
-        if Culling.isInView(portal, Camera.x, Camera.y, Camera.screenWidth, Camera.screenHeight, 100) then
+        if cullingManager:isInView(portal, self.CULL_MARGIN_DRAW) then
             portal:collectRenderables(renderPipeline)
         end
     end
+end
+
+-- Spawna um portal no local de morte do ultimo boss
+-- TODO: ExtractionPortalManager:spawnPortalOnDeath - Essa função deve ser chamada quando o ultimo boss morrer, talvez com uma animação de morte
+---@param x number
+---@param y number
+function ExtractionPortalManager:spawnPortalOnDeath(x, y)
+    local portal = ExtractionPortal:new(x, y)
+    table.insert(self.portals, portal)
 end
 
 return ExtractionPortalManager

@@ -77,3 +77,5 @@
 ---@field r number
 ---@field sx number
 ---@field sy number
+
+---@alias BaseEntity { position: Vector2D }

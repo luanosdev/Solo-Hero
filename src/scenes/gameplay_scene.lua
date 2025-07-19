@@ -8,9 +8,7 @@ local InventoryScreen = require("src.ui.screens.inventory_screen")
 local ItemDetailsModal = require("src.ui._item_details_modal")
 local ManagerRegistry = require("src.managers.manager_registry")
 local ItemDetailsModalManager = require("src.managers.item_details_modal_manager")
-local portalDefinitions = require("src.data.portals.portal_definitions")
 local Constants = require("src.config.constants")
-local Culling = require("src.core.culling")
 local BossHealthBarManager = require("src.managers.boss_health_bar_manager")
 local weapons = require("src.data.items.weapons")
 
@@ -129,6 +127,10 @@ function GameplayScene:load(args)
             self.gameOverManager:start(self.currentPortalData, deathCause)
         end)
     end
+
+    -- Inicializa o CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager") ---@type CullingManager
+    cullingManager:init(playerMgr, self.mapManager)
 
     -- Posiciona camera inicial
     local playerInitialPos = playerMgr:getPlayerPosition()
@@ -385,6 +387,7 @@ function GameplayScene:draw()
     local hudGameplayManager = ManagerRegistry:get("hudGameplayManager") ---@type HUDGameplayManager
     local extractionPortalManager = ManagerRegistry:get("extractionPortalManager") ---@type ExtractionPortalManager
     local extractionManager = ManagerRegistry:get("extractionManager") ---@type ExtractionManager
+    local cullingManager = ManagerRegistry:get("cullingManager") ---@type CullingManager
 
     if playerMgr then
         playerMgr:collectRenderables(self.renderPipeline)
@@ -413,23 +416,15 @@ function GameplayScene:draw()
         self.renderPipeline:draw(playerMgr.movementController:getPosition())
     end
 
-    -- DEBUG: Desenha informações de debug dos inimigos (como raios de colisão)
-    if DEBUG_SHOW_PARTICLE_COLLISION_RADIUS and enemyMgr and enemyMgr.getEnemies then
+    -- DEBUG: Desenha informações de debug dos inimigos
+    if enemyMgr and enemyMgr.getEnemies and cullingManager then
         local enemies = enemyMgr:getEnemies()
         if enemies then
             for _, enemyInstance in ipairs(enemies) do
-                if enemyInstance and enemyInstance.isAlive and enemyInstance.drawDebug then
-                    -- Verifica se o inimigo está aproximadamente na visão da câmera antes de desenhar debug
-                    -- Isso é um culling simples para o debug, pode ser ajustado
-                    if Culling.isInView(
-                            enemyInstance,
-                            Camera.x,
-                            Camera.y,
-                            Camera.screenWidth,
-                            Camera.screenHeight,
-                            100
-                        ) then
-                        enemyInstance:drawDebug()
+                if enemyInstance and enemyInstance.isAlive then
+                    -- Usa o novo CullingManager para consistência total
+                    if cullingManager:isInView(enemyInstance, enemyMgr.CULL_MARGIN_DRAW) then
+                        enemyMgr:drawEnemyId(enemyInstance)
                     end
                 end
             end
@@ -437,21 +432,6 @@ function GameplayScene:draw()
     end
 
     Camera:detach()
-
-    -- Desenha elementos de UI e outros que ficam sobre a câmera (ex: barras de vida de BaseEnemy)
-    -- if playerMgr and playerMgr.drawFloatingTexts then
-    --    playerMgr:drawFloatingTexts()
-    --end
-    -- Se BaseEnemy:draw desenha barras de vida diretamente, ele precisa ser chamado aqui para cada inimigo visível
-    -- ou suas barras de vida precisam ser adicionadas à renderList com um depth maior.
-    -- Exemplo simples (ineficiente, apenas para ilustração):
-    if enemyMgr and enemyMgr.getEnemies then
-        for _, enemyInstance in ipairs(enemyMgr:getEnemies()) do
-            if enemyInstance.isAlive and enemyInstance.drawHealthBar then -- Supondo que exista um drawHealthBar
-                -- enemyInstance:drawHealthBar()                             -- Esta função desenharia a barra de vida diretamente na tela
-            end
-        end
-    end
 
     LevelUpModal:draw()
     RuneChoiceModal:draw()
@@ -479,11 +459,11 @@ function GameplayScene:draw()
             love.graphics.setColor(0, 0, 0, 0.7)
             love.graphics.rectangle('fill', ResolutionUtils.getGameWidth() - 210, 5, 205, 150)
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.setFont(fonts.debug or fonts.main_small)
+            love.graphics.setFont(fonts.main_small)
             local debugText = string.format(
                 "Enemy Info:\nTotal: %d | Ciclo: %d | Timer: %.1f",
                 #enemies,
-                enemyMgr.currentCycleIndex or 0,
+                enemyMgr.spawnController.currentCycleIndex or 0,
                 enemyMgr.gameTimer or 0
             )
             local bossCount = 0
@@ -721,11 +701,9 @@ function GameplayScene:_cleanupLocalSystems()
 
     -- Limpa IsometricPatchMapManager
     if self.mapManager then
-        if self.mapManager.destroy and type(self.mapManager.destroy) == "function" then
-            self.mapManager:destroy()
-            Logger.debug("gameplay_scene.cleanup_local_systems.map_manager_destroyed",
-                "IsometricPatchMapManager destruído")
-        end
+        self.mapManager:destroy()
+        Logger.debug("gameplay_scene.cleanup_local_systems.map_manager_destroyed",
+            "IsometricPatchMapManager destruído")
         self.mapManager = nil
     end
 
@@ -911,7 +889,7 @@ function GameplayScene:debugDropItemAtPlayer(itemId, quantity)
         return
     end
 
-    if not playerManager.player or not playerManager.player.position then
+    if not playerManager.getPlayerPosition or not playerManager:getPlayerPosition() then
         print("[DEBUG] ERRO: Posição do jogador não disponível para dropar o item.")
         return
     end
@@ -921,7 +899,7 @@ function GameplayScene:debugDropItemAtPlayer(itemId, quantity)
         return
     end
 
-    local playerPos = playerManager.player.position
+    local playerPos = playerManager:getPlayerPosition()
     local dropPosition = { x = playerPos.x + 50, y = playerPos.y } -- Dropa um pouco à direita do jogador
 
     local dropData = { type = "item", itemId = itemId, quantity = quantity }
@@ -942,9 +920,9 @@ function GameplayScene:checkForBossPresentation()
 
     local enemyManager = ManagerRegistry:get("enemyManager")
     local playerManager = ManagerRegistry:get("playerManager")
-    if not enemyManager or not playerManager or not playerManager.player then return end
+    if not enemyManager or not playerManager or not playerManager:getPlayerPosition() then return end
 
-    local playerPos = playerManager.player.position
+    local playerPos = playerManager:getPlayerPosition()
     local enemies = enemyManager:getEnemies()
 
     for _, enemy in ipairs(enemies) do

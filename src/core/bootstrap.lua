@@ -19,6 +19,7 @@ local InventoryManager = require("src.managers.inventory_manager")
 local HUDGameplayManager = require("src.managers.hud_gameplay_manager")
 local ExtractionPortalManager = require("src.managers.extraction_portal_manager")
 local ExtractionManager = require("src.managers.extraction_manager")
+local CullingManager = require("src.managers.culling_manager")
 
 local Bootstrap = {}
 
@@ -91,6 +92,15 @@ function Bootstrap.initialize()
         Logger.debug("Bootstrap", "InventoryManager registrado.")
     else
         Logger.debug("Bootstrap", "InventoryManager já existe, pulando criação")
+    end
+
+    if not ManagerRegistry:tryGet("cullingManager") then
+        Logger.debug("Bootstrap", "Criando/Registrando CullingManager...")
+        local cullingManager = CullingManager:new()
+        ManagerRegistry:register("cullingManager", cullingManager, false)
+        Logger.debug("Bootstrap", "CullingManager registrado.")
+    else
+        Logger.debug("Bootstrap", "CullingManager já existe, pulando criação")
     end
 
     -- FloatingTextManager

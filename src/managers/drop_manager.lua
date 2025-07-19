@@ -1,20 +1,17 @@
-------------------------------------------------
+--------------------------------------------------------------------------------
 -- Drop Manager
 -- Gerencia os drops de bosses e outros inimigos
 -- Usa o spritesheet beam_drop.png para animação dos drops
 -- Coleta automática ao atingir a área de pickup
-------------------------------------------------
+--------------------------------------------------------------------------------
 
 local DropEntity = require("src.entities.drop_entity")
-local Colors = require("src.ui.colors")
 local Constants = require("src.config.constants")
 local TablePool = require("src.utils.table_pool")
 local RenderPipeline = require("src.core.render_pipeline")
 local globalDropTable = require("src.data.global_drops")
 local mvpDropTable = require("src.data.mvp_drops")
-local Culling = require("src.core.culling")
-local Camera = require("src.config.camera")
-local ResolutionUtils = require("src.utils.resolution_utils")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 ---@class DropManager
 ---@field activeDrops DropEntity[] Lista de drops ativos no mundo
@@ -24,17 +21,13 @@ local ResolutionUtils = require("src.utils.resolution_utils")
 ---@field floatingTextManager FloatingTextManager Gerenciador de textos flutuantes
 ---@field itemDataManager ItemDataManager Gerenciador de dados de itens
 ---@field dropPool table<number, DropEntity> Pool de entidades de drop inativas
-local DropManager = {
-    activeDrops = {}, -- Lista de drops ativos no mundo
-    dropPool = {},    -- Pool de drops inativos para reutilização
-}
+local DropManager = {}
+DropManager.__index = DropManager
 
--- Configurações de raridade removidas - agora controladas pelo DropEntity
+DropManager.CULL_MARGIN_UPDATE = 200
+DropManager.CULL_MARGIN_DRAW = 50
 
---[[
-    Inicializa o gerenciador de drops
-    @param config (table): Tabela contendo as dependências { playerManager, enemyManager, runeManager, floatingTextManager, itemDataManager }
-]]
+---@param config table Tabela contendo as dependências { playerManager, enemyManager, runeManager, floatingTextManager, itemDataManager }
 function DropManager:init(config)
     config = config or {}
     self.activeDrops = {}
@@ -47,7 +40,6 @@ function DropManager:init(config)
     self.itemDataManager = config.itemDataManager
 
     -- Obtém ArtefactManager do Registry
-    local ManagerRegistry = require("src.managers.manager_registry")
     ---@type ArtefactManager
     self.artefactManager = ManagerRegistry:tryGet("artefactManager")
 
@@ -323,28 +315,14 @@ end
 --- Atualiza os drops ativos (coleta automática ao atingir área)
 ---@param dt number Delta time
 function DropManager:update(dt)
-    -- Culling: get player world position to define the view area
-    local playerPos = self.playerManager.movementController and self.playerManager.movementController:getPosition()
-
-    -- Fallback if we can't get player position, just update everything
-    if not playerPos then
-        Logger.warn("drop_manager.update.no_player_position",
-            "[DropManager:update] Não foi possível obter a posição do jogador. Pulando update."
-        )
-        return
-    end
-
-    local camWidth = ResolutionUtils.getGameWidth()
-    local camHeight = ResolutionUtils.getGameHeight()
-    local camX = playerPos.x - camWidth / 2
-    local camY = playerPos.y - camHeight / 2
-    local cullMargin = 200 -- A generous margin to ensure drops near the screen edge are updated
+    ---@type CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager")
 
     for i = #self.activeDrops, 1, -1 do
         local drop = self.activeDrops[i]
 
         -- Only update drops that are inside or near the viewport
-        if Culling.isInView(drop, camX, camY, camWidth, camHeight, cullMargin) then
+        if cullingManager:isInView(drop, self.CULL_MARGIN_UPDATE) then
             if drop:update(dt, self.playerManager) then
                 -- Se o drop foi coletado automaticamente, aplica seus efeitos
                 self:applyDrop(drop.config) -- Passa a configuração original do drop
@@ -416,22 +394,15 @@ function DropManager:collectRenderables(renderPipeline)
         return
     end
 
-    local playerPos = self.playerManager:getPlayerPosition()
-    if not playerPos then return end
-
-    -- Com o mapa infinito, a "câmera" está sempre centralizada no jogador.
-    -- Portanto, a área visível do mundo é um retângulo em torno da posição do jogador.
-    local camWidth = ResolutionUtils.getGameWidth()
-    local camHeight = ResolutionUtils.getGameHeight()
-    local camX = playerPos.x - camWidth / 2
-    local camY = playerPos.y - camHeight / 2
+    ---@type CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager")
 
     -- Captura 'self' para usar dentro da closure
     local manager = self
 
     for _, dropEntity in ipairs(self.activeDrops) do
         -- O culling agora usa a visão centrada no jogador
-        if not dropEntity.collected and Culling.isInView(dropEntity, camX, camY, camWidth, camHeight, 50) then
+        if not dropEntity.collected and cullingManager:isInView(dropEntity, self.CULL_MARGIN_DRAW) then
             -- A posição do DropEntity é o seu centro no chão.
             local dropWorldX = dropEntity.position.x
             local dropWorldY = dropEntity.position.y

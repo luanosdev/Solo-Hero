@@ -2,7 +2,6 @@ local SpatialGridIncremental = require("src.utils.spatial_grid_incremental")
 local TablePool = require("src.utils.table_pool")
 local Camera = require("src.config.camera")
 local RenderPipeline = require("src.core.render_pipeline")
-local Culling = require("src.core.culling")
 local DamageNumberManager = require("src.managers.damage_number_manager")
 local MVPTitlesData = require("src.data.mvp_titles_data")
 local EnemyNamesData = require("src.data.enemy_names_data")
@@ -11,8 +10,8 @@ local Fonts = require("src.ui.fonts")
 local Constants = require("src.config.constants")
 local SpawnController = require("src.controllers.spawn_controller")
 local Logger = require("src.libs.logger")
-local MathUtils = require("src.utils.math_utils")
 local DespawnController = require("src.controllers.despawn_controller")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 ---@class EnemyManager
 ---@description Gerenciador de inimigos com suporte a mapas infinitos e sistema de eventos.
@@ -36,9 +35,10 @@ local DespawnController = require("src.controllers.despawn_controller")
 local EnemyManager = {}
 EnemyManager.__index = EnemyManager
 
-EnemyManager.DEFAULT_MAX_ENEMIES = 100
-EnemyManager.DEFAULT_SPAWN_BUFFER = 150
-EnemyManager.DEFAULT_CULLING_MARGIN = 300
+EnemyManager.MAX_ENEMIES = 100
+EnemyManager.SPAWN_BUFFER = 150
+EnemyManager.CULL_MARGIN_UPDATE = 100
+EnemyManager.CULL_MARGIN_DRAW = 50
 
 -- Inicializa o gerenciador de inimigos com uma configuração de horda específica
 ---@param config table Tabela de configuração contendo { hordeConfig, playerManager, dropManager, mapManager }
@@ -86,7 +86,7 @@ function EnemyManager:setupGameplay(config)
     self:_setupMapWrappingEventListeners()
 
     self.enemies = {}
-    self.maxEnemies = EnemyManager.DEFAULT_MAX_ENEMIES
+    self.maxEnemies = EnemyManager.MAX_ENEMIES
     self.enemyPool = {}
 
     self.nextEnemyId = 1
@@ -126,6 +126,7 @@ function EnemyManager:_onPlayerWrapped()
 end
 
 --- Limpa inimigos que estão muito distantes do jogador após wrapping.
+--- TODO: Mover para o DespawnController
 function EnemyManager:_cleanupDistantEnemies()
     if not self.playerManager then return end
 
@@ -220,6 +221,9 @@ function EnemyManager:update(dt)
         self.bossDeathTimer = self.gameTimer - self.lastBossDeathTime
     end
 
+    ---@type CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager")
+
     local playerPosition = self.playerManager:getPlayerPosition()
 
     -- 1. Lógica de Despawn usando o DespawnController
@@ -262,17 +266,14 @@ function EnemyManager:update(dt)
             end
         end
 
-        -- Determina se o inimigo está dentro da área visível + margem de update
-        local camX, camY, camWidth, camHeight = Camera:getViewPort()
-        local margin = EnemyManager.DEFAULT_CULLING_MARGIN
-        local inViewForUpdate = Culling.isInView(enemy, camX, camY, camWidth, camHeight, margin)
-
-        -- Atualiza a lógica do inimigo
-        if enemy and (enemy.isAlive or enemy.isDying) then
+        -- Culling de LÓGICA: Atualiza apenas inimigos dentro da margem estendida
+        local isInViewForUpdate = cullingManager:isInView(enemy, self.CULL_MARGIN_UPDATE)
+        if enemy and isInViewForUpdate then
+            -- Passa o inverso para o inimigo saber se está "fora da visão principal"
+            enemy:update(dt, self.playerManager, self.mapManager, not cullingManager:isInView(enemy, 0))
             if self.spatialGrid then
                 self.spatialGrid:updateEntityInGrid(enemy)
             end
-            enemy:update(dt, self.playerManager, self, not inViewForUpdate)
         end
 
         -- Se o inimigo estiver morto e não estiver em animação de morte
@@ -335,11 +336,8 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
 
     local AnimatedSpritesheet = require("src.animations.animated_spritesheet") -- Necessário para pegar quads/texturas
 
-    -- Obtém informações da câmera e tela
-    local playerPos = self.playerManager.movementController:getPosition()
-    local screenW, screenH = ResolutionUtils.getGameDimensions()
-    local camX = playerPos.x - screenW / 2
-    local camY = playerPos.y - screenH / 2
+    ---@type CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager")
 
     -- Pega os offsets de câmera da fonte centralizada
     local camOffsetX, camOffsetY = self.mapManager:getCameraOffsets()
@@ -348,9 +346,8 @@ function EnemyManager:collectRenderables(renderPipelineInstance)
         if enemy and enemy.position and enemy.sprite then -- Garante que o inimigo e seu sprite existem
             local shouldDrawSprite = (enemy.isAlive or (enemy.isDying and not enemy.isDeathAnimationComplete))
             if not enemy.shouldRemove and shouldDrawSprite then
-                -- Usa Culling.isInView para verificar se o inimigo está na tela para renderização
-                -- Passa uma margem de 0, pois Culling.isInView já considera o entity.radius
-                if Culling.isInView(enemy, camX, camY, screenW, screenH, 0) then
+                -- Usa o novo CullingManager
+                if cullingManager:isInView(enemy, self.CULL_MARGIN_DRAW) then
                     local instanceAnimConfig = enemy.sprite
                     local unitType = instanceAnimConfig.unitType -- Agora temos isso no sprite config
                     local animState = instanceAnimConfig.animation
@@ -976,6 +973,23 @@ function EnemyManager:getDebugInfo()
         spatialGridInfo = spatialGridInfo,
         gameTimer = self.gameTimer
     }
+end
+
+--- Desenha o ID de um inimigo para fins de debug.
+--- Esta função não faz mais a verificação de culling. Ela assume
+--- que a cena que a chama já garantiu que o inimigo está visível.
+---@param enemy BaseEnemy
+function EnemyManager:drawEnemyId(enemy)
+    if not enemy or not enemy.id then return end
+
+    -- A lógica de culling foi movida para a gameplay_scene
+    local camOffsetX, camOffsetY = self.mapManager:getCameraOffsets()
+
+    local screenX, screenY = Camera:worldToScreen(enemy.position.x + camOffsetX, enemy.position.y + camOffsetY)
+
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.setFont(Fonts.main) -- Usar uma fonte de debug se disponível
+    love.graphics.print(tostring(enemy.id), screenX, screenY - 50)
 end
 
 return EnemyManager

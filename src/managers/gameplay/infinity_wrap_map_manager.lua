@@ -205,6 +205,24 @@ function InfinityWrapMapManager:getWorldTileDimensions()
     return self.mapData.width, self.mapData.height
 end
 
+--- Retorna as dimensões totais do mapa base em pixels isométricos.
+--- Essencial para a lógica de normalização de posições.
+---@return number width, number height
+function InfinityWrapMapManager:getWorldPixelDimensions()
+    if not self.mapData then
+        return 0, 0
+    end
+
+    -- CORREÇÃO FINAL: A fórmula correta para a bounding box de um mapa isométrico.
+    local tileMapWidth = self.mapData.width
+    local tileMapHeight = self.mapData.height
+
+    local pixelWidth = (tileMapWidth + tileMapHeight - 2) * (self.tileWidth / 2)
+    local pixelHeight = (tileMapWidth + tileMapHeight - 2) * (self.tileHeight / 2)
+
+    return pixelWidth, pixelHeight
+end
+
 -- === Funções Auxiliares de Construção ===
 
 --- Percorre todos os tiles para encontrar a maior dimensão de tile.
@@ -383,6 +401,14 @@ function InfinityWrapMapManager:isometricToCartesianTile(isoX, isoY)
     local cartX = (isoX / (self.tileWidth / 2) + isoY / (self.tileHeight / 2)) / 2
     local cartY = (isoY / (self.tileHeight / 2) - isoX / (self.tileWidth / 2)) / 2
     return { x = cartX, y = cartY }
+end
+
+function InfinityWrapMapManager:destroy()
+    for _, canvas in pairs(self.layerCanvases) do
+        canvas:release()
+    end
+    self.layerCanvases = {}
+    self.canvasRenderData = nil
 end
 
 return InfinityWrapMapManager

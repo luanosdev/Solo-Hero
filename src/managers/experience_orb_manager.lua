@@ -1,13 +1,13 @@
--------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Experience Orb Manager
 -- Gerencia os orbes de experiência com otimizações avançadas
 -- Usa SpriteBatch para renderização eficiente e pooling para performance
+--------------------------------------------------------------------------------
 
 local ExperienceOrb = require("src.entities.experience_orb")
 local ManagerRegistry = require("src.managers.manager_registry")
 local Constants = require("src.config.constants")
 local TablePool = require("src.utils.table_pool")
-local Culling = require("src.core.culling")
 local Camera = require("src.config.camera")
 local RenderPipeline = require("src.core.render_pipeline")
 local Colors = require("src.ui.colors")
@@ -20,29 +20,23 @@ local Colors = require("src.ui.colors")
 ---@field frameWidth number Largura de cada frame do spritesheet
 ---@field frameHeight number Altura de cada frame do spritesheet
 ---@field quadCache table Cache de quads para cada frame
----@field maxPoolSize number Tamanho máximo do pool
 ---@field lastCullingUpdate number Último tempo de atualização do culling
----@field cullingInterval number Intervalo entre atualizações de culling
 ---@field mergeGrid table<string, ExperienceOrb[]> Grid para agrupamento de orbes
 ---@field lastMergeUpdate number Último tempo de merge
----@field mergeInterval number Intervalo entre merges (segundos)
 ---@field needsUnmergeCheck boolean Flag para verificar desagrupamento
----@field lastCameraPosition {x: number, y: number}
----@field cameraMovementThreshold number
+---@field lastCameraPosition Vector2D
 ---@field lazyMergeCounter number Contador para merge ultra-lazy
----@field mergeFrequency number Frequência de merge (a cada X updates)
-local ExperienceOrbManager = {
-    orbs = {},
-    orbPool = {},
-    spriteBatch = nil,
-    texture = nil,
-    frameWidth = 0,
-    frameHeight = 0,
-    quadCache = {},
-    maxPoolSize = 200,
-    lastCullingUpdate = 0,
-    cullingInterval = 0.1 -- Atualiza culling a cada 100ms
-}
+local ExperienceOrbManager = {}
+ExperienceOrbManager.__index = ExperienceOrbManager
+
+ExperienceOrbManager.CULL_MARGIN_UPDATE = 100
+ExperienceOrbManager.CULL_MARGIN_DRAW = 50
+ExperienceOrbManager.MERGE_INTERVAL = 2.0
+ExperienceOrbManager.MERGE_FREQUENCY = 180
+ExperienceOrbManager.CULLING_INTERVAL = 0.1
+ExperienceOrbManager.CAMERA_MOVEMENT_THRESHOLD = 300
+ExperienceOrbManager.MAX_POOL_SIZE = 200
+ExperienceOrbManager.MAX_SPRITE_BATCH_SIZE = 1000
 
 function ExperienceOrbManager:init()
     self.orbs = {}
@@ -51,12 +45,13 @@ function ExperienceOrbManager:init()
     self.lastCullingUpdate = 0
     self.mergeGrid = {}
     self.lastMergeUpdate = 0
-    self.mergeInterval = 2.0 -- Merge a cada 2 segundos (bem lazy)
     self.needsUnmergeCheck = false
     self.lastCameraPosition = { x = 0, y = 0 }
-    self.cameraMovementThreshold = 300 -- Só verifica unmerge se câmera se moveu muito
     self.lazyMergeCounter = 0
-    self.mergeFrequency = 180          -- Merge só a cada 180 updates (~3 segundos a 60fps)
+    self.spriteBatch = nil
+    self.texture = nil
+    self.frameWidth = 0
+    self.frameHeight = 0
 
     -- Carrega o spritesheet
     self:_loadSpriteBatch()
@@ -72,7 +67,7 @@ function ExperienceOrbManager:_loadSpriteBatch()
         self.frameHeight = self.texture:getHeight() / ExperienceOrb.SPRITE_ROWS
 
         -- Cria o SpriteBatch
-        self.spriteBatch = love.graphics.newSpriteBatch(self.texture, 1000, "dynamic")
+        self.spriteBatch = love.graphics.newSpriteBatch(self.texture, self.MAX_SPRITE_BATCH_SIZE, "dynamic")
 
         -- Pré-cria todos os quads para cache
         for row = 0, ExperienceOrb.SPRITE_ROWS - 1 do
@@ -104,15 +99,16 @@ function ExperienceOrbManager:update(dt)
     self:_lazyMergeCheck()
 
     local currentTime = love.timer.getTime()
-    local shouldUpdateCulling = (currentTime - self.lastCullingUpdate) >= self.cullingInterval
+    local shouldUpdateCulling = (currentTime - self.lastCullingUpdate) >= self.CULLING_INTERVAL
 
-    local camX, camY, camWidth, camHeight
     if shouldUpdateCulling then
-        camX, camY, camWidth, camHeight = Camera:getViewPort()
         self.lastCullingUpdate = currentTime
     end
 
-    local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
+    ---@type CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager")
+    ---@type PlayerManager
+    local playerManager = ManagerRegistry:get("playerManager")
 
     -- Atualiza orbes ativos
     for i = #self.orbs, 1, -1 do
@@ -126,7 +122,7 @@ function ExperienceOrbManager:update(dt)
             -- Otimização: só atualiza orbes visíveis na tela (com margem)
             local inViewForUpdate = true
             if shouldUpdateCulling then
-                inViewForUpdate = Culling.isInView(orb, camX, camY, camWidth, camHeight, 100)
+                inViewForUpdate = cullingManager:isInView(orb, self.CULL_MARGIN_UPDATE)
             end
 
             if inViewForUpdate then
@@ -165,7 +161,7 @@ function ExperienceOrbManager:_returnOrbToPool(orb)
     orb:deactivate()
 
     -- Limita o tamanho do pool
-    if #self.orbPool < self.maxPoolSize then
+    if #self.orbPool < self.MAX_POOL_SIZE then
         table.insert(self.orbPool, orb)
     end
 end
@@ -182,7 +178,9 @@ function ExperienceOrbManager:collectRenderables(renderPipeline)
         self.spriteBatch:clear()
     end
 
-    local camX, camY, camWidth, camHeight = Camera:getViewPort()
+    ---@type CullingManager
+    local cullingManager = ManagerRegistry:get("cullingManager")
+
     ---@type ExperienceOrb[]
     local visibleOrbs = {}
 
@@ -190,7 +188,7 @@ function ExperienceOrbManager:collectRenderables(renderPipeline)
     for _, orb in ipairs(self.orbs) do
         if orb:isActive() then
             -- Verifica se o orbe está visível na tela
-            if Culling.isInView(orb, camX, camY, camWidth, camHeight, 50) then
+            if cullingManager:isInView(orb, self.CULL_MARGIN_DRAW) then
                 table.insert(visibleOrbs, orb)
             end
         end
@@ -238,7 +236,7 @@ function ExperienceOrbManager:collectRenderables(renderPipeline)
             end
             avgSortY = avgSortY / #visibleOrbs
 
-            local renderableItem = TablePool.get()
+            local renderableItem = TablePool.getGeneric()
             renderableItem.type = "experience_orb_batch"
             renderableItem.sortY = avgSortY
             renderableItem.depth = RenderPipeline.DEPTH_DROPS
@@ -274,7 +272,7 @@ function ExperienceOrbManager:getStats()
         activeOrbs = #self.orbs,
         pooledOrbs = #self.orbPool,
         spriteBatchCount = self.spriteBatch and self.spriteBatch:getCount() or 0,
-        maxPoolSize = self.maxPoolSize,
+        maxPoolSize = self.MAX_POOL_SIZE,
         hasSpritesheet = self.texture ~= nil,
         hasSpriteBatch = self.spriteBatch ~= nil,
         frameSize = self.frameWidth .. "x" .. self.frameHeight
@@ -334,7 +332,7 @@ end
 function ExperienceOrbManager:_lazyMergeCheck()
     -- Só executa merge ocasionalmente
     self.lazyMergeCounter = self.lazyMergeCounter + 1
-    if self.lazyMergeCounter < self.mergeFrequency then
+    if self.lazyMergeCounter < self.MERGE_FREQUENCY then
         return
     end
     self.lazyMergeCounter = 0
