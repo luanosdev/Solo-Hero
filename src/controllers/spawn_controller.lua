@@ -135,7 +135,7 @@ SpawnController.__index = SpawnController
 
 ---@param enemyManager EnemyManager
 ---@param playerManager PlayerManager
----@param mapManager MapManager
+---@param mapManager InfinityWrapMapManager
 function SpawnController:new(enemyManager, playerManager, mapManager)
     local instance = setmetatable({}, SpawnController)
     instance.enemyManager = enemyManager

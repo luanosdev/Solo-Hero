@@ -1,4 +1,5 @@
 local TablePool = require("src.utils.table_pool")
+local MathUtils = require("src.utils.math_utils") -- Adicionado
 
 ---@class SpatialGridIncremental
 ---@field gridWidth number Largura do grid em células (para wrapping).
@@ -8,6 +9,8 @@ local TablePool = require("src.utils.table_pool")
 ---@field numCols number Número de colunas do grid físico.
 ---@field numRows number Número de linhas do grid físico.
 ---@field isInfinite boolean True se o grid for infinito com wrapping.
+---@field worldPixelWidth number Largura total do mundo em pixels (para cálculos toroidais).
+---@field worldPixelHeight number Altura total do mundo em pixels (para cálculos toroidais).
 local SpatialGridIncremental = {}
 SpatialGridIncremental.__index = SpatialGridIncremental
 
@@ -36,6 +39,10 @@ function SpatialGridIncremental:new(gridWidth, gridHeight, cellWidth, cellHeight
             instance.grid[i][j] = TablePool.getArray()
         end
     end
+
+    -- Armazena as dimensões do mundo em pixels para cálculos de distância toroidal
+    instance.worldPixelWidth = gridWidth * cellWidth
+    instance.worldPixelHeight = gridHeight * cellHeight
 
     Logger.debug(
         "spatial_grid_incremental.new.created",
@@ -311,6 +318,8 @@ function SpatialGridIncremental:removeEntityCompletely(entity)
 end
 
 --- Obtém entidades próximas a uma posição, considerando wrapping infinito se aplicável.
+--- ESTA É A FASE AMPLA: Retorna todos os candidatos em células próximas sem verificar a distância exata.
+--- A verificação de distância exata (fase estreita) é responsabilidade do chamador.
 --- Ao fim da função, a tabela 'nearbyEntities' deve ser liberada com TablePool.releaseArray.
 ---@param worldX number Coordenada X no mundo
 ---@param worldY number Coordenada Y no mundo
@@ -319,7 +328,7 @@ end
 ---@return table Tabela de entidades próximas (deve ser liberada com TablePool.release)
 function SpatialGridIncremental:getNearbyEntities(worldX, worldY, searchRadius, requestingEntity)
     local nearbyEntities = TablePool.getArray()
-    local checkedEntities = TablePool.getArray()
+    local checkedEntities = TablePool.getGeneric() -- Usar getGeneric para usar entidades como chaves
 
     if self.isInfinite then
         -- Para grid infinito, calcula o range de células de forma circular
@@ -339,14 +348,10 @@ function SpatialGridIncremental:getNearbyEntities(worldX, worldY, searchRadius, 
                 local cell = self.grid[targetCol][targetRow]
                 if cell then
                     for _, entityInCell in ipairs(cell) do
+                        -- Apenas adiciona à lista se não for a própria entidade e se ainda não foi adicionada.
                         if entityInCell ~= requestingEntity and not checkedEntities[entityInCell] then
-                            local dx = entityInCell.position.x - worldX
-                            local dy = entityInCell.position.y - worldY
-                            local distSq = dx * dx + dy * dy
-                            if distSq <= (searchRadius + (entityInCell.radius or 0)) ^ 2 then
-                                table.insert(nearbyEntities, entityInCell)
-                                checkedEntities[entityInCell] = true
-                            end
+                            table.insert(nearbyEntities, entityInCell)
+                            checkedEntities[entityInCell] = true
                         end
                     end
                 end
@@ -363,13 +368,8 @@ function SpatialGridIncremental:getNearbyEntities(worldX, worldY, searchRadius, 
                 if cell then
                     for _, entityInCell in ipairs(cell) do
                         if entityInCell ~= requestingEntity and not checkedEntities[entityInCell] then
-                            local dx = entityInCell.position.x - worldX
-                            local dy = entityInCell.position.y - worldY
-                            local distSq = dx * dx + dy * dy
-                            if distSq <= (searchRadius + (entityInCell.radius or 0)) ^ 2 then
-                                table.insert(nearbyEntities, entityInCell)
-                                checkedEntities[entityInCell] = true
-                            end
+                            table.insert(nearbyEntities, entityInCell)
+                            checkedEntities[entityInCell] = true
                         end
                     end
                 end
@@ -377,7 +377,7 @@ function SpatialGridIncremental:getNearbyEntities(worldX, worldY, searchRadius, 
         end
     end
 
-    TablePool.releaseArray(checkedEntities)
+    TablePool.releaseGeneric(checkedEntities)
     -- IMPORTANTE: A tabela 'nearbyEntities' deve ser liberada pelo chamador
     return nearbyEntities
 end

@@ -68,13 +68,12 @@ end
 function Bootstrap.initialize()
     Logger.info("Bootstrap", "Criando Instâncias dos Managers de GAMEPLAY com DI")
 
-    -- 1. Obter managers PERSISTENTES do Registry
+    -- 1. Obter managers persistentes
     local itemDataManager = ManagerRegistry:get("itemDataManager")
     local hunterManager = ManagerRegistry:get("hunterManager")
     if not itemDataManager then error("ERRO CRÍTICO [Bootstrap.initialize]: Falha ao obter ItemDataManager do Registry!") end
 
-    -- 2. Criar/Inicializar/Registrar managers de GAMEPLAY (Ordem ajustada)
-
+    -- 2. Criar/Inicializar/Registrar managers de GAMEPLAY
     -- InputManager
     if not ManagerRegistry:tryGet("inputManager") then
         Logger.debug("Bootstrap", "Criando/Registrando InputManager...")
@@ -122,67 +121,35 @@ function Bootstrap.initialize()
         Logger.debug("Bootstrap", "ExperienceOrbManager já existe, pulando criação")
     end
 
-    -- PlayerManager (Cria instância) - CRÍTICO: não recriar se já existe!
+    -- PlayerManager (Cria instância)
     if not ManagerRegistry:tryGet("playerManager") then
         Logger.debug("Bootstrap", "Criando/Registrando PlayerManager...")
         local playerMgr = PlayerManager:new()
         ManagerRegistry:register("playerManager", playerMgr, false)
-        Logger.debug("Bootstrap", "PlayerManager registrado (aguardando setupGameplay).")
+        Logger.debug("Bootstrap", "PlayerManager registrado.")
     else
-        Logger.debug("Bootstrap", "PlayerManager já existe, pulando criação (PRESERVANDO configuração)")
+        Logger.debug("Bootstrap", "PlayerManager já existe, pulando criação")
     end
 
-    -- EnemyManager (Registra ANTES de DropManager)
-    if not ManagerRegistry:tryGet("enemyManager") then
-        Logger.debug("Bootstrap", "Criando/Registrando EnemyManager...")
-        local enemyManager =
-            EnemyManager                                             -- Assume Singleton. Se não for: local enemyManager = EnemyManager:new()
-        -- Chamar :init se necessário: if enemyManager.init then enemyManager:init({...}) end
-        ManagerRegistry:register("enemyManager", enemyManager, true) -- Registra a tabela/instância
-        Logger.debug("Bootstrap", "EnemyManager registrado (aguardando setupGameplay).")
-    else
-        Logger.debug("Bootstrap", "EnemyManager já existe, pulando criação")
-    end
-
-    -- RuneManager (Registra ANTES de DropManager)
+    -- RuneManager (Dependência do DropManager)
     if not ManagerRegistry:tryGet("runeManager") then
         Logger.debug("Bootstrap", "Inicializando/Registrando RuneManager...")
-        local runeManager = RuneManager -- Assume Singleton.
-        -- Chamar :init se necessário: if runeManager.init then runeManager:init({...}) end
-        ManagerRegistry:register("runeManager", runeManager, true)
+        ManagerRegistry:register("runeManager", RuneManager, true)
         Logger.debug("Bootstrap", "RuneManager registrado.")
     else
         Logger.debug("Bootstrap", "RuneManager já existe, pulando criação")
     end
 
-    -- DropManager (Agora recebe EnemyManager) - CUIDADO: precisa das dependências corretas
+    -- DropManager (Dependência do EnemyManager)
     if not ManagerRegistry:tryGet("dropManager") then
         Logger.debug("Bootstrap", "Inicializando/Registrando DropManager...")
-
-        -- Obtém dependências (podem ter sido criadas acima ou já existir)
-        ---@type PlayerManager
-        local currentPlayerMgr = ManagerRegistry:get("playerManager")
-        ---@type EnemyManager
-        local currentEnemyManager = ManagerRegistry:get("enemyManager")
-        ---@type RuneManager
-        local currentRuneManager = ManagerRegistry:get("runeManager")
-        ---@type FloatingTextManager
-        local currentFloatingTextManager = ManagerRegistry:get("floatingTextManager")
-
         local dropManagerConfig = {
-            playerManager = currentPlayerMgr,                 -- Instância atual
-            enemyManager = currentEnemyManager,               -- Referência ao EnemyManager atual
-            runeManager = currentRuneManager,                 -- Tabela/Singleton atual
-            floatingTextManager = currentFloatingTextManager, -- Tabela/Singleton atual
-            itemDataManager = itemDataManager                 -- Tabela/Singleton
+            playerManager = ManagerRegistry:get("playerManager"),
+            enemyManager = nil, -- Será injetado depois se necessário, ou removido como dependência
+            runeManager = ManagerRegistry:get("runeManager"),
+            floatingTextManager = ManagerRegistry:get("floatingTextManager"),
+            itemDataManager = itemDataManager
         }
-
-        -- Validação
-        if not dropManagerConfig.playerManager or not dropManagerConfig.enemyManager or not dropManagerConfig.runeManager or not dropManagerConfig.floatingTextManager or not dropManagerConfig.itemDataManager then
-            Logger.warn("Bootstrap", "Uma ou mais dependências para DropManager:init estão faltando!")
-            -- Considere error() se forem críticas
-        end
-
         DropManager:init(dropManagerConfig)
         ManagerRegistry:register("dropManager", DropManager, true)
         Logger.debug("Bootstrap", "DropManager registrado e inicializado.")
@@ -190,7 +157,19 @@ function Bootstrap.initialize()
         Logger.debug("Bootstrap", "DropManager já existe, pulando criação")
     end
 
-    -- HUDGameplayManager (Depois do PlayerManager)
+    -- EnemyManager (Agora é uma instância, criado depois de suas dependências)
+    if not ManagerRegistry:tryGet("enemyManager") then
+        Logger.debug("Bootstrap", "Criando/Registrando instância do EnemyManager...")
+        local playerManager = ManagerRegistry:get("playerManager")
+        local dropManager = ManagerRegistry:get("dropManager")
+        local enemyManagerInstance = EnemyManager:new(playerManager, dropManager)
+        ManagerRegistry:register("enemyManager", enemyManagerInstance, false)
+        Logger.debug("Bootstrap", "Instância do EnemyManager registrada.")
+    else
+        Logger.debug("Bootstrap", "Instância do EnemyManager já existe, pulando criação")
+    end
+
+    -- HUDGameplayManager
     if not ManagerRegistry:tryGet("hudGameplayManager") then
         Logger.debug("Bootstrap", "Inicializando/Registrando HUDGameplayManager...")
         ManagerRegistry:register("hudGameplayManager", HUDGameplayManager, true)
@@ -219,7 +198,6 @@ function Bootstrap.initialize()
         Logger.debug("Bootstrap", "ExtractionManager já existe, pulando criação")
     end
 
-    -- 3. Inicialização específica (setupGameplay) é feita na cena
     Logger.info("Bootstrap", "Inicialização dos Managers de GAMEPLAY Concluída")
 end
 

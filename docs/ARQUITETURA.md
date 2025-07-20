@@ -35,7 +35,13 @@ Este documento é a nossa **fonte única da verdade** para as regras de arquitet
 
 ## 2. Hierarquia e Nomenclatura de Componentes
 
-A arquitetura do Solo Hero é dividida em quatro camadas principais de componentes.
+A arquitetura do Solo Hero é dividida em cinco camadas principais de componentes.
+
+### `Core`
+*   **Função:** Representa as **classes de infraestrutura e utilitários** da aplicação. São as "ferramentas" e os "tijolos" que usamos para construir a arquitetura, mas que não contêm lógica de jogo direta. Eles existem para dar suporte aos `Services` e `Managers`.
+*   **Exemplos:** `SceneManagerRegistry`, `Logger`, `Timer`, `EventDispatcher`.
+*   **Localização:** Tipicamente residem em `src/core/` ou `src/libs/`.
+*   **Ciclo de Vida:** Geralmente são classes instanciáveis (`:new()`) ou módulos estáticos, dependendo da necessidade.
 
 ### `Service`
 *   **Função:** Gerencia estado e lógica **global** que persistem entre as cenas. São os "Imortais" da aplicação.

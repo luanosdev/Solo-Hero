@@ -236,6 +236,8 @@ end
 --- @param enemyManager EnemyManager The enemy manager.
 --- @param isSlowUpdate boolean Whether to update the enemy slowly.
 function BaseEnemy:update(dt, playerManager, enemyManager, isSlowUpdate)
+    Logger.debug("base_enemy.lifecycle", string.format("[LIFECYCLE] BaseEnemy:update CALLED for ID:%d.", self.id))
+
     -- LOG: Ponto de partida
     if self.id == 10 then
         Logger.debug("base_enemy.update.start",
@@ -301,6 +303,21 @@ end
 ---@param enemyManager EnemyManager
 ---@param dt number
 function BaseEnemy:applySeparationOptimized(enemyManager, dt)
+    -- LOG DE VALIDAÇÃO DA FUNÇÃO
+    Logger.debug("base_enemy.separation.start", string.format("[SEPARATION_START] ID:%d.", self.id))
+
+    -- VERIFICAÇÃO DE SEGURANÇA: Garante que o grid existe antes de continuar.
+    if not enemyManager or not enemyManager.spatialGrid then
+        Logger.warn("base_enemy.separation.grid_missing", string.format(
+            "[GRID_MISSING] ID:%d tentou separar, mas o spatialGrid ainda é nil.", self.id
+        ))
+        return
+    else
+        Logger.debug("base_enemy.separation.grid_found", string.format(
+            "[GRID_FOUND] ID:%d. Usando spatialGrid.", self.id
+        ))
+    end
+
     -- Cache de separação específico por inimigo (evita conflitos entre inimigos)
     local cacheKey = string.format("sep_%s_%d_%d",
         tostring(self.id),
@@ -308,56 +325,89 @@ function BaseEnemy:applySeparationOptimized(enemyManager, dt)
         math.floor(self.position.y / 5)
     )
 
-    -- Verifica cache (mas só usa se for recente - evita cache obsoleto)
-    local currentTime = love.timer.getTime()
-    if separationCache[cacheKey] and (currentTime - (separationCache[cacheKey].timestamp or 0)) < 0.1 then
-        local cached = separationCache[cacheKey]
-        self.position.x = self.position.x + cached.x * dt
-        self.position.y = self.position.y + cached.y * dt
+    -- -- [[ DESATIVADO TEMPORARIAMENTE PARA TESTE DA LÓGICA PRINCIPAL ]] --
+    -- -- Verifica cache (mas só usa se for recente - evita cache obsoleto)
+    -- local currentTime = love.timer.getTime()
+    -- if separationCache[cacheKey] and (currentTime - (separationCache[cacheKey].timestamp or 0)) < 0.1 then
+    --     local cached = separationCache[cacheKey]
+    --     self.position.x = self.position.x + cached.x * dt
+    --     self.position.y = self.position.y + cached.y * dt
+    --
+    --     -- Atualiza força para debug
+    --     self.lastSeparationForce.x = cached.x
+    --     self.lastSeparationForce.y = cached.y
+    --     return
+    -- end
+    Logger.debug("base_enemy.separation.cache_skip",
+        string.format("[CACHE_SKIPPED] ID:%d. Executando lógica completa.", self.id))
 
-        -- Atualiza força para debug
-        self.lastSeparationForce.x = cached.x
-        self.lastSeparationForce.y = cached.y
-        return
-    end
 
     local sepX, sepY = 0, 0
-    local nearby = TablePool.getGeneric()
+    local nearby = nil
 
     if enemyManager and enemyManager.spatialGrid then
-        -- Aumenta raio de busca para melhor separação
-        local searchRadius = math.max(self.radius * 6, 80) -- Mínimo de 80 pixels
-
+        -- FASE AMPLA: Pega todos os candidatos em células próximas
+        local searchRadius = math.max(self.radius * 6, 80)
         nearby = enemyManager.spatialGrid:getNearbyEntities(
             self.position.x, self.position.y, searchRadius, self
         )
+
+        -- LOG DE VALIDAÇÃO DA FASE AMPLA
+        Logger.debug("base_enemy.separation.broad_phase", string.format(
+            "[BROAD_PHASE_CHECK] ID:%d found %d neighbors.", self.id, #nearby
+        ))
+
+        -- Prepara as dimensões do mundo em TILES para o cálculo toroidal
+        local mapManager = enemyManager.mapManager
+        local worldTileWidth, worldTileHeight = mapManager:getWorldTileDimensions()
 
         -- Calcula forças de separação
         local nearbyCount = #nearby
         for i = 1, nearbyCount do
             local other = nearby[i]
-            if other.isAlive then -- Já filtrado para other ~= self pelo spatialGrid
-                local odx = self.position.x - other.position.x
-                local ody = self.position.y - other.position.y
+            if other.isAlive then
+                -- FASE ESTREITA: Calcula a distância real no espaço isométrico
+
+                -- 1. Converte as posições para o espaço de tiles
+                local selfTilePos = mapManager:isometricToCartesianTile(self.position.x, self.position.y)
+                local otherTilePos = mapManager:isometricToCartesianTile(other.position.x, other.position.y)
+
+                -- 2. Calcula o vetor de deslocamento mais curto no espaço de TILES
+                local deltaTileX, deltaTileY = MathUtils.calculateShortestTorusVector(
+                    selfTilePos.x, selfTilePos.y,
+                    otherTilePos.x, otherTilePos.y,
+                    worldTileWidth, worldTileHeight
+                )
+
+                -- 3. Converte o VETOR de tiles de volta para um VETOR em pixels
+                --    Um deslocamento de (1, 0) em tiles é um movimento de (tileW/2, tileH/2) em pixels.
+                --    Um deslocamento de (0, 1) em tiles é um movimento de (-tileW/2, tileH/2) em pixels.
+                local odx = (deltaTileX - deltaTileY) * (mapManager.tileWidth / 2)
+                local ody = (deltaTileX + deltaTileY) * (mapManager.tileHeight / 2)
+
+                -- Inverte o vetor, pois queremos a força DE other PARA self.
+                odx = -odx
+                ody = -ody
+
                 local distSq = odx * odx + ody * ody
 
-                -- LOG DE DIAGNÓSTICO DE SEPARAÇÃO (TODOS OS INIMIGOS)
-                if distSq > (500 * 500) then -- Log se a distância for suspeitosamente grande (> 500 pixels)
-                    Logger.debug("base_enemy.separation.check", string.format(
-                        "[ID %s] VIZINHO DISTANTE? Self: (%.1f, %.1f), Other ID %s: (%.1f, %.1f), Dist: %.1f",
-                        tostring(self.id), self.position.x, self.position.y, tostring(other.id), other.position.x,
-                        other.position.y, math.sqrt(distSq)
-                    ))
-                end
+                -- LOG DE DIAGNÓSTICO DETALHADO
+                Logger.debug("base_enemy.separation.diag", string.format(
+                    "[SEPARATION_DIAG] Self:%d (%.0f,%.0f) -> Other:%d (%.0f,%.0f) | SelfTile:(%d,%d), OtherTile:(%d,%d) | DeltaTile:(%d,%d) | FinalVecPX:(%.1f,%.1f)",
+                    self.id, self.position.x, self.position.y,
+                    other.id, other.position.x, other.position.y,
+                    selfTilePos.x, selfTilePos.y,
+                    otherTilePos.x, otherTilePos.y,
+                    deltaTileX, deltaTileY,
+                    odx, ody
+                ))
 
                 if distSq > 0 then
                     local dist = math.sqrt(distSq)
-                    -- Aumenta distância desejada para melhor separação
                     local desired = (self.radius + other.radius) * 1.8
 
                     if dist < desired then
                         local force_factor = (desired - dist) / desired
-                        -- Força mais forte para separação efetiva
                         local normalizedForce = force_factor * self.SEPARATION_STRENGTH * 2.0 / dist
                         sepX = sepX + odx * normalizedForce
                         sepY = sepY + ody * normalizedForce
