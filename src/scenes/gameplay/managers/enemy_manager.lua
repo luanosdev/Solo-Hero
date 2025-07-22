@@ -24,8 +24,6 @@ local ServiceLocator = require("src.core.service_locator")
 local EnemyManager = {}
 EnemyManager.__index = EnemyManager
 
-local SpawnController = require("src.controllers.spawn_controller")
-local DespawnController = require("src.controllers.despawn_controller")
 local EnemyPoolController = require("src.scenes.gameplay.controllers.enemy_pool_controller")
 local MVPController = require("src.scenes.gameplay.controllers.mvp_controller")
 local EnemySeparationController = require("src.scenes.gameplay.controllers.enemy_separation_controller")

@@ -1,8 +1,11 @@
+local Constants = require("src.config.constants")
 local PlayerStateController = require("src.scenes.gameplay.controllers.player_state_controller")
 local ArchetypeGameplayController = require("src.scenes.gameplay.controllers.archetype_gameplay_controller")
 local EquipmentGameplayController = require("src.scenes.gameplay.controllers.equipment_gameplay_controller")
 local WeaponAttackController = require("src.scenes.gameplay.controllers.weapon_attack_controller")
-local PlayerAppearanceController = require("src.scenes.gameplay.controllers.player_appearance_controller")
+local MovementController = require("src.scenes.gameplay.controllers.movement_controller")
+local PlayerSpriteController = require("src.scenes.gameplay.controllers.player_sprite_controller")
+local ServiceLocator = require("src.core.service_locator")
 
 ---@class PlayerManagerV2
 ---@description Gerencia o estado e o comportamento do jogador, atuando como um orquestrador
@@ -19,7 +22,8 @@ local PlayerAppearanceController = require("src.scenes.gameplay.controllers.play
 ---@field floatingTextController FloatingTextController
 ---@field autoAttackController AutoAttackController
 ---@field runeController RuneController
----@field movementController MovementController
+---@field movementController MovementControllerV2
+---@field playerSpriteController PlayerSpriteController
 ---@field dashController DashController
 ---@field levelUpEffectController LevelUpEffectController
 ---@field potionController PotionController
@@ -45,7 +49,8 @@ function PlayerManager:new(registry, renderPipeline)
     instance.archetypeGameplayController = nil
     instance.equipmentGameplayController = nil
     instance.weaponAttackController = nil
-    instance.playerAppearanceController = nil
+    instance.movementController = nil
+    instance.playerSpriteController = nil
     -- ... outros controllers
     return instance
 end
@@ -75,13 +80,28 @@ function PlayerManager:init(args)
     self.weaponAttackController = WeaponAttackController:new()
     self.weaponAttackController:init()
 
-    -- O PlayerAppearanceController precisa da entidade do jogador.
-    -- Vamos assumir que o MovementController a cria e a expõe.
-    -- self.movementController = MovementController:new(...)
-    -- self.movementController:init()
-    -- local playerEntity = self.movementController.player
-    -- self.playerAppearanceController = PlayerAppearanceController:new(playerEntity)
-    -- self.playerAppearanceController:init()
+    self.movementController = MovementController:new()
+    self.movementController:init()
+
+    self.playerSpriteController = PlayerSpriteController:new()
+    self.playerSpriteController:init()
+
+    -- Configura o sprite inicial e a posição
+    local appearance = {
+        skinTone = "medium",
+        equipment = { bag = nil, belt = nil, chest = nil, head = nil, leg = nil, shoe = nil },
+        weapon = { folderPath = nil, animationType = nil }
+    }
+
+    self.playerSpriteController:setupSprite(appearance)
+
+    -- Define a posição inicial do jogador no centro do mapa
+    local mapManager = self.registry:get("infinityWrapMapManager")
+    if mapManager then
+        local worldW, worldH = mapManager:getWorldPixelDimensions()
+        local startPosition = { x = worldW / 2, y = worldH / 2 }
+        self.movementController:setPosition(startPosition)
+    end
 
     Logger.info("player_manager_v2.init.success", "[PlayerManager:init] Successfully initialized.")
 end
@@ -89,6 +109,20 @@ end
 --- Atualiza todos os controllers do jogador.
 ---@param dt number O tempo delta desde o último frame.
 function PlayerManager:update(dt)
+    if not self.stateController then return end
+
+    -- Orquestração do Movimento e Animação
+    local moveSpeed = self.stateController:getFinalStat("moveSpeed")
+    ---@type InputService
+    local inputService = ServiceLocator.get("inputService")
+    if moveSpeed and inputService and self.movementController and self.playerSpriteController then
+        local moveSpeedInPixels = Constants.moveSpeedToPixels(moveSpeed)
+        local moveVector = inputService:getMovementVector()
+
+        self.movementController:update(dt, moveSpeedInPixels, moveVector)
+        self.playerSpriteController:update(dt, moveSpeedInPixels, moveVector)
+    end
+
     if self.weaponAttackController then
         self.weaponAttackController:update(dt)
     end
@@ -97,9 +131,25 @@ end
 --- Coleta os renderizáveis do jogador e seus efeitos para o RenderPipeline.
 ---@param renderPipeline RenderPipeline A instância do pipeline de renderização.
 function PlayerManager:collectRenderables(renderPipeline)
+    if self.playerSpriteController and self.movementController then
+        local worldPosition = self.movementController:getPosition()
+        self.playerSpriteController:collectRenderables(renderPipeline, worldPosition)
+    end
+
     if self.weaponAttackController then
         self.weaponAttackController:collectRenderables(renderPipeline)
     end
+end
+
+--- Retorna a posição atual do jogador no mundo.
+--- Utilizado pela câmera e outros sistemas para saber onde o jogador está.
+---@return Vector2D
+function PlayerManager:getPosition()
+    if self.movementController then
+        return self.movementController:getPosition()
+    end
+    -- Retorna uma posição padrão segura se o controller não existir.
+    return { x = 0, y = 0 }
 end
 
 --- Limpa os recursos e se desregistra de eventos.
@@ -110,7 +160,8 @@ function PlayerManager:destroy()
     if self.archetypeGameplayController then self.archetypeGameplayController:destroy() end
     if self.equipmentGameplayController then self.equipmentGameplayController:destroy() end
     if self.weaponAttackController then self.weaponAttackController:destroy() end
-    if self.playerAppearanceController then self.playerAppearanceController:destroy() end
+    if self.movementController then self.movementController:destroy() end
+    if self.playerSpriteController then self.playerSpriteController:destroy() end
 end
 
 return PlayerManager

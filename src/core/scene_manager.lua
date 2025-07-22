@@ -34,7 +34,17 @@ function SceneManager._switchScene(sceneName, args)
     local success, sceneModuleOrError = pcall(require, scenePath)
 
     if success then
-        SceneManager.currentScene = sceneModuleOrError
+        local sceneInstance
+        -- CORREÇÃO: Verifica se a cena é uma classe (tem :new) ou um módulo simples.
+        if type(sceneModuleOrError) == "table" and type(sceneModuleOrError.new) == "function" then
+            -- É uma classe, cria uma nova instância.
+            sceneInstance = sceneModuleOrError:new()
+        else
+            -- É um módulo/objeto simples, usa-o diretamente.
+            sceneInstance = sceneModuleOrError
+        end
+
+        SceneManager.currentScene = sceneInstance
         print(string.format("SceneManager: Cena '%s' carregada com sucesso.", sceneName))
         if SceneManager.currentScene.load then
             -- Passa os argumentos para a função load da nova cena

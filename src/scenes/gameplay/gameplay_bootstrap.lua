@@ -48,6 +48,7 @@ function GameplayBootstrap.initialize(args, renderPipeline)
         "[GameplayBootstrap:initialize] Constructing manager instances..."
     )
     for key, def in pairs(managersToLoad) do
+        Logger.debug("GameplayBootstrap:initialize", "  -> Construindo: " .. key)
         local instance
         if def.needsPipeline then
             instance = def.class:new(registry, renderPipeline)
@@ -55,6 +56,7 @@ function GameplayBootstrap.initialize(args, renderPipeline)
             instance = def.class:new(registry)
         end
         instances[key] = instance
+        Logger.debug("GameplayBootstrap:initialize", "  -- Construído: " .. key)
     end
 
     --== FASE 2: REGISTRO ==--
@@ -68,7 +70,8 @@ function GameplayBootstrap.initialize(args, renderPipeline)
 
     --== FASE 3: INICIALIZAÇÃO (init) ==--
     Logger.info("gameplay_bootstrap.initialize.phase_3", "[GameplayBootstrap:initialize] Initializing managers...")
-    for _, instance in pairs(instances) do
+    for key, instance in pairs(instances) do
+        Logger.debug("GameplayBootstrap:initialize", "  -> Inicializando: " .. key)
         if type(instance.init) == "function" then
             instance:init(args)
         else
@@ -77,6 +80,7 @@ function GameplayBootstrap.initialize(args, renderPipeline)
                 "[GameplayBootstrap:initialize] Manager '" .. instance.name .. "' does not have an :init() method."
             )
         end
+        Logger.debug("GameplayBootstrap:initialize", "  -- Inicializado: " .. key)
     end
 
     --== FASE 4: SETUP DE GAMEPLAY ==--

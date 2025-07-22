@@ -185,4 +185,6 @@ function GameLoadingScene:_runTasks()
     return true
 end
 
-return GameLoadingScene:new()
+-- Mantém a compatibilidade com a arquitetura antiga, onde o arquivo retorna a instância.
+local sceneInstance = GameLoadingScene:new()
+return sceneInstance

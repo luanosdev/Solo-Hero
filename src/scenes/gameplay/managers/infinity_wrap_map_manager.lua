@@ -234,9 +234,6 @@ end
 ---@param layerNames string[] Nomes das camadas a serem desenhadas.
 ---@param playerPosition Vector2D A posição do jogador que o pipeline está seguindo.
 function InfinityWrapMapManager:_drawLayers(layerNames, playerPosition)
-    Logger.debug("InfinityWrapMapManager._drawLayers",
-        string.format("Drawing layers with player position: (%.2f, %.2f)", playerPosition.x, playerPosition.y))
-
     local drawX = -playerPosition.x + (ResolutionUtils.getGameWidth() / 2)
     local drawY = -playerPosition.y + (ResolutionUtils.getGameHeight() / 2)
 

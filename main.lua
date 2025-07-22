@@ -24,6 +24,7 @@ local fonts = require("src.ui.fonts")
 local GameTimerService = require("src.services.game_timer_service")
 local EventService = require("src.services.event_service")
 local ItemDataService = require("src.services.item_data_service")
+local InputService = require("src.services.input_service")
 
 local lovebird = require("src.libs.lovebird")
 local profiler = require("src.libs.profiler")
@@ -108,6 +109,7 @@ function love.load()
     ServiceLocator.register("itemDataService", ItemDataService:new())
     ServiceLocator.register("gameTimerService", GameTimerService:new())
     ServiceLocator.register("eventService", EventService:new())
+    ServiceLocator.register("inputService", InputService:new())
 
     -- Inicializa managers persistentes (que agora podem depender de serviços)
     local itemDataMgr = ItemDataManager:new() -- Mantém compatibilidade por enquanto
@@ -204,6 +206,11 @@ end
 -- [[ Callbacks de Input LOVE ]] --
 
 function love.keypressed(key, scancode, isrepeat)
+    -- Passa o evento para os serviços globais primeiro
+    ---@type InputService
+    local inputService = ServiceLocator.get("inputService")
+    inputService:handleKeyPressed(key)
+
     -- Passa o evento para a cena ativa
     SceneManager.keypressed(key, scancode, isrepeat)
 
@@ -226,6 +233,11 @@ function love.keypressed(key, scancode, isrepeat)
 end
 
 function love.keyreleased(key, scancode)
+    -- Passa o evento para os serviços globais primeiro
+    ---@type InputService
+    local inputService = ServiceLocator.get("inputService")
+    inputService:handleKeyReleased(key)
+
     SceneManager.keyreleased(key, scancode)
 end
 

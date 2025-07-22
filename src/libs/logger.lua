@@ -3,7 +3,7 @@
 local Logger = {}
 
 Logger.enabled = LOGGERS
-Logger.logInterval = 0.2
+Logger.logInterval = 0.1
 Logger.timers = {}
 Logger.logs = {} -- Logs para visualização na tela
 Logger.showOnScreen = true

@@ -114,10 +114,7 @@ end
 function RenderPipeline:draw(worldPlayerPosition)
     -- 1. Desenha as camadas de baixo do Mapa
     if self.mapManager and self.mapManager.draw then
-        Logger.debug("RenderPipeline.draw", "Map manager found, calling mapManager:draw()")
         self.mapManager:draw(worldPlayerPosition)
-    else
-        Logger.debug("RenderPipeline.draw", "Map manager NOT found in pipeline.")
     end
 
     -- 2. Processa e desenha itens dos buckets em ordem de profundidade
@@ -131,7 +128,6 @@ function RenderPipeline:draw(worldPlayerPosition)
 
     -- 3. Desenha as camadas de cima do Mapa, após as entidades
     if self.mapManager and self.mapManager.drawTopLayers then
-        Logger.debug("RenderPipeline.draw", "Map manager found, calling mapManager:drawTopLayers()")
         self.mapManager:drawTopLayers(worldPlayerPosition)
     end
 
