@@ -204,6 +204,12 @@ local function initializeLocalization()
         return LocalizationHelpers.getCurrentLanguage()
     end
 
+    --- Função global para obter o objeto de tradução atual
+    --- @return TranslationData translations
+    _G.GetCurrentTranslationTable = function()
+        return LocalizationHelpers.getCurrentTranslationTable()
+    end
+
     --- Disponibiliza módulo de helpers globalmente para uso avançado
     _G.LocalizationHelpers = LocalizationHelpers
 

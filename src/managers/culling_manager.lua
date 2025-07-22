@@ -78,4 +78,9 @@ function CullingManager:isInView(entity, margin)
         virtualEntityY >= viewY1 and virtualEntityY <= viewY2
 end
 
+function CullingManager:destroy()
+    self.playerManager = nil
+    self.mapManager = nil
+end
+
 return CullingManager

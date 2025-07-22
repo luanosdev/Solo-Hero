@@ -224,4 +224,11 @@ function LocalizationHelpers.getRankInfo(rankId)
     return name, description
 end
 
+--- Obtém o objeto de tradução atual
+---@return TranslationData translations
+function LocalizationHelpers.getCurrentTranslationTable()
+    local manager = LocalizationManager:getInstance()
+    return manager:getCurrentTranslationTable()
+end
+
 return LocalizationHelpers

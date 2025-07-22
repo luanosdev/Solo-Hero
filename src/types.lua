@@ -25,6 +25,19 @@
 
 ---@class ArchetypeId
 
+---@class GameplayContext
+---@field level number O nível atual do jogador.
+---@field kills number O número de inimigos mortos na partida.
+---@field time number O tempo decorrido na partida em segundos.
+
+---@alias BonusFunction fun(finalStats: table<StatKey, number>, context: GameplayContext):number
+
+---@class StatModifier
+---@field stat StatKey O stat a ser modificado.
+---@field type "FLAT" | "PERCENTAGE" O tipo de modificação.
+---@field value number | BonusFunction O valor do bônus (um número ou uma função para calcular o bônus).
+---@field source string O ID da fonte do bônus (ex: "ARCHETYPE_TANK").
+
 ---@alias StatKey "moveSpeed" | "potionFillRate" | "health" | "defense" | "attackSpeed" | "critChance" | "critDamage" | "healthRegen" | "multiAttackChance" | "runeSlots" | "strength" | "expBonus" | "healingBonus" | "pickupRadius" | "healthRegenDelay" | "range" | "luck" | "attackArea" | "healthPerTick" | "cooldownReduction" | "healthRegenCooldown" | "dashCharges" | "dashCooldown" | "dashDistance" | "dashDuration" | "potionFlasks" | "potionHealAmount" | "potionFillRate"
 
 ---@alias Color table<number, number>
@@ -58,6 +71,7 @@
 ---@alias ItemType "weapon" | "rune" | "artefact" | "material" | "consumable" | "sellable"
 
 ---@alias Rarity "E" | "D" | "C" | "B" | "A" | "S"
+---@alias Rank "E" | "D" | "C" | "B" | "A" | "S"
 
 ---@alias ColorRGBA {[1]: number, [2]: number, [3]: number, [4]: number}
 

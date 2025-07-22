@@ -69,6 +69,16 @@ function SceneManagerRegistry:updateAll(dt)
     end
 end
 
+--- Itera sobre todos os managers e chama seu método collectRenderables, se existir.
+---@param renderPipeline RenderPipeline A instância do pipeline para os managers adicionarem itens.
+function SceneManagerRegistry:collectAllRenderables(renderPipeline)
+    for _, managerData in pairs(self.managers) do
+        if managerData.instance and managerData.instance.collectRenderables then
+            managerData.instance:collectRenderables(renderPipeline)
+        end
+    end
+end
+
 -- Itera sobre todos os managers e chama seu método draw, se existir.
 function SceneManagerRegistry:drawAll()
     for _, managerData in pairs(self.managers) do

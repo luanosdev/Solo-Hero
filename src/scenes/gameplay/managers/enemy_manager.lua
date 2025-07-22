@@ -3,9 +3,12 @@
 --- @description Gerencia a criação, atualização e destruição dos inimigos.
 ---------------------------------------------------------------------------
 
+local ServiceLocator = require("src.core.service_locator")
+
 --- TODO: Remover o v2 quando o v1 for removido
 ---@class EnemyManagerv2
 ---@field registry SceneManagerRegistry
+---@field renderPipeline RenderPipeline
 ---@field playerManager PlayerManager
 ---@field dropManager DropManager
 ---@field cullingManager CullingManager
@@ -32,27 +35,24 @@ local TimerTaskRunner = require("src.core.timer_task_runner")
 
 ---@param registry SceneManagerRegistry
 ---@return EnemyManagerv2
-function EnemyManager:new(registry)
+function EnemyManager:new(registry, renderPipeline)
     assert(registry, "[EnemyManager] missing a ManagerRegistry")
 
     local instance = setmetatable({}, EnemyManager)
     instance.registry = registry
+    instance.renderPipeline = renderPipeline
     instance.enemies = {}
 
     return instance
 end
 
 function EnemyManager:init()
+    Logger.info("enemy_manager.init", "[EnemyManager:init] Initializing...")
     -- Obter dependências do registry
     self.playerManager = self.registry:get("playerManager")
-    self.dropManager = self.registry:get("dropManager")
+    --self.dropManager = self.registry:get("dropManager")
     self.cullingManager = self.registry:get("cullingManager")
-    self.mapManager = self.registry:get("mapManager")
-
-    assert(self.playerManager, "[EnemyManager] Dependency not found: playerManager")
-    assert(self.dropManager, "[EnemyManager] Dependency not found: dropManager")
-    assert(self.cullingManager, "[EnemyManager] Dependency not found: cullingManager")
-    assert(self.mapManager, "[EnemyManager] Dependency not found: mapManager")
+    --self.mapManager = self.registry:get("mapManager")
 
     -- Inicializar os controllers
     self.poolController = EnemyPoolController:new()
@@ -77,6 +77,14 @@ function EnemyManager:init()
     Logger.info("enemy_manager.init.success", "[EnemyManager:init] initialized successfully.")
 end
 
+--- Configura o manager com os dados específicos da horda para a sessão de gameplay.
+---@param hordeConfig HordeConfigData
+function EnemyManager:setupGameplay(hordeConfig)
+    assert(hordeConfig, "[EnemyManager:setupGameplay] HordeConfig is required.")
+    --self.spawnController:setup(hordeConfig)
+    Logger.info("enemy_manager.setupGameplay.success", "[EnemyManager] Gameplay setup complete.")
+end
+
 ---@param dt number
 function EnemyManager:update(dt)
     -- Atualizar tarefas periódicas
@@ -84,7 +92,9 @@ function EnemyManager:update(dt)
         task:update(dt)
     end
 
-    -- self.spawnController:update(dt)
+    local gameTimerService = ServiceLocator.get("gameTimerService")
+    local gameTime = gameTimerService:getTime()
+    --self.spawnController:update(dt, gameTime)
     -- self.despawnController:update(dt)
     -- self.separationController:update(dt)
 

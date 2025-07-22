@@ -1,6 +1,8 @@
 local ManagerRegistry = require("src.managers.manager_registry")
 local ResolutionUtils = require("src.utils.resolution_utils")
 
+---@alias MapTileLayer "ground" | "ground_decoration" | "decoration"
+
 ---@class InfinityWrapMapManager
 ---@description Gerencia um mapa isométrico infinito, sua renderização e eventos de "wrap".
 --- Carrega os dados de um mapa Tiled, pré-renderiza suas camadas em canvases para

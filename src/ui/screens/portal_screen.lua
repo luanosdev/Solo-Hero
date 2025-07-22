@@ -206,7 +206,23 @@ function PortalScreen:update(dt, mx, my, allowHover)
         if progress >= 0.7 and self.pendingSceneArgs then
             Logger.info("portal_screen.transition_complete",
                 "[PortalScreen] Transição 70% completa, mudando para game_loading_scene")
-            SceneManager.switchScene("game_loading_scene", self.pendingSceneArgs)
+
+            -- Mock de dados para o teste da nova arquitetura de carregamento
+            local portalDataMock = {
+                id = "jungle",
+                name = "Portal da Selva",
+                mapId = "jungle", -- ID do mapa para o MapAssetLoader
+                rank = "D",
+                hordeConfig = {}  -- Pode ser vazio por enquanto
+            }
+
+            ---@type GameLoadingSceneArgs
+            local sceneArgs = {
+                portalData = portalDataMock,
+                hunterId = self.pendingSceneArgs.hunterId -- Reutiliza o hunterId real
+            }
+
+            SceneManager.goToGameLoadingScene(sceneArgs)
             return
         end
 
@@ -215,7 +231,19 @@ function PortalScreen:update(dt, mx, my, allowHover)
             Logger.warn("portal_screen.transition_timeout",
                 "[PortalScreen] Timeout na transição, forçando mudança de cena")
             if self.pendingSceneArgs then
-                SceneManager.switchScene("game_loading_scene", self.pendingSceneArgs)
+                -- Mock de dados para o teste da nova arquitetura de carregamento
+                local portalDataMock = {
+                    id = "jungle",
+                    mapId = "jungle", -- ID do mapa para o MapAssetLoader
+                    rank = "D",
+                    hordeConfig = {}  -- Pode ser vazio por enquanto
+                }
+                ---@type GameLoadingSceneArgs
+                local sceneArgs = {
+                    portalData = portalDataMock,
+                    hunterId = self.pendingSceneArgs.hunterId -- Reutiliza o hunterId real
+                }
+                SceneManager.goToGameLoadingScene(sceneArgs)
             end
             return
         end

@@ -548,6 +548,11 @@ local translations = {
         }
     },
 
+    -- === PORTALS ===
+    portals = {
+        title = "Portal Ranking {rank}",
+    },
+
     -- === INTERFACE DO USUÁRIO ===
     ui = {
         item_details_modal = {
@@ -564,6 +569,94 @@ local translations = {
             value = "Valor: R$ {value}"
         },
 
+        -- === GAME LOADING ===
+        game_loading = {
+            title = "Entrando no Portal",
+            system = "SHADOW MONARCH AGENCY - SISTEMA OPERACIONAL ATIVO",
+            loading_texts = {
+                loading_map_assets = {
+                    title = "Renderizando Topografia",
+                    subtitle = "Escaneando zona de operação",
+                    detail = "Preparando contra-medidas..."
+                },
+                baking_map = {
+                    title = "Renderizando Topografia",
+                    subtitle = "Escaneando zona de operação",
+                    detail = "Preparando contra-medidas..."
+                },
+                loading_player_sprites = {
+                    title = "Sincronizando Perfil do Caçador",
+                    subtitle = "Definindo estratégia",
+                    detail = "Instruindo posições táticas..."
+                },
+                loading_player_equipment = {
+                    title = "Validando Equipamento do Caçador",
+                    subtitle = "Vistoriando equipamentos",
+                    detail = "Checando ultimos ajustes..."
+                },
+                loading_sprites = {
+                    title = "Calibrando Perfil Biométrico",
+                    subtitle = "Escaneando dados do caçador",
+                    detail = "Preparando teleporte de caçador..."
+                },
+                loading_skills_assets = {
+                    title = "Sincronizando Base de Conhecimento",
+                    subtitle = "Catalogando habilidades especiais",
+                    detail = "Preparando arsenal de técnicas..."
+                },
+                loading_animations = {
+                    title = "Escaneando Dados Biométricos",
+                    subtitle = "Mapeando padrões de movimento",
+                    detail = "Analisando perfis de ação..."
+                },
+                loading_enemy_assets = {
+                    title = "Identificando Ameaças Hostis",
+                    subtitle = "Escaneando zona de operação",
+                    detail = "Preparando contra-medidas..."
+                },
+                finishing_loading = {
+                    title = "Validando Prontidão Operacional",
+                    subtitle = "Confirmando status de missão",
+                    detail = "Aguardando autorização final..."
+                }
+            },
+            tips_title = "Instruções e informações da Shadow Monarch",
+            tips = {
+                tip1 = "A vida é valiosa - não seja arrogante demais para recuar.",
+                tip2 = "A esquiva te deixa invulnerável - use-a para evitar danos.",
+                tip3 = "Sempre tenha em mente uma rota de fuga.",
+                tip4 = "A velocidade de movimento pode ser mais valiosa que seu poder de ataque.",
+                tip5 = "O nivel de monstros aumenta conforme você permanece no portal.",
+                tip6 = "Gerencie seu inventário - itens acumulados podem fazer a diferença na hora certa.",
+                tip7 = "Explore cada canto da área - recompensas desconhecidas podem ser encontradas.",
+                tip8 = "Absorver almas de monstros aumenta seu nivel no portal.",
+                tip9 = "Caçadores são unicos, use suas particularidades para melhor desempenho.",
+                tip10 = "Chefes podem ser traiçoeiros, esteja bem preparado.",
+                tip11 = "Evoluir suas runas pode transformar completamente seu estilo de combate.",
+                tip12 = "Experimente diferentes combinações de equipamentos para descobrir sinergias.",
+                tip13 =
+                "Caçadores de ranks baixos são perfeitos para portais de nivel baixo, use para conseguir recursos mais rapidamente.",
+                tip14 = "Caçadores de ranks alto precisam de equipamentos, prepare-se para batalhas longas e difíceis.",
+                tip15 = "Poções de cura se regeneram automaticamente - use sem medo quando necessário.",
+                tip16 = "Materiais raros podem ser encontrados em inimigos mais poderosos.",
+                tip17 = "Teleporte de extração sempre podem ser usados, fugir é uma opção! Volte mais forte.",
+                tip18 = "Existe um tempo para sua vida recarregar depois de sofrer um golpe.",
+                tip19 = "Os portais apareceram do nada e em abundância, ninguém sabe de onde eles vieram.",
+                tip20 = "Somente caçadores tem poder o suficiente para sobreviver aos portais.",
+                tip21 = "A Organização monitora as agencias, liberam licenças e monitoram suas atividades.",
+                tip22 = "O Chefe do portal precisa ser derrotado para que o portal seja destruido.",
+                tip23 = "Cidades inteiras ja foram desimadas por não haver caçadores para protege-las.",
+                tip24 = "Use (Q) para usar uma poção de cura.",
+                tip25 = "Use (Espaço) para usar a esquiva.",
+                tip26 = "Use (X) para ativar/desativar o ataque automático.",
+                tip27 = "Use (Z) para ativar/desativar a mira automática.",
+                tip28 = "Use (V) para ativar/desativar a mira."
+            },
+            loading_progress = "{progress}% COMPLETO",
+        },
+
+
+        -- === GAMEPLAY ===
         rank = "Ranking",
         health = "Vida",
         mana = "Mana",

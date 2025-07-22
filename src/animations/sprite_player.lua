@@ -119,6 +119,7 @@ end
 
 --- Carrega todos os sprites do corpo
 function SpritePlayer._loadBodySprites()
+    local startTime = love.timer.getTime()
     local bodyPath = "assets/player/body/"
     local states = SpritePlayer.knownAnimationStates
 
@@ -131,29 +132,27 @@ function SpritePlayer._loadBodySprites()
         if success and sprite then
             SpritePlayer.resources.body[state] = sprite
             SpritePlayer._createQuadsForSprite(state, sprite)
-            Logger.debug("sprite_player.load_body",
-                string.format("[SpritePlayer:_loadBodySprites] Carregado sprite do corpo: %s", state))
-        else
-            Logger.warn("sprite_player.load_body",
-                string.format("[SpritePlayer:_loadBodySprites] Não foi possível carregar sprite: %s", filePath))
         end
+        -- Adicionamos um yield aqui para distribuir a carga
+        coroutine.yield()
     end
+    local elapsedTime = (love.timer.getTime() - startTime) * 1000
+    Logger.info("SpritePlayer:_loadBodySprites", string.format("Body sprites loaded in %.2f ms", elapsedTime))
 end
 
 --- Carrega sprites de equipamentos
 function SpritePlayer._loadEquipmentSprites()
+    -- Esta função atualmente é leve, mas a preparamos para o futuro
     local equipmentTypes = { "bag", "belt", "chest", "head", "leg", "shoe" }
 
     for _, equipType in ipairs(equipmentTypes) do
         local equipPath = "assets/player/" .. equipType .. "/"
         SpritePlayer.resources.equipment[equipType] = {}
-
-        -- Tenta carregar diferentes variações de cada equipamento
-        -- Por enquanto apenas registra a estrutura
         Logger.debug(
             "sprite_player.load_equipment",
             string.format("[SpritePlayer:_loadEquipmentSprites] Estrutura preparada para equipamentos: %s", equipType)
         )
+        coroutine.yield()
     end
 end
 
@@ -170,6 +169,7 @@ end
 --- Carrega todos os sprites de uma pasta de arma específica
 ---@param folderName string Nome da pasta da arma
 function SpritePlayer._loadWeaponFolder(folderName)
+    local startTime = love.timer.getTime()
     local weaponPath = "assets/player/weapons/" .. folderName .. "/"
 
     -- Lista de animações que devem sincronizar com o corpo
@@ -187,20 +187,20 @@ function SpritePlayer._loadWeaponFolder(folderName)
             SpritePlayer.resources.weapons[folderName][state] = sprite
             SpritePlayer._createQuadsForWeaponSprite(folderName, state, sprite)
         end
+        -- Adicionamos um yield aqui para distribuir a carga
+        coroutine.yield()
     end
 
     if next(SpritePlayer.resources.weapons[folderName]) then
+        local elapsedTime = (love.timer.getTime() - startTime) * 1000
         Logger.info(
             "sprite_player.load_weapons",
-            string.format("[SpritePlayer:_loadWeaponFolder] Carregados sprites da arma: %s", folderName)
+            string.format("[SpritePlayer:_loadWeaponFolder] Loaded weapon sprites for '%s' in %.2f ms", folderName,
+            elapsedTime)
         )
     else
         -- Remove entrada vazia se nenhum sprite foi carregado
         SpritePlayer.resources.weapons[folderName] = nil
-        Logger.warn(
-            "sprite_player.load_weapons",
-            string.format("[SpritePlayer:_loadWeaponFolder] Nenhum sprite encontrado para: %s", folderName)
-        )
     end
 end
 

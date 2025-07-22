@@ -3,6 +3,8 @@
 
 -- [[ Variáveis Globais Essenciais ]] --
 local SceneManager = require("src.core.scene_manager")
+local ServiceLocator = require("src.core.service_locator")
+
 local ManagerRegistry = require("src.managers.manager_registry")
 local ItemDataManager = require("src.managers.item_data_manager")
 local ArchetypeManager = require("src.managers.archetype_manager")
@@ -15,9 +17,13 @@ local GameStatisticsManager = require("src.managers.game_statistics_manager")
 local ArtefactManager = require("src.managers.artefact_manager")
 local PatrimonyManager = require("src.managers.patrimony_manager")
 local NotificationManager = require("src.managers.notification_manager")
-local EventManager = require("src.managers.event_manager")
 local NotificationDisplay = require("src.ui.components.notification_display")
 local fonts = require("src.ui.fonts")
+
+-- Services Globais
+local GameTimerService = require("src.services.game_timer_service")
+local EventService = require("src.services.event_service")
+local ItemDataService = require("src.services.item_data_service")
 
 local lovebird = require("src.libs.lovebird")
 local profiler = require("src.libs.profiler")
@@ -98,8 +104,13 @@ function love.load()
 
     SceneManager.switchScene("bootloader_scene")
 
-    -- Inicializa managers persistentes
-    local itemDataMgr = ItemDataManager:new()
+    -- Inicializar Serviços Globais
+    ServiceLocator.register("itemDataService", ItemDataService:new())
+    ServiceLocator.register("gameTimerService", GameTimerService:new())
+    ServiceLocator.register("eventService", EventService:new())
+
+    -- Inicializa managers persistentes (que agora podem depender de serviços)
+    local itemDataMgr = ItemDataManager:new() -- Mantém compatibilidade por enquanto
     ManagerRegistry:register("itemDataManager", itemDataMgr)
 
     local archetypeMgr = ArchetypeManager:new()
@@ -135,15 +146,19 @@ function love.load()
     _G.NotificationManager = NotificationManager
     _G.NotificationDisplay = NotificationDisplay
 
-    -- Inicializar sistema de eventos global
-    local eventMgr = EventManager:new()
-    ManagerRegistry:register("eventManager", eventMgr)
-    _G.EventManager = eventMgr
+
+    -- Carrega a base de dados dos itens
+    ---@type ItemDataService
+    local itemDataService = ServiceLocator.get("itemDataService");
+    itemDataService:loadAllData()
 
     Logger.info("main.notifications.initialized", "[main.love.load] Sistema de notificações inicializado globalmente")
 end
 
 function love.update(dt)
+    -- Atualiza todos os serviços globais
+    ServiceLocator.update(dt)
+
     -- Delega o update para a cena atual (se não for encerrar)
     SceneManager.update(dt)
 

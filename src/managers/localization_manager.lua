@@ -262,6 +262,12 @@ function LocalizationManager:keyExists(key)
     return false
 end
 
+--- Retorna o objeto de tradução atual
+---@return TranslationData translations
+function LocalizationManager:getCurrentTranslationTable()
+    return self.translations[self.currentLanguage]
+end
+
 --- Obtém estatísticas do sistema de localização
 ---@return table stats Estatísticas de uso e cache
 function LocalizationManager:getStats()

@@ -13,12 +13,12 @@ SceneManager.scenes = {}
 --- @type boolean # Flag para indicar se o encerramento foi solicitado
 SceneManager._quitRequested = false
 
---- Troca para uma nova cena.
+--- (Privado) Troca para uma nova cena.
 -- Descarrega a cena atual (se tiver o método `unload`), carrega o módulo da nova cena
 -- (forçando reload ao limpar o cache do `package.loaded`), e chama o método `load` da nova cena.
 ---@param sceneName string O nome do arquivo da cena (sem a extensão .lua) dentro de `src/scenes/`.
 ---@param args table | nil Uma tabela opcional de argumentos a serem passados para o método `load` da nova cena.
-function SceneManager.switchScene(sceneName, args)
+function SceneManager._switchScene(sceneName, args)
     print(string.format("SceneManager: Tentando trocar para cena '%s'", sceneName))
     -- Descarregar cena atual (se houver e tiver método unload)
     if SceneManager.currentScene and SceneManager.currentScene.unload then
@@ -54,6 +54,26 @@ function SceneManager.switchScene(sceneName, args)
         -- Lança um erro para interromper a execução e facilitar o debug
         error(string.format("Erro ao carregar o módulo da cena '%s': %s", sceneName, tostring(sceneModuleOrError)))
     end
+end
+
+--- Troca para uma nova cena.
+--- @deprecated Use a função de troca para a cena específica.
+--- @param sceneName string O nome do arquivo da cena (sem a extensão .lua) dentro de `src/scenes/`.
+--- @param args table | nil Uma tabela opcional de argumentos a serem passados para o método `load` da nova cena.
+function SceneManager.switchScene(sceneName, args)
+    SceneManager._switchScene(sceneName, args)
+end
+
+--- Navega para a cena de carregamento do jogo.
+---@param args GameLoadingSceneArgs Os argumentos necessários para a cena de carregamento.
+function SceneManager.goToGameLoadingScene(args)
+    SceneManager._switchScene("game_loading.game_loading_scene", args)
+end
+
+--- Navega para a cena principal de gameplay.
+---@param args GameplaySceneArgs Os argumentos necessários para a cena de gameplay.
+function SceneManager.goToGameplayScene(args)
+    SceneManager._switchScene("gameplay.gameplay_scene", args)
 end
 
 --- Atualiza a cena atual.

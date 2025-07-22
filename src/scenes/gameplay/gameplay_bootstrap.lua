@@ -6,30 +6,37 @@
 -- 1. CONSTRUÇÃO (:new)   -> Todos os managers são instanciados.
 -- 2. REGISTRO (register) -> Todas as instâncias são adicionadas ao registry.
 -- 3. INICIALIZAÇÃO (:init) -> O método :init() de cada manager é chamado.
-
-local SceneManagerRegistry = require("src.core.scene_manager_registry")
-
 -- Managers que seguem a NOVA arquitetura (baseados em classe/instância)
 local EnemyManager = require("src.scenes.gameplay.managers.enemy_manager")
+local PlayerManager = require("src.scenes.gameplay.managers.player_manager")
+local InfinityWrapMapManager = require("src.scenes.gameplay.managers.infinity_wrap_map_manager")
 local CullingManager = require("src.managers.culling_manager")
+local SceneManagerRegistry = require("src.core.scene_manager_registry")
 
 ---@class GameplayBootstrap
 local GameplayBootstrap = {}
 
 --- Inicializa todos os managers para uma nova sessão de gameplay.
---- @return SceneManagerRegistry registry Uma instância do registry populada com todos os managers da cena.
-function GameplayBootstrap.initialize()
+--- @param args GameplaySceneArgs Os dados do portal para esta sessão.
+--- @param renderPipeline RenderPipeline A instância do pipeline de renderização da cena.
+--- @return SceneManagerRegistry instance Uma instância do registry populada com todos os managers da cena.
+function GameplayBootstrap.initialize(args, renderPipeline)
     Logger.info(
         "gameplay_bootstrap.initialize.start",
         "[GameplayBootstrap:initialize] Initializing gameplay session managers..."
     )
+    assert(renderPipeline, "GameplayBootstrap.initialize requires a RenderPipeline instance.")
 
     local registry = SceneManagerRegistry:new()
 
     -- Definição dos managers a serem carregados
     local managersToLoad = {
-        enemyManager = { class = EnemyManager },
-        cullingManager = { class = CullingManager },
+        -- Passa o pipeline para os managers que precisam dele
+        playerManager = { class = PlayerManager, needsPipeline = true },
+        infinityWrapMapManager = { class = InfinityWrapMapManager, needsPipeline = true },
+        enemyManager = { class = EnemyManager, needsPipeline = true },
+        -- CullingManager não desenha, então não precisa do pipeline
+        cullingManager = { class = CullingManager, needsPipeline = false },
     }
 
     ---@type table<string, any>
@@ -41,7 +48,12 @@ function GameplayBootstrap.initialize()
         "[GameplayBootstrap:initialize] Constructing manager instances..."
     )
     for key, def in pairs(managersToLoad) do
-        local instance = def.class:new(registry)
+        local instance
+        if def.needsPipeline then
+            instance = def.class:new(registry, renderPipeline)
+        else
+            instance = def.class:new(registry)
+        end
         instances[key] = instance
     end
 
@@ -58,13 +70,20 @@ function GameplayBootstrap.initialize()
     Logger.info("gameplay_bootstrap.initialize.phase_3", "[GameplayBootstrap:initialize] Initializing managers...")
     for _, instance in pairs(instances) do
         if type(instance.init) == "function" then
-            instance:init()
+            instance:init(args)
         else
             Logger.error(
                 "gameplay_bootstrap.initialize.phase_3.error",
                 "[GameplayBootstrap:initialize] Manager '" .. instance.name .. "' does not have an :init() method."
             )
         end
+    end
+
+    --== FASE 4: SETUP DE GAMEPLAY ==--
+    Logger.info("gameplay_bootstrap.initialize.phase_4", "[GameplayBootstrap:initialize] Setting up gameplay data...")
+    local enemyManager = registry:get("enemyManager")
+    if enemyManager and enemyManager.setupGameplay then
+        enemyManager:setupGameplay(args.portalData.hordeConfig)
     end
 
     Logger.info(
@@ -74,21 +93,21 @@ function GameplayBootstrap.initialize()
     return registry
 end
 
----
--- Destrói todos os managers da sessão de gameplay.
--- @param registry SceneManagerRegistry A instância do registry a ser limpa.
+--- Destrói todos os managers da sessão de gameplay.
+--- @param registry SceneManagerRegistry A instância do registry a ser limpa.
 function GameplayBootstrap.destroy(registry)
     Logger.info("gameplay_bootstrap.destroy.start", "[GameplayBootstrap:destroy] Destroying gameplay managers...")
     if not registry then return end
 
     local allManagers = registry:getAll()
-    for _, instance in pairs(allManagers) do
+    for managerName, instance in pairs(allManagers) do
         if type(instance.destroy) == "function" then
             instance:destroy()
         else
+            -- log com nome da instancia
             Logger.error(
                 "gameplay_bootstrap.destroy.error",
-                "[GameplayBootstrap:destroy] Manager '" .. instance.name .. "' does not have a :destroy() method."
+                "[GameplayBootstrap:destroy] Manager '" .. managerName .. "' does not have a :destroy() method."
             )
         end
     end
