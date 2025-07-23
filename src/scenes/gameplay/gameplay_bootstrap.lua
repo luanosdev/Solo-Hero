@@ -29,14 +29,13 @@ function GameplayBootstrap.initialize(args, renderPipeline)
 
     local registry = SceneManagerRegistry:new()
 
-    -- Definição dos managers a serem carregados
+    -- Definição dos managers a serem carregados em ordem explícita de inicialização.
+    -- O mapa DEVE ser inicializado antes do jogador e dos inimigos.
     local managersToLoad = {
-        -- Passa o pipeline para os managers que precisam dele
-        playerManager = { class = PlayerManager, needsPipeline = true },
-        infinityWrapMapManager = { class = InfinityWrapMapManager, needsPipeline = true },
-        enemyManager = { class = EnemyManager, needsPipeline = true },
-        -- CullingManager não desenha, então não precisa do pipeline
-        cullingManager = { class = CullingManager, needsPipeline = false },
+        { key = "infinityWrapMapManager", class = InfinityWrapMapManager, needsPipeline = true },
+        { key = "cullingManager", class = CullingManager, needsPipeline = false },
+        { key = "playerManager", class = PlayerManager, needsPipeline = true },
+        { key = "enemyManager", class = EnemyManager, needsPipeline = true },
     }
 
     ---@type table<string, any>
@@ -47,16 +46,16 @@ function GameplayBootstrap.initialize(args, renderPipeline)
         "gameplay_bootstrap.initialize.phase_1",
         "[GameplayBootstrap:initialize] Constructing manager instances..."
     )
-    for key, def in pairs(managersToLoad) do
-        Logger.debug("GameplayBootstrap:initialize", "  -> Construindo: " .. key)
+    for _, def in ipairs(managersToLoad) do
+        Logger.debug("GameplayBootstrap:initialize", "  -> Construindo: " .. def.key)
         local instance
         if def.needsPipeline then
             instance = def.class:new(registry, renderPipeline)
         else
             instance = def.class:new(registry)
         end
-        instances[key] = instance
-        Logger.debug("GameplayBootstrap:initialize", "  -- Construído: " .. key)
+        instances[def.key] = instance
+        Logger.debug("GameplayBootstrap:initialize", "  -- Construído: " .. def.key)
     end
 
     --== FASE 2: REGISTRO ==--
@@ -69,8 +68,12 @@ function GameplayBootstrap.initialize(args, renderPipeline)
     end
 
     --== FASE 3: INICIALIZAÇÃO (init) ==--
+    -- A inicialização agora segue a ordem explícita de managersToLoad
     Logger.info("gameplay_bootstrap.initialize.phase_3", "[GameplayBootstrap:initialize] Initializing managers...")
-    for key, instance in pairs(instances) do
+    for _, def in ipairs(managersToLoad) do
+        local key = def.key
+        local instance = instances[key]
+
         Logger.debug("GameplayBootstrap:initialize", "  -> Inicializando: " .. key)
         if type(instance.init) == "function" then
             instance:init(args)

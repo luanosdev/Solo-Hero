@@ -104,14 +104,6 @@ function GameLoadingScene:_loadMapAssets()
     return loader:load(mapId)
 end
 
-function GameLoadingScene:_bakeMap(mapAssets)
-    local MapBaker = require("src.core.map_baker")
-    local baker = MapBaker:new()
-    assert(mapAssets, "Map assets não encontrados para o bake.")
-    Logger.info("game_loading_scene._bakeMap", "Baking map...")
-    return baker:bake(mapAssets)
-end
-
 function GameLoadingScene:_loadPlayerSprites()
     local SpritePlayer = require('src.animations.sprite_player')
     SpritePlayer._loadBodySprites()
@@ -128,44 +120,24 @@ end
 --- Lógica da corrotina que executa as tarefas de carregamento de forma explícita e sequencial.
 function GameLoadingScene:_runTasks()
     local preloadedAssets = {}
-    local totalTasks = 4 -- Definido manualmente para simplicidade
+    local totalTasks = 3 -- Definido manualmente para simplicidade
 
     -- Tarefa 1: Carregar Mapa
     self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.MAP_ASSETS
     self.loadingState.progress = 0 / totalTasks
     local mapAssetsKey, mapAssets = self:_loadMapAssets()
     preloadedAssets[mapAssetsKey] = mapAssets
-
-    -- LOG DE INSPEÇÃO
-    if preloadedAssets.map then
-        local keys = {}
-        for k, _ in pairs(preloadedAssets.map) do
-            table.insert(keys, k)
-        end
-        Logger.info("GameLoadingScene:_runTasks [INSPECT]",
-            "preloadedAssets.map contains keys: {" .. table.concat(keys, ", ") .. "}")
-    else
-        Logger.warn("GameLoadingScene:_runTasks [INSPECT]", "preloadedAssets.map is nil after assignment!")
-    end
-
     coroutine.yield()
 
-    -- Tarefa 2: "Assar" o Mapa
-    self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.BAKE_MAP
-    self.loadingState.progress = 1 / totalTasks
-    local bakedMapKey, bakedMap = self:_bakeMap(preloadedAssets.map)
-    preloadedAssets[bakedMapKey] = bakedMap
-    coroutine.yield()
-
-    -- Tarefa 3: Carregar Sprites do Jogador
+    -- Tarefa 2: Carregar Sprites do Jogador
     self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.PLAYER_SPRITES
-    self.loadingState.progress = 2 / totalTasks
+    self.loadingState.progress = 1 / totalTasks
     self:_loadPlayerSprites() -- Esta tarefa não retorna assets
     coroutine.yield()
 
-    -- Tarefa 4: Carregar Equipamento do Jogador
+    -- Tarefa 3: Carregar Equipamento do Jogador
     self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.PLAYER_EQUIPMENT
-    self.loadingState.progress = 3 / totalTasks
+    self.loadingState.progress = 2 / totalTasks
     self:_loadPlayerEquipment() -- Esta tarefa não retorna assets
     coroutine.yield()
 

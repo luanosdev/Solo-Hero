@@ -1,176 +1,278 @@
---- @description Gerencia a renderização de um mapa isométrico infinito usando canvases pré-renderizados ("baked").
---- Este manager não carrega ou processa dados de mapa. Ele recebe os canvases prontos
---- da GameLoadingScene e gerencia apenas a lógica de "wrapping" (repetição) e o desenho
---- para criar a ilusão de um mundo contínuo.
+--- @description Gerencia um mapa isométrico infinito, sua renderização e eventos de "wrap".
+--- Carrega os dados de um mapa Tiled, pré-renderiza suas camadas em canvases para
+--- performance e emite eventos quando o jogador atravessa as bordas dos patches.
 local SceneManagerRegistry = require("src.core.scene_manager_registry")
 local ServiceLocator = require("src.core.service_locator")
 
 ---@class InfinityWrapMapManagerV2
 ---@field registry SceneManagerRegistry
----@field renderPipeline RenderPipeline
 ---@field mapData table Os dados crus do mapa Tiled.
----@field bakedLayers table<string, love.Canvas> Os canvases pré-renderizados para cada camada.
----@field worldPixelWidth number Largura total do mapa em pixels isométricos.
----@field worldPixelHeight number Altura total do mapa em pixels isométricos.
----@field tileWidth number Largura de um tile em pixels.
----@field tileHeight number Altura de um tile em pixels.
----@field patchSize number Tamanho de um patch em pixels.
----@field tilesPerPatch number Número de tiles por patch.
----@field currentPatchX number O patch X atual do jogador.
----@field currentPatchY number O patch Y atual do jogador.
+---@field tiles table<number, love.Image> Tabela de imagens de tile individuais.
+---@field layerCanvases table<string, love.Canvas> Canvases pré-renderizados para cada camada.
+---@field canvasRenderData table Dados sobre a renderização do canvas.
+---@field isBaking boolean True se o mapa estiver em processo de construção.
+---@field bakingCoroutine thread A corrotina usada para construção assíncrona.
+---@field tileWidth number
+---@field tileHeight number
+---@field patchGridSize number -- No código antigo, isso era 'patchSize'
+---@field tilesPerPatch number
 local InfinityWrapMapManager = {}
 InfinityWrapMapManager.__index = InfinityWrapMapManager
 
----@param registry SceneManagerRegistry
----@param renderPipeline RenderPipeline
----@return InfinityWrapMapManagerV2
-function InfinityWrapMapManager:new(registry, renderPipeline)
-    assert(registry, "[InfinityWrapMapManager] missing a ManagerRegistry")
-    assert(renderPipeline, "[InfinityWrapMapManager] missing a RenderPipeline")
-
+function InfinityWrapMapManager:new(registry)
     local instance = setmetatable({}, InfinityWrapMapManager)
     instance.registry = registry
-    instance.renderPipeline = renderPipeline
     instance.mapData = nil
-    instance.bakedLayers = nil
-    instance.worldPixelWidth = 0
-    instance.worldPixelHeight = 0
-
+    instance.tiles = {}
+    instance.layerCanvases = {}
+    instance.canvasRenderData = {}
+    instance.isBaking = true
+    instance.bakingCoroutine = nil
     instance.tileWidth = 0
     instance.tileHeight = 0
-    instance.patchSize = 0
+    instance.patchGridSize = 0
     instance.tilesPerPatch = 0
-    instance.currentPatchX = 0
-    instance.currentPatchY = 0
-
     return instance
 end
 
---- Inicializa o manager com os assets pré-carregados e pré-renderizados.
----@param args GameplaySceneArgs A tabela de assets vinda da GameLoadingScene.
 function InfinityWrapMapManager:init(args)
-    -- Validação de entrada
-    assert(args, "InfinityWrapMapManager:init - args is nil")
-    assert(args.preloadedAssets, "InfinityWrapMapManager:init - preloadedAssets is nil")
-    assert(args.preloadedAssets.map, "InfinityWrapMapManager:init - map is nil")
-    assert(args.preloadedAssets.map.mapData, "InfinityWrapMapManager:init - mapData is nil")
-    assert(args.preloadedAssets.bakedMap, "InfinityWrapMapManager:init - bakedMap is nil")
-    assert(args.preloadedAssets.bakedMap.layers, "InfinityWrapMapManager:init - layers is nil")
-
-    -- LOG DE INSPEÇÃO
-    if args and args.preloadedAssets then
-        local keys = {}
-        for k, _ in pairs(args.preloadedAssets) do table.insert(keys, k) end
-        Logger.info("InfinityWrapMapManager:init [INSPECT]",
-            "Received preloadedAssets with keys: {" .. table.concat(keys, ", ") .. "}")
-    else
-        Logger.warn("InfinityWrapMapManager:init [INSPECT]", "Received args with nil or missing preloadedAssets!")
-    end
-
-    assert(args and args.preloadedAssets and args.preloadedAssets.map and args.preloadedAssets.bakedMap,
-        "InfinityWrapMapManager:init requer map e bakedMap nos preloadedAssets.")
-
     self.mapData = args.preloadedAssets.map.mapData
-    self.bakedLayers = args.preloadedAssets.bakedMap.layers
+    self.tiles = args.preloadedAssets.map.tiles
+    self.tileWidth = self.mapData.tilewidth
+    self.tileHeight = self.mapData.tileheight
+    self.patchGridSize = self.mapData.width / self.mapData.properties.grid_width
+    self.tilesPerPatch = self.mapData.properties.grid_width
 
-    -- LOG DE INSPEÇÃO DOS CANVASES
-    if self.bakedLayers then
-        for layerName, canvas in pairs(self.bakedLayers) do
-            if canvas then
-                Logger.info("InfinityWrapMapManager:init [CANVAS INSPECT]",
-                    string.format("  - Received canvas for layer '%s': %d x %d", layerName, canvas:getWidth(),
-                        canvas:getHeight())
-                )
-            else
-                Logger.warn("InfinityWrapMapManager:init [CANVAS INSPECT]",
-                    string.format("  - Canvas for layer '%s' is nil!", layerName)
-                )
+    self:_initializeCanvasSystem()
+
+    self.isBaking = true
+    self.bakingCoroutine = coroutine.create(function() self:_buildCanvasesAsyncTask(true) end)
+
+    -- AGORA que o mapa conhece suas dimensões, ele posiciona o jogador.
+    self:_setInitialPlayerPosition()
+end
+
+function InfinityWrapMapManager:update(dt)
+    if self.isBaking then
+        local status, err = coroutine.resume(self.bakingCoroutine)
+        if not status then
+            Logger.error("IWMM.update.coroutine_error", "Erro na corrotina de construção do mapa: " .. tostring(err))
+            self.isBaking = false
+        end
+        if coroutine.status(self.bakingCoroutine) == "dead" then
+            if self.isBaking then
+                self.isBaking = false
+                self:_updateAllCanvases(true)
             end
         end
     else
-        Logger.error("InfinityWrapMapManager:init [CANVAS INSPECT]", "self.bakedLayers is nil!")
+        local playerMgr = self.registry:get("playerManager")
+        if not playerMgr or not playerMgr.movementController then return end
+        local worldPosition = playerMgr:getPosition()
+        local currentTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
+        local currentPatchX = math.floor(currentTilePos.x / self.tilesPerPatch)
+        local currentPatchY = math.floor(currentTilePos.y / self.tilesPerPatch)
+        if currentPatchX ~= self.canvasRenderData.lastRenderedPatchX or currentPatchY ~= self.canvasRenderData.lastRenderedPatchY then
+            local eventService = ServiceLocator.get("eventService")
+            eventService:emit("PLAYER_WRAPPED") -- TODO: Usar enum de eventos
+            self:_updateAllCanvases(true)
+        end
     end
-
-    -- CORREÇÃO: Atribui as dimensões do tile à instância para que outros métodos possam usá-las.
-    self.tileWidth = self.mapData.tilewidth
-    self.tileHeight = self.mapData.tileheight
-    local mapGridWidth = self.mapData.width
-    local mapGridHeight = self.mapData.height
-
-    -- A largura e altura de um mapa isométrico em pixels
-    self.worldPixelWidth = (mapGridWidth + mapGridHeight) * self.tileWidth / 2
-    self.worldPixelHeight = (mapGridWidth + mapGridHeight) * self.tileHeight / 2
-
-    self.tilesPerPatch = self.mapData.properties.grid_width
-    self.patchSize = self.mapData.width / self.tilesPerPatch
-
-    -- Inicializa o patch do jogador em uma posição inicial (pode ser ajustado)
-    self.currentPatchX = 0
-    self.currentPatchY = 0
-
-    Logger.info("infinity_wrap_map_manager.init.success",
-        string.format("[InfinityWrapMapManager] Inicializado com mapa '%s' (%dx%d pixels)",
-            args.portalData.id,
-            self.worldPixelWidth, self.worldPixelHeight))
 end
 
---- O update deste manager é mínimo, pois a lógica de wrap é feita no draw.
---- Poderia ser usado para eventos de "wrap" no futuro, se necessário.
-function InfinityWrapMapManager:update(dt)
-    ---@type PlayerManager
+function InfinityWrapMapManager:draw()
+    if self.isBaking then return end
     local playerMgr = self.registry:get("playerManager")
-    if not playerMgr or not playerMgr.movementController then
-        return
-    end
+    local worldPosition = playerMgr and playerMgr:getPosition()
+    if not worldPosition then return end
 
-    local worldPosition = playerMgr.movementController:getPosition()
-    local currentTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
-    local newPatchX = math.floor(currentTilePos.x / self.tilesPerPatch)
-    local newPatchY = math.floor(currentTilePos.y / self.tilesPerPatch)
-
-    if newPatchX ~= self.currentPatchX or newPatchY ~= self.currentPatchY then
-        self.currentPatchX = newPatchX
-        self.currentPatchY = newPatchY
-
-        Logger.debug(
-            "infinity_wrap_map_manager.update.player_wrapped",
-            string.format("[InfinityWrapMapManager:update] Player wrapped to patch: %d, %d", newPatchX, newPatchY)
+    local canvasDrawX, canvasDrawY = self:_calculateCanvasDrawPosition(worldPosition)
+    if self.layerCanvases["ground"] then love.graphics.draw(self.layerCanvases["ground"], canvasDrawX, canvasDrawY) end
+    if self.layerCanvases["ground_decoration"] then
+        love.graphics.draw(
+            self.layerCanvases["ground_decoration"],
+            canvasDrawX,
+            canvasDrawY
         )
-        ---@type EventService
-        local eventService = ServiceLocator.get("eventService")
-        eventService:emit(eventService.EVENTS.PLAYER_WRAPPED)
     end
 end
 
---- Calcula e retorna os offsets de câmera para alinhar entidades com o mapa.
---- Esta função centraliza a lógica de cálculo de offset que antes era
---- duplicada em várias entidades (drops, inimigos, etc).
----@return number, number Retorna os offsets X e Y da câmera.
-function InfinityWrapMapManager:getCameraOffsets()
-    ---@type PlayerManager
-    local playerMgr = SceneManagerRegistry:get("playerManager")
-    if not playerMgr or not playerMgr.movementController then
-        return 0, 0
+function InfinityWrapMapManager:drawTopLayers()
+    if self.isBaking then return end
+    local playerMgr = self.registry:get("playerManager")
+    local worldPosition = playerMgr and playerMgr:getPosition()
+    if not worldPosition then return end
+
+    local canvasDrawX, canvasDrawY = self:_calculateCanvasDrawPosition(worldPosition)
+    if self.layerCanvases["decoration"] then
+        love.graphics.draw(
+            self.layerCanvases["decoration"],
+            canvasDrawX,
+            canvasDrawY
+        )
     end
-
-    local playerPos = playerMgr.movementController:getPosition()
-    local screenCenterX = ResolutionUtils.getGameWidth() / 2
-    local screenCenterY = ResolutionUtils.getGameHeight() / 2
-
-    local camOffsetX = screenCenterX - playerPos.x
-    local camOffsetY = screenCenterY - playerPos.y
-
-    return camOffsetX, camOffsetY
 end
 
---- Retorna as dimensões totais do mapa base em tiles.
---- Essencial para a lógica de pathfinding em espaço toroidal.
----@return number width, number height
-function InfinityWrapMapManager:getWorldTileDimensions()
-    if not self.mapData then
-        return 0, 0
+function InfinityWrapMapManager:_setInitialPlayerPosition()
+    local worldW, worldH = self:getWorldPixelDimensions()
+    local startPosition = { x = worldW / 2, y = worldH / 2 }
+
+    ---@type PlayerManagerV2
+    local playerManager = self.registry:get("playerManager")
+    if playerManager and playerManager.movementController then
+        playerManager.movementController:setPosition(startPosition)
+    else
+        Logger.error("IWMM._setInitialPlayerPosition",
+            "Não foi possível encontrar o playerManager ou seu movementController para definir a posição inicial.")
     end
-    return self.mapData.width, self.mapData.height
+end
+
+function InfinityWrapMapManager:_calculateCanvasDrawPosition(worldPosition)
+    local renderData = self.canvasRenderData
+    local renderRadius = math.floor(renderData.renderGridDiameter / 2)
+    local gridOriginTileX = (renderData.lastRenderedPatchX - renderRadius) * self.tilesPerPatch
+    local gridOriginTileY = (renderData.lastRenderedPatchY - renderRadius) * self.tilesPerPatch
+    local gridOriginIso = self:cartesianToIsometric(gridOriginTileX, gridOriginTileY)
+    local playerRelativeX = worldPosition.x - gridOriginIso.x
+    local playerRelativeY = worldPosition.y - gridOriginIso.y
+    local canvasDrawX = ResolutionUtils.getGameWidth() / 2 - playerRelativeX - renderData.offsetX
+    local canvasDrawY = ResolutionUtils.getGameHeight() / 2 - playerRelativeY - renderData.offsetY
+    return canvasDrawX, canvasDrawY
+end
+
+function InfinityWrapMapManager:_initializeCanvasSystem()
+    self.layerCanvases = {}
+    self.canvasRenderData = {
+        renderGridDiameter = 3,
+        lastRenderedPatchX = -1,
+        lastRenderedPatchY = -1
+    }
+    local renderData = self.canvasRenderData
+    local gridSizeInTiles = renderData.renderGridDiameter * self.tilesPerPatch
+    local maxTileW, maxH = self:_getMaximumTileDimensions()
+    local N = gridSizeInTiles
+    local canvasWidth = (N - 1) * self.tileWidth + maxTileW
+    local canvasHeight = (N - 1) * self.tileHeight + maxH
+    renderData.width = canvasWidth
+    renderData.height = canvasHeight
+    renderData.offsetX = (N - 1) * self.tileWidth / 2 + (maxTileW / 2)
+    renderData.offsetY = maxH - (self.tileHeight / 2)
+    for _, layer in ipairs(self.mapData.layers) do
+        if layer.type == "tilelayer" and layer.visible then
+            self.layerCanvases[layer.name] = love.graphics.newCanvas(canvasWidth, canvasHeight, { format = "rgba8" })
+        end
+    end
+end
+
+function InfinityWrapMapManager:_getMaximumTileDimensions()
+    local maxW, maxH = 0, 0
+    if not self.tiles or not next(self.tiles) then return self.tileWidth, self.tileHeight * 2 end
+    for _, img in pairs(self.tiles) do
+        maxW = math.max(maxW, img:getWidth())
+        maxH = math.max(maxH, img:getHeight())
+    end
+    return maxW, maxH
+end
+
+function InfinityWrapMapManager:_updateAllCanvases(force)
+    if force then
+        self:_buildCanvasesAsyncTask(false)
+    end
+end
+
+function InfinityWrapMapManager:_buildCanvasesAsyncTask(isAsyncTask)
+    local playerMgr = self.registry:get("playerManager")
+    local worldPosition = playerMgr and playerMgr:getPosition() or { x = 0, y = 0 }
+    local currentTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
+    local currentPatchX = math.floor(currentTilePos.x / self.tilesPerPatch)
+    local currentPatchY = math.floor(currentTilePos.y / self.tilesPerPatch)
+    self.canvasRenderData.lastRenderedPatchX = currentPatchX
+    self.canvasRenderData.lastRenderedPatchY = currentPatchY
+    for name, canvas in pairs(self.layerCanvases) do
+        self:_renderLayerToCanvas(name, canvas, isAsyncTask)
+    end
+end
+
+function InfinityWrapMapManager:_renderLayerToCanvas(layerName, canvas, isAsyncTask)
+    local layer = self:_findLayer(self.mapData.layers, layerName)
+    if not layer then return end
+    local renderData = self.canvasRenderData
+    local centerPatchX = renderData.lastRenderedPatchX
+    local centerPatchY = renderData.lastRenderedPatchY
+    local renderRadius = math.floor(renderData.renderGridDiameter / 2)
+    love.graphics.setCanvas(canvas)
+    love.graphics.clear(0, 0, 0, 0)
+    local mapTotalWidth = self.mapData.width
+    local gridOriginTileX = (centerPatchX - renderRadius) * self.tilesPerPatch
+    local gridOriginTileY = (centerPatchY - renderRadius) * self.tilesPerPatch
+    local tilesDrawnInFrame = 0
+    local TILES_PER_YIELD = 100
+    local yieldFunc = isAsyncTask and coroutine.yield or function() end
+    for py = centerPatchY - renderRadius, centerPatchY + renderRadius do
+        for px = centerPatchX - renderRadius, centerPatchX + renderRadius do
+            local sourcePatchX = ((px % self.patchGridSize) + self.patchGridSize) % self.patchGridSize
+            local sourcePatchY = ((py % self.patchGridSize) + self.patchGridSize) % self.patchGridSize
+            local sourceTileStartX = sourcePatchX * self.tilesPerPatch
+            local sourceTileStartY = sourcePatchY * self.tilesPerPatch
+            for y = 0, self.tilesPerPatch - 1 do
+                for x = 0, self.tilesPerPatch - 1 do
+                    local sourceMapX = sourceTileStartX + x
+                    local sourceMapY = sourceTileStartY + y
+                    local index = sourceMapY * mapTotalWidth + sourceMapX + 1
+                    local gid = layer.data[index]
+                    if gid and gid > 0 then
+                        local tileInfo = self:_findTileInfo(self.mapData.tilesets, gid)
+                        if tileInfo and self.tiles[tileInfo.image] then
+                            local tileImage = self.tiles[tileInfo.image]
+                            local destTileX = (px * self.tilesPerPatch + x) - gridOriginTileX
+                            local destTileY = (py * self.tilesPerPatch + y) - gridOriginTileY
+                            local iso = self:cartesianToIsometric(destTileX, destTileY)
+                            local screenX = iso.x + renderData.offsetX
+                            local screenY = iso.y + renderData.offsetY
+                            local ox = tileImage:getWidth() / 2
+                            local oy = tileImage:getHeight() - self.tileHeight / 2
+                            love.graphics.draw(tileImage, math.floor(screenX), math.floor(screenY), 0, 1, 1, ox, oy)
+                            tilesDrawnInFrame = tilesDrawnInFrame + 1
+                            if tilesDrawnInFrame >= TILES_PER_YIELD then
+                                yieldFunc()
+                                tilesDrawnInFrame = 0
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    love.graphics.setCanvas()
+end
+
+-- Funções auxiliares portadas 1:1
+function InfinityWrapMapManager:_findLayer(layers, name)
+    for _, l in ipairs(layers) do if l.name == name then return l end end; return nil
+end
+
+function InfinityWrapMapManager:_findTileInfo(tilesets, gid)
+    for i = #tilesets, 1, -1 do
+        local ts = tilesets[i]; if gid >= ts.firstgid then
+            local lid = gid - ts.firstgid; for _, t in ipairs(ts.tiles) do if t.id == lid then return t end end
+        end
+    end; return nil
+end
+
+function InfinityWrapMapManager:cartesianToIsometric(x, y)
+    return {
+        x = (x - y) * (self.tileWidth / 2),
+        y = (x + y) *
+            (self.tileHeight / 2)
+    }
+end
+
+function InfinityWrapMapManager:isometricToCartesianTile(isoX, isoY)
+    return {
+        x = (isoX / (self.tileWidth / 2) + isoY / (self.tileHeight / 2)) /
+            2,
+        y = (isoY / (self.tileHeight / 2) - isoX / (self.tileWidth / 2)) / 2
+    }
 end
 
 --- Retorna as dimensões totais do mapa base em pixels isométricos.
@@ -181,91 +283,18 @@ function InfinityWrapMapManager:getWorldPixelDimensions()
         return 0, 0
     end
 
-    -- Esta função agora funcionará corretamente pois self.tileWidth e self.tileHeight
-    -- são definidos no init.
+    -- CORREÇÃO FINAL: A fórmula correta para a bounding box de um mapa isométrico.
     local tileMapWidth = self.mapData.width
     local tileMapHeight = self.mapData.height
 
-    local pixelWidth = (tileMapWidth + tileMapHeight) * (self.tileWidth / 2)
-    local pixelHeight = (tileMapWidth + tileMapHeight) * (self.tileHeight / 2)
+    local pixelWidth = (tileMapWidth + tileMapHeight - 2) * (self.tileWidth / 2)
+    local pixelHeight = (tileMapWidth + tileMapHeight - 2) * (self.tileHeight / 2)
 
     return pixelWidth, pixelHeight
 end
 
---- Converte coordenadas cartesianas para isométricas.
----@param x number
----@param y number
----@return Vector2D
-function InfinityWrapMapManager:cartesianToIsometric(x, y)
-    local isoX = (x - y) * (self.tileWidth / 2)
-    local isoY = (x + y) * (self.tileHeight / 2)
-    return { x = isoX, y = isoY }
-end
-
---- Converte coordenadas isométricas (pixels) para coordenadas de tile cartesianas (ponto flutuante).
----@param isoX number
----@param isoY number
----@return Vector2D
-function InfinityWrapMapManager:isometricToCartesianTile(isoX, isoY)
-    local cartX = (isoX / (self.tileWidth / 2) + isoY / (self.tileHeight / 2)) / 2
-    local cartY = (isoY / (self.tileHeight / 2) - isoX / (self.tileWidth / 2)) / 2
-    return { x = cartX, y = cartY }
-end
-
---- Desenha as camadas inferiores do mapa (abaixo do jogador).
---- A posição da câmera é gerenciada pelo RenderPipeline.
----@param playerPosition Vector2D A posição do jogador para o cálculo do wrap.
-function InfinityWrapMapManager:draw(playerPosition)
-    assert(playerPosition, "InfinityWrapMapManager:draw - playerPosition is nil")
-
-    self:_drawLayers({ "ground", "ground_decoration" }, playerPosition)
-end
-
---- Desenha as camadas superiores do mapa (acima do jogador).
---- A posição da câmera é gerenciada pelo RenderPipeline.
----@param playerPosition Vector2D A posição do jogador para o cálculo do wrap.
-function InfinityWrapMapManager:drawTopLayers(playerPosition)
-    assert(playerPosition, "InfinityWrapMapManager:drawTopLayers - playerPosition is nil")
-
-    self:_drawLayers({ "decoration" }, playerPosition)
-end
-
---- (Privado) Lógica central de desenho que aplica o "wrap".
----@param layerNames string[] Nomes das camadas a serem desenhadas.
----@param playerPosition Vector2D A posição do jogador que o pipeline está seguindo.
-function InfinityWrapMapManager:_drawLayers(layerNames, playerPosition)
-    local drawX = -playerPosition.x + (ResolutionUtils.getGameWidth() / 2)
-    local drawY = -playerPosition.y + (ResolutionUtils.getGameHeight() / 2)
-
-    -- CORREÇÃO: Usa uma fórmula de módulo que funciona corretamente com números negativos
-    -- para garantir que o "wrap" aconteça em todas as direções.
-    local wrappedDrawX = ((drawX % self.worldPixelWidth) + self.worldPixelWidth) % self.worldPixelWidth
-    local wrappedDrawY = ((drawY % self.worldPixelHeight) + self.worldPixelHeight) % self.worldPixelHeight
-
-    -- Desenha os 9 canvas para o efeito de wrap
-    for i = -1, 1 do
-        for j = -1, 1 do
-            local offsetX = wrappedDrawX + i * self.worldPixelWidth
-            local offsetY = wrappedDrawY + j * self.worldPixelHeight
-            -- Logger.debug("InfinityWrapMapManager._drawLayers", string.format("  - Drawing canvas patch at: (%.2f, %.2f)", offsetX, offsetY))
-            for _, layerName in ipairs(layerNames) do
-                local canvas = self.bakedLayers[layerName]
-                if canvas then
-                    love.graphics.draw(canvas, offsetX, offsetY)
-                end
-            end
-        end
-    end
-end
-
-function InfinityWrapMapManager:destroy()
-    if self.bakedLayers then
-        for _, canvas in pairs(self.bakedLayers) do
-            canvas:release()
-        end
-    end
-    self.bakedLayers = nil
-    Logger.info("infinity_wrap_map_manager.destroy", "[InfinityWrapMapManager] Canvases do mapa liberados.")
-end
+--- Libera todos os canvases criados.
+---@private
+function InfinityWrapMapManager:destroy() for _, c in pairs(self.layerCanvases) do c:release() end end
 
 return InfinityWrapMapManager

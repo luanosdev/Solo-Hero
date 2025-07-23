@@ -66,7 +66,11 @@ end
 ---@param renderPipeline RenderPipeline
 ---@param worldPosition Vector2D A posição atual do jogador no mundo para o cálculo do sortY.
 function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition)
-    if not self.playerSprite then return end
+    if not self.playerSprite then
+        Logger.warn("player_sprite_controller.collect",
+        "[PlayerSpriteController] Tentou coletar, mas self.playerSprite é nil.")
+        return
+    end
 
     -- Calcula o sortY para a profundidade 2.5D
     local playerBaseY = worldPosition.y + 25 -- Pés do sprite

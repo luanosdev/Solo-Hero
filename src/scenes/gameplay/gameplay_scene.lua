@@ -52,8 +52,7 @@ function GameplayScene:load(args)
     local camY = playerInitialPosition.y - (ResolutionUtils.getGameHeight() / Camera.scale / 2)
     Camera:setPosition(camX, camY)
 
-    -- 3b. Conectar managers ao RenderPipeline
-    self.renderPipeline:setMapManager(mapManager)
+    -- A conexão com o RenderPipeline foi removida, o desenho do mapa é explícito.
 
     -- Valida se o registry foi carregado corretamente
     if not self.registry then
@@ -97,18 +96,27 @@ function GameplayScene:draw()
     ---@type PlayerManagerV2
     local playerManager = self.registry:get("playerManager")
     local playerPosition = playerManager and playerManager:getPosition()
+    ---@type InfinityWrapMapManagerV2
+    local mapManager = self.registry:get("infinityWrapMapManager")
 
     Camera:attach()
 
-    -- Limpa o pipeline para o novo frame
+    -- 1. Desenha as camadas de baixo do mapa
+    if mapManager and playerPosition then
+        mapManager:draw()
+    end
+
+    -- 2. Limpa e processa o pipeline para entidades (jogador, inimigos, drops)
     self.renderPipeline:reset()
-
-    -- Coleta todos os renderizáveis dos managers
+    -- NOTA: O mapa não é mais coletado aqui
     self.registry:collectAllRenderables(self.renderPipeline)
-
-    -- Desenha tudo que foi coletado, usando a posição do jogador como foco.
     if playerPosition then
         self.renderPipeline:draw(playerPosition)
+    end
+
+    -- 3. Desenha as camadas de cima do mapa
+    if mapManager and playerPosition then
+        mapManager:drawTopLayers()
     end
 
     Camera:detach()

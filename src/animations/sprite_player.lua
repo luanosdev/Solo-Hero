@@ -196,7 +196,7 @@ function SpritePlayer._loadWeaponFolder(folderName)
         Logger.info(
             "sprite_player.load_weapons",
             string.format("[SpritePlayer:_loadWeaponFolder] Loaded weapon sprites for '%s' in %.2f ms", folderName,
-            elapsedTime)
+                elapsedTime)
         )
     else
         -- Remove entrada vazia se nenhum sprite foi carregado
@@ -632,18 +632,35 @@ function SpritePlayer.draw(config)
 
     -- Verifica se o sprite do corpo existe
     if not SpritePlayer.resources.body[spriteState] then
+        Logger.warn(
+            "sprite_player.draw",
+            string.format("[SpritePlayer:draw] Tentou desenhar, mas o estado '%s' não tem sprite carregado.", spriteState)
+        )
         return
     end
-
-    love.graphics.push()
-    love.graphics.translate(config.position.x, config.position.y)
 
     -- Obtém o quad atual
     local bodyQuad = SpritePlayer.quads[spriteState] and
         SpritePlayer.quads[spriteState][currentDirection] and
         SpritePlayer.quads[spriteState][currentDirection][currentFrame]
 
+    if not bodyQuad then
+        Logger.warn(
+            "sprite_player.draw.quad_fail",
+            string.format(
+                "[SpritePlayer:draw] Quad não encontrado para state: '%s', direction: '%s', frame: %d. Draw ignorado.",
+                tostring(spriteState),
+                tostring(currentDirection),
+                tostring(currentFrame)
+            )
+        )
+        return
+    end
+
     if bodyQuad then
+        -- A translação (posição) é tratada pelo RenderPipeline.
+        -- A função de desenho só precisa se preocupar em desenhar no ponto (0,0) relativo.
+
         -- Desenha a camada do corpo com cor de pele
         local skinColor = Colors.skinTones[config.appearance.skinTone] or Colors.skinTones.medium
         love.graphics.setColor(skinColor)
@@ -667,8 +684,6 @@ function SpritePlayer.draw(config)
         -- Desenha camada de arma (se existir) - sempre sincronizada
         SpritePlayer._drawWeaponLayer(config, spriteState, currentDirection, currentFrame)
     end
-
-    love.graphics.pop()
 end
 
 --- Desenha as camadas de equipamentos sempre sincronizadas com o corpo

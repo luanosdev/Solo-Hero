@@ -23,46 +23,43 @@ function MapBaker:bake(mapAssets)
 
     local mapData = mapAssets.mapData
     local loadedTiles = mapAssets.tiles
+    local patchSize = 4
 
-    -- CORREÇÃO: Calcula as dimensões corretas para a bounding box de um mapa isométrico.
-    local mapGridWidth = mapData.width
-    local mapGridHeight = mapData.height
-    local tileWidth = mapData.tilewidth
-    local tileHeight = mapData.tileheight
-    local mapWidthInPixels = (mapGridWidth + mapGridHeight) * tileWidth / 2
-    local mapHeightInPixels = (mapGridWidth + mapGridHeight) * tileHeight / 2
-
-
-    Logger.info("map_baker.bake.start",
-        string.format("[MapBaker] Iniciando o bake do mapa. Dimensões do canvas: %dx%d", mapWidthInPixels,
-            mapHeightInPixels))
-
-    ---@type table<MapTileLayer, love.Canvas>
+    ---@type table<MapTileLayer, table<number, table<number, love.Canvas>>>
     local bakedLayers = {}
     local layersToBake = { "ground", "ground_decoration", "decoration" }
 
+    -- Inicializa a estrutura da tabela
     for _, layerName in ipairs(layersToBake) do
-        local layerData = self:_findLayer(mapData.layers, layerName)
+        bakedLayers[layerName] = {}
+    end
 
-        if layerData and layerData.visible then
-            local canvas = love.graphics.newCanvas(mapWidthInPixels, mapHeightInPixels)
-            bakedLayers[layerName] = canvas
+    -- Itera sobre cada patch do mapa
+    for patchY = 0, patchSize - 1 do
+        for patchX = 0, patchSize - 1 do
+            -- Itera sobre cada camada para este patch
+            for _, layerName in ipairs(layersToBake) do
+                local layerData = self:_findLayer(mapData.layers, layerName)
 
-            love.graphics.push()
-            love.graphics.setCanvas(canvas)
-            love.graphics.clear()
+                if layerData and layerData.visible then
+                    -- Inicializa a linha da tabela se ainda não existir
+                    if not bakedLayers[layerName][patchY] then
+                        bakedLayers[layerName][patchY] = {}
+                    end
 
-            self:_bakeLayer(layerData, mapData, loadedTiles, mapWidthInPixels)
+                    -- Assa o patch específico para a camada
+                    local patchCanvas = self:_bakeLayerPatch(layerData, mapData, loadedTiles, patchX, patchY)
+                    bakedLayers[layerName][patchY][patchX] = patchCanvas
 
-            love.graphics.setCanvas()
-            love.graphics.pop()
-
-            Logger.debug("map_baker.bake.layer_complete",
-                string.format("[MapBaker] Camada '%s' finalizada e 'assada' no seu canvas.", layerName))
+                    Logger.debug("map_baker.bake.patch_complete",
+                        string.format("[MapBaker] Patch (%d, %d) para a camada '%s' assado.", patchX, patchY,
+                            layerName))
+                end
+            end
         end
     end
 
-    Logger.info("map_baker.bake.success", "[MapBaker] Bake de todas as camadas do mapa concluído.")
+    Logger.info("map_baker.bake.success", "[MapBaker] Bake de todos os patches do mapa concluído.")
 
     ---@type BakedMap
     local bakedMap = {
@@ -82,58 +79,67 @@ function MapBaker:_findLayer(layers, name)
     return nil
 end
 
----@private "Asa" (desenha) uma única camada em um canvas.
-function MapBaker:_bakeLayer(layer, mapData, loadedTiles, mapWidthInPixels)
+---@private "Asa" (desenha) um único patch de uma camada em um novo canvas.
+---@param layer table A camada a ser assada.
+---@param mapData table Os dados do mapa.
+---@param loadedTiles table Os tiles carregados.
+---@param patchX number O índice X do patch a ser assado.
+---@param patchY number O índice Y do patch a ser assado.
+---@return love.Canvas O canvas com o patch desenhado.
+function MapBaker:_bakeLayerPatch(layer, mapData, loadedTiles, patchX, patchY)
     local tileWidth = mapData.tilewidth
     local tileHeight = mapData.tileheight
     local mapGridWidth = mapData.width
-    local mapGridHeight = mapData.height
-    local hasLoggedFirstTile = false -- Flag para logar apenas uma vez por camada
+    local tilesPerPatch = mapData.properties.grid_width or 4
 
-    -- O offset vertical é necessário para centralizar o mapa no canvas,
-    -- já que a ponta superior do losango isométrico começa em y=0.
-    local offsetY = (mapGridHeight - 1) * tileHeight / 2
+    -- Calcula as dimensões de um único patch
+    local patchGridWidth = tilesPerPatch
+    local patchCanvasWidth = (patchGridWidth * 2) * tileWidth / 2
+    local patchCanvasHeight = (patchGridWidth * 2) * tileHeight / 2
 
-    for i, gid in ipairs(layer.data) do
-        if gid > 0 then
-            local tileInfo = self:_findTileInfo(mapData.tilesets, gid)
-            if tileInfo and loadedTiles[tileInfo.image] then
-                local image = loadedTiles[tileInfo.image]
+    local patchCanvas = love.graphics.newCanvas(patchCanvasWidth, patchCanvasHeight)
+    love.graphics.push()
+    love.graphics.setCanvas(patchCanvas)
+    love.graphics.clear()
 
-                -- Calcula a posição no grid 2D a partir do índice 1D
-                local gridX = (i - 1) % mapGridWidth
-                local gridY = math.floor((i - 1) / mapGridWidth)
+    -- Calcula o tile inicial (canto superior esquerdo) deste patch no mapa geral
+    local startTileX = patchX * tilesPerPatch
+    local startTileY = patchY * tilesPerPatch
 
-                -- Converte coordenadas isométricas do grid para coordenadas de tela (pixel)
-                -- O offset em X centraliza o mapa horizontalmente.
-                local screenX = (gridX - gridY) * (tileWidth / 2) + (mapGridWidth - 1) * tileWidth / 2
-                -- O offset em Y alinha a base dos tiles e centraliza o mapa verticalmente.
-                local screenY = (gridX + gridY) * (tileHeight / 2) + offsetY
-                -- O drawY ajusta pela altura da imagem do tile para o posicionamento correto.
-                local drawY = screenY - (image:getHeight() - tileHeight)
+    -- O offset para desenhar no canvas do patch, para que o tile (0,0) do patch
+    -- fique no canto superior do losango.
+    local baseOffsetX = (patchGridWidth - 1) * tileWidth / 2
 
-                -- LOG DE INSPEÇÃO para o primeiro tile válido
-                if not hasLoggedFirstTile then
-                    Logger.info("MapBaker:_bakeLayer [INSPECT]",
-                        string.format("  - Drawing first tile for layer '%s': GID=%d, Image='%s', Pos=(%.2f, %.2f)",
-                            layer.name, gid, tileInfo.image, screenX, drawY)
-                    )
-                    hasLoggedFirstTile = true
+    for y = 0, tilesPerPatch - 1 do
+        for x = 0, tilesPerPatch - 1 do
+            -- Coordenada do tile no mapa geral
+            local mapTileX = startTileX + x
+            local mapTileY = startTileY + y
+
+            local index = mapTileY * mapGridWidth + mapTileX + 1
+            local gid = layer.data[index]
+
+            if gid and gid > 0 then
+                local tileInfo = self:_findTileInfo(mapData.tilesets, gid)
+                if tileInfo and loadedTiles[tileInfo.image] then
+                    local image = loadedTiles[tileInfo.image]
+
+                    -- Converte a coordenada LOCAL do tile (x,y) dentro do patch para pixel
+                    local screenX = (x - y) * (tileWidth / 2) + baseOffsetX
+                    local screenY = (x + y) * (tileHeight / 2)
+
+                    -- Ajusta o desenho pela altura do sprite
+                    local drawY = screenY - (image:getHeight() - tileHeight)
+
+                    love.graphics.draw(image, screenX, drawY)
                 end
-
-                love.graphics.draw(image, screenX, drawY)
-            elseif not hasLoggedFirstTile then
-                -- Se o primeiro tile já falhou, logue o motivo
-                Logger.warn("MapBaker:_bakeLayer [INSPECT]",
-                    string.format(
-                        "  - Skipping first tile for layer '%s': GID=%d. tileInfo is nil? %s. Image loaded? %s",
-                        layer.name, gid, tostring(tileInfo == nil),
-                        tostring(tileInfo and loadedTiles[tileInfo.image] ~= nil))
-                )
-                hasLoggedFirstTile = true
             end
         end
     end
+
+    love.graphics.setCanvas()
+    love.graphics.pop()
+    return patchCanvas
 end
 
 ---@private Encontra a informação de um tile (como o path da imagem) a partir do seu GID.

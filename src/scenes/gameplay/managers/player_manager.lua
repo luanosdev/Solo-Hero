@@ -95,14 +95,6 @@ function PlayerManager:init(args)
 
     self.playerSpriteController:setupSprite(appearance)
 
-    -- Define a posição inicial do jogador no centro do mapa
-    local mapManager = self.registry:get("infinityWrapMapManager")
-    if mapManager then
-        local worldW, worldH = mapManager:getWorldPixelDimensions()
-        local startPosition = { x = worldW / 2, y = worldH / 2 }
-        self.movementController:setPosition(startPosition)
-    end
-
     Logger.info("player_manager_v2.init.success", "[PlayerManager:init] Successfully initialized.")
 end
 
