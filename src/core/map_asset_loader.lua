@@ -1,6 +1,6 @@
 ---@class MapAssets
 ---@field mapData table Os dados crus do mapa, carregados do arquivo de definição.
----@field tiles table<number, love.Image> Um mapa onde a chave é o caminho do asset e o valor é o objeto Image carregado.
+---@field tiles table<number, love.Image> Um mapa onde a chave é o GID (tile.id + firstgid) e o valor é o objeto Image carregado.
 
 ---@class MapAssetLoader
 ---@description Carrega de forma síncrona todos os assets de imagem associados a um mapa específico.
@@ -32,23 +32,28 @@ function MapAssetLoader:load(mapId)
         error(string.format("Falha ao carregar dados do mapa em '%s': %s", mapDataPath, tostring(mapData)))
     end
 
-    ---@type table<string, love.Image>
+    ---@type table<number, love.Image>
     local loadedTiles = {}
     local tilesLoadedCount = 0
 
     if mapData.tilesets then
         for _, tileset in ipairs(mapData.tilesets) do
-            if tileset.tiles then
+            if tileset.tiles and tileset.firstgid then
                 for _, tile in ipairs(tileset.tiles) do
-                    if tile.image and not loadedTiles[tile.id] then
+                    -- CORREÇÃO: Usa o GID correto (tile.id + firstgid) como chave
+                    local gid = tile.id + tileset.firstgid
+                    if tile.image and not loadedTiles[gid] then
                         local imageSuccess, imageOrError = pcall(love.graphics.newImage, tile.image)
                         if imageSuccess then
-                            loadedTiles[tile.id] = imageOrError
+                            loadedTiles[gid] = imageOrError
                             tilesLoadedCount = tilesLoadedCount + 1
+                            Logger.debug("map_asset_loader.load.tile_success",
+                                string.format("Tile carregado - ID: %d, GID: %d, Imagem: %s",
+                                    tile.id, gid, tile.image))
                         else
                             Logger.warn("map_asset_loader.load.tile_error",
-                                string.format("Falha ao carregar a imagem do tile '%s': %s", tile.image,
-                                    tostring(imageOrError)))
+                                string.format("Falha ao carregar a imagem do tile ID %d (GID %d) '%s': %s",
+                                    tile.id, gid, tile.image, tostring(imageOrError)))
                         end
                     end
                 end
