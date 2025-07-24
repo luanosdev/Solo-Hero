@@ -327,31 +327,22 @@ function InfinityWrapMapManager:_renderLayerToCanvas(layerName, canvas, isAsyncT
     love.graphics.setCanvas()
 end
 
----@private Calcula a posição do canvas para desenhar.
+---@private Calcula a posição do canvas para desenhar em coordenadas de mundo.
 ---@return number canvasDrawX, number canvasDrawY
 function InfinityWrapMapManager:_getCanvasDrawPosition()
     local renderData = self.canvasRenderData
-
-    local playerManager = self.context.registry:getPlayerManager()
-    local worldPosition = playerManager.movementController:getPosition()
-    local playerGlobalTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
 
     -- Ponto de origem (tile 0,0) do grid que foi renderizado no canvas
     local renderRadius = math.floor(renderData.renderGridDiameter / 2)
     local gridOriginTileX = (renderData.lastRenderedPatchX - renderRadius) * self.tilesPerPatch
     local gridOriginTileY = (renderData.lastRenderedPatchY - renderRadius) * self.tilesPerPatch
 
-    -- Posição do jogador relativa ao ponto de origem do canvas
-    local playerRelativeTileX = playerGlobalTilePos.x - gridOriginTileX
-    local playerRelativeTileY = playerGlobalTilePos.y - gridOriginTileY
+    -- Converte a origem do grid para coordenadas isométricas (coordenadas de mundo)
+    local gridOriginIso = self:cartesianToIsometric(gridOriginTileX, gridOriginTileY)
 
-    -- Converte a posição relativa do jogador para coordenadas isométricas
-    local playerIso = self:cartesianToIsometric(playerRelativeTileX, playerRelativeTileY)
-
-    -- Para centralizar o jogador na tela, o canvas deve ser desenhado em uma posição que
-    -- mova o ponto isométrico do jogador para o centro da tela.
-    local canvasDrawX = ResolutionUtils.getGameWidth() / 2 - playerIso.x - renderData.offsetX
-    local canvasDrawY = ResolutionUtils.getGameHeight() / 2 - playerIso.y - renderData.offsetY
+    -- O canvas deve ser desenhado na posição da origem do grid, ajustado pelos offsets de renderização
+    local canvasDrawX = gridOriginIso.x - renderData.offsetX
+    local canvasDrawY = gridOriginIso.y - renderData.offsetY
 
     return canvasDrawX, canvasDrawY
 end

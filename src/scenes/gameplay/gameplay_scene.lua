@@ -97,7 +97,7 @@ function GameplayScene:update(dt)
         ---@type PlayerManagerV2
         local playerManager = self.registry:get("playerManager")
         if playerManager then
-            -- Camera:follow(playerManager:getPosition(), dt) -- Desativado por enquanto
+            Camera:follow(playerManager:getPosition(), dt)
         end
     end
 
@@ -116,7 +116,7 @@ function GameplayScene:draw()
     local playerManager = self.registry:get("playerManager")
     local playerPosition = playerManager and playerManager:getPosition()
 
-    -- Camera:attach() -- Desativado por enquanto para o teste do mapa
+    Camera:attach()
 
     -- Reset do pipeline
     self.renderPipeline:reset()
@@ -127,7 +127,7 @@ function GameplayScene:draw()
     -- Desenha tudo que foi coletado, usando a posição do jogador como foco.
     self.renderPipeline:draw()
 
-    -- Camera:detach() -- Desativado por enquanto
+    Camera:detach()
 end
 
 function GameplayScene:keypressed(key, scancode, isrepeat)

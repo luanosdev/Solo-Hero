@@ -29,9 +29,11 @@ end
 function PlayerSpriteController:setupSprite(appearance)
     assert(appearance, "PlayerSpriteController:setupSprite requer uma tabela de 'appearance'")
 
+    -- O sprite é criado na origem do mundo (0,0).
+    -- A posição real será definida pelo MovementController.
     local spritePosition = {
-        x = ResolutionUtils.getGameWidth() / 2,
-        y = ResolutionUtils.getGameHeight() / 2
+        x = 0,
+        y = 0
     }
 
     self.playerSprite = SpritePlayer.newConfig({
@@ -44,7 +46,7 @@ function PlayerSpriteController:setupSprite(appearance)
 
     Logger.info(
         "PlayerSpriteController:setupSprite",
-        "Sprite do jogador criado com sucesso. Posição: (" ..
+        "Sprite do jogador criado com sucesso. Posição inicial: (" ..
         string.format("%.1f,%.1f", spritePosition.x, spritePosition.y) ..
         ") | Escala: " .. Constants.PLAYER_SCALE,
         true -- Mostra na tela
@@ -55,7 +57,7 @@ end
 ---@param dt number
 ---@param moveSpeedInPixels number
 ---@param moveVector Vector2D
----@param position Vector2D
+---@param position Vector2D Posição do jogador em coordenadas de mundo.
 function PlayerSpriteController:update(dt, moveSpeedInPixels, moveVector, position)
     if not self.playerSprite then return end
     -- TODO: Adicionar checagem de dash e UI lock
@@ -63,8 +65,8 @@ function PlayerSpriteController:update(dt, moveSpeedInPixels, moveVector, positi
     self.playerSprite.velocity = moveVector
     self.playerSprite.position = position
 
-    -- O sprite do jogador está sempre no centro da tela, então passamos sua própria posição
-    SpritePlayer.update(self.playerSprite, dt, self.playerSprite.position, moveSpeedInPixels)
+    -- Atualiza o sprite com a posição de mundo. A câmera cuidará da centralização.
+    SpritePlayer.update(self.playerSprite, dt, position, moveSpeedInPixels)
 end
 
 --- Adiciona o sprite do jogador ao pipeline de renderização.
@@ -94,7 +96,11 @@ function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition
     renderableItem.x = worldPosition.x
     renderableItem.y = worldPosition.y
     renderableItem.drawFunction = function()
+        -- Aplica a translação para a posição de mundo antes de desenhar
+        love.graphics.push()
+        love.graphics.translate(worldPosition.x, worldPosition.y)
         SpritePlayer.draw(self.playerSprite)
+        love.graphics.pop()
     end
 
     renderPipeline:add(renderableItem)
