@@ -39,6 +39,18 @@ function SceneManagerRegistry:get(name)
     return managerData.instance
 end
 
+--- Obtem o mapManager registrado na instância da cena.
+---@return InfinityWrapMapManager2
+function SceneManagerRegistry:getMapManager()
+    return self:get("mapManager")
+end
+
+--- Obtem o playerManager registrado na instância da cena.
+---@return PlayerManager
+function SceneManagerRegistry:getPlayerManager()
+    return self:get("playerManager")
+end
+
 --- Tenta obter um manager registrado, retorna nil se não encontrado.
 ---@param name string
 ---@return any|nil

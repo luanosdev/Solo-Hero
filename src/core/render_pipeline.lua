@@ -12,6 +12,12 @@ RenderPipeline.DEPTH_DROPS = 1
 RenderPipeline.DEPTH_ENTITIES = 2         -- Jogador, Inimigos
 RenderPipeline.DEPTH_EFFECTS_WORLD_UI = 3 -- Efeitos como projéteis, UI no mundo
 
+RenderPipeline.DEPTH_DRAW_ORDER = {
+    RenderPipeline.DEPTH_DROPS,
+    RenderPipeline.DEPTH_ENTITIES,
+    RenderPipeline.DEPTH_EFFECTS_WORLD_UI
+}
+
 local TablePool = require("src.utils.table_pool")
 
 --- Cria uma nova instância do RenderPipeline.
@@ -85,7 +91,7 @@ function RenderPipeline:registerSpriteBatch(texture, batch)
 end
 
 --- Define o gerenciador de mapa a ser usado pelo pipeline.
---- @param mapManager InfinityWrapMapManager|InfinityWrapMapManagerV2 A instância do gerenciador de mapa (ex: ProceduralMapManager).
+--- @param mapManager InfinityWrapMapManager2 A instância do gerenciador de mapa (ex: ProceduralMapManager).
 function RenderPipeline:setMapManager(mapManager)
     self.mapManager = mapManager
 end
@@ -110,43 +116,27 @@ end
 --- Desenha todos os elementos gerenciados pelo pipeline.
 --- Isso inclui o mapa, itens nos buckets (ordenados conforme necessário) e SpriteBatches.
 --- O Camera:attach() e Camera:detach() devem ser chamados externamente, antes e depois desta função.
----@param worldPlayerPosition Vector2D A posição do jogador, necessária para o map manager.
-function RenderPipeline:draw(worldPlayerPosition)
-    assert(worldPlayerPosition, "RenderPipeline:draw - worldPlayerPosition is nil.")
-    -- assert(self.mapManager, "RenderPipeline:draw - mapManager is nil.")
-
-    -- Atualizar posição do jogador no map manager
-    if self.mapManager and self.mapManager.setPlayerPosition then
-        self.mapManager:setPlayerPosition(worldPlayerPosition.x, worldPlayerPosition.y)
-    end
+function RenderPipeline:draw()
+    assert(self.mapManager, "RenderPipeline:draw - mapManager is nil.")
 
     -- 1. Desenha as camadas ABAIXO das entidades (ground, ground_decoration)
-    if self.mapManager and self.mapManager.drawBelowEntities then
-        self.mapManager:drawBelowEntities()
-    end
+    self.mapManager:drawBottomLayers()
 
     -- 2. Processa e desenha itens dos buckets em ordem de profundidade
-    local depthDrawOrder = {
-        RenderPipeline.DEPTH_DROPS,
-        RenderPipeline.DEPTH_ENTITIES,
-        RenderPipeline.DEPTH_EFFECTS_WORLD_UI
-    }
 
-    self:_processAndDrawBuckets(depthDrawOrder)
+
+    self:_processAndDrawBuckets()
 
     -- 3. Desenha as camadas ACIMA das entidades (decoration, roof, etc.)
-    if self.mapManager and self.mapManager.drawAboveEntities then
-        self.mapManager:drawAboveEntities()
-    end
+    self.mapManager:drawTopLayers()
 
     -- 4. Desenha os SpriteBatches coletados
     self:_drawSpriteBatches()
 end
 
 --- Função auxiliar para processar buckets e desenhar itens não-batched.
----@param depthOrder table Array com as constantes de profundidade na ordem de desenho.
-function RenderPipeline:_processAndDrawBuckets(depthOrder)
-    for _, depthValue in ipairs(depthOrder) do
+function RenderPipeline:_processAndDrawBuckets()
+    for _, depthValue in ipairs(RenderPipeline.DEPTH_DRAW_ORDER) do
         local bucket = self.buckets[depthValue]
         if bucket and #bucket > 0 then
             -- A ordenação manual de 'bucket' foi removida.

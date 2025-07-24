@@ -50,11 +50,11 @@ function GameplayScene:load(args)
     self.registry = gameplayContext.registry
 
     -- Configura sistemas que dependem dos managers
-    ---@type PlayerManagerV2
-    local playerManager = self.registry:get("playerManager")
+    local playerManager = self.registry:getPlayerManager()
+    local mapManager = self.registry:getMapManager()
 
     -- Configura o pipeline de renderização
-    -- self.renderPipeline:setMapManager(mapManager) -- Desativado por enquanto
+    self.renderPipeline:setMapManager(mapManager)
 
     -- Inicializa a câmera
     Camera:init()
@@ -65,10 +65,10 @@ function GameplayScene:load(args)
 
     --mapManager:setPlayerOnWorldCenter()
 
-    local playerInitialPosition = playerManager:getPosition()
-    local camX = playerInitialPosition.x - (Camera.screenWidth / Camera.scale / 2)
-    local camY = playerInitialPosition.y - (Camera.screenHeight / Camera.scale / 2)
-    Camera:setPosition(camX, camY)
+    -- local playerInitialPosition = playerManager:getPosition()
+    -- local camX = playerInitialPosition.x - (Camera.screenWidth / Camera.scale / 2)
+    -- local camY = playerInitialPosition.y - (Camera.screenHeight / Camera.scale / 2)
+    -- Camera:setPosition(camX, camY)
 
     -- A conexão com o RenderPipeline foi removida, o desenho do mapa é explícito.
 
@@ -118,13 +118,6 @@ function GameplayScene:draw()
 
     -- Camera:attach() -- Desativado por enquanto para o teste do mapa
 
-    -- Desenho do mapa MVP
-    ---@type InfinityWrapMapManager2
-    local mapManager = self.registry:get("mapManager")
-    if mapManager then
-        mapManager:drawBottomLayers()
-    end
-
     -- Reset do pipeline
     self.renderPipeline:reset()
 
@@ -132,15 +125,7 @@ function GameplayScene:draw()
     self.registry:collectAllRenderables(self.renderPipeline)
 
     -- Desenha tudo que foi coletado, usando a posição do jogador como foco.
-    if playerPosition then
-        self.renderPipeline:draw(playerPosition)
-    else
-        Logger.error("gameplay_scene.draw.error", "[GameplayScene:draw] Player position is nil.")
-    end
-
-    if mapManager then
-        mapManager:drawTopLayers()
-    end
+    self.renderPipeline:draw()
 
     -- Camera:detach() -- Desativado por enquanto
 end
