@@ -43,6 +43,18 @@ function ServiceLocator.tryGet(name)
     return services[name]
 end
 
+---@public Obtém o serviço de eventos.
+---@return EventService
+function ServiceLocator.getEventService()
+    return ServiceLocator.get("eventService")
+end
+
+---@public Obtém o serviço de input.
+---@return InputManager
+function ServiceLocator.getInputManager()
+    return ServiceLocator.get("inputService")
+end
+
 --- Atualiza todos os serviços registrados.
 ---@param dt number Delta time.
 function ServiceLocator.update(dt)

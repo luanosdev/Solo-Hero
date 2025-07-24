@@ -25,6 +25,7 @@
 
 ---@class ArchetypeId
 
+
 ---@class GameplayContext
 ---@field level number O nível atual do jogador.
 ---@field kills number O número de inimigos mortos na partida.

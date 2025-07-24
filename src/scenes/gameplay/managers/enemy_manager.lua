@@ -7,8 +7,7 @@ local ServiceLocator = require("src.core.service_locator")
 
 --- TODO: Remover o v2 quando o v1 for removido
 ---@class EnemyManagerv2
----@field registry SceneManagerRegistry
----@field renderPipeline RenderPipeline
+---@field context GameplaySceneContext
 ---@field playerManager PlayerManager
 ---@field dropManager DropManager
 ---@field cullingManager CullingManager
@@ -31,14 +30,13 @@ local MVPRepositionController = require("src.scenes.gameplay.controllers.mvp_rep
 local TimerTaskRunner = require("src.core.timer_task_runner")
 -- local FrameTaskRunner = require("src.core.frame_task_runner") -- Se for usar
 
----@param registry SceneManagerRegistry
+---@param context GameplaySceneContext
 ---@return EnemyManagerv2
-function EnemyManager:new(registry, renderPipeline)
-    assert(registry, "[EnemyManager] missing a ManagerRegistry")
+function EnemyManager:new(context)
+    assert(context, "[EnemyManager] missing a GameplaySceneContext")
 
     local instance = setmetatable({}, EnemyManager)
-    instance.registry = registry
-    instance.renderPipeline = renderPipeline
+    instance.context = context
     instance.enemies = {}
 
     return instance
@@ -47,10 +45,10 @@ end
 function EnemyManager:init()
     Logger.info("enemy_manager.init", "[EnemyManager:init] Initializing...")
     -- Obter dependências do registry
-    self.playerManager = self.registry:get("playerManager")
-    --self.dropManager = self.registry:get("dropManager")
-    self.cullingManager = self.registry:get("cullingManager")
-    --self.mapManager = self.registry:get("mapManager")
+    self.playerManager = self.context.registry:get("playerManager")
+    --self.dropManager = self.context.registry:get("dropManager")
+    self.cullingManager = self.context.registry:get("cullingManager")
+    --self.mapManager = self.context.registry:get("mapManager")
 
     -- Inicializar os controllers
     self.poolController = EnemyPoolController:new()

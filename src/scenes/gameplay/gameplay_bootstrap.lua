@@ -10,34 +10,45 @@
 local EnemyManager = require("src.scenes.gameplay.managers.enemy_manager")
 local PlayerManager = require("src.scenes.gameplay.managers.player_manager")
 -- local InfinityWrapMapManager = require("src.scenes.gameplay.managers.infinity_wrap_map_manager") -- Desativado por enquanto
-local InfinityWrapMapManager2 = require("src.scenes.gameplay.managers.infinity_wrap_map_manager")
+local InfinityWrapMapManager = require("src.scenes.gameplay.managers.infinity_wrap_map_manager")
 local CullingManager = require("src.managers.culling_manager")
 local SceneManagerRegistry = require("src.core.scene_manager_registry")
 
 ---@class GameplayBootstrap
 local GameplayBootstrap = {}
 
+---@class GameplayBootstrapParams
+---@field renderPipeline RenderPipeline
+---@field serviceLocator ServiceLocator
+---@field args GameplaySceneArgs
+
 --- Inicializa todos os managers para uma nova sessão de gameplay.
---- @param args GameplaySceneArgs Os dados do portal para esta sessão.
---- @param renderPipeline RenderPipeline A instância do pipeline de renderização da cena.
---- @return SceneManagerRegistry instance Uma instância do registry populada com todos os managers da cena.
-function GameplayBootstrap.initialize(args, renderPipeline)
+--- @param context GameplayBootstrapParams Os dados do portal para esta sessão.
+--- @return GameplaySceneContext context Uma instância do contexto de gameplay populada com todos os managers da cena.
+function GameplayBootstrap.initialize(context)
     Logger.info(
         "gameplay_bootstrap.initialize.start",
         "[GameplayBootstrap:initialize] Initializing gameplay session managers..."
     )
-    assert(renderPipeline, "GameplayBootstrap.initialize requires a RenderPipeline instance.")
+    assert(context.renderPipeline, "GameplayBootstrap.initialize requires a RenderPipeline instance.")
 
     local registry = SceneManagerRegistry:new()
+
+    ---@type GameplaySceneContext
+    local gameplaySceneContext = {
+        registry = registry,
+        renderPipeline = context.renderPipeline,
+        serviceLocator = context.serviceLocator,
+        args = context.args
+    }
 
     -- Definição dos managers a serem carregados em ordem explícita de inicialização.
     -- O mapa DEVE ser inicializado antes do jogador e dos inimigos.
     local managersToLoad = {
-        { key = "playerManager",      class = PlayerManager,      needsPipeline = true },
-        -- { key = "infinityWrapMapManager", class = InfinityWrapMapManager, needsPipeline = true }, -- Desativado por enquanto
-        { key = "mapManager", class = InfinityWrapMapManager2, needsPipeline = false },
-        { key = "cullingManager",     class = CullingManager,     needsPipeline = false },
-        { key = "enemyManager",       class = EnemyManager,       needsPipeline = true },
+        { key = "playerManager",  class = PlayerManager },
+        { key = "mapManager",     class = InfinityWrapMapManager },
+        { key = "cullingManager", class = CullingManager },
+        { key = "enemyManager",   class = EnemyManager },
     }
 
     ---@type table<string, any>
@@ -50,13 +61,7 @@ function GameplayBootstrap.initialize(args, renderPipeline)
     )
     for _, def in ipairs(managersToLoad) do
         Logger.debug("GameplayBootstrap:initialize", "  -> Construindo: " .. def.key)
-        local instance
-        if def.needsPipeline then
-            instance = def.class:new(registry, renderPipeline)
-        else
-            instance = def.class:new(registry)
-        end
-        instances[def.key] = instance
+        instances[def.key] = def.class:new(gameplaySceneContext)
         Logger.debug("GameplayBootstrap:initialize", "  -- Construído: " .. def.key)
     end
 
@@ -78,7 +83,7 @@ function GameplayBootstrap.initialize(args, renderPipeline)
 
         Logger.debug("GameplayBootstrap:initialize", "  -> Inicializando: " .. key)
         if type(instance.init) == "function" then
-            instance:init(args)
+            instance:init()
         else
             Logger.error(
                 "gameplay_bootstrap.initialize.phase_3.error",
@@ -92,14 +97,15 @@ function GameplayBootstrap.initialize(args, renderPipeline)
     Logger.info("gameplay_bootstrap.initialize.phase_4", "[GameplayBootstrap:initialize] Setting up gameplay data...")
     local enemyManager = registry:get("enemyManager")
     if enemyManager and enemyManager.setupGameplay then
-        enemyManager:setupGameplay(args.portalData.hordeConfig)
+        enemyManager:setupGameplay(gameplaySceneContext.args.portalData.hordeConfig)
     end
 
     Logger.info(
         "gameplay_bootstrap.initialize.success",
         "[GameplayBootstrap:initialize] All gameplay managers initialized successfully."
     )
-    return registry
+
+    return gameplaySceneContext
 end
 
 --- Destrói todos os managers da sessão de gameplay.

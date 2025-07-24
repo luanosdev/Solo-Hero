@@ -1,6 +1,6 @@
 ---@class MapAssets
 ---@field mapData table Os dados crus do mapa, carregados do arquivo de definição.
----@field tiles table<string, love.Image> Um mapa onde a chave é o caminho do asset e o valor é o objeto Image carregado.
+---@field tiles table<number, love.Image> Um mapa onde a chave é o caminho do asset e o valor é o objeto Image carregado.
 
 ---@class MapAssetLoader
 ---@description Carrega de forma síncrona todos os assets de imagem associados a um mapa específico.

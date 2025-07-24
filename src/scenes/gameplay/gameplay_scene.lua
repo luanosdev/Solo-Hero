@@ -38,7 +38,16 @@ function GameplayScene:load(args)
     self.renderPipeline = RenderPipeline:new()
 
     -- Inicializa o bootstrap da cena, passando o pipeline
-    self.registry = GameplayBootstrap.initialize(args, self.renderPipeline)
+    ---@type GameplayBootstrapParams
+    local context = {
+        renderPipeline = self.renderPipeline,
+        preloadedAssets = self.preloadedAssets,
+        serviceLocator = ServiceLocator,
+        args = args
+    }
+
+    local gameplayContext = GameplayBootstrap.initialize(context)
+    self.registry = gameplayContext.registry
 
     -- Configura sistemas que dependem dos managers
     ---@type PlayerManagerV2

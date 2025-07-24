@@ -10,8 +10,7 @@ local ServiceLocator = require("src.core.service_locator")
 ---@class PlayerManagerV2
 ---@description Gerencia o estado e o comportamento do jogador, atuando como um orquestrador
 -- para um conjunto de controllers especializados.
----@field registry SceneManagerRegistry A referência ao registro de managers da cena.
----@field renderPipeline RenderPipeline
+---@field context GameplaySceneContext
 ---@field stateController PlayerStateControllerV2
 ---@field archetypeGameplayController ArchetypeGameplayController
 ---@field equipmentGameplayController EquipmentGameplayController
@@ -33,16 +32,15 @@ PlayerManager.__index = PlayerManager
 --- Cria uma nova instância do PlayerManager.
 --- O construtor é leve e apenas inicializa a estrutura da tabela.
 --- A lógica de configuração pesada acontece no :init().
---- @param registry SceneManagerRegistry A instância do registro de managers da cena.
---- @param renderPipeline RenderPipeline A instância do pipeline de renderização.
+--- @param context GameplaySceneContext
 --- @return PlayerManagerV2
-function PlayerManager:new(registry, renderPipeline)
-    assert(registry, "[PlayerManager] missing a ManagerRegistry")
-    assert(renderPipeline, "[PlayerManager] missing a RenderPipeline")
+function PlayerManager:new(context)
+    assert(context, "[PlayerManager] missing a GameplayContext")
+    assert(context.args and context.args.hunterId, "PlayerManager:init() requires hunterId.")
+    assert(context.args and context.args.preloadedAssets, "PlayerManager:init() requires preloadedAssets.")
 
     local instance = setmetatable({}, PlayerManager)
-    instance.registry = registry
-    instance.renderPipeline = renderPipeline
+    instance.context = context
 
     -- Inicializa controllers como nil.
     instance.stateController = nil
@@ -58,16 +56,14 @@ end
 --- Inicializa o manager e todos os seus controllers.
 --- Este método é chamado pelo GameplayBootstrap depois que TODOS os managers
 --- foram construídos e registrados, garantindo que as dependências estejam disponíveis.
---- @param args GameplaySceneArgs Argumentos da cena, contendo hunterId, etc.
-function PlayerManager:init(args)
+function PlayerManager:init()
     Logger.info("player_manager_v2.init.start", "[PlayerManager:init] Initializing for gameplay...")
-    assert(args and args.hunterId, "PlayerManager:init() requires hunterId.")
-    assert(args and args.preloadedAssets, "PlayerManager:init() requires preloadedAssets.")
+
 
     self.stateController = PlayerStateController:new()
     self.stateController:init()
 
-    self.archetypeGameplayController = ArchetypeGameplayController:new(args.hunterId)
+    self.archetypeGameplayController = ArchetypeGameplayController:new(self.context.args.hunterId)
     self.archetypeGameplayController:init()
 
     -- O EquipmentGameplayController precisa dos itens iniciais.

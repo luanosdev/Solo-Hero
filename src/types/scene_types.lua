@@ -11,4 +11,10 @@
 ---@field hunterId string O ID do caçador selecionado.
 ---@field preloadedAssets table<string, MapAssets> Tabela contendo todos os ativos pré-carregados pela GameLoadingScene.
 
+---@class GameplaySceneContext
+---@field registry SceneManagerRegistry
+---@field renderPipeline RenderPipeline
+---@field serviceLocator ServiceLocator
+---@field args GameplaySceneArgs
+
 return {}

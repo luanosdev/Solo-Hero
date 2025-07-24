@@ -10,8 +10,7 @@ local ResolutionUtils = require("src.utils.resolution_utils")
 ---@description Gerencia um mapa isométrico infinito, sua renderização e eventos de "wrap".
 --- Carrega os dados de um mapa Tiled, pré-renderiza suas camadas em canvases para
 --- performance e emite eventos quando o jogador atravessa as bordas dos patches.
----@field registry SceneManagerRegistry Registro de managers da cena.
----@field renderPipeline RenderPipeline Pipeline de renderização.
+---@field context GameplaySceneContext
 ---@field mapData table Os dados brutos do mapa Tiled.
 ---@field mapName string O nome do arquivo do mapa a ser carregado (ex: "jungle").
 ---@field tiles table<number, love.Image> Tabela de imagens de tile individuais.
@@ -30,13 +29,16 @@ InfinityWrapMapManager.__index = InfinityWrapMapManager
 InfinityWrapMapManager.TILES_PER_YIELD = 100
 
 ---@public Cria uma nova instância do InfinityWrapMapManager.
----@param registry SceneManagerRegistry
----@param renderPipeline RenderPipeline
+---@param context GameplaySceneContext
 ---@return InfinityWrapMapManager2
-function InfinityWrapMapManager:new(registry, renderPipeline)
+function InfinityWrapMapManager:new(context)
+    assert(context, "[InfinityWrapMapManager] missing a GameplayContext")
+    assert(context.args, "[InfinityWrapMapManager] missing a GameplaySceneArgs")
+    assert(context.args.preloadedAssets, "[InfinityWrapMapManager] missing a MapAssets")
+
     local instance = setmetatable({}, InfinityWrapMapManager)
-    instance.registry = registry
-    instance.renderPipeline = renderPipeline
+
+    instance.context = context
 
     instance.mapData = nil
     instance.tileWidth = 0
@@ -59,16 +61,15 @@ function InfinityWrapMapManager:new(registry, renderPipeline)
 end
 
 ---@public Inicializa o manager após a construção (chamado pelo bootstrap).
----@param args GameplaySceneArgs
-function InfinityWrapMapManager:init(args)
-    self.mapData = args.preloadedAssets.map.mapData
+function InfinityWrapMapManager:init()
+    self.mapData = self.context.args.preloadedAssets.map.mapData
 
     self.tileWidth = self.mapData.tilewidth
     self.tileHeight = self.mapData.tileheight
     self.patchSize = self.mapData.width / self.mapData.properties.grid_width
     self.tilesPerPatch = self.mapData.properties.grid_width
+    self.tiles = self.context.args.preloadedAssets.map.tiles
 
-    self:_loadTiles(args.preloadedAssets.map.tiles)
     self:_initializeCanvasSystem()
 
     -- Inicia o processo de construção assíncrona dos canvases
@@ -100,9 +101,14 @@ function InfinityWrapMapManager:update(dt)
             end
         end
     else
+        self:_updateMovement(dt)
+        self:_updateAllCanvases(true)
+
+        --[[
+
         -- Após o carregamento inicial, verifica se o jogador mudou de patch
         ---@type PlayerManager
-        local playerMgr = self.registry:get("playerManager")
+        local playerMgr = self.context.registry:get("playerManager")
         if not playerMgr or not playerMgr.movementController then
             return
         end
@@ -118,10 +124,12 @@ function InfinityWrapMapManager:update(dt)
                 "infinity_wrap_map_manager.update.player_wrapped",
                 string.format("[InfinityWrapMapManager:update] Player wrapped: %d, %d", currentPatchX, currentPatchY)
             )
-            local EventManager = require("src.managers.event_manager")
-            EventManager:emit(EventManager.EVENTS.PLAYER_WRAPPED)
-            self:_updateAllCanvases(true)
+
+            local eventService = self.context.serviceLocator.getEventService()
+            eventService:emit(eventService.EVENTS.PLAYER_WRAPPED)
+
         end
+        --]]
     end
 end
 
@@ -148,12 +156,6 @@ function InfinityWrapMapManager:drawTopLayers()
     if self.layerCanvases["decoration"] then
         love.graphics.draw(self.layerCanvases["decoration"], canvasDrawX, canvasDrawY)
     end
-end
-
----@private Carrega os tiles do GameplaySceneArgs e os mantém individualmente.
----@param tiles table<number, love.Image>
-function InfinityWrapMapManager:_loadTiles(tiles)
-    self.tiles = tiles
 end
 
 ---@private Inicializa o sistema de canvas
@@ -320,7 +322,7 @@ function InfinityWrapMapManager:_renderLayerToCanvas(layerName, canvas, isAsyncT
                         local ox = quadW / 2
                         local oy = quadH - self.tileHeight / 2
 
-                        love.graphics.draw(tileImage, math.floor(screenX), math.floor(screenY), 0, 1, 1, ox, oy)
+                        love.graphics.draw(tileImage, screenX, screenY, 0, 1, 1, ox, oy)
 
                         tilesDrawnInFrame = tilesDrawnInFrame + 1
 
@@ -363,6 +365,81 @@ function InfinityWrapMapManager:_getCanvasDrawPosition()
     local canvasDrawY = ResolutionUtils.getGameHeight() / 2 - playerIso.y - renderData.offsetY
 
     return canvasDrawX, canvasDrawY
+end
+
+---@private Atualiza a posição do jogador.
+---@param dt number Delta time.
+function InfinityWrapMapManager:_updateMovement(dt)
+    local inputManager = self.context.serviceLocator.getInputManager()
+    local dx, dy = 0, 0
+    local moveSpeed = 10
+
+    local movementVector = inputManager:getMovementVector()
+    dx = movementVector.x
+    dy = movementVector.y
+
+    if dx ~= 0 or dy ~= 0 then
+        -- Normaliza o vetor para evitar velocidade maior na diagonal
+        local length = math.sqrt(dx * dx + dy * dy)
+        dx = dx / length
+        dy = dy / length
+
+        -- Aplica movimento contínuo baseado em dt
+        self.player.localX = self.player.localX + dx * moveSpeed * dt
+        self.player.localY = self.player.localY + dy * moveSpeed * dt
+
+        -- Verifica wrapping entre patches
+        self:_handleWrapping()
+    end
+end
+
+---@private Verifica wrapping entre patches.
+function InfinityWrapMapManager:_handleWrapping()
+    local hasWrapped = false
+    local direction = ''
+    local oldPatchX = self.player.patchX
+    local oldPatchY = self.player.patchY
+
+    -- Wrapping horizontal
+    if self.player.localX < 0 then
+        self.player.localX = self.player.localX + self.tilesPerPatch
+        self.player.patchX = (self.player.patchX - 1 + self.patchSize) % self.patchSize
+        hasWrapped = true
+        direction = 'left'
+    elseif self.player.localX >= self.tilesPerPatch then
+        self.player.localX = self.player.localX - self.tilesPerPatch
+        self.player.patchX = (self.player.patchX + 1) % self.patchSize
+        hasWrapped = true
+        direction = 'right'
+    end
+
+    -- Wrapping vertical
+    if self.player.localY < 0 then
+        self.player.localY = self.player.localY + self.tilesPerPatch
+        self.player.patchY = (self.player.patchY - 1 + self.patchSize) % self.patchSize
+        hasWrapped = true
+        direction = direction == '' and 'up' or direction .. '-up'
+    elseif self.player.localY >= self.tilesPerPatch then
+        self.player.localY = self.player.localY - self.tilesPerPatch
+        self.player.patchY = (self.player.patchY + 1) % self.patchSize
+        hasWrapped = true
+        direction = direction == '' and 'down' or direction .. '-down'
+    end
+
+    if hasWrapped then
+        Logger.info("infinity_wrap_map_manager.player_wrapped",
+            string.format("[InfinityWrapMapManager:_handleWrapping] Player wrapped: %s", direction))
+
+        local eventService = self.context.serviceLocator.getEventService()
+        eventService:emit(
+            eventService.EVENTS.PLAYER_WRAPPED,
+            direction,
+            oldPatchX,
+            oldPatchY,
+            self.player.patchX,
+            self.player.patchY
+        )
+    end
 end
 
 --- Converte coordenadas cartesianas para isométricas.
