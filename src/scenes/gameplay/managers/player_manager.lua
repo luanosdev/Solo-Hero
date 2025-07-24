@@ -101,8 +101,8 @@ function PlayerManager:update(dt)
 
     -- Orquestração do Movimento e Animação
     local moveSpeed = self.stateController:getFinalStat("moveSpeed")
-    ---@type InputService
-    local inputService = ServiceLocator.get("inputService")
+    local inputService = self.context.serviceLocator.getInputManager()
+
     if moveSpeed and inputService and self.movementController and self.playerSpriteController then
         local moveSpeedInPixels = Constants.moveSpeedToPixels(moveSpeed)
         local moveVector = inputService:getMovementVector()

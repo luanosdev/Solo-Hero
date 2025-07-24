@@ -12,8 +12,10 @@ MovementController.__index = MovementController
 ---@return MovementControllerV2
 function MovementController:new()
     local instance = setmetatable({}, MovementController)
+
     instance.worldPosition = { x = 0, y = 0 }
     instance.lastMoveDistance = 0
+
     return instance
 end
 

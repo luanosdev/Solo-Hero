@@ -248,7 +248,7 @@ function InputManager:setActionsEnabled(enabled)
 end
 
 --- Retorna um vetor de movimento normalizado com base nas teclas pressionadas.
----@return {x: number, y: number} vector O vetor de movimento.
+---@return Vector2D vector O vetor de movimento.
 function InputManager:getMovementVector()
     local moveX, moveY = 0, 0
     if self.keys.moveUp then moveY = moveY - 1 end

@@ -55,6 +55,7 @@ end
 ---@param dt number
 ---@param moveSpeedInPixels number
 ---@param moveVector Vector2D
+---@param position Vector2D
 function PlayerSpriteController:update(dt, moveSpeedInPixels, moveVector, position)
     if not self.playerSprite then return end
     -- TODO: Adicionar checagem de dash e UI lock

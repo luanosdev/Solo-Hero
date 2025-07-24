@@ -47,16 +47,6 @@ function InfinityWrapMapManager:new(context)
     instance.tilesPerPatch = 0
     instance.tiles = {}
 
-
-    --- Temp
-    instance.player = {
-        patchX = 0,
-        patchY = 0,
-        localX = 12.0,
-        localY = 12.0,
-        size = 6
-    }
-
     return instance
 end
 
@@ -101,35 +91,33 @@ function InfinityWrapMapManager:update(dt)
             end
         end
     else
-        self:_updateMovement(dt)
+        self:_checkPlayerPatch()
+    end
+end
+
+---@private Verifica se o jogador mudou de patch e dispara a atualização do canvas.
+function InfinityWrapMapManager:_checkPlayerPatch()
+    local playerManager = self.context.registry:getPlayerManager()
+
+    local worldPosition = playerManager.movementController:getPosition()
+    local currentTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
+    local currentPatchX = math.floor(currentTilePos.x / self.tilesPerPatch)
+    local currentPatchY = math.floor(currentTilePos.y / self.tilesPerPatch)
+
+    local renderData = self.canvasRenderData
+    if currentPatchX ~= renderData.lastRenderedPatchX or currentPatchY ~= renderData.lastRenderedPatchY then
+        Logger.debug(
+            "infinity_wrap_map_manager.update.player_wrapped",
+            string.format("[InfinityWrapMapManager:update] Player wrapped from (%d, %d) to (%d, %d)",
+                renderData.lastRenderedPatchX, renderData.lastRenderedPatchY, currentPatchX, currentPatchY
+            )
+        )
+
+        -- Força o redesenho dos canvases
         self:_updateAllCanvases(true)
 
-        --[[
-
-        -- Após o carregamento inicial, verifica se o jogador mudou de patch
-        ---@type PlayerManager
-        local playerMgr = self.context.registry:get("playerManager")
-        if not playerMgr or not playerMgr.movementController then
-            return
-        end
-
-        local worldPosition = playerMgr.movementController:getPosition()
-        local currentTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
-        local currentPatchX = math.floor(currentTilePos.x / self.tilesPerPatch)
-        local currentPatchY = math.floor(currentTilePos.y / self.tilesPerPatch)
-
-        local renderData = self.canvasRenderData
-        if currentPatchX ~= renderData.lastRenderedPatchX or currentPatchY ~= renderData.lastRenderedPatchY then
-            Logger.debug(
-                "infinity_wrap_map_manager.update.player_wrapped",
-                string.format("[InfinityWrapMapManager:update] Player wrapped: %d, %d", currentPatchX, currentPatchY)
-            )
-
-            local eventService = self.context.serviceLocator.getEventService()
-            eventService:emit(eventService.EVENTS.PLAYER_WRAPPED)
-
-        end
-        --]]
+        local eventService = self.context.serviceLocator.getEventService()
+        eventService:emit(eventService.EVENTS.PLAYER_WRAPPED)
     end
 end
 
@@ -247,16 +235,16 @@ function InfinityWrapMapManager:_buildCanvasesAsyncTask(isAsyncTask)
     local renderData = self.canvasRenderData
 
     -- Posição do jogador precisa ser obtida para centralizar a construção.
-    -- @type PlayerManager
-    --local playerMgr = self.registry:get("playerManager")
-    -- local worldPosition = { x = 0, y = 0 }
-    -- if playerMgr and playerMgr.movementController then
-    --     worldPosition = playerMgr.movementController:getPosition()
-    -- end
+    local playerManager = self.context.registry:getPlayerManager()
+    local worldPosition = playerManager.movementController:getPosition()
+
+    local currentTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
+    local currentPatchX = math.floor(currentTilePos.x / self.tilesPerPatch)
+    local currentPatchY = math.floor(currentTilePos.y / self.tilesPerPatch)
 
     -- Atualiza qual patch está sendo renderizado
-    renderData.lastRenderedPatchX = self.player.patchX
-    renderData.lastRenderedPatchY = self.player.patchY
+    renderData.lastRenderedPatchX = currentPatchX
+    renderData.lastRenderedPatchY = currentPatchY
 
     for name, canvas in pairs(self.layerCanvases) do
         self:_renderLayerToCanvas(name, canvas, isAsyncTask)
@@ -322,7 +310,7 @@ function InfinityWrapMapManager:_renderLayerToCanvas(layerName, canvas, isAsyncT
                         local ox = quadW / 2
                         local oy = quadH - self.tileHeight / 2
 
-                        love.graphics.draw(tileImage, screenX, screenY, 0, 1, 1, ox, oy)
+                        love.graphics.draw(tileImage, math.floor(screenX), math.floor(screenY), 0, 1, 1, ox, oy)
 
                         tilesDrawnInFrame = tilesDrawnInFrame + 1
 
@@ -344,8 +332,9 @@ end
 function InfinityWrapMapManager:_getCanvasDrawPosition()
     local renderData = self.canvasRenderData
 
-    local playerGlobalTileX = self.player.patchX * self.tilesPerPatch + self.player.localX
-    local playerGlobalTileY = self.player.patchY * self.tilesPerPatch + self.player.localY
+    local playerManager = self.context.registry:getPlayerManager()
+    local worldPosition = playerManager.movementController:getPosition()
+    local playerGlobalTilePos = self:isometricToCartesianTile(worldPosition.x, worldPosition.y)
 
     -- Ponto de origem (tile 0,0) do grid que foi renderizado no canvas
     local renderRadius = math.floor(renderData.renderGridDiameter / 2)
@@ -353,8 +342,8 @@ function InfinityWrapMapManager:_getCanvasDrawPosition()
     local gridOriginTileY = (renderData.lastRenderedPatchY - renderRadius) * self.tilesPerPatch
 
     -- Posição do jogador relativa ao ponto de origem do canvas
-    local playerRelativeTileX = playerGlobalTileX - gridOriginTileX
-    local playerRelativeTileY = playerGlobalTileY - gridOriginTileY
+    local playerRelativeTileX = playerGlobalTilePos.x - gridOriginTileX
+    local playerRelativeTileY = playerGlobalTilePos.y - gridOriginTileY
 
     -- Converte a posição relativa do jogador para coordenadas isométricas
     local playerIso = self:cartesianToIsometric(playerRelativeTileX, playerRelativeTileY)
@@ -365,81 +354,6 @@ function InfinityWrapMapManager:_getCanvasDrawPosition()
     local canvasDrawY = ResolutionUtils.getGameHeight() / 2 - playerIso.y - renderData.offsetY
 
     return canvasDrawX, canvasDrawY
-end
-
----@private Atualiza a posição do jogador.
----@param dt number Delta time.
-function InfinityWrapMapManager:_updateMovement(dt)
-    local inputManager = self.context.serviceLocator.getInputManager()
-    local dx, dy = 0, 0
-    local moveSpeed = 10
-
-    local movementVector = inputManager:getMovementVector()
-    dx = movementVector.x
-    dy = movementVector.y
-
-    if dx ~= 0 or dy ~= 0 then
-        -- Normaliza o vetor para evitar velocidade maior na diagonal
-        local length = math.sqrt(dx * dx + dy * dy)
-        dx = dx / length
-        dy = dy / length
-
-        -- Aplica movimento contínuo baseado em dt
-        self.player.localX = self.player.localX + dx * moveSpeed * dt
-        self.player.localY = self.player.localY + dy * moveSpeed * dt
-
-        -- Verifica wrapping entre patches
-        self:_handleWrapping()
-    end
-end
-
----@private Verifica wrapping entre patches.
-function InfinityWrapMapManager:_handleWrapping()
-    local hasWrapped = false
-    local direction = ''
-    local oldPatchX = self.player.patchX
-    local oldPatchY = self.player.patchY
-
-    -- Wrapping horizontal
-    if self.player.localX < 0 then
-        self.player.localX = self.player.localX + self.tilesPerPatch
-        self.player.patchX = (self.player.patchX - 1 + self.patchSize) % self.patchSize
-        hasWrapped = true
-        direction = 'left'
-    elseif self.player.localX >= self.tilesPerPatch then
-        self.player.localX = self.player.localX - self.tilesPerPatch
-        self.player.patchX = (self.player.patchX + 1) % self.patchSize
-        hasWrapped = true
-        direction = 'right'
-    end
-
-    -- Wrapping vertical
-    if self.player.localY < 0 then
-        self.player.localY = self.player.localY + self.tilesPerPatch
-        self.player.patchY = (self.player.patchY - 1 + self.patchSize) % self.patchSize
-        hasWrapped = true
-        direction = direction == '' and 'up' or direction .. '-up'
-    elseif self.player.localY >= self.tilesPerPatch then
-        self.player.localY = self.player.localY - self.tilesPerPatch
-        self.player.patchY = (self.player.patchY + 1) % self.patchSize
-        hasWrapped = true
-        direction = direction == '' and 'down' or direction .. '-down'
-    end
-
-    if hasWrapped then
-        Logger.info("infinity_wrap_map_manager.player_wrapped",
-            string.format("[InfinityWrapMapManager:_handleWrapping] Player wrapped: %s", direction))
-
-        local eventService = self.context.serviceLocator.getEventService()
-        eventService:emit(
-            eventService.EVENTS.PLAYER_WRAPPED,
-            direction,
-            oldPatchX,
-            oldPatchY,
-            self.player.patchX,
-            self.player.patchY
-        )
-    end
 end
 
 --- Converte coordenadas cartesianas para isométricas.
