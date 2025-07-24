@@ -112,7 +112,7 @@ function PlayerManager:update(dt)
         local moveVector = inputService:getMovementVector()
 
         self.movementController:update(dt, moveSpeedInPixels, moveVector)
-        self.playerSpriteController:update(dt, moveSpeedInPixels, moveVector)
+        self.playerSpriteController:update(dt, moveSpeedInPixels, moveVector, self.movementController:getPosition())
     end
 
     if self.weaponAttackController then
@@ -140,6 +140,9 @@ function PlayerManager:getPosition()
     if self.movementController then
         return self.movementController:getPosition()
     end
+
+    Logger.error("player_manager_v2.getPosition.error",
+        "[PlayerManager:getPosition] MovementController não encontrado.")
     -- Retorna uma posição padrão segura se o controller não existir.
     return { x = 0, y = 0 }
 end

@@ -112,9 +112,17 @@ end
 --- O Camera:attach() e Camera:detach() devem ser chamados externamente, antes e depois desta função.
 ---@param worldPlayerPosition Vector2D A posição do jogador, necessária para o map manager.
 function RenderPipeline:draw(worldPlayerPosition)
-    -- 1. Desenha as camadas de baixo do Mapa
-    if self.mapManager and self.mapManager.draw then
-        self.mapManager:draw(worldPlayerPosition)
+    assert(worldPlayerPosition, "RenderPipeline:draw - worldPlayerPosition is nil.")
+    -- assert(self.mapManager, "RenderPipeline:draw - mapManager is nil.")
+
+    -- Atualizar posição do jogador no map manager
+    if self.mapManager and self.mapManager.setPlayerPosition then
+        self.mapManager:setPlayerPosition(worldPlayerPosition.x, worldPlayerPosition.y)
+    end
+
+    -- 1. Desenha as camadas ABAIXO das entidades (ground, ground_decoration)
+    if self.mapManager and self.mapManager.drawBelowEntities then
+        self.mapManager:drawBelowEntities()
     end
 
     -- 2. Processa e desenha itens dos buckets em ordem de profundidade
@@ -126,9 +134,9 @@ function RenderPipeline:draw(worldPlayerPosition)
 
     self:_processAndDrawBuckets(depthDrawOrder)
 
-    -- 3. Desenha as camadas de cima do Mapa, após as entidades
-    if self.mapManager and self.mapManager.drawTopLayers then
-        self.mapManager:drawTopLayers(worldPlayerPosition)
+    -- 3. Desenha as camadas ACIMA das entidades (decoration, roof, etc.)
+    if self.mapManager and self.mapManager.drawAboveEntities then
+        self.mapManager:drawAboveEntities()
     end
 
     -- 4. Desenha os SpriteBatches coletados

@@ -40,10 +40,10 @@ function MapAssetLoader:load(mapId)
         for _, tileset in ipairs(mapData.tilesets) do
             if tileset.tiles then
                 for _, tile in ipairs(tileset.tiles) do
-                    if tile.image and not loadedTiles[tile.image] then
+                    if tile.image and not loadedTiles[tile.id] then
                         local imageSuccess, imageOrError = pcall(love.graphics.newImage, tile.image)
                         if imageSuccess then
-                            loadedTiles[tile.image] = imageOrError
+                            loadedTiles[tile.id] = imageOrError
                             tilesLoadedCount = tilesLoadedCount + 1
                         else
                             Logger.warn("map_asset_loader.load.tile_error",

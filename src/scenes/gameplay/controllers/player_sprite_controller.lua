@@ -29,32 +29,38 @@ end
 function PlayerSpriteController:setupSprite(appearance)
     assert(appearance, "PlayerSpriteController:setupSprite requer uma tabela de 'appearance'")
 
+    local spritePosition = {
+        x = ResolutionUtils.getGameWidth() / 2,
+        y = ResolutionUtils.getGameHeight() / 2
+    }
+
     self.playerSprite = SpritePlayer.newConfig({
-        position = {
-            x = ResolutionUtils.getGameWidth() / 2,
-            y = ResolutionUtils.getGameHeight() / 2
-        },
+        position = spritePosition,
         scale = Constants.PLAYER_SCALE,
         appearance = appearance
     })
 
     self.playerSprite.velocity = { x = 0, y = 0 }
 
-    Logger.info("PlayerSpriteController:setupSprite", "Sprite do jogador criado com sucesso.")
+    Logger.info(
+        "PlayerSpriteController:setupSprite",
+        "Sprite do jogador criado com sucesso. Posição: (" ..
+        string.format("%.1f,%.1f", spritePosition.x, spritePosition.y) ..
+        ") | Escala: " .. Constants.PLAYER_SCALE,
+        true -- Mostra na tela
+    )
 end
 
 --- Atualiza a animação e o estado do sprite.
 ---@param dt number
 ---@param moveSpeedInPixels number
 ---@param moveVector Vector2D
-function PlayerSpriteController:update(dt, moveSpeedInPixels, moveVector)
+function PlayerSpriteController:update(dt, moveSpeedInPixels, moveVector, position)
     if not self.playerSprite then return end
     -- TODO: Adicionar checagem de dash e UI lock
 
-    self.playerSprite.velocity = {
-        x = moveVector.x,
-        y = moveVector.y
-    }
+    self.playerSprite.velocity = moveVector
+    self.playerSprite.position = position
 
     -- O sprite do jogador está sempre no centro da tela, então passamos sua própria posição
     SpritePlayer.update(self.playerSprite, dt, self.playerSprite.position, moveSpeedInPixels)
@@ -68,7 +74,7 @@ end
 function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition)
     if not self.playerSprite then
         Logger.warn("player_sprite_controller.collect",
-        "[PlayerSpriteController] Tentou coletar, mas self.playerSprite é nil.")
+            "[PlayerSpriteController] Tentou coletar, mas self.playerSprite é nil.")
         return
     end
 
@@ -84,6 +90,8 @@ function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition
     renderableItem.type = "player"
     renderableItem.sortY = sortY
     renderableItem.depth = RenderPipeline.DEPTH_ENTITIES
+    renderableItem.x = worldPosition.x
+    renderableItem.y = worldPosition.y
     renderableItem.drawFunction = function()
         SpritePlayer.draw(self.playerSprite)
     end

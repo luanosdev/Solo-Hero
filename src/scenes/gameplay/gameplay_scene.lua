@@ -25,35 +25,45 @@ function GameplayScene:load(args)
     assert(args and args.preloadedAssets, "GameplayScene requires 'preloadedAssets' in loading arguments.")
 
     self.isPaused = false
-    self.renderPipeline = RenderPipeline:new()
 
     -- Inicia o timer global da sessão de jogo
     ---@type GameTimerService
     local gameTimerService = ServiceLocator.get("gameTimerService")
     gameTimerService:start()
 
-    -- 1. Carregar dependências externas (da cena de loading)
+    -- Carrega dependências externas (da cena de loading)
     self.preloadedAssets = args.preloadedAssets
     self.portalId = args.portalId
     self.hunterId = args.hunterId
+    self.renderPipeline = RenderPipeline:new()
 
-    -- 2. Inicializar o bootstrap da cena, passando o pipeline
+    -- Inicializa o bootstrap da cena, passando o pipeline
     self.registry = GameplayBootstrap.initialize(args, self.renderPipeline)
 
-    -- 3. Configurar sistemas que dependem dos managers
+    -- Configura sistemas que dependem dos managers
     ---@type PlayerManagerV2
     local playerManager = self.registry:get("playerManager")
-    ---@type InfinityWrapMapManagerV2
-    local mapManager = self.registry:get("infinityWrapMapManager")
+
+    -- Configura o pipeline de renderização
+    -- self.renderPipeline:setMapManager(mapManager) -- Desativado por enquanto
+
+    -- Inicializa a câmera
+    Camera:init()
 
     -- Define a posição inicial da câmera com base na posição inicial do jogador.
+    Logger.info("gameplay_scene.load.player_position",
+        "[GameplayScene:load] Definindo posição inicial do jogador...")
+
+    --mapManager:setPlayerOnWorldCenter()
+
     local playerInitialPosition = playerManager:getPosition()
-    local camX = playerInitialPosition.x - (ResolutionUtils.getGameWidth() / Camera.scale / 2)
-    local camY = playerInitialPosition.y - (ResolutionUtils.getGameHeight() / Camera.scale / 2)
+    local camX = playerInitialPosition.x - (Camera.screenWidth / Camera.scale / 2)
+    local camY = playerInitialPosition.y - (Camera.screenHeight / Camera.scale / 2)
     Camera:setPosition(camX, camY)
 
     -- A conexão com o RenderPipeline foi removida, o desenho do mapa é explícito.
 
+    -- Inicializa o componente de debug
     -- Valida se o registry foi carregado corretamente
     if not self.registry then
         error("[GameplayScene:load] Failed to initialize registry.")
@@ -78,7 +88,7 @@ function GameplayScene:update(dt)
         ---@type PlayerManagerV2
         local playerManager = self.registry:get("playerManager")
         if playerManager then
-            Camera:follow(playerManager:getPosition(), dt)
+            -- Camera:follow(playerManager:getPosition(), dt) -- Desativado por enquanto
         end
     end
 
@@ -96,34 +106,44 @@ function GameplayScene:draw()
     ---@type PlayerManagerV2
     local playerManager = self.registry:get("playerManager")
     local playerPosition = playerManager and playerManager:getPosition()
-    ---@type InfinityWrapMapManagerV2
-    local mapManager = self.registry:get("infinityWrapMapManager")
 
-    Camera:attach()
+    -- Camera:attach() -- Desativado por enquanto para o teste do mapa
 
-    -- 1. Desenha as camadas de baixo do mapa
-    if mapManager and playerPosition then
-        mapManager:draw()
+    -- Desenho do mapa MVP
+    ---@type InfinityWrapMapManager2
+    local mapManager = self.registry:get("mapManager")
+    if mapManager then
+        mapManager:drawBottomLayers()
     end
 
-    -- 2. Limpa e processa o pipeline para entidades (jogador, inimigos, drops)
+    -- Reset do pipeline
     self.renderPipeline:reset()
-    -- NOTA: O mapa não é mais coletado aqui
+
+    -- Coleta todos os renderizáveis dos managers
     self.registry:collectAllRenderables(self.renderPipeline)
+
+    -- Desenha tudo que foi coletado, usando a posição do jogador como foco.
     if playerPosition then
         self.renderPipeline:draw(playerPosition)
+    else
+        Logger.error("gameplay_scene.draw.error", "[GameplayScene:draw] Player position is nil.")
     end
 
-    -- 3. Desenha as camadas de cima do mapa
-    if mapManager and playerPosition then
+    if mapManager then
         mapManager:drawTopLayers()
     end
 
-    Camera:detach()
+    -- Camera:detach() -- Desativado por enquanto
 end
 
 function GameplayScene:keypressed(key, scancode, isrepeat)
-    -- A lógica de input será delegada para o InputManager através do registry
+    -- Debug toggle para o mapa infinito
+    if key == "f3" then
+        -- local mapManager = self.registry and self.registry:get("infinityWrapMapManager") -- Desativado
+        -- if mapManager and mapManager.toggleDebug then
+        --     mapManager:toggleDebug()
+        -- end
+    end
 end
 
 function GameplayScene:mousepressed(x, y, button, istouch, presses)
@@ -140,6 +160,12 @@ function GameplayScene:unload()
         GameplayBootstrap.destroy(self.registry)
         self.registry = nil
     end
+
+    -- Limpa o componente de debug
+    if self.debugMapInfo then
+        self.debugMapInfo = nil
+    end
+
     Logger.info("gameplay_scene.leave.success", "[GameplayScene:leave] Gameplay scene resources cleaned.")
 end
 

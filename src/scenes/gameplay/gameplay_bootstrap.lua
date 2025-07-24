@@ -9,7 +9,8 @@
 -- Managers que seguem a NOVA arquitetura (baseados em classe/instância)
 local EnemyManager = require("src.scenes.gameplay.managers.enemy_manager")
 local PlayerManager = require("src.scenes.gameplay.managers.player_manager")
-local InfinityWrapMapManager = require("src.scenes.gameplay.managers.infinity_wrap_map_manager")
+-- local InfinityWrapMapManager = require("src.scenes.gameplay.managers.infinity_wrap_map_manager") -- Desativado por enquanto
+local InfinityWrapMapManager2 = require("src.scenes.gameplay.managers.infinity_wrap_map_manager")
 local CullingManager = require("src.managers.culling_manager")
 local SceneManagerRegistry = require("src.core.scene_manager_registry")
 
@@ -32,10 +33,11 @@ function GameplayBootstrap.initialize(args, renderPipeline)
     -- Definição dos managers a serem carregados em ordem explícita de inicialização.
     -- O mapa DEVE ser inicializado antes do jogador e dos inimigos.
     local managersToLoad = {
-        { key = "infinityWrapMapManager", class = InfinityWrapMapManager, needsPipeline = true },
-        { key = "cullingManager", class = CullingManager, needsPipeline = false },
-        { key = "playerManager", class = PlayerManager, needsPipeline = true },
-        { key = "enemyManager", class = EnemyManager, needsPipeline = true },
+        { key = "playerManager",      class = PlayerManager,      needsPipeline = true },
+        -- { key = "infinityWrapMapManager", class = InfinityWrapMapManager, needsPipeline = true }, -- Desativado por enquanto
+        { key = "mapManager", class = InfinityWrapMapManager2, needsPipeline = false },
+        { key = "cullingManager",     class = CullingManager,     needsPipeline = false },
+        { key = "enemyManager",       class = EnemyManager,       needsPipeline = true },
     }
 
     ---@type table<string, any>
