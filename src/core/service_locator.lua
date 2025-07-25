@@ -55,6 +55,12 @@ function ServiceLocator.getInputManager()
     return ServiceLocator.get("inputService")
 end
 
+---@public Obtém o serviço de item data.
+---@return ItemDataService
+function ServiceLocator.getItemDataService()
+    return ServiceLocator.get("itemDataService")
+end
+
 --- Atualiza todos os serviços registrados.
 ---@param dt number Delta time.
 function ServiceLocator.update(dt)

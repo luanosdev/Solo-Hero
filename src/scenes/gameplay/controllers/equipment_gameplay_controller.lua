@@ -1,6 +1,3 @@
-local ServiceLocator = require("src.core.service_locator")
-local ItemDataManager = require("src.managers.item_data_manager")
-
 ---@class EquipmentGameplayController
 ---@description Gerencia o estado de todos os itens equipados pelo jogador.
 --- Emite eventos quando o equipamento muda, permitindo que outros sistemas reajam
@@ -11,19 +8,48 @@ local ItemDataManager = require("src.managers.item_data_manager")
 local EquipmentGameplayController = {}
 EquipmentGameplayController.__index = EquipmentGameplayController
 
-function EquipmentGameplayController:new()
+---@param eventService EventService
+---@param itemDataManager ItemDataService
+function EquipmentGameplayController:new(eventService, itemDataManager)
     local instance = setmetatable({}, EquipmentGameplayController)
-    instance.eventService = ServiceLocator.get("eventService")
-    instance.itemDataManager = ServiceLocator.get("itemDataService")
+    instance.eventService = eventService
+    instance.itemDataManager = itemDataManager
     instance.equippedItems = {}
     return instance
 end
 
 --- Inicializa o controller com os itens que o jogador já tem equipado.
----@param initialEquippedItems table<string, ItemInstance>
-function EquipmentGameplayController:init(initialEquippedItems)
+---@param equippedItems table<string, ItemInstance>
+function EquipmentGameplayController:init(equippedItems)
     Logger.info("equipment_gameplay_controller.init", "[EquipmentGameplayController:init] Initializing...")
-    for slotId, itemInstance in pairs(initialEquippedItems) do
+
+    -- DEBUG: Log detalhado dos itens equipados na inicialização
+    Logger.info("equipment_gameplay_controller.debug.init_items",
+        string.format("[DEBUG] Received %d equipped items to initialize",
+            equippedItems and
+            (function()
+                local count = 0; for _ in pairs(equippedItems) do count = count + 1 end; return count
+            end)() or 0))
+
+    if equippedItems then
+        for slotId, itemInstance in pairs(equippedItems) do
+            if itemInstance then
+                Logger.info("equipment_gameplay_controller.debug.equipped_item",
+                    string.format("[DEBUG] Slot '%s' has item: %s (instanceId: %s)",
+                        tostring(slotId),
+                        tostring(itemInstance.itemBaseId),
+                        tostring(itemInstance.instanceId)))
+            else
+                Logger.info("equipment_gameplay_controller.debug.empty_slot",
+                    string.format("[DEBUG] Slot '%s' is empty (nil)", tostring(slotId)))
+            end
+        end
+    else
+        Logger.warn("equipment_gameplay_controller.debug.no_equipped_items",
+            "[DEBUG] No equipped items table provided")
+    end
+
+    for slotId, itemInstance in pairs(equippedItems) do
         self.equippedItems[slotId] = itemInstance
     end
 
@@ -55,6 +81,8 @@ end
 ---@param newItem ItemInstance|nil O novo item no slot.
 ---@param oldItem ItemInstance|nil O item antigo que estava no slot.
 function EquipmentGameplayController:_dispatchEquipmentChangedEvent(slotId, newItem, oldItem)
+    Logger.info("equipment_gameplay_controller.dispatchEquipmentChangedEvent",
+        "[EquipmentGameplayController:_dispatchEquipmentChangedEvent] Dispatching event...")
     self.eventService:emit(self.eventService.EVENTS.EQUIPMENT_CHANGED, {
         slotId = slotId, -- Se for nil, significa uma atualização geral inicial.
         newItem = newItem,
@@ -79,12 +107,15 @@ function EquipmentGameplayController:_dispatchBonusesUpdatedEvent()
         end
     end
 
+    Logger.info("equipment_gameplay_controller.dispatchBonusesUpdatedEvent",
+        "[EquipmentGameplayController:_dispatchBonusesUpdatedEvent] Dispatching event...")
     self.eventService:emit(self.eventService.EVENTS.EQUIPMENT_BONUSES_UPDATED, {
         modifiers = allModifiers
     })
 
     Logger.info("equipment_gameplay_controller.bonuses",
-        string.format("[EquipmentGameplayController:_dispatchBonuses] Dispatched %d stat modifiers.", #allModifiers)
+        string.format("[EquipmentGameplayController:_dispatchBonusesUpdatedEvent] Dispatched %d stat modifiers.",
+            #allModifiers)
     )
 end
 

@@ -5,7 +5,8 @@ local EquipmentGameplayController = require("src.scenes.gameplay.controllers.equ
 local WeaponAttackController = require("src.scenes.gameplay.controllers.weapon_attack_controller")
 local MovementController = require("src.scenes.gameplay.controllers.movement_controller")
 local PlayerSpriteController = require("src.scenes.gameplay.controllers.player_sprite_controller")
-local ServiceLocator = require("src.core.service_locator")
+
+local ManagerRegistry = require("src.managers.manager_registry")
 
 ---@class PlayerManagerV2
 ---@description Gerencia o estado e o comportamento do jogador, atuando como um orquestrador
@@ -59,6 +60,17 @@ end
 function PlayerManager:init()
     Logger.info("player_manager_v2.init.start", "[PlayerManager:init] Initializing for gameplay...")
 
+    local eventService = self.context.serviceLocator.getEventService()
+    local itemDataService = self.context.serviceLocator.getItemDataService()
+
+    --- TODO: transformar o hunterManager em um service
+    ---@type HunterManager
+    local hunterManager = ManagerRegistry:get("hunterManager")
+    local hunterId = self.context.args.hunterId
+
+    local hunterData = hunterManager.hunters[hunterId]
+    local hunterStats = hunterManager:getHunterFinalStats(hunterId)
+    local hunterEquipment = hunterManager:getEquippedItems(hunterId)
 
     self.stateController = PlayerStateController:new()
     self.stateController:init()
@@ -66,11 +78,12 @@ function PlayerManager:init()
     self.archetypeGameplayController = ArchetypeGameplayController:new(self.context.args.hunterId)
     self.archetypeGameplayController:init()
 
+    self.playerSpriteController = PlayerSpriteController:new(eventService, itemDataService)
+    self.playerSpriteController:init(hunterData.skinTone)
+
     -- O EquipmentGameplayController precisa dos itens iniciais.
-    -- TODO: Obter `initialItems` dos dados do caçador. Por enquanto, uma tabela vazia.
-    local initialItems = {}
-    self.equipmentGameplayController = EquipmentGameplayController:new()
-    self.equipmentGameplayController:init(initialItems)
+    self.equipmentGameplayController = EquipmentGameplayController:new(eventService, itemDataService)
+    self.equipmentGameplayController:init(hunterEquipment)
 
     -- Controllers de Ação e Aparência (podem ter dependências)
     self.weaponAttackController = WeaponAttackController:new()
@@ -79,17 +92,6 @@ function PlayerManager:init()
     self.movementController = MovementController:new()
     self.movementController:init()
 
-    self.playerSpriteController = PlayerSpriteController:new()
-    self.playerSpriteController:init()
-
-    -- Configura o sprite inicial e a posição
-    local appearance = {
-        skinTone = "medium",
-        equipment = { bag = nil, belt = nil, chest = nil, head = nil, leg = nil, shoe = nil },
-        weapon = { folderPath = nil, animationType = nil }
-    }
-
-    self.playerSpriteController:setupSprite(appearance)
 
     Logger.info("player_manager_v2.init.success", "[PlayerManager:init] Successfully initialized.")
 end

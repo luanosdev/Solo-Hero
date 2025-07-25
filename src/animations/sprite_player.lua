@@ -711,7 +711,16 @@ function SpritePlayer._drawWeaponLayer(config, state, direction, frame)
     local weaponSprites = SpritePlayer.resources.weapons[weaponFolder]
 
     -- Verifica se temos sprites da arma carregados
-    if not weaponSprites or not weaponSprites[state] then
+    if not weaponSprites then
+        Logger.warn("sprite_player.debug.no_weapon_sprites",
+            string.format("[DEBUG] No weapon sprites loaded for folder: %s", tostring(weaponFolder)))
+        return
+    end
+
+    if not weaponSprites[state] then
+        Logger.warn("sprite_player.debug.no_weapon_state",
+            string.format("[DEBUG] No weapon sprite for state '%s' in folder '%s'", tostring(state),
+                tostring(weaponFolder)))
         return
     end
 
@@ -722,6 +731,9 @@ function SpritePlayer._drawWeaponLayer(config, state, direction, frame)
         SpritePlayer.quads[weaponFolder][state][direction][frame]
 
     if not weaponQuad then
+        Logger.warn("sprite_player.debug.no_weapon_quad",
+            string.format("[DEBUG] No weapon quad for folder: %s, state: %s, direction: %s, frame: %d",
+                tostring(weaponFolder), tostring(state), tostring(direction), tostring(frame)))
         return
     end
 

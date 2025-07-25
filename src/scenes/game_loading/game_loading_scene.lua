@@ -113,6 +113,7 @@ end
 function GameLoadingScene:_loadPlayerEquipment()
     --- TODO: Esta função deve retornar os assets carregados em vez de depender de estado global.
     local SpritePlayer = require('src.animations.sprite_player')
+    SpritePlayer._loadWeaponSprites()
     SpritePlayer._loadEquipmentSprites()
     Logger.info("game_loading_scene._loadPlayerEquipment", "Equipment player sprites loaded")
 end

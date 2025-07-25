@@ -8,32 +8,179 @@ local TablePool = require("src.utils.table_pool")
 --- Este controller é o "dono" da instância do `SpritePlayer` e o conecta
 --- com o resto dos sistemas (movimento, stats, equipamento).
 ---@field playerSprite SpritePlayer|nil A instância do sprite do jogador.
+---@field eventService EventService
+---@field itemDataService ItemDataService
+---@field eventListeners table
 local PlayerSpriteController = {}
 PlayerSpriteController.__index = PlayerSpriteController
 
+---@param eventService EventService
+---@param itemDataService ItemDataService
 ---@return PlayerSpriteController
-function PlayerSpriteController:new()
+function PlayerSpriteController:new(eventService, itemDataService)
     local instance = setmetatable({}, PlayerSpriteController)
+
     instance.playerSprite = nil
+    instance.eventService = eventService
+    instance.itemDataService = itemDataService
+    instance.eventListeners = {}
+
     return instance
 end
 
-function PlayerSpriteController:init()
+---@public Inicializa o controller.
+---@param skinTone string
+function PlayerSpriteController:init(skinTone)
+    -- Inicializa o listener de eventos
+    self:_listen(self.eventService.EVENTS.EQUIPMENT_CHANGED, self.onEquipmentChanged)
+
+    self:_setupSprite(skinTone)
+
     -- Carrega os assets do sprite do jogador (operação idempotente)
     -- SpritePlayer.load() -- REMOVIDO
 end
 
---- Cria a instância do sprite do jogador com base na aparência fornecida.
+---@private Registra um listener de eventos.
+---@param event string
+---@param handler function
+function PlayerSpriteController:_listen(event, handler)
+    local listener = self.eventService:on(event, function(data) handler(self, data) end)
+    table.insert(self.eventListeners, listener)
+end
+
+---@private Atualiza a aparência do sprite com base no equipamento.
+function PlayerSpriteController:onEquipmentChanged(event)
+    assert(event, "PlayerSpriteController:onEquipmentChanged requer um evento")
+    Logger.info("player_sprite_controller.onEquipmentChanged",
+        "[PlayerSpriteController:onEquipmentChanged] Event received: ")
+
+    -- DEBUG: Log detalhado do evento recebido
+    Logger.info("player_sprite_controller.debug.event_details",
+        string.format("[DEBUG] Event details - slotId: %s, hasNewItem: %s, hasAllEquipped: %s",
+            tostring(event.slotId),
+            tostring(event.newItem ~= nil),
+            tostring(event.allEquipped ~= nil)
+        ))
+
+    if not event.slotId then
+        assert(event.allEquipped, "PlayerSpriteController:onEquipmentChanged: precisa de um allEquipped")
+
+        -- DEBUG: Log dos itens equipados
+        Logger.info("player_sprite_controller.debug.all_equipped",
+            string.format("[DEBUG] Processing all equipped items. Count: %d",
+                event.allEquipped and #event.allEquipped or 0))
+
+        -- Atualiza a aparência com base em todos os itens equipados
+        local allEquipped = event.allEquipped
+        -- Primeiro, a arma equipada
+        local weapon = allEquipped.weapon
+        if weapon then
+            Logger.info("player_sprite_controller.debug.weapon_found",
+                string.format("[DEBUG] Weapon found - itemBaseId: %s", tostring(weapon.itemBaseId)))
+
+            local weaponBaseData = self.itemDataService:getBaseItemData(weapon.itemBaseId)
+            if weaponBaseData then
+                Logger.info("player_sprite_controller.debug.weapon_data",
+                    string.format("[DEBUG] Weapon data - folderPath: %s, animationType: %s",
+                        tostring(weaponBaseData.animationFolderPath),
+                        tostring(weaponBaseData.animationType)))
+
+                self.playerSprite.appearance.weapon = {
+                    folderPath = weaponBaseData.animationFolderPath,
+                    animationType = weaponBaseData.animationType
+                }
+            else
+                Logger.warn("player_sprite_controller.debug.weapon_data_missing",
+                    "[DEBUG] Weapon base data not found for: " .. tostring(weapon.itemBaseId))
+            end
+
+            -- Depois, os outros itens
+            for slotId, item in pairs(allEquipped) do
+                if item and item.itemBaseId ~= weapon.itemBaseId then
+                    local itemBaseData = self.itemDataService:getBaseItemData(item.itemBaseId)
+                    if itemBaseData then
+                        self.playerSprite.appearance.equipment[slotId] = itemBaseData.animationFolderPath
+                    end
+                end
+            end
+        else
+            Logger.warn("player_sprite_controller.debug.no_weapon",
+                "[DEBUG] No weapon found in allEquipped")
+        end
+    else
+        -- DEBUG: Log para mudanças específicas de slot
+        Logger.info("player_sprite_controller.debug.slot_change",
+            string.format("[DEBUG] Slot specific change - slotId: %s", tostring(event.slotId)))
+
+        -- Verifico se o newItem é nulo, se for nulo, significa que o item foi desequipado
+        local slotId = event.slotId
+        if not event.newItem then
+            Logger.info("player_sprite_controller.debug.unequip",
+                string.format("[DEBUG] Unequipping item from slot: %s", tostring(slotId)))
+
+            if slotId == "weapon" then
+                self.playerSprite.appearance.weapon = {
+                    folderPath = nil,
+                    animationType = nil
+                }
+            else
+                self.playerSprite.appearance.equipment[slotId] = nil
+            end
+        else
+            local newItem = event.newItem
+            Logger.info("player_sprite_controller.debug.equip",
+                string.format("[DEBUG] Equipping item - slotId: %s, itemBaseId: %s",
+                    tostring(slotId), tostring(newItem.itemBaseId)))
+
+            local itemBaseData = self.itemDataService:getBaseItemData(newItem.itemBaseId)
+            if itemBaseData then
+                Logger.info("player_sprite_controller.debug.item_data",
+                    string.format("[DEBUG] Item data found - folderPath: %s, animationType: %s",
+                        tostring(itemBaseData.animationFolderPath),
+                        tostring(itemBaseData.animationType)))
+
+                -- CORREÇÃO: Verificar slotId ao invés de itemBaseId
+                if slotId == "weapon" then
+                    self.playerSprite.appearance.weapon = {
+                        folderPath = itemBaseData.animationFolderPath,
+                        animationType = itemBaseData.animationType
+                    }
+                else
+                    self.playerSprite.appearance.equipment[slotId] = itemBaseData.animationFolderPath
+                end
+            else
+                Logger.warn("player_sprite_controller.debug.item_data_missing",
+                    "[DEBUG] Item base data not found for: " .. tostring(newItem.itemBaseId))
+            end
+        end
+    end
+
+    -- DEBUG: Log do estado final da aparência
+    if self.playerSprite and self.playerSprite.appearance then
+        Logger.info("player_sprite_controller.debug.final_appearance",
+            string.format("[DEBUG] Final weapon appearance - folderPath: %s, animationType: %s",
+                tostring(self.playerSprite.appearance.weapon.folderPath),
+                tostring(self.playerSprite.appearance.weapon.animationType)))
+    end
+end
+
+---@private Cria a instância do sprite do jogador com base na aparência fornecida.
 --- Chamado pelo PlayerManager durante a inicialização.
----@param appearance table A configuração de aparência do caçador.
-function PlayerSpriteController:setupSprite(appearance)
-    assert(appearance, "PlayerSpriteController:setupSprite requer uma tabela de 'appearance'")
+---@param skinTone string
+function PlayerSpriteController:_setupSprite(skinTone)
+    assert(skinTone, "PlayerSpriteController:_setupSprite requer um skinTone")
 
     -- O sprite é criado na origem do mundo (0,0).
     -- A posição real será definida pelo MovementController.
     local spritePosition = {
         x = 0,
         y = 0
+    }
+
+    local appearance = {
+        skinTone = skinTone,
+        equipment = { bag = nil, belt = nil, chest = nil, head = nil, leg = nil, shoe = nil },
+        weapon = { folderPath = nil, animationType = nil }
     }
 
     self.playerSprite = SpritePlayer.newConfig({
@@ -106,8 +253,15 @@ function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition
     renderPipeline:add(renderableItem)
 end
 
+---@public Destrói o sprite do jogador.
 function PlayerSpriteController:destroy()
+    Logger.info("player_sprite_controller.destroy", "[PlayerSpriteController:destroy] Destroying...")
     self.playerSprite = nil
+    for _, listener in pairs(self.eventListeners) do
+        self.eventService:off(listener.event, listener.id)
+    end
+
+    self.eventListeners = {}
 end
 
 return PlayerSpriteController

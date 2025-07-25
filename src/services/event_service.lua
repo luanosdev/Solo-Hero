@@ -41,6 +41,7 @@ function EventService:on(eventName, callback, context)
         error("[EventService:on] Tentativa de registrar evento com nome ou callback nulo.")
     end
 
+    Logger.info("event_service.on", "[EventService:on] Registrando evento: " .. eventName)
     self.listeners[eventName] = self.listeners[eventName] or {}
     table.insert(self.listeners[eventName], { callback = callback, context = context })
 end

@@ -92,11 +92,45 @@ function HunterManager:_recruitInitialHunter()
 
     self.hunters[hunterId] = initialHunterData
     self:_initializeEquippedItems(hunterId)
+
+    -- TEMPORÁRIO: Adiciona uma arma padrão para debug
+    self:_addDefaultWeaponForDebug(hunterId)
+
     self.activeHunterId = hunterId
 
     print(string.format("  [HunterManager] Initial hunter recruited: ID=%s, Name=%s, Rank=%s, Archetypes=%s",
         hunterId, initialHunterData.name, initialHunterData.finalRankId,
         table.concat(initialHunterData.archetypeIds, ", ")))
+end
+
+--- TEMPORÁRIO: Adiciona uma arma padrão para debugging
+---@param hunterId string
+function HunterManager:_addDefaultWeaponForDebug(hunterId)
+    local hunterData = self.hunters[hunterId]
+    if not hunterData or not hunterData.equippedItems then
+        return
+    end
+
+    -- Cria uma instância de arma padrão para debug
+    local defaultWeapon = {
+        instanceId = "debug_weapon_001",
+        itemBaseId = "cone_slash_e_001", -- Usa uma arma que sabemos que existe
+        quantity = 1,
+        gridWidth = 1,
+        gridHeight = 1,
+        stackable = false,
+        maxStack = 1,
+        name = "Debug Sword",
+        icon = nil,
+        modifiers = {},
+        rarity = 'E'
+    }
+
+    -- Adiciona a arma ao slot weapon
+    hunterData.equippedItems["weapon"] = defaultWeapon
+
+    print(string.format("  [HunterManager] DEBUG: Added default weapon '%s' to hunter %s",
+        defaultWeapon.itemBaseId, hunterId))
 end
 
 --- Internal helper to calculate final hunter stats based on archetypes.
@@ -249,13 +283,13 @@ end
 
 --- Returns the table of equipped items for a specific hunter.
 --- @param hunterId string The ID of the hunter.
---- @return table | nil The equipped items table ({ [slotId] = itemInstance | nil }) or nil if hunter not found.
+--- @return table The equipped items table ({ [slotId] = itemInstance | nil }) or nil if hunter not found.
 function HunterManager:getEquippedItems(hunterId)
     local hunterData = self.hunters[hunterId]
     if not hunterData then
-        print(string.format("WARNING [getEquippedItems]: Hunter %s not found.", hunterId))
-        return nil
+        error(string.format("WARNING [getEquippedItems]: Hunter %s not found.", hunterId))
     end
+
     return hunterData.equippedItems or {}
 end
 
