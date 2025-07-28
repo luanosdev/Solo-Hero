@@ -30,7 +30,7 @@ ConeSlashController.CONFIG = {
 -- Configurações visuais, separadas para clareza
 ConeSlashController.VISUAL_CONFIG = {
     preview = {
-        active = false,
+        active = true,
         lineLength = 50,
         color = { 1, 1, 1, 0.2 }
     },
@@ -75,8 +75,6 @@ end
 function ConeSlashController:recalculateArea(context)
     local baseData = self.cachedBaseData
     local stats = context.finalStats
-
-    Logger.debug("ConeSlashController:recalculateArea", "stats: " .. Logger.dumpTable(stats, 2))
 
     -- Para o Cone Slash, o bônus de área é um multiplicador de 1.0
     local bonusAreaMultiplier = stats.area

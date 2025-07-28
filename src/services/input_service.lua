@@ -64,12 +64,8 @@ function InputService:_buildReverseBindings()
     end
 end
 
---- Chamado a cada frame no main.lua ANTES de processar os eventos.
-function InputService:update(dt)
-    -- Limpa os eventos de frame único
-    self.actionsPressed = {}
-    self.actionsReleased = {}
-
+--- Chamado no início do loop de update. Atualiza o estado das ações 'down'.
+function InputService:beginFrame()
     -- Atualiza o estado 'down' para o teclado
     self.actionsDown = {}
     for action, keys in pairs(self.keyboardBindings) do
@@ -90,6 +86,12 @@ function InputService:update(dt)
             end
         end
     end
+end
+
+--- Chamado no final do loop de update. Limpa os eventos de frame único.
+function InputService:endFrame()
+    self.actionsPressed = {}
+    self.actionsReleased = {}
 end
 
 ---@public Manipula o evento love.keypressed

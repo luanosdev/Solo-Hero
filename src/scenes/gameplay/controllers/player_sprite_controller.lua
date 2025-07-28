@@ -89,10 +89,11 @@ function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition
         love.graphics.push()
         love.graphics.translate(worldPosition.x, worldPosition.y)
         SpritePlayer.draw(self.playerSprite)
+        love.graphics.pop()
+
         if drawAttackFunction then
             drawAttackFunction()
         end
-        love.graphics.pop()
     end
 
     renderPipeline:add(renderableItem)

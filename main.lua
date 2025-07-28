@@ -156,8 +156,12 @@ function love.load()
 end
 
 function love.update(dt)
-    -- Atualiza todos os serviços globais
-    ServiceLocator.update(dt)
+    -- Atualiza o estado de 'isDown' para o frame atual.
+    -- Deve ser chamado antes de qualquer lógica de jogo.
+    local inputService = ServiceLocator.getInputService()
+    if inputService then
+        inputService:beginFrame()
+    end
 
     -- Delega o update para a cena atual (se não for encerrar)
     SceneManager.update(dt)
@@ -173,6 +177,12 @@ function love.update(dt)
 
     if DEV and HOT_RELOAD then
         lurker.update()
+    end
+
+    -- Limpa os eventos de 'pressed' e 'released' para o próximo frame.
+    -- Deve ser chamado depois de toda a lógica do jogo.
+    if inputService then
+        inputService:endFrame()
     end
 end
 

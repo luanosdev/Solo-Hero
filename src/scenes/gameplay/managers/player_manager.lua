@@ -169,11 +169,32 @@ function PlayerManager:update(dt)
     if self.autoAttackController then self.autoAttackController:update() end
     if self.attackController then self.attackController:update(dt, self.attackContext) end
 
-    -- Tenta executar o ataque
+    -- Lógica de orquestração de ataque.
+    -- Para uma explicação detalhada das regras, consulte: docs/SISTEMA_DE_ATAQUE.md
     local attackDescriptors = nil
-    if self.autoAttackController and self.attackController and self.autoAttackController:isAutoAttackEnabled() then
-        attackDescriptors = self.attackController:tryAttack(self.attackContext)
+
+    if self.autoAttackController and self.attackController then
+        -- Ao PRESSIONAR o botão de ataque:
+        if inputService:wasActionPressed(ActionTypes.ATTACK) then
+            -- 1. Ativa a sobreposição do auto-ataque
+            self.autoAttackController:overrideAutoAttack(true)
+            -- 2. Tenta um ataque imediato para dar resposta ao clique
+            attackDescriptors = self.attackController:tryAttack(self.attackContext)
+        end
+
+        -- Ao SOLTAR o botão de ataque:
+        if inputService:wasActionReleased(ActionTypes.ATTACK) then
+            -- 1. Remove a sobreposição do auto-ataque
+            self.autoAttackController:overrideAutoAttack(false)
+        end
+
+        -- Tenta executar o ataque contínuo (se o auto-ataque estiver ativo por 'X' ou por segurar o botão)
+        -- Só executa se um ataque já não tiver sido disparado pelo clique inicial
+        if not attackDescriptors and self.autoAttackController:isAutoAttackEnabled() then
+            attackDescriptors = self.attackController:tryAttack(self.attackContext)
+        end
     end
+
 
     if attackDescriptors and #attackDescriptors > 0 then
         -- Processa os descritores para encontrar alvos e aplicar efeitos

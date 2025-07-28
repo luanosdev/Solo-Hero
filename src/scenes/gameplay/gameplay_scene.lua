@@ -113,11 +113,6 @@ function GameplayScene:draw()
         return
     end
 
-    -- Pega a posição do jogador UMA VEZ por frame para garantir consistência.
-    ---@type PlayerManagerV2
-    local playerManager = self.registry:get("playerManager")
-    local playerPosition = playerManager and playerManager:getPosition()
-
     Camera:attach()
 
     -- Reset do pipeline

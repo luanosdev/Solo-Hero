@@ -4,6 +4,7 @@ local ActionTypes = require("src.types.action_types")
 ---@description Gerencia o estado de "auto-ataque" (ligado/desligado).
 ---@field autoAttackEnabled boolean
 ---@field inputService InputService
+---@field isOverridden boolean
 local AutoAttackController = {}
 AutoAttackController.__index = AutoAttackController
 
@@ -15,6 +16,7 @@ function AutoAttackController:new(inputService)
 
     instance.autoAttackEnabled = true
     instance.inputService = inputService
+    instance.isOverridden = false
 
     return instance
 end
@@ -37,25 +39,40 @@ end
 --- Define o estado do auto-ataque.
 ---@param enabled boolean
 function AutoAttackController:setAutoAttackEnabled(enabled)
+    if self.isOverridden then
+        Logger.warn("auto_attack_controller.set.attack.overridden",
+            "[AutoAttackController:setAutoAttackEnabled] Tentativa de alterar o estado enquanto sobreposto. Ignorado.")
+        return
+    end
+
     self.autoAttackEnabled = enabled
     Logger.info("auto_attack_controller.set.attack",
-        string.format("[AutoAttackController:setAutoAttackEnabled] Auto-attack definido para: %s", tostring(enabled))
+        string.format("[AutoAttackController:setAutoAttackEnabled] Auto-ataque definido para: %s", tostring(enabled))
     )
 end
 
 ---@public
 --- Alterna o estado do auto-ataque.
 function AutoAttackController:toggleAutoAttack()
+    Logger.debug("auto_attack_controller.toggle", "[AutoAttackController:toggleAutoAttack] Toggle auto attack.")
     self:setAutoAttackEnabled(not self.autoAttackEnabled)
+end
+
+---@public Sobrepõe temporariamente o estado do auto-ataque.
+--- Útil para forçar o ataque ao segurar um botão, por exemplo.
+---@param overridden boolean true para sobrepor, false para remover a sobreposição.
+function AutoAttackController:overrideAutoAttack(overridden)
+    self.isOverridden = overridden
+    Logger.info("auto_attack_controller.override",
+        string.format("[AutoAttackController:overrideAutoAttack] Sobreposição do auto-ataque: %s", tostring(overridden))
+    )
 end
 
 ---@public
 --- Verifica se o auto-ataque está habilitado.
 ---@return boolean
 function AutoAttackController:isAutoAttackEnabled()
-    Logger.debug("auto_attack_controller.isAutoAttackEnabled",
-        "[AutoAttackController:isAutoAttackEnabled] Auto-attack está " .. tostring(self.autoAttackEnabled))
-    return self.autoAttackEnabled
+    return self.isOverridden or self.autoAttackEnabled
 end
 
 ---@public
