@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 --- ActionBindings
---- 
+---
 --------------------------------------------------------------------------------
 local ActionTypes = require("src.types.action_types")
 
@@ -27,6 +27,7 @@ local bindings = {
     [ActionTypes.TOGGLE_AUTO_ATTACK] = { "x" },
     [ActionTypes.TOGGLE_AUTO_AIM] = { "z" },
     [ActionTypes.TOGGLE_AIM_PREVIEW] = { "c" },
+    [ActionTypes.ATTACK] = { "mouse1" },
 }
 
 return bindings

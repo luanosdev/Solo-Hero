@@ -50,8 +50,8 @@ function ServiceLocator.getEventService()
 end
 
 ---@public Obtém o serviço de input.
----@return InputManager
-function ServiceLocator.getInputManager()
+---@return InputService
+function ServiceLocator.getInputService()
     return ServiceLocator.get("inputService")
 end
 
@@ -59,6 +59,18 @@ end
 ---@return ItemDataService
 function ServiceLocator.getItemDataService()
     return ServiceLocator.get("itemDataService")
+end
+
+---@public Obtém o serviço de game statistics.
+---@return GameStatisticsService
+function ServiceLocator.getGameStatisticsService()
+    return ServiceLocator.get("gameStatisticsService")
+end
+
+---@public Obtém o serviço de game timer.
+---@return GameTimerService
+function ServiceLocator.getGameTimerService()
+    return ServiceLocator.get("gameTimerService")
 end
 
 --- Atualiza todos os serviços registrados.

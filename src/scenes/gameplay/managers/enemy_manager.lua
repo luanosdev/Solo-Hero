@@ -6,12 +6,12 @@
 local ServiceLocator = require("src.core.service_locator")
 
 --- TODO: Remover o v2 quando o v1 for removido
----@class EnemyManagerv2
+---@class EnemyManager
 ---@field context GameplaySceneContext
 ---@field playerManager PlayerManager
 ---@field dropManager DropManager
 ---@field cullingManager CullingManager
----@field mapManager InfinityWrapMapManager
+---@field mapManager InfinityWrapMapManager2
 ---@field enemies BaseEnemy[]
 ---@field spawnController SpawnController
 ---@field despawnController DespawnController
@@ -31,7 +31,7 @@ local TimerTaskRunner = require("src.core.timer_task_runner")
 -- local FrameTaskRunner = require("src.core.frame_task_runner") -- Se for usar
 
 ---@param context GameplaySceneContext
----@return EnemyManagerv2
+---@return EnemyManager
 function EnemyManager:new(context)
     assert(context, "[EnemyManager] missing a GameplaySceneContext")
 
@@ -73,14 +73,6 @@ function EnemyManager:init()
     Logger.info("enemy_manager.init.success", "[EnemyManager:init] initialized successfully.")
 end
 
---- Configura o manager com os dados específicos da horda para a sessão de gameplay.
----@param hordeConfig HordeConfigData
-function EnemyManager:setupGameplay(hordeConfig)
-    assert(hordeConfig, "[EnemyManager:setupGameplay] HordeConfig is required.")
-    --self.spawnController:setup(hordeConfig)
-    Logger.info("enemy_manager.setupGameplay.success", "[EnemyManager] Gameplay setup complete.")
-end
-
 ---@param dt number
 function EnemyManager:update(dt)
     -- Atualizar tarefas periódicas
@@ -101,6 +93,15 @@ function EnemyManager:update(dt)
             table.remove(self.enemies, i)
         end
     end
+end
+
+---@public Retorna uma lista de inimigos proximos a uma posição.
+--- TODO: Implementar a lógica de busca de inimigos pelo SpatialGrid
+---@param position Vector2D
+---@param radius number
+---@return BaseEnemy[]
+function EnemyManager:getNearbyEnemies(position, radius)
+    return self.enemies
 end
 
 function EnemyManager:draw()

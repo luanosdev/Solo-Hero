@@ -1,30 +1,35 @@
---- Gerencia as estatísticas do jogo durante uma partida.
---- @class GameStatisticsManager
-local GameStatisticsManager = {}
-GameStatisticsManager.__index = GameStatisticsManager
+---@class GameStatisticsService
+---@description Gerencia as estatísticas do jogo durante uma partida.
+---@field gameTimerService GameTimerService O serviço de timer do jogo.
+---@field stats table<string, any> As estatísticas do jogo.
+---@field _wasStarted boolean
+local GameStatisticsService = {}
+GameStatisticsService.__index = GameStatisticsService
 
---- Cria uma nova instância do GameStatisticsManager.
---- @return GameStatisticsManager
-function GameStatisticsManager:new()
-    local instance = setmetatable({}, GameStatisticsManager)
-    instance.registry = nil ---@type ManagerRegistry
-    instance:resetStats() -- Inicia com estatísticas zeradas
+--- Cria uma nova instância do GameStatisticsService.
+--- @return GameStatisticsService
+function GameStatisticsService:new()
+    local instance = setmetatable({}, GameStatisticsService)
+    instance._wasStarted = false
+
     return instance
 end
 
---- Inicializa o manager com dependências necessárias.
---- @param registry ManagerRegistry A instância do registro de managers.
-function GameStatisticsManager:init(registry)
-    self.registry = registry
+--- Inicializa o service com dependências necessárias.
+--- @param gameTimerService GameTimerService O serviço de timer do jogo.
+function GameStatisticsService:start(gameTimerService)
+    self.gameTimerService = gameTimerService
+    self._wasStarted = true
+
     self:resetStats()
+    Logger.info("game_statistics_service.start.success", "[GameStatisticsService] Session statitics started.")
 end
 
 --- Reseta todas as estatísticas para uma nova partida.
-function GameStatisticsManager:resetStats()
+function GameStatisticsService:resetStats()
     self.stats = {
         -- Geral
         playTime = 0,
-        startTime = love.timer.getTime(),
 
         -- Combate (Dano)
         totalDamageDealt = 0,
@@ -68,8 +73,15 @@ end
 
 --- Atualiza o tempo de jogo e outras estatísticas baseadas em tempo.
 --- @param dt number Delta time.
-function GameStatisticsManager:update(dt)
-    self.stats.playTime = love.timer.getTime() - self.stats.startTime
+function GameStatisticsService:update(dt)
+    if not self._wasStarted then
+        return
+    end
+
+    assert(self.gameTimerService, "GameStatisticsService:update - gameTimerService não encontrado.")
+
+    -- O tempo agora é atualizado diretamente pelo GameTimerService
+    self.stats.playTime = self.gameTimerService:getTime()
 
     -- Calcula o tempo sem tomar dano
     local timeSinceLastDamage = self.stats.playTime - self.stats.lastDamageTimestamp
@@ -83,7 +95,7 @@ end
 --- @param isCritical boolean Se foi um golpe crítico.
 --- @param isSuperCritical boolean Se foi um golpe super crítico.
 --- @param source table A fonte do dano, contendo `weaponId` ou `abilityId`.
-function GameStatisticsManager:registerDamageDealt(amount, isCritical, isSuperCritical, source)
+function GameStatisticsService:registerDamageDealt(amount, isCritical, isSuperCritical, source)
     self.stats.totalDamageDealt = self.stats.totalDamageDealt + amount
     if amount > self.stats.highestDamageDealt then
         self.stats.highestDamageDealt = amount
@@ -126,7 +138,7 @@ end
 --- Registra dano recebido e dano mitigado.
 --- @param amount number Quantidade de dano recebido.
 --- @param reducedAmount number Quantidade de dano que foi reduzida pela defesa.
-function GameStatisticsManager:registerDamageTaken(amount, reducedAmount)
+function GameStatisticsService:registerDamageTaken(amount, reducedAmount)
     self.stats.totalDamageTaken = self.stats.totalDamageTaken + amount
     self.stats.timesHit = self.stats.timesHit + 1
     if amount > self.stats.highestDamageTaken then
@@ -143,7 +155,7 @@ end
 
 --- Registra cura recebida.
 --- @param amount number Quantidade de vida recuperada.
-function GameStatisticsManager:registerHealthRecovered(amount)
+function GameStatisticsService:registerHealthRecovered(amount)
     self.stats.healthRecovered = self.stats.healthRecovered + amount
     self.stats.timesHealed = self.stats.timesHealed + 1
     if amount > self.stats.maxHealthRecovered then
@@ -153,7 +165,7 @@ end
 
 --- Registra um inimigo derrotado e verifica seu tipo.
 --- @param enemyType string Tipo do inimigo ('normal', 'mvp', 'boss').
-function GameStatisticsManager:registerEnemyDefeated(enemyType)
+function GameStatisticsService:registerEnemyDefeated(enemyType)
     self.stats.enemiesDefeated = self.stats.enemiesDefeated + 1
     if enemyType == "mvp" then
         self.stats.mvpsDefeated = self.stats.mvpsDefeated + 1
@@ -164,30 +176,30 @@ end
 
 --- Registra movimento.
 --- @param distance number Distância percorrida.
-function GameStatisticsManager:registerMovement(distance)
+function GameStatisticsService:registerMovement(distance)
     self.stats.distanceTraveled = self.stats.distanceTraveled + distance
 end
 
 --- Registra um item coletado.
-function GameStatisticsManager:registerItemCollected()
+function GameStatisticsService:registerItemCollected()
     self.stats.itemsCollected = self.stats.itemsCollected + 1
 end
 
 --- Registra experiência ganha.
 --- @param amount number Quantidade de XP.
-function GameStatisticsManager:registerXpCollected(amount)
+function GameStatisticsService:registerXpCollected(amount)
     self.stats.totalXpCollected = self.stats.totalXpCollected + amount
 end
 
 --- Registra um level up.
-function GameStatisticsManager:registerLevelGained()
+function GameStatisticsService:registerLevelGained()
     self.stats.levelsGained = self.stats.levelsGained + 1
 end
 
 --- Registra uma escolha de melhoria de level up.
 --- @param level number O nível em que a escolha foi feita.
 --- @param choiceText string A descrição da melhoria escolhida.
-function GameStatisticsManager:registerLevelUpChoice(level, choiceText)
+function GameStatisticsService:registerLevelUpChoice(level, choiceText)
     -- verifica se a melhoria já existe, se existir, incrementa o nível
     for _, choice in ipairs(self.stats.levelUpChoices) do
         if choice.choice == choiceText then
@@ -201,7 +213,7 @@ end
 
 --- Registra o número de inimigos atingidos por um único ataque.
 --- @param count number O número de inimigos.
-function GameStatisticsManager:registerEnemiesHit(count)
+function GameStatisticsService:registerEnemiesHit(count)
     if count > self.stats.maxEnemiesHitAtOnce then
         self.stats.maxEnemiesHitAtOnce = count
     end
@@ -209,7 +221,7 @@ end
 
 --- Retorna as estatísticas formatadas para exibição.
 --- @return table Estatísticas formatadas
-function GameStatisticsManager:getFormattedStats()
+function GameStatisticsService:getFormattedStats()
     -- Esta função precisará ser completamente refeita na GameStatsColumn.lua.
     -- Por enquanto, retornamos os dados brutos para a UI lidar.
     return self:getRawStats()
@@ -217,8 +229,8 @@ end
 
 --- Retorna as estatísticas brutas.
 --- @return table Estatísticas brutas
-function GameStatisticsManager:getRawStats()
+function GameStatisticsService:getRawStats()
     return self.stats
 end
 
-return GameStatisticsManager
+return GameStatisticsService

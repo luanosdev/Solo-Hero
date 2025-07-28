@@ -51,6 +51,12 @@ function SceneManagerRegistry:getPlayerManager()
     return self:get("playerManager")
 end
 
+--- Obtém o enemyManager registrado na instância da cena.
+---@return EnemyManager
+function SceneManagerRegistry:getEnemyManager()
+    return self:get("enemyManager")
+end
+
 --- Tenta obter um manager registrado, retorna nil se não encontrado.
 ---@param name string
 ---@return any|nil

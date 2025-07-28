@@ -95,7 +95,10 @@ local translations = {
 
     -- === Tipos de Ataque ===
     attack_types = {
-        cone_slash = "Cone de Corte",
+        cone_slash = {
+            name = "Cortada em Cone",
+            description = "Um ataque em cone que causa dano a todos os inimigos na área.",
+        },
         circular_smash = "Circular de Esmagamento",
         alternating_cone_strike = "Alternado de Cone de Corte",
         flame_stream = "Fluxo de Chamas",

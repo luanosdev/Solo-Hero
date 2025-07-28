@@ -1,21 +1,26 @@
 local Constants = require("src.config.constants")
+local ActionTypes = require("src.types.action_types")
+local Camera = require("src.config.camera")
+local ManagerRegistry = require("src.managers.manager_registry")
+
 local PlayerStateController = require("src.scenes.gameplay.controllers.player_state_controller")
 local ArchetypeGameplayController = require("src.scenes.gameplay.controllers.archetype_gameplay_controller")
 local EquipmentGameplayController = require("src.scenes.gameplay.controllers.equipment_gameplay_controller")
-local WeaponAttackController = require("src.scenes.gameplay.controllers.weapon_attack_controller")
 local MovementController = require("src.scenes.gameplay.controllers.movement_controller")
 local PlayerSpriteController = require("src.scenes.gameplay.controllers.player_sprite_controller")
+local TargetingController = require("src.scenes.gameplay.controllers.targeting_controller")
+local AutoAttackController = require("src.scenes.gameplay.controllers.auto_attack_controller")
+local AreaOfEffectController = require("src.scenes.gameplay.controllers.area_of_effect_controller")
+local CombatGeometry = require("src.utils.combat_geometry")
+local TablePool = require("src.utils.table_pool")
 
-local ManagerRegistry = require("src.managers.manager_registry")
-
----@class PlayerManagerV2
+---@class PlayerManager
 ---@description Gerencia o estado e o comportamento do jogador, atuando como um orquestrador
 -- para um conjunto de controllers especializados.
 ---@field context GameplaySceneContext
----@field stateController PlayerStateControllerV2
+---@field stateController PlayerStateController
 ---@field archetypeGameplayController ArchetypeGameplayController
 ---@field equipmentGameplayController EquipmentGameplayController
----@field weaponAttackController WeaponAttackController
 ---@field playerAppearanceController PlayerAppearanceController
 ---@field healthController HealthController
 ---@field experienceController ExperienceController
@@ -24,17 +29,21 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field runeController RuneController
 ---@field movementController MovementControllerV2
 ---@field playerSpriteController PlayerSpriteController
----@field dashController DashController
----@field levelUpEffectController LevelUpEffectController
----@field potionController PotionController
+---@field targetingController TargetingController
+---@field attackController BaseAttackController
+---@field areaOfEffectController AreaOfEffectController
+---@field eventListeners table<string, function>
+---@field attackContext AttackContext
 local PlayerManager = {}
 PlayerManager.__index = PlayerManager
+
+PlayerManager.PLAYER_RADIUS = 10
 
 --- Cria uma nova instância do PlayerManager.
 --- O construtor é leve e apenas inicializa a estrutura da tabela.
 --- A lógica de configuração pesada acontece no :init().
 --- @param context GameplaySceneContext
---- @return PlayerManagerV2
+--- @return PlayerManager
 function PlayerManager:new(context)
     assert(context, "[PlayerManager] missing a GameplayContext")
     assert(context.args and context.args.hunterId, "PlayerManager:init() requires hunterId.")
@@ -47,10 +56,16 @@ function PlayerManager:new(context)
     instance.stateController = nil
     instance.archetypeGameplayController = nil
     instance.equipmentGameplayController = nil
-    instance.weaponAttackController = nil
     instance.movementController = nil
     instance.playerSpriteController = nil
-    -- ... outros controllers
+    instance.targetingController = nil
+    instance.autoAttackController = nil
+    instance.attackController = nil
+    instance.areaOfEffectController = nil
+
+    instance.attackContext = nil
+    instance.eventListeners = {}
+
     return instance
 end
 
@@ -60,8 +75,13 @@ end
 function PlayerManager:init()
     Logger.info("player_manager_v2.init.start", "[PlayerManager:init] Initializing for gameplay...")
 
+    self:_startEventListeners()
+
     local eventService = self.context.serviceLocator.getEventService()
     local itemDataService = self.context.serviceLocator.getItemDataService()
+    local inputService = self.context.serviceLocator.getInputService()
+    local enemyManager = self.context.registry:get("enemyManager")
+    local camera = Camera
 
     --- TODO: transformar o hunterManager em um service
     ---@type HunterManager
@@ -72,7 +92,7 @@ function PlayerManager:init()
     local hunterStats = hunterManager:getHunterFinalStats(hunterId)
     local hunterEquipment = hunterManager:getEquippedItems(hunterId)
 
-    self.stateController = PlayerStateController:new()
+    self.stateController = PlayerStateController:new(eventService)
     self.stateController:init()
 
     self.archetypeGameplayController = ArchetypeGameplayController:new(self.context.args.hunterId)
@@ -85,13 +105,30 @@ function PlayerManager:init()
     self.equipmentGameplayController = EquipmentGameplayController:new(eventService, itemDataService)
     self.equipmentGameplayController:init(hunterEquipment)
 
-    -- Controllers de Ação e Aparência (podem ter dependências)
-    self.weaponAttackController = WeaponAttackController:new()
-    self.weaponAttackController:init()
-
     self.movementController = MovementController:new()
     self.movementController:init()
 
+    self.targetingController = TargetingController:new({
+        enemyManager = enemyManager,
+        inputService = inputService,
+        camera = camera,
+    })
+    self.targetingController:init()
+
+    self.autoAttackController = AutoAttackController:new(inputService)
+    self.autoAttackController:init()
+
+    self.areaOfEffectController = AreaOfEffectController:new()
+    self.areaOfEffectController:init()
+
+    self.attackContext = {
+        finalStats = self.stateController:getAllStats(),
+        playerPosition = self.movementController:getPosition(),
+        playerAngle = 0,
+        isMoving = self.movementController:isMoving(),
+        playerRadius = PlayerManager.PLAYER_RADIUS,
+        targetPosition = { x = 0, y = 0 },
+    }
 
     Logger.info("player_manager_v2.init.success", "[PlayerManager:init] Successfully initialized.")
 end
@@ -99,22 +136,55 @@ end
 --- Atualiza todos os controllers do jogador.
 ---@param dt number O tempo delta desde o último frame.
 function PlayerManager:update(dt)
-    if not self.stateController then return end
+    local inputService = self.context.serviceLocator.getInputService()
+
+    if not self.stateController or not self.movementController then return end
 
     -- Orquestração do Movimento e Animação
-    local moveSpeed = self.stateController:getFinalStat("moveSpeed")
-    local inputService = self.context.serviceLocator.getInputManager()
+    local moveSpeed = self.stateController:getStat("moveSpeed")
 
-    if moveSpeed and inputService and self.movementController and self.playerSpriteController then
-        local moveSpeedInPixels = Constants.moveSpeedToPixels(moveSpeed)
-        local moveVector = inputService:getMovementVector()
+    local moveSpeedInPixels = Constants.moveSpeedToPixels(moveSpeed)
+    local moveVector = inputService:getMovementVector()
+    self.movementController:update(dt, moveSpeedInPixels, moveVector)
 
-        self.movementController:update(dt, moveSpeedInPixels, moveVector)
-        self.playerSpriteController:update(dt, moveSpeedInPixels, moveVector, self.movementController:getPosition())
+    -- Orquestração da Mira
+    local playerPosition = self.movementController:getPosition()
+    local isHoldingAttack = inputService:isActionDown(ActionTypes.ATTACK)
+
+    -- Força a mira no mouse se o jogador estiver segurando o botão de ataque.
+    local targetPosition = self.targetingController:getTargetPosition(playerPosition, isHoldingAttack)
+
+    local dx = targetPosition.x - playerPosition.x
+    local dy = targetPosition.y - playerPosition.y
+    local angle = math.atan2(dy, dx)
+
+    -- Atualiza o contexto de ataque com os dados mais recentes
+    self.attackContext.playerPosition = playerPosition
+    self.attackContext.playerAngle = angle
+
+    self.attackContext.isMoving = self.movementController:isMoving()
+
+    -- Atualiza os controllers com os dados orquestrados
+    self.playerSpriteController:update(dt, moveSpeedInPixels, moveVector, playerPosition, angle)
+    if self.autoAttackController then self.autoAttackController:update() end
+    if self.attackController then self.attackController:update(dt, self.attackContext) end
+
+    -- Tenta executar o ataque
+    local attackDescriptors = nil
+    if self.autoAttackController and self.attackController and self.autoAttackController:isAutoAttackEnabled() then
+        attackDescriptors = self.attackController:tryAttack(self.attackContext)
     end
 
-    if self.weaponAttackController then
-        self.weaponAttackController:update(dt)
+    if attackDescriptors and #attackDescriptors > 0 then
+        -- Processa os descritores para encontrar alvos e aplicar efeitos
+        self:_processAttackDescriptors(attackDescriptors)
+
+        -- Dispara a animação de ataque correspondente
+        local animationType = self.attackController.cachedBaseData.animationType
+        self.playerSpriteController:updateAttackAnimation({ animation = animationType })
+
+        -- Libera a tabela de descritores de volta para o pool
+        TablePool.releaseArray(attackDescriptors)
     end
 end
 
@@ -123,11 +193,16 @@ end
 function PlayerManager:collectRenderables(renderPipeline)
     if self.playerSpriteController and self.movementController then
         local worldPosition = self.movementController:getPosition()
-        self.playerSpriteController:collectRenderables(renderPipeline, worldPosition)
-    end
-
-    if self.weaponAttackController then
-        self.weaponAttackController:collectRenderables(renderPipeline)
+        self.playerSpriteController:collectRenderables(
+            renderPipeline,
+            worldPosition,
+            function()
+                --- TODO: Implementar futuramente o BatchDraw
+                if self.attackController then
+                    self.attackController:collectRenderables(renderPipeline, self.attackContext)
+                end
+            end
+        )
     end
 end
 
@@ -145,6 +220,170 @@ function PlayerManager:getPosition()
     return { x = 0, y = 0 }
 end
 
+---@private Orquestra a execução de uma lista de descritores de ataque.
+---@description Para cada descritor, busca os inimigos candidatos, filtra os alvos
+---@description com o AreaOfEffectController e aplica dano e efeitos.
+---@param attackDescriptors AttackDescriptor[] A lista de ataques a serem processados.
+function PlayerManager:_processAttackDescriptors(attackDescriptors)
+    local enemyManager = self.context.registry:getEnemyManager()
+    local gameStatsService = self.context.serviceLocator.getGameStatisticsService()
+    if not enemyManager or not gameStatsService then return end
+
+    local finalStats = self.attackContext.finalStats
+    local weaponInstance = self.attackController.weaponInstance
+
+    for _, descriptor in ipairs(attackDescriptors) do
+        local candidates = enemyManager:getNearbyEnemies(descriptor.origin, descriptor.range)
+        local enemiesHit
+
+        if descriptor.shape == "cone" then
+            enemiesHit = self.areaOfEffectController:findEntitiesInCone(
+                candidates,
+                descriptor.origin,
+                descriptor.angle,
+                descriptor.range,
+                descriptor.halfWidth
+            )
+        elseif descriptor.shape == "circle" then
+            enemiesHit = self.areaOfEffectController:findEntitiesInCircle(
+                candidates,
+                descriptor.origin,
+                descriptor.radius
+            )
+        elseif descriptor.shape == "line" then
+            -- Para linhas, o range é o comprimento. Precisamos pegá-lo da descriptor.
+            local lineLength = math.sqrt((descriptor.endPos.x - descriptor.startPos.x) ^ 2 +
+                (descriptor.endPos.y - descriptor.startPos.y) ^ 2)
+            candidates = enemyManager:getNearbyEntities(descriptor.startPos, lineLength)
+            enemiesHit = self.areaOfEffectController:findEntitiesInLine(
+                candidates,
+                descriptor.startPos,
+                descriptor.endPos,
+                descriptor.width
+            )
+        end
+
+        if enemiesHit and #enemiesHit > 0 then
+            gameStatsService:registerEnemiesHit(#enemiesHit)
+
+            for _, enemy in ipairs(enemiesHit) do
+                if enemy and enemy.isAlive then
+                    -- 1. Calcula o dano
+                    local damageToApply, isCritical, isSuperCritical = CombatGeometry.calculateSuperCriticalDamage(
+                        finalStats.damage,
+                        finalStats.criticalChance,
+                        finalStats.criticalDamage - 1
+                    )
+
+                    -- 2. Aplica o dano à entidade
+                    enemy:takeDamage(damageToApply, isCritical, isSuperCritical)
+
+                    -- 3. Registra estatísticas
+                    gameStatsService:registerDamageDealt(damageToApply, isCritical,
+                        { weaponId = weaponInstance.itemBaseId }, isSuperCritical)
+
+                    -- 4. Aplica Knockback (se houver)
+                    -- A lógica de knockback deve ser movida para a entidade inimiga no futuro.
+                    -- Por enquanto, replicamos a lógica do antigo CombatHelpers.
+                    local knockbackData = self.attackController.cachedBaseData
+                    if knockbackData.knockbackPower and knockbackData.knockbackPower > 0 then
+                        local dirX = enemy.position.x - descriptor.origin.x
+                        local dirY = enemy.position.y - descriptor.origin.y
+                        local dist = math.sqrt(dirX * dirX + dirY * dirY)
+                        if dist > 0 then
+                            dirX = dirX / dist
+                            dirY = dirY / dist
+                            local knockbackVelocity = (finalStats.strength + (knockbackData.knockbackForce or 0))
+                            enemy:applyKnockback(dirX, dirY, knockbackVelocity)
+                        end
+                    end
+                end
+            end
+        end
+
+        TablePool.releaseArray(candidates)
+        if enemiesHit then
+            TablePool.releaseArray(enemiesHit)
+        end
+    end
+end
+
+---@private Inicia as instancias de eventos
+function PlayerManager:_startEventListeners()
+    local eventService = self.context.serviceLocator.getEventService()
+    self:_listen(eventService.EVENTS.EQUIPMENT_CHANGED, self._setCurrentAttack)
+end
+
+---@private Registra um listener de eventos.
+---@param event string
+---@param handler function
+function PlayerManager:_listen(event, handler)
+    local eventService = self.context.serviceLocator.getEventService()
+    local listener = eventService:on(event, function(data) handler(self, data) end)
+    table.insert(self.eventListeners, listener)
+end
+
+---@private Ouvinte de eventos para o evento EQUIPMENT_CHANGED
+function PlayerManager:_setCurrentAttack(eventData)
+    Logger.info(
+        "gameplay.player_manager._setCurrentAttack",
+        string.format("[PlayerManager:_setCurrentAttack] Event details - slotId: %s, newItem: %s, allEquipped: %s ",
+            eventData.slotId,
+            eventData.newItem and eventData.newItem.itemBaseId or "nil",
+            eventData.allEquipped and eventData.allEquipped[Constants.SLOT_IDS.WEAPON] and
+            eventData.allEquipped[Constants.SLOT_IDS.WEAPON].itemBaseId or "nil"
+        )
+    )
+
+
+    if eventData.slotId and eventData.slotId ~= Constants.SLOT_IDS.WEAPON then
+        return
+    end
+
+    self:_clearCurrentAttackInstance()
+
+    if (not eventData.slotId and eventData.allEquipped) or (eventData.slotId and eventData.slotId == Constants.SLOT_IDS.WEAPON) then
+        local weapon = eventData.allEquipped[Constants.SLOT_IDS.WEAPON]
+        if weapon then
+            self:_setCurrentAttackInstance(weapon)
+        end
+    end
+end
+
+---@private Define a instância de ataque atual.
+function PlayerManager:_setCurrentAttackInstance(weapon)
+    local itemDataService = self.context.serviceLocator.getItemDataService()
+    local itemData = itemDataService:getBaseItemData(weapon.itemBaseId)
+
+    local weaponClassPath = "src.entities.equipments.weapons." .. itemData.weaponClass
+    local requireWeaponClassAsSuccess, WeaponClass = pcall(require, weaponClassPath)
+
+    if not requireWeaponClassAsSuccess or not WeaponClass then
+        error(string.format("[PlayerManager:_setCurrentAttackInstance] Weapon class not found for item: %s",
+            weapon.itemBaseId))
+    end
+
+    local weaponInstance = WeaponClass:new({ itemBaseId = weapon.itemBaseId })
+
+    local attackControllerClassPath = "src.scenes.gameplay.controllers.attacks." .. itemData.attackClass .. "_controller"
+    local success, AttackControllerClass = pcall(require, attackControllerClassPath)
+
+    if not success or not AttackControllerClass then
+        error(string.format(
+            "[PlayerManager:_setCurrentAttackInstance] Attack controller not found: %s",
+            attackControllerClassPath))
+    end
+
+    self.attackController = AttackControllerClass:new(weaponInstance)
+end
+
+---@private Limpa a instância de ataque atual.
+function PlayerManager:_clearCurrentAttackInstance()
+    if self.attackController then
+        self.attackController:destroy()
+    end
+end
+
 --- Limpa os recursos e se desregistra de eventos.
 --- Chamado pelo GameplayBootstrap quando a cena é descarregada.
 function PlayerManager:destroy()
@@ -152,9 +391,11 @@ function PlayerManager:destroy()
     if self.stateController then self.stateController:destroy() end
     if self.archetypeGameplayController then self.archetypeGameplayController:destroy() end
     if self.equipmentGameplayController then self.equipmentGameplayController:destroy() end
-    if self.weaponAttackController then self.weaponAttackController:destroy() end
+    if self.attackController then self.attackController:destroy() end
     if self.movementController then self.movementController:destroy() end
     if self.playerSpriteController then self.playerSpriteController:destroy() end
+    if self.targetingController then self.targetingController:destroy() end
+    if self.autoAttackController then self.autoAttackController:destroy() end
 end
 
 return PlayerManager

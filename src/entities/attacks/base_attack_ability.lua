@@ -6,6 +6,7 @@
 
 local SpritePlayer = require("src.animations.sprite_player")
 local Colors = require("src.ui.colors")
+local ManagerRegistry = require("src.managers.manager_registry")
 
 ---@class BaseAttackAbilityVisual
 ---@field preview { active: boolean, lineLength: number, color: table }
@@ -43,17 +44,14 @@ local MIN_ATTACK_SPEED = 0.01
 
 --- Cria nova instância da classe base
 ---@generic W : BaseWeapon|CircularSmashWeapon|ConeSlashWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon
----@param playerManager PlayerManager
 ---@param weaponInstance W
 ---@param config AttackConfig
 ---@return BaseAttackAbility
-function BaseAttackAbility:new(playerManager, weaponInstance, config)
+function BaseAttackAbility:new(weaponInstance, config)
+    assert(weaponInstance, "BaseAttackAbility:new - weaponInstance é obrigatório")
     local o = setmetatable({}, self)
 
-    if not playerManager or not weaponInstance then
-        error("BaseAttackAbility:new - playerManager e weaponInstance são obrigatórios.")
-    end
-
+    local playerManager = ManagerRegistry:getPlayerManager()
     o.playerManager = playerManager
     o.weaponInstance = weaponInstance
     o.attackType = config.attackType or "melee"

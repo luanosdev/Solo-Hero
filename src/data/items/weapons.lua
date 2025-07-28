@@ -40,7 +40,7 @@
 
 ---@class HunterModifier
 ---@field stat string O atributo do caçador a ser modificado (e.g., "moveSpeed", "health").
----@field type "base"|"percentage" O tipo de modificador.
+---@field type StatModifierType O tipo de modificador.
 ---@field value number O valor do modificador.
 
 ---@class CircularSmashWeapon : Weapon
@@ -75,6 +75,8 @@
 ---@field jumpRange number Distância máxima para saltar entre inimigos.
 
 local Constants = require("src.config.constants")
+local Enums = require("src.config.enums")
+local StatModifier = Enums.StatModifierType
 
 --- Função auxiliar para adicionar métodos de localização às armas
 ---@param weaponData table A definição da arma
@@ -152,9 +154,9 @@ local weapons = {
         animationType = "melee",
         animationFolderPath = "sword_tier_1",
         modifiers = {
-            { stat = "critChance", type = "base", value = 0.1 },
-            { stat = "force",      type = "base", value = 5 },
-            { stat = "maxHealth",  type = "base", value = 50 },
+            { stat = "criticalChance", type = StatModifier.FLAT, value = 0.1 },
+            { stat = "criticalDamage", type = StatModifier.FLAT, value = 5 },
+            { stat = "health",         type = StatModifier.FLAT, value = 50 },
         },
         value = 200,
     },

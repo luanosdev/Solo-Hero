@@ -27,9 +27,11 @@ function GameplayScene:load(args)
     self.isPaused = false
 
     -- Inicia o timer global da sessão de jogo
-    ---@type GameTimerService
-    local gameTimerService = ServiceLocator.get("gameTimerService")
+    local gameTimerService = ServiceLocator.getGameTimerService()
     gameTimerService:start()
+
+    local gameStatisticsService = ServiceLocator.getGameStatisticsService()
+    gameStatisticsService:start(gameTimerService)
 
     -- Carrega dependências externas (da cena de loading)
     self.preloadedAssets = args.preloadedAssets

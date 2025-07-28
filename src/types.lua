@@ -39,7 +39,7 @@
 ---@field value number | BonusFunction O valor do bônus (um número ou uma função para calcular o bônus).
 ---@field source string O ID da fonte do bônus (ex: "ARCHETYPE_TANK").
 
----@alias StatKey "moveSpeed" | "potionFillRate" | "health" | "defense" | "attackSpeed" | "critChance" | "critDamage" | "healthRegen" | "multiAttackChance" | "runeSlots" | "strength" | "expBonus" | "healingBonus" | "pickupRadius" | "healthRegenDelay" | "range" | "luck" | "attackArea" | "healthPerTick" | "cooldownReduction" | "healthRegenCooldown" | "dashCharges" | "dashCooldown" | "dashDistance" | "dashDuration" | "potionFlasks" | "potionHealAmount" | "potionFillRate"
+---@alias StatKey "damage" | "moveSpeed" | "potionFillRate" | "health" | "defense" | "attackSpeed" | "criticalChance" | "criticalDamage" | "healthRegen" | "multiAttackChance" | "runeSlots" | "strength" | "expBonus" | "healingBonus" | "pickupRadius" | "healthRegenDelay" | "range" | "luck" | "area" | "healthPerTick" | "cooldownReduction" | "healthRegenCooldown" | "dashCharges" | "dashCooldown" | "dashDistance" | "dashDuration" | "potionFlasks" | "potionHealAmount" | "potionFillRate" | "piercing" | "angle" | "fireRate" 
 
 ---@alias Color table<number, number>
 

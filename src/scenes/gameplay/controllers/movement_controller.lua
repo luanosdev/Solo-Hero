@@ -68,6 +68,10 @@ function MovementController:setPosition(worldPosition)
         string.format("Posição do jogador definida para: (%.1f, %.1f)", worldPosition.x, worldPosition.y))
 end
 
+function MovementController:isMoving()
+    return self.lastMoveDistance > 0
+end
+
 function MovementController:stopMovement()
     -- No futuro, poderia zerar o vetor de input no InputManager ou ter um state aqui.
     -- Por agora, a lógica de update já não move se o vetor for zero.

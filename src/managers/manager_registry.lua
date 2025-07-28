@@ -38,6 +38,12 @@ function ManagerRegistry:get(name)
     return self.managers[name].instance
 end
 
+---@public
+---@return PlayerManager
+function ManagerRegistry:getPlayerManager()
+    return self:get("playerManager")
+end
+
 -- Obtém um manager registrado, mas retorna nil se não encontrado
 ---@param name string
 ---@return any|nil

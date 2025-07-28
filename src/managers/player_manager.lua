@@ -30,7 +30,7 @@ local WeaponTraitsController = require('src.controllers.weapon_traits_controller
 ---@field animationPaused boolean Se a animação está pausada
 ---@field [string] any Outras propriedades do sprite
 
----@class PlayerManager
+---@class PlayerManager_
 local PlayerManager = {
     -- Referência ao player sprite
     ---@deprecated Use getPlayerPosition em vez disso

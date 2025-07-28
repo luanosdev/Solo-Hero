@@ -121,7 +121,7 @@ local Constants = require("src.config.constants")
 ---@field equippedItems EquippedItems Itens equipados (para referência)
 ---@field archetypeIds ArchetypeInfo[] Arquétipos ativos (para referência)
 
----@class PlayerStateController Controlador unificado de estado e estatísticas do jogador
+---@class PlayerStateController2 Controlador unificado de estado e estatísticas do jogador
 ---@field playerManager PlayerManager Referência ao PlayerManager
 ---@field currentHealth number Vida atual do jogador
 ---@field maxHealth number Vida máxima base (sem modificadores)
@@ -178,7 +178,7 @@ PlayerStateController.__index = PlayerStateController
 --- Cria uma nova instância do PlayerStateController.
 ---@param playerManager PlayerManager A instância do PlayerManager
 ---@param initialStats table Estatísticas base do hunter
----@return PlayerStateController
+---@return PlayerStateController2
 function PlayerStateController:new(playerManager, initialStats)
     Logger.debug(
         "player_state_controller.new",

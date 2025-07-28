@@ -63,6 +63,10 @@ function Camera:detach()
 end
 
 -- Converte coordenadas da tela para coordenadas do mundo
+---@param screenX number Coordenada X da tela.
+---@param screenY number Coordenada Y da tela.
+---@return number worldX Coordenada X do mundo.
+---@return number worldY Coordenada Y do mundo.
 function Camera:screenToWorld(screenX, screenY)
     return (screenX / self.scale) + self.x, (screenY / self.scale) + self.y
 end

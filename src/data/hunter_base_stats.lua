@@ -19,7 +19,7 @@ local HunterBaseStats = {
     healthRegenDelay = 8.0,    -- Seconds after taking damage
     cooldownReduction = 1.0,   -- Multiplier (1.0 = no reduction)
     range = 1.0,               -- Multiplier (1.0 = base weapon/skill)
-    attackArea = 1.0,          -- Multiplier (1.0 = base weapon/skill)
+    area = 1.0,                -- Multiplier (1.0 = base weapon/skill)
     pickupRadius = 3,          -- Metros - convertido automaticamente para pixels
     healingBonus = 1.0,        -- Multiplier (1.0 = 100% healing received)
     runeSlots = 3,             -- Number of rune slots

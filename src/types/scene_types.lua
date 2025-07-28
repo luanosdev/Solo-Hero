@@ -17,4 +17,43 @@
 ---@field serviceLocator ServiceLocator
 ---@field args GameplaySceneArgs
 
+---@class AttackContext
+---@description Contém todos os dados puros necessários para um controller de ataque tomar decisões.
+---@field playerPosition Vector2D Posição atual do jogador.
+---@field targetPosition Vector2D Posição do alvo (mouse ou inimigo).
+---@field playerAngle number Ângulo atual do jogador.
+---@field isMoving boolean Se o jogador está se movendo.
+---@field playerRadius number Raio do jogador.
+---@field finalStats table<StatKey, number> Tabela com os stats finais do jogador.
+
+---@class AttackHitResult
+---@field entitiesHit BaseEnemy[] A lista de inimigos atingidos.
+---@field damageDealt number O dano total causado neste hit.
+---@field isCritical boolean Se o golpe foi crítico.
+---@field isSuperCritical boolean Se o golpe foi super crítico.
+
+-- ===================================================================
+-- Tipos de Descritores de Ataque (NOVO)
+-- ===================================================================
+
+---@class CircleAttackDescriptor
+---@field shape "circle" O tipo de forma do ataque.
+---@field origin Vector2D O centro do círculo.
+---@field radius number O raio do círculo.
+
+---@class ConeAttackDescriptor
+---@field shape "cone" O tipo de forma do ataque.
+---@field origin Vector2D A origem do cone.
+---@field angle number O ângulo central do cone em radianos.
+---@field range number O alcance (comprimento) do cone.
+---@field halfWidth number Metade da largura angular do cone em radianos.
+
+---@class LineAttackDescriptor
+---@field shape "line" O tipo de forma do ataque.
+---@field startPos Vector2D A posição inicial da linha.
+---@field endPos Vector2D A posição final da linha.
+---@field width number A largura da linha.
+
+---@alias AttackDescriptor CircleAttackDescriptor | ConeAttackDescriptor | LineAttackDescriptor
+
 return {}

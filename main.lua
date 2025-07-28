@@ -13,7 +13,6 @@ local LobbyStorageManager = require("src.managers.lobby_storage_manager")
 local HunterManager = require("src.managers.hunter_manager")
 local AgencyManager = require("src.managers.agency_manager")
 local ReputationManager = require("src.managers.reputation_manager")
-local GameStatisticsManager = require("src.managers.game_statistics_manager")
 local ArtefactManager = require("src.managers.artefact_manager")
 local PatrimonyManager = require("src.managers.patrimony_manager")
 local NotificationManager = require("src.managers.notification_manager")
@@ -25,6 +24,7 @@ local GameTimerService = require("src.services.game_timer_service")
 local EventService = require("src.services.event_service")
 local ItemDataService = require("src.services.item_data_service")
 local InputService = require("src.services.input_service")
+local GameStatisticsService = require("src.services.game_statistics_service")
 
 local lovebird = require("src.libs.lovebird")
 local profiler = require("src.libs.profiler")
@@ -110,6 +110,7 @@ function love.load()
     ServiceLocator.register("gameTimerService", GameTimerService:new())
     ServiceLocator.register("eventService", EventService:new())
     ServiceLocator.register("inputService", InputService:new())
+    ServiceLocator.register("gameStatisticsService", GameStatisticsService:new())
 
     -- Inicializa managers persistentes (que agora podem depender de serviços)
     local itemDataMgr = ItemDataManager:new() -- Mantém compatibilidade por enquanto
@@ -132,9 +133,6 @@ function love.load()
 
     local reputationMgr = ReputationManager:new(agencyMgr, itemDataMgr)
     ManagerRegistry:register("reputationManager", reputationMgr)
-
-    local gameStatsMgr = GameStatisticsManager:new()
-    ManagerRegistry:register("gameStatisticsManager", gameStatsMgr)
 
     local artefactMgr = ArtefactManager:new()
     ManagerRegistry:register("artefactManager", artefactMgr)
@@ -242,6 +240,13 @@ function love.keyreleased(key, scancode)
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
+    -- Passa o evento para os serviços globais primeiro
+    ---@type InputService
+    local inputService = ServiceLocator.get("inputService")
+    if inputService then
+        inputService:handleMousePressed(x, y, button)
+    end
+
     -- Converte coordenadas da tela para coordenadas do jogo
     local gameX, gameY = push:toGame(x, y)
     if gameX and gameY then
@@ -250,6 +255,13 @@ function love.mousepressed(x, y, button, istouch, presses)
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
+    -- Passa o evento para os serviços globais primeiro
+    ---@type InputService
+    local inputService = ServiceLocator.get("inputService")
+    if inputService then
+        inputService:handleMouseReleased(x, y, button)
+    end
+
     -- Converte coordenadas da tela para coordenadas do jogo
     local gameX, gameY = push:toGame(x, y)
     if gameX and gameY then

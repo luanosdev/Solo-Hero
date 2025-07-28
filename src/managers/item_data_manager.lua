@@ -61,7 +61,7 @@ end
 --- Obtém os dados base de um item.
 ---@param self ItemDataManager
 ---@param itemBaseId string O ID base do item a ser obtido.
----@return CircularSmashWeapon|ConeWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon|table data Os dados base do item, ou nil se o itemBaseId não for encontrado.
+---@return CircularSmashWeapon|ConeSlashWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon|table data Os dados base do item, ou nil se o itemBaseId não for encontrado.
 function ItemDataManager:getBaseItemData(itemBaseId)
     -- Verificação robusta para itemBaseId inválido
     if not itemBaseId or itemBaseId == "" or type(itemBaseId) ~= "string" then

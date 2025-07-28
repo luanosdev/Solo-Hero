@@ -266,6 +266,8 @@ function SpritePlayer._createQuadsForWeaponSprite(weaponFolder, stateName, sprit
 end
 
 --- Função auxiliar para determinar direção baseada no ângulo
+---@param angle number Ângulo em radianos
+---@return string Direção (ex: 'N', 'SE')
 function SpritePlayer.getDirectionFromAngle(angle)
     -- Normaliza o ângulo para 0 a 2pi
     angle = angle % (2 * math.pi)
@@ -368,7 +370,8 @@ end
 ---@param dt number Delta time
 ---@param targetPosition Vector2D A posição do mouse/alvo para mira
 ---@param moveSpeedInTiles number A velocidade de movimento atual em tiles/seg
-function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles)
+---@param angle number Ângulo atual do jogador.
+function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles, angle)
     -- O MovementController agora controla a posição lógica.
     -- O SpritePlayer só se preocupa com a animação baseada na velocidade.
     local speed = math.sqrt(sprite.velocity.x ^ 2 + sprite.velocity.y ^ 2)
@@ -378,13 +381,15 @@ function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles)
     -- A direção que o personagem "olha" (para atirar, etc.) é baseada na posição do alvo (mouse).
     local targetDx = targetPosition.x - sprite.position.x
     local targetDy = targetPosition.y - sprite.position.y
-    local facingAngle = math.atan2(targetDy, targetDx)
-    if math.abs(targetDx) > 1 or math.abs(targetDy) > 1 then
-        local newFacingDirection = SpritePlayer.getDirectionFromAngle(facingAngle)
-        -- A direção da animação será definida abaixo, dependendo do estado.
-        -- Por padrão, o personagem olha para onde está mirando.
-        sprite.animation.direction = newFacingDirection
-    end
+    --local facingAngle = math.atan2(targetDy, targetDx)
+    -- if math.abs(targetDx) > 1 or math.abs(targetDy) > 1 then
+    --local newFacingDirection = SpritePlayer.getDirectionFromAngle(facingAngle)
+    -- A direção da animação será definida abaixo, dependendo do estado.
+    -- Por padrão, o personagem olha para onde está mirando.
+    --sprite.animation.direction = newFacingDirection
+    --end
+    local facingAngle = angle
+    sprite.animation.direction = SpritePlayer.getDirectionFromAngle(facingAngle)
 
     -- 2. DETERMINAR ESTADO DA ANIMAÇÃO (IDLE, WALK, ATTACK)
     local newState
@@ -450,7 +455,7 @@ function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles)
                 sprite.animation.direction = SpritePlayer.getDirectionFromAngle(moveAngle)
             else
                 -- Para 'walk_backward' e 'strafe', o personagem sempre olha para a mira.
-                sprite.animation.direction = SpritePlayer.getDirectionFromAngle(facingAngle)
+                sprite.animation.direction = SpritePlayer.getDirectionFromAngle(angle)
             end
         else
             if sprite.animation.wasMoving then
@@ -461,7 +466,7 @@ function SpritePlayer.update(sprite, dt, targetPosition, moveSpeedInTiles)
             end
             newState = sprite.animation.currentIdleVariant
             -- Quando parado, o personagem se vira para a mira
-            sprite.animation.direction = SpritePlayer.getDirectionFromAngle(facingAngle)
+            sprite.animation.direction = SpritePlayer.getDirectionFromAngle(angle)
         end
     end
 

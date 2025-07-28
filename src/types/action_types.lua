@@ -35,6 +35,7 @@ local ActionTypes = {
     TOGGLE_AUTO_AIM = "toggle_auto_aim",
     TOGGLE_AIM_PREVIEW = "toggle_aim_preview",
     -- Adicionar futuras ações aqui...
+    ATTACK = "attack",
 }
 
 return ActionTypes

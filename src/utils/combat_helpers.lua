@@ -1,4 +1,5 @@
 local Constants = require("src.config.constants")
+local ServiceLocator = require("src.services.service_locator")
 
 ---@class CombatHelpers
 local CombatHelpers = {
@@ -335,17 +336,15 @@ end
 
 --- Aplica dano e knockback a uma lista de inimigos.
 --- @param enemies BaseEnemy[] Lista de inimigos a serem atingidos.
---- @param finalStats FinalStats Stats finais do jogador (para dano, crítico, força).
+--- @param finalStats table<StatKey, number> Stats finais do jogador (para dano, crítico, força).
 --- @param knockbackData {power: number, force: number, attackerPosition: Vector2D } Dados do knockback.
 --- @param enemiesKnockedBackInThisCast table Tabela para rastrear IDs de inimigos que já sofreram knockback.
---- @param playerManager PlayerManager Instância do PlayerManager.
 --- @param weaponInstance BaseWeapon A instância da arma que desferiu o golpe.
 function CombatHelpers.applyHitEffects(
     enemies,
     finalStats,
     knockbackData,
     enemiesKnockedBackInThisCast,
-    playerManager,
     weaponInstance
 )
     if not enemies or #enemies == 0 then return end
@@ -479,7 +478,7 @@ end
 
 --- Aplica efeitos em lote para melhor performance
 ---@param attackInstances table[] Lista de ataques a serem processados
----@param finalStats FinalStats Stats finais do jogador
+---@param finalStats table<StatKey, number> Stats finais do jogador
 ---@param playerManager PlayerManager Instância do PlayerManager
 ---@param weaponInstance BaseWeapon Instância da arma
 function CombatHelpers.applyBatchHitEffects(attackInstances, finalStats, playerManager, weaponInstance)

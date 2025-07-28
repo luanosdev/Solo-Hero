@@ -2,12 +2,14 @@
 -- Utilizado pelo PlayerStateController para construir o grafo de dependências.
 ---@type StatKey[]
 local ALL_STATS = {
+    --- Player Stats
+    "damage",
     "moveSpeed",
     "health",
     "defense",
     "attackSpeed",
-    "critChance",
-    "critDamage",
+    "criticalChance",
+    "criticalDamage",
     "healthRegen",
     "multiAttackChance",
     "runeSlots",
@@ -16,9 +18,9 @@ local ALL_STATS = {
     "healingBonus",
     "pickupRadius",
     "healthRegenDelay",
-    "range",
     "luck",
-    "attackArea",
+    "area",
+    "range",
     "healthPerTick",
     "cooldownReduction",
     "healthRegenCooldown",
@@ -28,7 +30,11 @@ local ALL_STATS = {
     "dashDuration",
     "potionFlasks",
     "potionHealAmount",
-    "potionFillRate"
+    "potionFillRate",
+    --- Weapon Stats
+    "piercing",
+    "angle",
+    "fireRate"
 }
 
 return ALL_STATS

@@ -13,7 +13,7 @@ local Logger = require("src.libs.logger")
 local DespawnController = require("src.controllers.despawn_controller")
 local ManagerRegistry = require("src.managers.manager_registry")
 
----@class EnemyManager
+---@class EnemyManager22
 ---@description Gerenciador de inimigos com suporte a mapas infinitos e sistema de eventos.
 --- Integrado com InfinityWrapMapManager para responder a mudanças de patch do jogador.
 --- Usa SpatialGridIncremental com wrapping infinito para colisão e proximidade.

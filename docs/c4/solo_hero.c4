@@ -1,0 +1,133 @@
+// docs/c4/solo_hero.c4
+
+// 1. Especificação dos tipos de elementos que usaremos na arquitetura.
+// Conforme a documentação do likec4.
+specification {
+    element actor
+    element system
+    element container
+    element component
+}
+
+// 2. Modelo da nossa arquitetura, definindo os elementos e suas relações.
+model {
+    // Atores (Pessoas)
+    player = actor "Jogador" {
+        description "O usuário final que joga o Solo Hero."
+        style {
+            shape person
+        }
+    }
+
+    // Sistemas Externos
+    love2d = system "LÖVE 2D Engine" {
+        description "A engine gráfica e de jogo na qual o Solo Hero é construído."
+    }
+
+    // Nosso Sistema Principal
+    soloHero = system "Solo Hero" {
+        description "A aplicação principal do jogo, responsável por toda a experiência."
+
+        // Contêineres dentro do nosso sistema (Nível C2)
+        gameClient = container "Game Client" {
+            description "Executa toda a lógica de jogo, renderização, gerenciamento de estado e interface do usuário."
+            technology "LÖVE 2D (Lua)"
+
+            // --- Componentes dentro do GameClient (Nível C3) ---
+            services = component "Global Services" {
+                description "Conjunto de serviços singleton disponíveis em todo o jogo (InputService, EventService, ServiceLocator, etc.)."
+                technology "Lua Modules"
+            }
+
+            sceneManager = component "Scene Manager" {
+                description "Gerencia o ciclo de vida e as transições entre as diferentes cenas do jogo."
+                technology "Lua Class"
+            }
+
+            mainMenu = component "Main Menu Scene" {
+                description "Cena inicial que permite ao jogador começar a jornada."
+                technology "Lua Class"
+            }
+
+            lobby = component "Lobby Scene" {
+                description "Hub central onde o jogador se prepara para as missões."
+                technology "Lua Class"
+            }
+
+            gameplay = component "Gameplay Scene" {
+                description "A cena principal onde ocorre a jogabilidade core (combate, exploração)."
+                technology "Lua Class"
+                // Conteúdo interno removido para corrigir erros persistentes do linter.
+                // A estrutura de Managers/Controllers será adicionada de volta quando a sintaxe correta for encontrada.
+            }
+
+            summary = component "Extraction Summary Scene" {
+                description "Mostra o resumo e as recompensas da partida após a extração."
+                technology "Lua Class"
+            }
+            
+            // --- Relações do Nível C3 ---
+            sceneManager -> mainMenu "Inicia com"
+
+            mainMenu -> sceneManager "Solicita transição (Ex: 'Start Game')"
+            lobby -> sceneManager "Solicita transição (Ex: 'Enter Gate')"
+            gameplay -> sceneManager "Finaliza, solicitando transição (Ex: 'Extraction')"
+            summary -> sceneManager "Solicita transição (Ex: 'Back to Lobby')"
+
+            sceneManager -> lobby "Transiciona para"
+            sceneManager -> gameplay "Transiciona para"
+            sceneManager -> summary "Transiciona para"
+
+            mainMenu -> services "Utiliza"
+            lobby -> services "Utiliza"
+            gameplay -> services "Utiliza"
+            summary -> services "Utiliza"
+        }
+
+        persistence = container "Sistema de Persistência" {
+            description "Armazena o progresso do jogador, como hunters, itens e conquistas."
+            technology "Sistema de Arquivos (.dat)"
+            style {
+                shape storage
+            }
+        }
+
+        // Relações internas ao sistema
+        gameClient -> persistence "Lê e escreve dados do progresso"
+    }
+
+    // Relações entre os elementos de nível superior
+    player -> soloHero.gameClient "Joga"
+    soloHero.gameClient -> love2d "Utiliza API para gráficos, som e input"
+}
+
+// 3. Definição dos diagramas que serão renderizados a partir do modelo.
+views {
+    // Diagrama C1 - Contexto do Sistema (visão geral)
+    view systemContext {
+        title "Contexto do Sistema (C1)"
+        description "Visão geral do sistema Solo Hero, seus usuários e dependências externas."
+        include *
+    }
+
+    // Diagrama C2 - Contêineres
+    view of soloHero {
+        title "Contêineres do Solo Hero (C2)"
+        description "Mostra os principais blocos de construção que compõem o sistema Solo Hero."
+        include *
+    }
+
+    // Diagrama C3 - Componentes do Game Client
+    view of soloHero.gameClient {
+        title "Componentes do Game Client (C3) - Fluxo de Cenas"
+        description "Mostra os principais componentes dentro do Game Client e como eles se relacionam, com foco no fluxo de cenas."
+        include *
+    }
+
+    // Diagrama C3.1 - Detalhes da Gameplay Scene
+    view of soloHero.gameClient.gameplay {
+        title "Detalhes da Gameplay Scene (C3.1)"
+        description "Mostra os Managers e Controllers que compõem a cena de gameplay e como eles interagem."
+        include *
+    }
+} 

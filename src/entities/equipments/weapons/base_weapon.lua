@@ -141,7 +141,7 @@ end
 
 --- Retorna os dados base da arma buscando no ItemDataManager.
 --- Útil para classes filhas ou a attackInstance acessarem os stats base.
----@return CircularSmashWeapon|ConeWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon baseItemData Os dados base da arma, ou nil se não encontrados.
+---@return CircularSmashWeapon|ConeSlashWeapon|FlameStreamWeapon|SpreadProjectileWeapon|SequentialProjectileWeapon|ChainLightningWeapon baseItemData Os dados base da arma, ou nil se não encontrados.
 function BaseWeapon:getBaseData()
     ---@type ItemDataManager
     local itemDataManager = ManagerRegistry:get("itemDataManager")

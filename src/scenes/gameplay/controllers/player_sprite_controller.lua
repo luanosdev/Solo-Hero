@@ -32,12 +32,81 @@ end
 ---@param skinTone string
 function PlayerSpriteController:init(skinTone)
     -- Inicializa o listener de eventos
-    self:_listen(self.eventService.EVENTS.EQUIPMENT_CHANGED, self.onEquipmentChanged)
+    self:_listen(self.eventService.EVENTS.EQUIPMENT_CHANGED, self._onEquipmentChanged)
 
     self:_setupSprite(skinTone)
 
     -- Carrega os assets do sprite do jogador (operação idempotente)
     -- SpritePlayer.load() -- REMOVIDO
+end
+
+--- Atualiza a animação e o estado do sprite.
+---@param dt number
+---@param moveSpeedInPixels number
+---@param moveVector Vector2D
+---@param position Vector2D Posição do jogador em coordenadas de mundo.
+---@param angle number Ângulo atual do jogador.
+function PlayerSpriteController:update(dt, moveSpeedInPixels, moveVector, position, angle)
+    if not self.playerSprite then return end
+    -- TODO: Adicionar checagem de dash e UI lock
+
+    self.playerSprite.velocity = moveVector
+    self.playerSprite.position = position
+
+    -- Atualiza o sprite com a posição de mundo. A câmera cuidará da centralização.
+    SpritePlayer.update(self.playerSprite, dt, position, moveSpeedInPixels, angle)
+end
+
+---@public Adiciona o sprite do jogador ao pipeline de renderização.
+--- Este método cria um item renderizável com uma função de desenho,
+--- seguindo o padrão da arquitetura antiga para desacoplar o sprite do pipeline.
+---@param renderPipeline RenderPipeline
+---@param worldPosition Vector2D A posição atual do jogador no mundo para o cálculo do sortY.
+---@param drawAttackFunction function | nil Função de desenho do ataque, se houver.
+function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition, drawAttackFunction)
+    if not self.playerSprite then
+        Logger.warn("player_sprite_controller.collect",
+            "[PlayerSpriteController] Tentou coletar, mas self.playerSprite é nil.")
+        return
+    end
+
+    -- Calcula o sortY para a profundidade 2.5D
+    local playerBaseY = worldPosition.y + 25 -- Pés do sprite
+    local worldX_eq = worldPosition.x / Constants.TILE_WIDTH
+    local worldY_eq = playerBaseY / Constants.TILE_HEIGHT
+    local isoY_ref_top = (worldX_eq + worldY_eq) * (Constants.TILE_HEIGHT / 2)
+    local sortY = isoY_ref_top + Constants.TILE_HEIGHT
+
+    -- Cria o item renderizável
+    local renderableItem = TablePool.getGeneric()
+    renderableItem.type = "player"
+    renderableItem.sortY = sortY
+    renderableItem.depth = RenderPipeline.DEPTH_ENTITIES
+    renderableItem.x = worldPosition.x
+    renderableItem.y = worldPosition.y
+    renderableItem.drawFunction = function()
+        -- Aplica a translação para a posição de mundo antes de desenhar
+        love.graphics.push()
+        love.graphics.translate(worldPosition.x, worldPosition.y)
+        SpritePlayer.draw(self.playerSprite)
+        if drawAttackFunction then
+            drawAttackFunction()
+        end
+        love.graphics.pop()
+    end
+
+    renderPipeline:add(renderableItem)
+end
+
+---@public Atualiza a animação do sprite com base no comando de ataque.
+---@param command AttackControllerCommand
+function PlayerSpriteController:updateAttackAnimation(command)
+    if not self.playerSprite then return end
+
+    local isMoving = self.playerSprite.velocity.x ~= 0 or self.playerSprite.velocity.y ~= 0
+    local animationType = command.animation
+
+    SpritePlayer.startAttackAnimation(self.playerSprite, animationType, isMoving)
 end
 
 ---@private Registra um listener de eventos.
@@ -49,7 +118,7 @@ function PlayerSpriteController:_listen(event, handler)
 end
 
 ---@private Atualiza a aparência do sprite com base no equipamento.
-function PlayerSpriteController:onEquipmentChanged(event)
+function PlayerSpriteController:_onEquipmentChanged(event)
     assert(event, "PlayerSpriteController:onEquipmentChanged requer um evento")
     Logger.info("player_sprite_controller.onEquipmentChanged",
         "[PlayerSpriteController:onEquipmentChanged] Event received: ")
@@ -73,7 +142,7 @@ function PlayerSpriteController:onEquipmentChanged(event)
         -- Atualiza a aparência com base em todos os itens equipados
         local allEquipped = event.allEquipped
         -- Primeiro, a arma equipada
-        local weapon = allEquipped.weapon
+        local weapon = allEquipped[Constants.SLOT_IDS.WEAPON]
         if weapon then
             Logger.info("player_sprite_controller.debug.weapon_found",
                 string.format("[DEBUG] Weapon found - itemBaseId: %s", tostring(weapon.itemBaseId)))
@@ -118,7 +187,7 @@ function PlayerSpriteController:onEquipmentChanged(event)
             Logger.info("player_sprite_controller.debug.unequip",
                 string.format("[DEBUG] Unequipping item from slot: %s", tostring(slotId)))
 
-            if slotId == "weapon" then
+            if slotId == Constants.SLOT_IDS.WEAPON then
                 self.playerSprite.appearance.weapon = {
                     folderPath = nil,
                     animationType = nil
@@ -140,7 +209,7 @@ function PlayerSpriteController:onEquipmentChanged(event)
                         tostring(itemBaseData.animationType)))
 
                 -- CORREÇÃO: Verificar slotId ao invés de itemBaseId
-                if slotId == "weapon" then
+                if slotId == Constants.SLOT_IDS.WEAPON then
                     self.playerSprite.appearance.weapon = {
                         folderPath = itemBaseData.animationFolderPath,
                         animationType = itemBaseData.animationType
@@ -198,59 +267,6 @@ function PlayerSpriteController:_setupSprite(skinTone)
         ") | Escala: " .. Constants.PLAYER_SCALE,
         true -- Mostra na tela
     )
-end
-
---- Atualiza a animação e o estado do sprite.
----@param dt number
----@param moveSpeedInPixels number
----@param moveVector Vector2D
----@param position Vector2D Posição do jogador em coordenadas de mundo.
-function PlayerSpriteController:update(dt, moveSpeedInPixels, moveVector, position)
-    if not self.playerSprite then return end
-    -- TODO: Adicionar checagem de dash e UI lock
-
-    self.playerSprite.velocity = moveVector
-    self.playerSprite.position = position
-
-    -- Atualiza o sprite com a posição de mundo. A câmera cuidará da centralização.
-    SpritePlayer.update(self.playerSprite, dt, position, moveSpeedInPixels)
-end
-
---- Adiciona o sprite do jogador ao pipeline de renderização.
---- Este método cria um item renderizável com uma função de desenho,
---- seguindo o padrão da arquitetura antiga para desacoplar o sprite do pipeline.
----@param renderPipeline RenderPipeline
----@param worldPosition Vector2D A posição atual do jogador no mundo para o cálculo do sortY.
-function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition)
-    if not self.playerSprite then
-        Logger.warn("player_sprite_controller.collect",
-            "[PlayerSpriteController] Tentou coletar, mas self.playerSprite é nil.")
-        return
-    end
-
-    -- Calcula o sortY para a profundidade 2.5D
-    local playerBaseY = worldPosition.y + 25 -- Pés do sprite
-    local worldX_eq = worldPosition.x / Constants.TILE_WIDTH
-    local worldY_eq = playerBaseY / Constants.TILE_HEIGHT
-    local isoY_ref_top = (worldX_eq + worldY_eq) * (Constants.TILE_HEIGHT / 2)
-    local sortY = isoY_ref_top + Constants.TILE_HEIGHT
-
-    -- Cria o item renderizável
-    local renderableItem = TablePool.getGeneric()
-    renderableItem.type = "player"
-    renderableItem.sortY = sortY
-    renderableItem.depth = RenderPipeline.DEPTH_ENTITIES
-    renderableItem.x = worldPosition.x
-    renderableItem.y = worldPosition.y
-    renderableItem.drawFunction = function()
-        -- Aplica a translação para a posição de mundo antes de desenhar
-        love.graphics.push()
-        love.graphics.translate(worldPosition.x, worldPosition.y)
-        SpritePlayer.draw(self.playerSprite)
-        love.graphics.pop()
-    end
-
-    renderPipeline:add(renderableItem)
 end
 
 ---@public Destrói o sprite do jogador.
