@@ -287,9 +287,12 @@ end
 
 --- Função auxiliar apenas para remover da lista da célula.
 ---@param entity table A entidade a ser removida
----@param col number Coluna da célula
----@param row number Linha da célula
-function SpatialGridIncremental:_removeEntityFromCell_Internal(entity, col, row)
+---@param cellKey string A chave da célula no formato "col:row"
+function SpatialGridIncremental:_removeEntityFromCell_Internal(entity, cellKey)
+    if not cellKey or type(cellKey) ~= "string" then
+        return
+    end
+
     local parts = TablePool.getArray()
     for part in string.gmatch(cellKey, "([^-:]+)") do
         table.insert(parts, tonumber(part))
