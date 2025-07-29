@@ -1,5 +1,8 @@
 local SceneManager = require("src.core.scene_manager")
 local GameLoadingUI = require("src.scenes.game_loading.ui.game_loading_ui")
+local AnimationLoader = require("src.animations.animation_loader")
+local Constants = require("src.config.constants")
+local RenderPipeline = require("src.core.render_pipeline")
 
 --- @class GameLoadingScene
 --- @description Orquestra o carregamento assíncrono de ativos e gerencia o estado do processo de carregamento.
@@ -12,6 +15,7 @@ local GameLoadingUI = require("src.scenes.game_loading.ui.game_loading_ui")
 --- @field currentThematicData PortalData
 --- @field currentTip string
 --- @field loadingFunction function A função da corrotina, encapsulada pelo coroutine.wrap
+--- @field renderPipeline RenderPipeline
 local GameLoadingScene = {}
 GameLoadingScene.__index = GameLoadingScene
 
@@ -23,6 +27,7 @@ GameLoadingScene.LOADING_TASKS = {
     PLAYER_SPRITES = "loading_player_sprites",
     PLAYER_EQUIPMENT = "loading_player_equipment",
     ENEMY_ASSETS = "loading_enemy_assets",
+    SPRITE_BATCHES = "creating_sprite_batches",
     FINISHING_LOADING = "finishing_loading",
 }
 
@@ -32,6 +37,7 @@ function GameLoadingScene:new()
     instance.loadingCoroutine = nil
     instance.isComplete = false
     instance.args = nil
+    instance.renderPipeline = nil
 
     -- A tabela 'state' contém tudo que a UI precisa para se desenhar
     instance.loadingState = {
@@ -58,6 +64,7 @@ function GameLoadingScene:load(args)
     GameLoadingUI.init()
     self.isComplete = false
     self.loadingState.progress = 0
+    self.renderPipeline = RenderPipeline:new()
 
     self.loadingFunction = coroutine.wrap(function() self:_runTasks() end)
 end
@@ -99,7 +106,7 @@ end
 function GameLoadingScene:_loadMapAssets()
     local MapAssetLoader = require("src.core.map_asset_loader")
     local loader = MapAssetLoader:new()
-    local mapId = self.currentPortalData.id
+    local mapId = self.currentPortalData.mapId
     Logger.info("game_loading_scene._loadMapAssets", "Loading map assets for: " .. mapId)
     return loader:load(mapId)
 end
@@ -118,10 +125,31 @@ function GameLoadingScene:_loadPlayerEquipment()
     Logger.info("game_loading_scene._loadPlayerEquipment", "Equipment player sprites loaded")
 end
 
+--- Carrega os assets dos inimigos necessários para o portal atual.
+function GameLoadingScene:_loadEnemyAssets()
+    if self.currentPortalData and self.currentPortalData.requiredUnitTypes then
+        Logger.info("game_loading_scene._loadEnemyAssets.start", "Loading required enemy assets...")
+        AnimationLoader.loadUnits(self.currentPortalData.requiredUnitTypes)
+        Logger.info("game_loading_scene._loadEnemyAssets.end", "Enemy assets loaded.")
+    else
+        Logger.warn(
+            "game_loading_scene._loadEnemyAssets",
+            string.format(
+                "Portal '%s' não possui requiredUnitTypes definidos",
+                self.currentPortalData.id or "desconhecido"
+            )
+        )
+    end
+end
+
 --- Lógica da corrotina que executa as tarefas de carregamento de forma explícita e sequencial.
 function GameLoadingScene:_runTasks()
     local preloadedAssets = {}
-    local totalTasks = 3 -- Definido manualmente para simplicidade
+    local totalTasks = 4 -- Aumentado de 3 para 4 para incluir os inimigos
+
+    -- Mock: Carregar o portal diretamente
+    self.currentPortalData = require("src.data.portals.rank_e.001_undead_plains")
+    self.loadingState.portalRank = self.currentPortalData.rank
 
     -- Tarefa 1: Carregar Mapa
     self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.MAP_ASSETS
@@ -142,22 +170,90 @@ function GameLoadingScene:_runTasks()
     self:_loadPlayerEquipment() -- Esta tarefa não retorna assets
     coroutine.yield()
 
+    -- Tarefa 4: Carregar Assets dos Inimigos
+    self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.ENEMY_ASSETS
+    self.loadingState.progress = 3 / totalTasks
+    self:_loadEnemyAssets()
+    coroutine.yield()
+
+    -- Tarefa 5: Criar SpriteBatches
+    self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.SPRITE_BATCHES
+    self.loadingState.progress = 3.5 / totalTasks
+    local batchesDone = false
+    while not batchesDone do
+        batchesDone = self:_createSpriteBatchesChunked()
+        coroutine.yield()
+    end
+
     -- Finalização
     self.loadingState.progress = 1
     self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.FINISHING_LOADING
     coroutine.yield()
     love.timer.sleep(0.5)
 
+    ---@type GameplaySceneArgs
     local gameplayArgs = {
         portalData = self.currentPortalData,
         hunterId = self.args.hunterId,
-        preloadedAssets = preloadedAssets
+        preloadedAssets = preloadedAssets,
+        renderPipeline = self.renderPipeline
     }
+
     SceneManager.goToGameplayScene(gameplayArgs)
 
     return true
 end
 
--- Mantém a compatibilidade com a arquitetura antiga, onde o arquivo retorna a instância.
-local sceneInstance = GameLoadingScene:new()
-return sceneInstance
+--- Cria SpriteBatches em chunks para evitar travamentos
+function GameLoadingScene:_createSpriteBatchesChunked()
+    local maxSpritesInBatch = Constants.SPAWN_SYSTEM.MAX_ENEMIES_PER_BATCH
+    local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
+
+    if AnimatedSpritesheet and AnimatedSpritesheet.assets then
+        local allBatches = {}
+
+        -- Prepara lista de todos os batches a serem criados
+        if not self.totalBatches or self.totalBatches == 0 then
+            self.totalBatches = 0
+            self.currentBatchIndex = 0
+            for unitType, unitAssets in pairs(AnimatedSpritesheet.assets) do
+                if unitAssets.sheets then
+                    for animName, sheetTexture in pairs(unitAssets.sheets) do
+                        if sheetTexture then
+                            table.insert(allBatches, { unitType = unitType, animName = animName, texture = sheetTexture })
+                        end
+                    end
+                end
+            end
+            self.totalBatches = #allBatches
+            self.allBatchesList = allBatches
+        end
+
+        -- Processa apenas um chunk de batches por vez
+        local startIndex = self.currentBatchIndex + 1
+        local endIndex = math.min(startIndex + Constants.SPAWN_SYSTEM.BATCH_CHUNK_SIZE - 1, self.totalBatches)
+
+        for i = startIndex, endIndex do
+            local batchData = self.allBatchesList[i]
+            if batchData then
+                -- Cria SpriteBatch para esta textura
+                local newBatch = love.graphics.newSpriteBatch(batchData.texture, maxSpritesInBatch)
+                self.renderPipeline:registerSpriteBatch(batchData.texture, newBatch)
+
+                Logger.debug(
+                    "game_loading_scene._createSpriteBatchesChunked" .. batchData.unitType,
+                    string.format("Batch criado: %s-%s", batchData.unitType, batchData.animName)
+                )
+            end
+        end
+
+        self.currentBatchIndex = endIndex
+
+        -- Retorna true se todos os batches foram processados
+        return self.currentBatchIndex >= self.totalBatches
+    end
+
+    return true
+end
+
+return GameLoadingScene

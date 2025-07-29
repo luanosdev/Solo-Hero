@@ -1,28 +1,40 @@
----@class EnemySpawnController
----@description Interpreta a configuração de horda e orquestra o spawn de inimigos.
-local EnemySpawnController = {}
-EnemySpawnController.__index = EnemySpawnController
-
+local Constants = require("src.config.constants")
 local TimerTaskRunner = require("src.core.timer_task_runner")
 local FrameTaskRunner = require("src.core.frame_task_runner")
 
+---@class EnemySpawnController
+---@description Interpreta a configuração de horda e orquestra o spawn de inimigos.
+---@field hordeConfig HordeConfigData
+---@field currentPhaseIndex number
+---@field phaseTimer number
+---@field taskRunners table
+---@field spawnCallback function
+---@field _wasSetup boolean
+local EnemySpawnController = {}
+EnemySpawnController.__index = EnemySpawnController
+
+---@return EnemySpawnController
 function EnemySpawnController:new()
     local instance = setmetatable({}, EnemySpawnController)
     instance.hordeConfig = nil
     instance.currentPhaseIndex = 0
     instance.phaseTimer = 0
     instance.taskRunners = {} -- Lista para guardar todos os task runners da fase atual
+    instance.spawnCallback = nil
 
     Logger.info("enemy_spawn_controller.new.success", "[EnemySpawnController:new] Enemy Spawn Controller created.")
     return instance
 end
 
 --- Configura o controller com a horda para a sessão de gameplay atual.
+---@param spawnCallback function
 ---@param hordeConfig HordeConfigData
-function EnemySpawnController:setup(hordeConfig)
+function EnemySpawnController:init(hordeConfig, spawnCallback)
+    assert(spawnCallback, "[EnemySpawnController:setup] Spawn callback not set!")
     self.hordeConfig = hordeConfig
     self.currentPhaseIndex = 0
     self.phaseTimer = 0
+    self.spawnCallback = spawnCallback
 
     Logger.info("enemy_spawn_controller.setup.success", "[EnemySpawnController:setup] Enemy Spawn Controller setup.")
     self:_startNextPhase()
@@ -96,19 +108,28 @@ end
 ---@param wavePattern SpawnPatternData
 function EnemySpawnController:_triggerWave(wavePattern)
     local enemiesToSpawn = wavePattern.count
-    local spawnedCount = 0
+    local maxSpawns = wavePattern.maxSpawnsPerFrame or Constants.SPAWN_SYSTEM.DEFAULT_MAX_SPAWNS_PER_FRAME
 
     local waveFrameRunner = FrameTaskRunner:new({
-        intervalFrames = 1, -- Spawna 1 por frame
+        -- O intervalo aqui pode ser 1 para spawnar a cada frame, ou maior para espaçar mais
+        intervalFrames = 1,
         action = function()
-            if spawnedCount < enemiesToSpawn then
+            local spawnedInThisAction = 0
+            while spawnedInThisAction < maxSpawns and enemiesToSpawn > 0 do
                 self:_spawnSingleEnemy(wavePattern.enemyClass)
-                spawnedCount = spawnedCount + 1
-            else
-                -- Auto-destruição? Precisamos gerenciar a vida dos runners.
-                -- Por agora, eles apenas param de fazer a ação.
+                enemiesToSpawn = enemiesToSpawn - 1
+                spawnedInThisAction = spawnedInThisAction + 1
             end
-        end
+
+            -- Se não houver mais inimigos para spawnar, o runner pode ser removido
+            -- (uma lógica de auto-remoção no FrameTaskRunner seria ideal aqui)
+            if enemiesToSpawn <= 0 then
+                -- Por enquanto, ele apenas para de executar a ação.
+                -- O ideal é que o FrameTaskRunner se remova da lista do controller.
+            end
+        end,
+        -- Adicionamos um contador para que o runner saiba quando parar
+        maxExecutions = math.ceil(wavePattern.count / maxSpawns)
     })
     table.insert(self.taskRunners, waveFrameRunner)
 end
@@ -120,7 +141,7 @@ function EnemySpawnController:_spawnSingleEnemy(enemyClass)
     -- 1. Chamar uma função no EnemyManager para pegar um inimigo do pool.
     -- 2. Chamar uma função utilitária para calcular a posição de spawn.
     -- 3. Configurar o inimigo e adicioná-lo à lista de inimigos ativos do manager.
-    Logger.debug("EnemySpawnController", "Pedido de spawn para: " .. tostring(enemyClass))
+    self.spawnCallback(enemyClass)
 end
 
 function EnemySpawnController:destroy()

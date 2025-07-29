@@ -10,6 +10,7 @@
 ---@field portalData PortalData Os dados completos do portal.
 ---@field hunterId string O ID do caçador selecionado.
 ---@field preloadedAssets table<string, MapAssets> Tabela contendo todos os ativos pré-carregados pela GameLoadingScene.
+---@field renderPipeline RenderPipeline
 
 ---@class GameplaySceneContext
 ---@field registry SceneManagerRegistry

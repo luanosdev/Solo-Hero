@@ -367,6 +367,22 @@ function InfinityWrapMapManager:isometricToCartesianTile(isoX, isoY)
     return { x = cartX, y = cartY }
 end
 
+--- Retorna as dimensões do mundo em TILES.
+---@return number width, number height
+function InfinityWrapMapManager:getWorldTileDimensions()
+    return self.mapData.width, self.mapData.height
+end
+
+--- Retorna as dimensões TOTAIS do mundo em PIXELS.
+---@return number width, number height
+function InfinityWrapMapManager:getWorldPixelDimensions()
+    local w, h = self:getWorldTileDimensions()
+    -- A largura e altura total do losango isométrico
+    local pixelWidth = (w + h) * (self.tileWidth / 2)
+    local pixelHeight = (w + h) * (self.tileHeight / 2)
+    return pixelWidth, pixelHeight
+end
+
 function InfinityWrapMapManager:destroy()
     for _, canvas in pairs(self.layerCanvases) do
         canvas:release()

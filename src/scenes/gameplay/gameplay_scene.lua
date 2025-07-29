@@ -37,7 +37,7 @@ function GameplayScene:load(args)
     self.preloadedAssets = args.preloadedAssets
     self.portalId = args.portalId
     self.hunterId = args.hunterId
-    self.renderPipeline = RenderPipeline:new()
+    self.renderPipeline = args.renderPipeline
 
     -- Inicializa o bootstrap da cena, passando o pipeline
     ---@type GameplayBootstrapParams
@@ -45,7 +45,7 @@ function GameplayScene:load(args)
         renderPipeline = self.renderPipeline,
         preloadedAssets = self.preloadedAssets,
         serviceLocator = ServiceLocator,
-        args = args
+        args = args,
     }
 
     local gameplayContext = GameplayBootstrap.initialize(context)

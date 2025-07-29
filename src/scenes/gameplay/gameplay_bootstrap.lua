@@ -93,18 +93,6 @@ function GameplayBootstrap.initialize(context)
         Logger.debug("GameplayBootstrap:initialize", "  -- Inicializado: " .. key)
     end
 
-    --== FASE 4: SETUP DE GAMEPLAY ==--
-    Logger.info("gameplay_bootstrap.initialize.phase_4", "[GameplayBootstrap:initialize] Setting up gameplay data...")
-    local enemyManager = registry:get("enemyManager")
-    if enemyManager and enemyManager.setupGameplay then
-        enemyManager:setupGameplay(gameplaySceneContext.args.portalData.hordeConfig)
-    end
-
-    Logger.info(
-        "gameplay_bootstrap.initialize.success",
-        "[GameplayBootstrap:initialize] All gameplay managers initialized successfully."
-    )
-
     return gameplaySceneContext
 end
 

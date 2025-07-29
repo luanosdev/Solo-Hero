@@ -1,3 +1,4 @@
+---@class AnimatedSpritesheet
 -- Módulo de animação para unidades usando spritesheets completos por animação
 local AnimatedSpritesheet = {}
 

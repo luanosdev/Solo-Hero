@@ -21,7 +21,7 @@
 ---@field interval number Intervalo em segundos (entre ondas para 'Wave', por inimigo para 'Trickle').
 ---@field count number Quantidade de inimigos por evento (para 'Wave').
 ---@field maxConcurrent number Limite de inimigos deste tipo no mundo.
----@field maxSpawnsPerFrame number Limite de spawns por frame para diluir o custo.
+---@field maxSpawnsPerFrame? number|nil Limite de spawns por frame para diluir o custo.
 ---@field strategy SpawnStrategy A estratégia de posicionamento.
 ---@field spawnEdges SpawnEdge|nil Usado se a estratégia for 'offscreen'.
 ---@field locatorPoolName string|nil Usado se a estratégia for 'locator'.
@@ -45,4 +45,5 @@
 ---@field rank Rank Rank de dificuldade do portal.
 ---@field mapId string ID do mapa a ser carregado (e.g., "jungle").
 ---@field hordeConfig HordeConfigData A configuração da horda para este portal.
+---@field requiredUnitTypes string[] Uma lista de unitTypes que são necessários para o portal.
 -- Outras propriedades como recompensas, eventos aleatórios, etc., podem ser adicionadas aqui.

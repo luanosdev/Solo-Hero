@@ -94,3 +94,10 @@
 ---@field sy number
 
 ---@alias BaseEntity { position: Vector2D }
+
+---@class MapInfo
+---@field worldTileWidth number
+---@field worldTileHeight number
+---@field tileWidth number
+---@field tileHeight number
+---@field isometricToCartesianTile fun(isoX: number, isoY: number): Vector2D

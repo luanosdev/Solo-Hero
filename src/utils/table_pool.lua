@@ -28,7 +28,7 @@ local stats = {
 --- Pega vetor 2D do pool
 ---@param x number|nil
 ---@param y number|nil
----@return table
+---@return Vector2D
 function TablePool.getVector2D(x, y)
     local vec
     if #pools.vector2d > 0 then
@@ -45,7 +45,7 @@ function TablePool.getVector2D(x, y)
 end
 
 --- Libera vetor 2D para o pool
----@param vec table
+---@param vec Vector2D
 function TablePool.releaseVector2D(vec)
     if vec then
         vec.x = 0

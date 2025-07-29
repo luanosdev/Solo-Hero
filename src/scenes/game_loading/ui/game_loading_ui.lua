@@ -91,7 +91,7 @@ function GameLoadingUI.draw(state)
     local textY = h * 0.55
     local loadingY = h * 0.75
 
-    local progress = state.currentTaskIndex / math.max(1, state.totalTasks)
+    local progress = state.progress
     local currentTask = state.currentTask
 
     -- Cabeçalho
