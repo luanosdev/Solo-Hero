@@ -234,7 +234,7 @@ function EnemyManager:_fixedUpdate(fixedDt)
             -- O próprio inimigo se marcará como 'shouldRemove' quando a animação de morte terminar.
             if enemy.shouldRemove then
                 self.spatialGrid:removeEntityCompletely(enemy)
-                -- TODO: Devolver ao pool em vez de apenas remover
+                self.poolController:returnToPool(enemy) -- <<-- CORREÇÃO: Devolve ao pool
                 table.remove(self.enemies, i)
             end
         end
@@ -246,6 +246,7 @@ function EnemyManager:_fixedUpdate(fixedDt)
         local enemy = self.enemies[i]
         if entitiesToDespawn[enemy.id] then
             self.spatialGrid:removeEntityCompletely(enemy)
+            self.poolController:returnToPool(enemy)
             table.remove(self.enemies, i)
         end
     end
@@ -334,24 +335,28 @@ function EnemyManager:spawnEnemy(enemyClass)
 
     -- Calcula um raio de spawn seguro, garantindo que seja sempre fora da tela.
     local screenW, screenH = ResolutionUtils.getGameDimensions()
-    -- Raio da metade da diagonal da tela + uma margem de segurança.
     local spawnRadius = MathUtils.vectorLength(screenW / 2, screenH / 2) + 50
 
     local angle = math.random() * 2 * math.pi
-    local x = playerPos.x + spawnRadius * math.cos(angle)
-    local y = playerPos.y + spawnRadius * math.sin(angle)
+    local pos = {
+        x = playerPos.x + spawnRadius * math.cos(angle),
+        y = playerPos.y + spawnRadius * math.sin(angle)
+    }
 
-    -- O ID será gerenciado pelo pool no futuro
-    local newId = #self.enemies + 1
-    local enemy = enemyClass:new({ x = x, y = y }, newId)
-    Logger.debug(
-        "EnemyManager:spawnEnemy",
-        "Spawning enemy at x=" .. x .. ", y=" .. y .. " | Player at x=" .. playerPos.x .. ", y=" .. playerPos.y
-    )
+    local enemy = self.poolController:get(enemyClass.className)
+    if enemy then
+        -- Inimigo reciclado do pool
+        enemy:reset(pos, #self.enemies + 1)
+        Logger.debug("EnemyManager:spawnEnemy", "Reused enemy from pool: " .. enemyClass.className)
+    else
+        -- Pool estava vazio, cria um novo
+        enemy = enemyClass:new(pos, #self.enemies + 1)
+        Logger.debug("EnemyManager:spawnEnemy", "Created new enemy (pool empty): " .. enemyClass.className)
+    end
+
     table.insert(self.enemies, enemy)
     -- Adiciona a nova entidade ao grid espacial imediatamente
     self.spatialGrid:updateEntityInGrid(enemy)
-    -- TODO: Adicionar ao CullingManager
 end
 
 --- Coleta os dados de renderização dos inimigos visíveis e os adiciona ao pipeline.

@@ -82,7 +82,6 @@ function BaseEnemy:new(position, id)
     local enemy = {}
     setmetatable(enemy, { __index = self })
 
-    enemy.isSlowUpdate = false
     -- Aloca recursos do pool usando TablePool
     enemy.position = TablePool.getVector2D(position.x or 0, position.y or 0)
     enemy.cachedDirection = TablePool.getVector2D(0, 0)
@@ -111,7 +110,6 @@ function BaseEnemy:new(position, id)
     enemy.deathDuration = BaseEnemy.DEATH_DURATION
     enemy.lastDamageTime = 0
     enemy.damageCooldown = BaseEnemy.DAMAGE_COOLDOWN
-    enemy.updateTimer = math.random() * BaseEnemy.UPDATE_INTERVAL
     enemy.slowUpdateTimer = 0
 
     enemy.directionUpdateInterval = 0.4 + math.random() * 0.4
@@ -167,6 +165,7 @@ function BaseEnemy:updateStatsFromPrototype()
     -- Atributos de Knockback
     self.knockbackResistance = proto.knockbackResistance or base_defaults.knockbackResistance or 1
     self.knockbackForceMultiplier = proto.knockbackForceMultiplier or base_defaults.knockbackForceMultiplier or 1
+    self.updateTimer = math.random() * BaseEnemy.UPDATE_INTERVAL
 
     -- unitType e spriteData são geralmente específicos da subclasse e podem não ter padrões úteis em BaseEnemy
     self.unitType = proto.unitType or base_defaults.unitType
@@ -318,7 +317,7 @@ function BaseEnemy:reset(position, id)
     self.directionUpdateInterval = 0.4 + math.random() * 0.4
     self.lastDirectionUpdate = 0
 
-    self.updateTimer = math.random() * self.updateInterval
+    self.updateTimer = math.random() * BaseEnemy.UPDATE_INTERVAL
     self.slowUpdateTimer = 0
 
     self.currentGridCells = nil
