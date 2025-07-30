@@ -137,7 +137,7 @@ function BaseEnemy:updateStatsFromPrototype()
     self.className = proto.className or base_defaults.className
     self.nameType = proto.nameType or base_defaults.nameType
 
-    
+
     self.speed = proto.speed or base_defaults.speed
     self.attackSpeed = proto.attackSpeed or base_defaults.attackSpeed
     self.maxHealth = proto.maxHealth or base_defaults.maxHealth
@@ -196,14 +196,6 @@ end
 --- @param playerPosition Vector2D A posição atual do jogador.
 --- @param isSlowUpdate boolean Se a atualização do inimigo deve ser lenta.
 function BaseEnemy:update(dt, playerPosition, isSlowUpdate)
-    Logger.debug("base_enemy.lifecycle", string.format("[LIFECYCLE] BaseEnemy:update CALLED for ID:%d.", self.id))
-
-    -- LOG: Ponto de partida
-    if self.id == 10 then
-        Logger.debug("base_enemy.update.start",
-            string.format("[ID 10] FRAME START - Pos: (%.1f, %.1f)", self.position.x, self.position.y))
-    end
-
     if self.isDying then
         local finished = AnimatedSpritesheet.update(self.unitType, self.sprite, dt, self.sprite.position)
         if finished then
@@ -226,12 +218,6 @@ function BaseEnemy:update(dt, playerPosition, isSlowUpdate)
         -- Agora, apenas aplicamos a velocidade calculada por ele.
         self.position.x = self.position.x + self.velocity.x * dt
         self.position.y = self.position.y + self.velocity.y * dt
-    end
-
-    -- LOG: Posição após todo o movimento e antes do wrap
-    if self.id == 10 then
-        Logger.debug("base_enemy.update.post_move",
-            string.format("[ID 10] POST-MOVE - Pos: (%.1f, %.1f)", self.position.x, self.position.y))
     end
 
     -- Update animação (otimizado para referenciar diretamente)

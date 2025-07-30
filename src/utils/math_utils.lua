@@ -34,11 +34,6 @@ function MathUtils.calculateShortestTorusVector(fromX, fromY, toX, toY, worldWid
         end
     end
 
-    Logger.debug("math_utils.torus_check", string.format(
-        "[TORUS_VECTOR_CHECK] From: (%.1f, %.1f) To: (%.1f, %.1f) World: (%d, %d) -> Result: (%.1f, %.1f)",
-        fromX, fromY, toX, toY, worldWidth, worldHeight, dx_wrapped, dy_wrapped
-    ))
-
     return dx_wrapped, dy_wrapped
 end
 

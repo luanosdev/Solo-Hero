@@ -252,6 +252,9 @@ function PlayerManager:_processAttackDescriptors(attackDescriptors)
 
     for _, descriptor in ipairs(attackDescriptors) do
         local candidates = enemyManager:getNearbyEnemies(descriptor.origin, descriptor.range)
+        Logger.debug("player_manager.process_attack.candidates",
+            string.format("[PlayerManager:_processAttackDescriptors] %d candidatos para ataque %s",
+                #candidates, descriptor.shape))
         local enemiesHit
 
         if descriptor.shape == "cone" then
@@ -272,7 +275,7 @@ function PlayerManager:_processAttackDescriptors(attackDescriptors)
             -- Para linhas, o range é o comprimento. Precisamos pegá-lo da descriptor.
             local lineLength = math.sqrt((descriptor.endPos.x - descriptor.startPos.x) ^ 2 +
                 (descriptor.endPos.y - descriptor.startPos.y) ^ 2)
-            candidates = enemyManager:getNearbyEntities(descriptor.startPos, lineLength)
+            candidates = enemyManager:getNearbyEnemies(descriptor.startPos, lineLength)
             enemiesHit = self.areaOfEffectController:findEntitiesInLine(
                 candidates,
                 descriptor.startPos,
@@ -282,6 +285,9 @@ function PlayerManager:_processAttackDescriptors(attackDescriptors)
         end
 
         if enemiesHit and #enemiesHit > 0 then
+            Logger.debug("player_manager.process_attack.hits",
+                string.format("[PlayerManager:_processAttackDescriptors] %d inimigos atingidos de %d candidatos",
+                    #enemiesHit, #candidates))
             gameStatsService:registerEnemiesHit(#enemiesHit)
 
             for _, enemy in ipairs(enemiesHit) do

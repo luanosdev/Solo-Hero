@@ -188,7 +188,52 @@ end
 ---@param radius number
 ---@return BaseEnemy[]
 function EnemyManager:getNearbyEnemies(position, radius)
-    return self.enemies
+    -- Se não há inimigos, retorna lista vazia
+    if not self.enemies or #self.enemies == 0 then
+        return {}
+    end
+
+    -- Se não há spatialGrid, usa fallback com filtro manual por distância
+    if not self.spatialGrid then
+        Logger.warn("enemy_manager.getNearbyEnemies.no_spatial_grid",
+            "[EnemyManager:getNearbyEnemies] SpatialGrid não disponível, usando filtro manual")
+        local nearbyEnemies = {}
+        local radiusSquared = radius * radius
+
+        for _, enemy in ipairs(self.enemies) do
+            if enemy and enemy.isAlive then
+                local dx = enemy.position.x - position.x
+                local dy = enemy.position.y - position.y
+                local distanceSquared = dx * dx + dy * dy
+
+                if distanceSquared <= radiusSquared then
+                    table.insert(nearbyEnemies, enemy)
+                end
+            end
+        end
+
+        Logger.debug("enemy_manager.getNearbyEnemies.manual_filter",
+            string.format("[EnemyManager:getNearbyEnemies] Filtro manual: %d/%d inimigos próximos",
+                #nearbyEnemies, #self.enemies))
+        return nearbyEnemies
+    end
+
+    -- Usa o spatialGrid para busca otimizada
+    local nearbyEntities = self.spatialGrid:getNearbyEntities(position.x, position.y, radius)
+    local nearbyEnemies = {}
+
+    for _, entity in ipairs(nearbyEntities) do
+        -- Verifica se a entidade é um inimigo válido
+        if entity and entity.isAlive and entity.unitType then
+            table.insert(nearbyEnemies, entity)
+        end
+    end
+
+    Logger.debug("enemy_manager.getNearbyEnemies.spatial_grid",
+        string.format("[EnemyManager:getNearbyEnemies] SpatialGrid: %d inimigos próximos em raio %.1f",
+            #nearbyEnemies, radius))
+
+    return nearbyEnemies
 end
 
 --- Lida com as consequências da morte de um inimigo.
@@ -305,16 +350,6 @@ function EnemyManager:_collectEnemySprite(enemy, renderPipeline)
 
     if not quad then
         error("EnemyManager:_collectEnemySprite: quad is nil")
-    end
-
-    if enemy.id == 1 then
-        local qx, qy, qw, qh = quad:getViewport()
-        local log_msg = string.format(
-            "RenderData for Enemy ID 1: pos(%.2f, %.2f), scale(%.2f), depth(%.2f), sortY(%.2f), batchType(%s), quadViewport(%d,%d,%d,%d)",
-            enemy.position.x, enemy.position.y, enemy.sprite.scale, RenderPipeline.DEPTH_ENTITIES, enemy.position.y,
-            type(batch), qx, qy, qw, qh
-        )
-        Logger.debug("EnemyManager:RenderDebug", log_msg)
     end
 
     local baseUnitConfig = AnimatedSpritesheet.configs[enemy.unitType]
