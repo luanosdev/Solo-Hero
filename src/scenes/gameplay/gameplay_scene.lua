@@ -113,6 +113,7 @@ function GameplayScene:draw()
         return
     end
 
+    Logger.debug("GameplayScene:draw", "Camera position: x=" .. Camera.x .. ", y=" .. Camera.y)
     Camera:attach()
 
     -- Reset do pipeline

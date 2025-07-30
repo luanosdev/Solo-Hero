@@ -19,6 +19,8 @@ local animationInstancePool = {}
 ---@field data table Dados específicos da animação
 ---@field isActive boolean Se a animação está ativa
 ---@field type string Tipo da animação
+---@field frameCount number|nil O número total de frames para animações de spritesheet.
+---@field currentFrame number|nil O frame atual calculado para animações de spritesheet.
 
 --- Cria ou reutiliza uma instância de animação
 ---@param animationType string Tipo da animação
@@ -37,6 +39,8 @@ function AttackAnimationSystem.createInstance(animationType, duration, delay, da
         instance.delay = delay or 0
         instance.type = animationType
         instance.isActive = true
+        instance.frameCount = data and data.frameCount or nil
+        instance.currentFrame = instance.frameCount and 1 or nil
 
         -- Limpa dados antigos e aplica novos
         for k in pairs(instance.data) do
@@ -55,7 +59,9 @@ function AttackAnimationSystem.createInstance(animationType, duration, delay, da
             delay = delay or 0,
             type = animationType,
             isActive = true,
-            data = data and TablePool.get() or {}
+            data = data and TablePool.getGeneric() or {},
+            frameCount = data and data.frameCount or nil,
+            currentFrame = data and data.frameCount and 1 or nil
         }
 
         if data then
@@ -86,6 +92,14 @@ function AttackAnimationSystem.updateInstance(instance, dt)
     -- Atualiza progresso
     instance.progress = instance.progress + (dt / instance.duration)
 
+    -- Atualiza o frame atual se for uma animação de spritesheet
+    if instance.frameCount then
+        instance.currentFrame = math.floor(instance.progress * instance.frameCount) + 1
+        if instance.currentFrame > instance.frameCount then
+            instance.currentFrame = instance.frameCount
+        end
+    end
+
     if instance.progress >= 1 then
         instance.isActive = false
         return true
@@ -103,6 +117,8 @@ function AttackAnimationSystem.releaseInstance(instance)
     instance.progress = 0
     instance.delay = 0
     instance.type = nil
+    instance.frameCount = nil
+    instance.currentFrame = nil
 
     -- Libera dados se veio do TablePool
     if instance.data then

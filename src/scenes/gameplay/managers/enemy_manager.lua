@@ -39,6 +39,8 @@ local ServiceLocator = require("src.core.service_locator")
 local EnemyManager = {}
 EnemyManager.__index = EnemyManager
 
+EnemyManager.SPAWN_RADIUS = 500
+
 ---@param context GameplaySceneContext
 ---@return EnemyManager
 function EnemyManager:new(context)
@@ -215,7 +217,7 @@ end
 ---@param enemyClass table
 function EnemyManager:spawnEnemy(enemyClass)
     local playerPos = self.playerManager:getPosition()
-    local spawnRadius = 1200 -- Distância de spawn em pixels, fora da tela
+    local spawnRadius = EnemyManager.SPAWN_RADIUS -- Distância de spawn em pixels, fora da tela
     local angle = math.random() * 2 * math.pi
     local x = playerPos.x + spawnRadius * math.cos(angle)
     local y = playerPos.y + spawnRadius * math.sin(angle)
@@ -223,13 +225,26 @@ function EnemyManager:spawnEnemy(enemyClass)
     -- O ID será gerenciado pelo pool no futuro
     local newId = #self.enemies + 1
     local enemy = enemyClass:new({ x = x, y = y }, newId)
+    Logger.debug(
+        "EnemyManager:spawnEnemy",
+        "Spawning enemy at x=" .. x .. ", y=" .. y .. " | Player at x=" .. playerPos.x .. ", y=" .. playerPos.y
+    )
     table.insert(self.enemies, enemy)
-    -- TODO: Adicionar ao CullingManager e ao SpatialGrid
+    -- Adiciona a nova entidade ao grid espacial imediatamente
+    self.spatialGrid:updateEntityInGrid(enemy)
+    -- TODO: Adicionar ao CullingManager
 end
 
 --- Coleta os dados de renderização dos inimigos visíveis e os adiciona ao pipeline.
 ---@param renderPipeline RenderPipeline
 function EnemyManager:collectRenderables(renderPipeline)
+    if #self.enemies > 0 then
+        local firstEnemy = self.enemies[1]
+        Logger.debug("EnemyManager:collectRenderables",
+            "Trying to render " ..
+            #self.enemies .. " enemies. First enemy at x=" .. firstEnemy.position.x .. ", y=" .. firstEnemy.position.y)
+    end
+
     for _, enemy in ipairs(self.enemies) do
         local shouldDraw = enemy.isAlive or (enemy.isDying and not enemy.isDeathAnimationComplete)
         -- if shouldDraw and self.cullingManager:isInView(enemy, 50) then
@@ -290,6 +305,16 @@ function EnemyManager:_collectEnemySprite(enemy, renderPipeline)
 
     if not quad then
         error("EnemyManager:_collectEnemySprite: quad is nil")
+    end
+
+    if enemy.id == 1 then
+        local qx, qy, qw, qh = quad:getViewport()
+        local log_msg = string.format(
+            "RenderData for Enemy ID 1: pos(%.2f, %.2f), scale(%.2f), depth(%.2f), sortY(%.2f), batchType(%s), quadViewport(%d,%d,%d,%d)",
+            enemy.position.x, enemy.position.y, enemy.sprite.scale, RenderPipeline.DEPTH_ENTITIES, enemy.position.y,
+            type(batch), qx, qy, qw, qh
+        )
+        Logger.debug("EnemyManager:RenderDebug", log_msg)
     end
 
     local baseUnitConfig = AnimatedSpritesheet.configs[enemy.unitType]

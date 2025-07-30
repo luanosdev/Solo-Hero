@@ -11,6 +11,7 @@ local TablePool = require("src.utils.table_pool")
 ---@field activeAnimations AnimationInstance[] Animações de ataque ativas.
 ---@field area table Área de efeito calculada e reutilizada.
 ---@field visual table Configurações visuais específicas do ataque.
+---@field attackTexture love.Image A textura para o ataque.
 local ConeSlashController = setmetatable({}, { __index = BaseAttackController })
 ConeSlashController.__index = ConeSlashController
 
@@ -22,8 +23,6 @@ ConeSlashController.CONFIG = {
     description = _T("attack_types.cone_slash.description"),
     constants = {
         DELAY_STEP = 0.1,
-        SHELL_WIDTH_RATIO = 0.18,
-        MIN_SHELL_WIDTH = 24
     }
 }
 
@@ -35,9 +34,8 @@ ConeSlashController.VISUAL_CONFIG = {
         color = { 1, 1, 1, 0.2 }
     },
     attack = {
-        animationDuration = 0.1,
-        segments = 20,
-        color = { 1, 1, 1, 0.8 }
+        animationDuration = 0.15, -- Duração curta para um efeito de "flash"
+        color = { 1, 1, 1, 1 }
     }
 }
 
@@ -58,6 +56,10 @@ function ConeSlashController:new(weaponInstance)
         halfWidth = 0
     }
     o.visual = ConeSlashController.VISUAL_CONFIG
+
+    -- Carregar a textura de ataque
+    o.attackTexture = love.graphics.newImage("assets/effects/attacks/background_diagonal.png")
+    o.attackTexture:setWrap("repeat", "repeat")
 
     -- Sobrescreve cores padrão com as da arma, se existirem
     if weaponInstance.previewColor then
@@ -140,7 +142,7 @@ function ConeSlashController:castSpecific(context)
         }
         table.insert(descriptors, coneDescriptor)
 
-        -- A lógica de animação visual continua sendo responsabilidade do controller.
+        -- A lógica de animação visual é apenas para controlar o tempo de vida do efeito.
         local animationData = AttackAnimationSystem.createConeData(self.area, false)
         local animation = AttackAnimationSystem.createInstance(
             "cone_slash",
@@ -166,7 +168,7 @@ function ConeSlashController:collectRenderables(renderPipeline, context)
 
     for _, animation in ipairs(self.activeAnimations) do
         if animation.delay <= 0 then
-            self:drawConeFillOptimized(animation, context)
+            self:drawTexturedCone(animation)
         end
     end
 end
@@ -197,89 +199,45 @@ function ConeSlashController:drawConeOutlineOptimized()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
---- Desenha o preenchimento da animação de ataque.
+--- Desenha o cone de ataque com uma textura.
 ---@param animation AnimationInstance
----@param context AttackContext
-function ConeSlashController:drawConeFillOptimized(animation, context)
+function ConeSlashController:drawTexturedCone(animation)
     local areaData = animation.data.area
+    if not areaData or areaData.range <= 0 then return end
+
     local progress = animation.progress
-    if not areaData or progress < 0.01 then return end
-
-    local fullRange = areaData.range
-    local shellWidth = math.max(
-        ConeSlashController.CONFIG.constants.MIN_SHELL_WIDTH,
-        fullRange * ConeSlashController.CONFIG.constants.SHELL_WIDTH_RATIO
-    )
-    local shellInner, shellOuter, isValid = AttackAnimationSystem.calculateShellProgress(
-        progress, context.playerRadius, fullRange, shellWidth
-    )
-
-    if not isValid then return end
+    local alpha = 1.0 - progress -- Efeito de fade-out
+    if alpha <= 0 then return end
 
     local cx, cy = areaData.position.x, areaData.position.y
+    local range = areaData.range
     local startAngle = areaData.angle - areaData.halfWidth
     local endAngle = areaData.angle + areaData.halfWidth
-    local segments = self.visual.attack.segments
+    local segments = 32
+
+    local vertices = {}
+    -- Ponto de origem do cone (mapeado para o centro inferior da textura)
+    table.insert(vertices, { cx, cy, 0.5, 1 })
+
+    -- Pontos do arco
     local angleStep = (endAngle - startAngle) / segments
-
-    local vertices = TablePool.getArray()
-
     for i = 0, segments do
-        local angle = startAngle + angleStep * i
-        table.insert(vertices, cx + shellOuter * math.cos(angle))
-        table.insert(vertices, cy + shellOuter * math.sin(angle))
+        local currentAngle = startAngle + angleStep * i
+        local vertX = cx + range * math.cos(currentAngle)
+        local vertY = cy + range * math.sin(currentAngle)
+        local u = i / segments -- U vai de 0 a 1 ao longo do arco
+        local v = 0            -- V é fixo no topo da textura
+        table.insert(vertices, { vertX, vertY, u, v })
     end
 
-    for i = segments, 0, -1 do
-        local angle = startAngle + angleStep * i
-        table.insert(vertices, cx + shellInner * math.cos(angle))
-        table.insert(vertices, cy + shellInner * math.sin(angle))
-    end
+    -- Cria e desenha a malha
+    local mesh = love.graphics.newMesh(vertices, "fan")
+    mesh:setTexture(self.attackTexture)
 
-    if #vertices >= 6 then
-        local color = self.visual.attack.color
-        love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1.0) * 0.6)
-        love.graphics.polygon("fill", unpack(vertices))
-
-        local baseFadeWidth = shellWidth * 0.35
-        local fadeInner = shellInner
-        local fadeOuter = math.min(shellOuter, shellInner + baseFadeWidth)
-
-        if fadeOuter > fadeInner then
-            local fadeVertices = TablePool.getArray()
-            for i = 0, segments do
-                local angle = startAngle + angleStep * i
-                table.insert(fadeVertices, cx + fadeOuter * math.cos(angle))
-                table.insert(fadeVertices, cy + fadeOuter * math.sin(angle))
-            end
-            for i = segments, 0, -1 do
-                local angle = startAngle + angleStep * i
-                table.insert(fadeVertices, cx + fadeInner * math.cos(angle))
-                table.insert(fadeVertices, cy + fadeInner * math.sin(angle))
-            end
-
-            if #fadeVertices >= 6 then
-                love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1.0) * 0.3)
-                love.graphics.polygon("fill", unpack(fadeVertices))
-            end
-            TablePool.releaseArray(fadeVertices)
-        end
-
-        love.graphics.setColor(1, 1, 1, 0.7 * (1 - progress))
-        love.graphics.setLineWidth(2)
-        local borderVertices = TablePool.getArray()
-        for i = 0, segments do
-            local angle = startAngle + angleStep * i
-            table.insert(borderVertices, cx + shellOuter * math.cos(angle))
-            table.insert(borderVertices, cy + shellOuter * math.sin(angle))
-        end
-        love.graphics.line(unpack(borderVertices))
-        love.graphics.setLineWidth(1)
-        TablePool.releaseArray(borderVertices)
-
-        love.graphics.setColor(1, 1, 1, 1)
-    end
-    TablePool.releaseArray(vertices)
+    local color = self.visual.attack.color
+    love.graphics.setColor(color[1], color[2], color[3], (color[4] or 1) * alpha)
+    love.graphics.draw(mesh)
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function ConeSlashController:destroy()

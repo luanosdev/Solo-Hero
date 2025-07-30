@@ -14,7 +14,7 @@ AutoAttackController.__index = AutoAttackController
 function AutoAttackController:new(inputService)
     local instance = setmetatable({}, AutoAttackController)
 
-    instance.autoAttackEnabled = true
+    instance.autoAttackEnabled = false
     instance.inputService = inputService
     instance.isOverridden = false
 
