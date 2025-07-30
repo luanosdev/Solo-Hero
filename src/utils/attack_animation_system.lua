@@ -2,6 +2,8 @@
 -- Attack Animation System
 -- Sistema unificado de animação para todas as habilidades de ataque.
 -- Gerencia instâncias de animação com pooling e performance otimizada.
+-- TODO: Fazer carregar as animações no game_loading_scene
+-- TODO: Validar seu lugar na nova infraestrutura
 ----------------------------------------------------------------------------
 
 local TablePool = require("src.utils.table_pool")

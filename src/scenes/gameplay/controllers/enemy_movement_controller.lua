@@ -74,15 +74,7 @@ function EnemyMovementController:_calculateChaseVector(dt, enemy, playerPosition
         local directionX = targetIsoPos.x - enemy.position.x
         local directionY = targetIsoPos.y - enemy.position.y
 
-        local lenSq = directionX * directionX + directionY * directionY
-        if lenSq > 0 then
-            local invLen = 1 / math.sqrt(lenSq)
-            enemy.cachedDirection.x = directionX * invLen
-            enemy.cachedDirection.y = directionY * invLen
-        else
-            enemy.cachedDirection.x = 0
-            enemy.cachedDirection.y = 0
-        end
+        enemy.cachedDirection.x, enemy.cachedDirection.y = MathUtils.normalize(directionX, directionY)
     end
 
     -- Aplica movimento usando direção cached, mas armazena em 'velocity'

@@ -1,6 +1,28 @@
 ---@class MathUtils
 local MathUtils = {}
 
+--- Retorna o comprimento de um vetor 2D (hipotenusa).
+---@param x number Componente x do vetor.
+---@param y number Componente y do vetor.
+---@return number O comprimento do vetor.
+function MathUtils.vectorLength(x, y)
+    return math.sqrt(x * x + y * y)
+end
+
+--- Normaliza um vetor 2D para ter comprimento 1, mantendo sua direção.
+--- Retorna (0, 0) se o vetor original tiver comprimento zero para evitar divisão por zero.
+---@param x number Componente x do vetor.
+---@param y number Componente y do vetor.
+---@return number nx, number ny - Os componentes x e y do vetor normalizado.
+function MathUtils.normalize(x, y)
+    local lenSq = x * x + y * y
+    if lenSq > 0 then
+        local invLen = 1 / math.sqrt(lenSq)
+        return x * invLen, y * invLen
+    end
+    return 0, 0
+end
+
 --- Calcula o vetor de deslocamento mais curto entre dois pontos em um espaço toroidal (que se repete).
 --- Essencial para a IA de inimigos em mapas infinitos, garantindo que eles tomem o caminho mais curto
 --- para o jogador, mesmo que isso signifique atravessar a "borda" do mapa.

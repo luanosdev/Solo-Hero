@@ -6,7 +6,7 @@ local ResolutionUtils = require("src.utils.resolution_utils")
 ---@field localX number A posição X DENTRO do patch atual (em metros)
 ---@field localY number A posição Y DENTRO do patch atual (em metros)
 
----@class InfinityWrapMapManager2
+---@class InfinityWrapMapManager
 ---@description Gerencia um mapa isométrico infinito, sua renderização e eventos de "wrap".
 --- Carrega os dados de um mapa Tiled, pré-renderiza suas camadas em canvases para
 --- performance e emite eventos quando o jogador atravessa as bordas dos patches.
@@ -30,7 +30,7 @@ InfinityWrapMapManager.TILES_PER_YIELD = 100
 
 ---@public Cria uma nova instância do InfinityWrapMapManager.
 ---@param context GameplaySceneContext
----@return InfinityWrapMapManager2
+---@return InfinityWrapMapManager
 function InfinityWrapMapManager:new(context)
     assert(context, "[InfinityWrapMapManager] missing a GameplayContext")
     assert(context.args, "[InfinityWrapMapManager] missing a GameplaySceneArgs")

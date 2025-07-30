@@ -60,10 +60,9 @@ function EnemySeparationController:_applySeparationToEnemy(enemy, dt, mapInfo)
             local ody = (deltaTileX + deltaTileY) * (mapInfo.tileHeight / 2)
             odx, ody = -odx, -ody
 
-            local distSq = odx * odx + ody * ody
+            local dist = MathUtils.vectorLength(odx, ody)
 
-            if distSq > 0 then
-                local dist = math.sqrt(distSq)
+            if dist > 0 then
                 local desired = (enemy.radius + other.radius) * 1.1
                 if dist < desired then
                     local force_factor = (desired - dist) / desired

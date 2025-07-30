@@ -100,7 +100,7 @@ Constants.HUNTER_DEFAULT_STATS = {
 Constants.PLAYER_RADIUS_COLLISION = 5
 
 -- Tamanho da escala do sprite do jogador
-Constants.PLAYER_SCALE = 1.5
+Constants.PLAYER_SCALE = 1
 
 Constants.ENEMY_SPRITE_SIZES = {
     SMALL = 64,

@@ -12,9 +12,13 @@ local Colors = require("src.ui.colors")
 local Fonts = require("src.ui.fonts")
 local EnemyCollisionController = require("src.scenes.gameplay.controllers.enemy_collision_controller")
 local EnemyMovementController = require("src.scenes.gameplay.controllers.enemy_movement_controller")
+local CullingController = require("src.scenes.gameplay.controllers.culling_controller")
+local DespawnController = require("src.scenes.gameplay.controllers.despawn_controller")
 -- local FrameTaskRunner = require("src.core.frame_task_runner") -- Se for usar
 
 local ServiceLocator = require("src.core.service_locator")
+local ResolutionUtils = require("src.utils.resolution_utils")
+local MathUtils = require("src.utils.math_utils")
 
 --- TODO: Remover o v2 quando o v1 for removido
 ---@class EnemyManager
@@ -22,8 +26,8 @@ local ServiceLocator = require("src.core.service_locator")
 ---@field context GameplaySceneContext
 ---@field playerManager PlayerManager
 ---@field dropManager DropManager
----@field cullingManager CullingManager
----@field mapManager InfinityWrapMapManager2
+---@field cullingController CullingController
+---@field mapManager InfinityWrapMapManager
 ---@field experienceOrbManager ExperienceOrbManager
 ---@field enemies BaseEnemy[]
 ---@field spawnController EnemySpawnController
@@ -38,8 +42,6 @@ local ServiceLocator = require("src.core.service_locator")
 ---@field spatialGrid SpatialGridIncremental
 local EnemyManager = {}
 EnemyManager.__index = EnemyManager
-
-EnemyManager.SPAWN_RADIUS = 500
 
 ---@param context GameplaySceneContext
 ---@return EnemyManager
@@ -70,6 +72,8 @@ function EnemyManager:init()
 
     self.poolController = EnemyPoolController:new()
     self.mvpController = MVPController:new()
+    self.cullingController = CullingController:new()
+    self.despawnController = DespawnController:new()
 
     -- Criar e passar a grade para o controller de separação
     local worldPixelWidth, worldPixelHeight = self.mapManager:getWorldPixelDimensions()
@@ -117,17 +121,9 @@ function EnemyManager:update(dt)
     local gameTimerService = ServiceLocator.getGameTimerService()
     local gameTime = gameTimerService:getTime()
     self.spawnController:update(dt, gameTime)
-    -- self.despawnController:update(dt)
 
-    -- Atualiza a grade com as novas posições antes de calcular a separação
-    for _, enemy in ipairs(self.enemies) do
-        if enemy.isAlive then
-            self.spatialGrid:updateEntityInGrid(enemy)
-        end
-    end
-
-    -- Prepara os dados do mapa para os controllers
-    --- TODO: Não precisa ser criado no update, pode ser criado no init
+    -- Lógica de Despawn (antes de qualquer outra lógica de inimigo)
+    local playerPosition = self.playerManager:getPosition()
     local worldTileWidth, worldTileHeight = self.mapManager:getWorldTileDimensions()
     local mapInfo = {
         worldTileWidth = worldTileWidth,
@@ -137,6 +133,36 @@ function EnemyManager:update(dt)
         isometricToCartesianTile = function(x, y) return self.mapManager:isometricToCartesianTile(x, y) end,
         cartesianToIsometric = function(x, y) return self.mapManager:cartesianToIsometric(x, y) end,
     }
+    local entitiesToDespawn = self.despawnController:updateAndGetEntitiesToDespawn(
+        self.enemies,
+        playerPosition,
+        mapInfo
+    )
+
+    -- Processa a remoção dos inimigos marcados
+    for i = #self.enemies, 1, -1 do
+        local enemy = self.enemies[i]
+        if entitiesToDespawn[enemy.id] then
+            self.spatialGrid:removeEntityCompletely(enemy)
+            -- TODO: Devolver ao pool em vez de apenas remover
+            table.remove(self.enemies, i)
+        end
+    end
+
+    -- Atualiza a grade com as novas posições antes de calcular a separação
+    for _, enemy in ipairs(self.enemies) do
+        if enemy.isAlive then
+            self.spatialGrid:updateEntityInGrid(enemy)
+        end
+    end
+
+    -- Atualiza a grade com as novas posições antes de calcular a separação
+    for _, enemy in ipairs(self.enemies) do
+        if enemy.isAlive then
+            self.spatialGrid:updateEntityInGrid(enemy)
+        end
+    end
+
     self.separationController:update(dt, self.enemies, mapInfo)
 
     -- Lógica de Colisão Desacoplada
@@ -156,7 +182,6 @@ function EnemyManager:update(dt)
         TablePool.releaseDamageSource(damageSource)
     end
 
-    local playerPosition = self.playerManager:getPosition()
     self.movementController:update(dt, self.enemies, playerPosition, mapInfo)
 
     for i = #self.enemies, 1, -1 do
@@ -262,7 +287,12 @@ end
 ---@param enemyClass table
 function EnemyManager:spawnEnemy(enemyClass)
     local playerPos = self.playerManager:getPosition()
-    local spawnRadius = EnemyManager.SPAWN_RADIUS -- Distância de spawn em pixels, fora da tela
+
+    -- Calcula um raio de spawn seguro, garantindo que seja sempre fora da tela.
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
+    -- Raio da metade da diagonal da tela + uma margem de segurança.
+    local spawnRadius = MathUtils.vectorLength(screenW / 2, screenH / 2) + 50
+
     local angle = math.random() * 2 * math.pi
     local x = playerPos.x + spawnRadius * math.cos(angle)
     local y = playerPos.y + spawnRadius * math.sin(angle)
@@ -283,24 +313,27 @@ end
 --- Coleta os dados de renderização dos inimigos visíveis e os adiciona ao pipeline.
 ---@param renderPipeline RenderPipeline
 function EnemyManager:collectRenderables(renderPipeline)
-    if #self.enemies > 0 then
-        local firstEnemy = self.enemies[1]
-        Logger.debug("EnemyManager:collectRenderables",
-            "Trying to render " ..
-            #self.enemies .. " enemies. First enemy at x=" .. firstEnemy.position.x .. ", y=" .. firstEnemy.position.y)
-    end
+    -- Prepara os dados necessários para o culling, uma única vez por frame.
+    local playerPos = self.playerManager:getPosition()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
+    local camX = playerPos.x - screenW / 2
+    local camY = playerPos.y - screenH / 2
+    local cameraData = { x = camX, y = camY, w = screenW, h = screenH }
+
+    local worldW, worldH = self.mapManager:getWorldPixelDimensions()
+    local worldDimensions = { w = worldW, h = worldH }
 
     for _, enemy in ipairs(self.enemies) do
         local shouldDraw = enemy.isAlive or (enemy.isDying and not enemy.isDeathAnimationComplete)
-        -- if shouldDraw and self.cullingManager:isInView(enemy, 50) then
-        -- Adiciona o sprite principal do inimigo
-        self:_collectEnemySprite(enemy, renderPipeline)
+        if shouldDraw and self.cullingController:isInView(enemy, cameraData, worldDimensions, 50) then
+            -- Adiciona o sprite principal do inimigo
+            self:_collectEnemySprite(enemy, renderPipeline)
 
-        -- Adiciona a barra de vida de MVP, se aplicável
-        if enemy.isMVP and enemy.isAlive then
-            self:_collectMvpBar(enemy, renderPipeline)
+            -- Adiciona a barra de vida de MVP, se aplicável
+            if enemy.isMVP and enemy.isAlive then
+                self:_collectMvpBar(enemy, renderPipeline)
+            end
         end
-        -- mmend
     end
 end
 
@@ -452,7 +485,7 @@ end
 function EnemyManager:destroy()
     self.enemies = {}
     self.spawnController:destroy()
-    -- self.despawnController:destroy()
+    self.despawnController:destroy()
     self.separationController:destroy()
     self.collisionController:destroy()
     self.movementController:destroy()
