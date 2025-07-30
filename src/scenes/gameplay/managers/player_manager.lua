@@ -251,13 +251,13 @@ function PlayerManager:_processAttackDescriptors(attackDescriptors)
     local weaponInstance = self.attackController.weaponInstance
 
     for _, descriptor in ipairs(attackDescriptors) do
-        local candidates = enemyManager:getNearbyEnemies(descriptor.origin, descriptor.range)
-        Logger.debug("player_manager.process_attack.candidates",
-            string.format("[PlayerManager:_processAttackDescriptors] %d candidatos para ataque %s",
-                #candidates, descriptor.shape))
-        local enemiesHit
+        local candidates = nil
+        local enemiesHit = nil
 
+        -- A busca de candidatos (getNearbyEnemies) é feita por shape,
+        -- pois cada um pode ter uma forma diferente de definir sua área de busca.
         if descriptor.shape == "cone" then
+            candidates = enemyManager:getNearbyEnemies(descriptor.origin, descriptor.range)
             enemiesHit = self.areaOfEffectController:findEntitiesInCone(
                 candidates,
                 descriptor.origin,
@@ -266,6 +266,8 @@ function PlayerManager:_processAttackDescriptors(attackDescriptors)
                 descriptor.halfWidth
             )
         elseif descriptor.shape == "circle" then
+            -- Assumimos que o descritor de círculo tem 'radius' e o usamos para a busca.
+            candidates = enemyManager:getNearbyEnemies(descriptor.origin, descriptor.radius)
             enemiesHit = self.areaOfEffectController:findEntitiesInCircle(
                 candidates,
                 descriptor.origin,
@@ -282,12 +284,26 @@ function PlayerManager:_processAttackDescriptors(attackDescriptors)
                 descriptor.endPos,
                 descriptor.width
             )
+        elseif descriptor.shape == "polygon" then
+            candidates = enemyManager:getNearbyEnemies(descriptor.origin, descriptor.range)
+            -- A função findEntitiesInPolygon será implementada no AreaOfEffectController
+            enemiesHit = self.areaOfEffectController:findEntitiesInPolygon(
+                candidates,
+                descriptor.vertices
+            )
         end
+
+        if candidates then
+            Logger.debug("player_manager.process_attack.candidates",
+                string.format("[PlayerManager:_processAttackDescriptors] %d candidatos para ataque %s",
+                    #candidates, descriptor.shape))
+        end
+
 
         if enemiesHit and #enemiesHit > 0 then
             Logger.debug("player_manager.process_attack.hits",
                 string.format("[PlayerManager:_processAttackDescriptors] %d inimigos atingidos de %d candidatos",
-                    #enemiesHit, #candidates))
+                    #enemiesHit, candidates and #candidates or 0))
             gameStatsService:registerEnemiesHit(#enemiesHit)
 
             for _, enemy in ipairs(enemiesHit) do
@@ -325,7 +341,9 @@ function PlayerManager:_processAttackDescriptors(attackDescriptors)
             end
         end
 
-        TablePool.releaseArray(candidates)
+        if candidates then
+            TablePool.releaseArray(candidates)
+        end
         if enemiesHit then
             TablePool.releaseArray(enemiesHit)
         end

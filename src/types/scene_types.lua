@@ -42,6 +42,12 @@
 ---@field origin Vector2D O centro do círculo.
 ---@field radius number O raio do círculo.
 
+---@class PolygonAttackDescriptor
+---@field shape "polygon" O tipo de forma do ataque.
+---@field vertices Vector2D[] Os vértices do polígono.
+---@field origin Vector2D A origem do polígono.
+---@field range number O alcance (comprimento) do polígono.
+
 ---@class ConeAttackDescriptor
 ---@field shape "cone" O tipo de forma do ataque.
 ---@field origin Vector2D A origem do cone.
@@ -55,6 +61,6 @@
 ---@field endPos Vector2D A posição final da linha.
 ---@field width number A largura da linha.
 
----@alias AttackDescriptor CircleAttackDescriptor | ConeAttackDescriptor | LineAttackDescriptor
+---@alias AttackDescriptor CircleAttackDescriptor | ConeAttackDescriptor | LineAttackDescriptor | PolygonAttackDescriptor
 
 return {}

@@ -54,7 +54,8 @@ function ConeSlashController:new(weaponInstance)
         angle = 0,
         range = 0,
         angleWidth = 0,
-        halfWidth = 0
+        halfWidth = 0,
+        baseWidth = 0 -- Adicionado para a base do trapézio
     }
     o.visual = ConeSlashController.VISUAL_CONFIG
 
@@ -91,7 +92,45 @@ function ConeSlashController:recalculateArea(context)
         self.area.range = newRange
         self.area.angleWidth = newAngleWidth
         self.area.halfWidth = newAngleWidth * 0.5
+        self.area.baseWidth = newRange / 6
     end
+end
+
+--- Calcula os vértices de um trapézio de ataque.
+---@param area table A área de ataque com posição, ângulo, alcance, etc.
+---@return Vector2D[] Uma lista de vértices para o trapézio.
+function ConeSlashController:calculateTrapezoidVertices(area)
+    local origin = area.position
+    local angle = area.angle
+    local range = area.range
+    local halfAngleWidth = area.halfWidth
+    local baseWidth = area.baseWidth
+
+    local halfBaseWidth = baseWidth * 0.5
+    local perpAngle = angle + (math.pi / 2)
+
+    -- Vetor perpendicular à direção do ataque
+    local perpVecX = math.cos(perpAngle)
+    local perpVecY = math.sin(perpAngle)
+
+    -- Vértices da base (perto do jogador)
+    local p1 = { x = origin.x + perpVecX * halfBaseWidth, y = origin.y + perpVecY * halfBaseWidth }
+    local p2 = { x = origin.x - perpVecX * halfBaseWidth, y = origin.y - perpVecY * halfBaseWidth }
+
+    -- Para o lado distante, usamos o ângulo de abertura para calcular a largura
+    -- A largura do arco a uma distância `range` é `2 * range * sin(halfAngleWidth)`
+    local halfFarWidth = range * math.sin(halfAngleWidth)
+
+    -- Centro do lado distante
+    local farCenterX = origin.x + range * math.cos(angle)
+    local farCenterY = origin.y + range * math.sin(angle)
+
+    -- Vértices do lado distante
+    local p3 = { x = farCenterX + perpVecX * halfFarWidth, y = farCenterY + perpVecY * halfFarWidth }
+    local p4 = { x = farCenterX - perpVecX * halfFarWidth, y = farCenterY - perpVecY * halfFarWidth }
+
+    -- Retorna os vértices em ordem para desenhar o polígono (ex: anti-horário)
+    return { p2, p1, p3, p4 }
 end
 
 --- Calcula a posição de spawn do ataque.
@@ -133,20 +172,22 @@ function ConeSlashController:castSpecific(context)
 
     for i = 1, totalAttacks do
         -- A área já foi calculada e posicionada no updateSpecific
-        ---@type ConeAttackDescriptor
-        local coneDescriptor = {
-            shape = "cone",
-            origin = { x = self.area.position.x, y = self.area.position.y },
-            angle = self.area.angle,
-            range = self.area.range,
-            halfWidth = self.area.halfWidth,
+        local vertices = self:calculateTrapezoidVertices(self.area)
+
+        ---@type PolygonAttackDescriptor
+        local polygonDescriptor = {
+            shape = "polygon",
+            vertices = vertices,
+            origin = self.area.position,
+            range = self.area.range
         }
-        table.insert(descriptors, coneDescriptor)
+        table.insert(descriptors, polygonDescriptor)
 
         -- A lógica de animação visual é apenas para controlar o tempo de vida do efeito.
-        local animationData = AttackAnimationSystem.createConeData(self.area, false)
+        -- Passamos os vértices para a animação para que o desenho seja consistente.
+        local animationData = { area = self.area, vertices = vertices }
         local animation = AttackAnimationSystem.createInstance(
-            "cone_slash",
+            "cone_slash_trapezoid",
             self.visual.attack.animationDuration,
             delays[i],
             animationData
@@ -190,60 +231,43 @@ function ConeSlashController:drawConeOutlineOptimized()
     if not self.area.range or self.area.range <= 0 then return end
 
     love.graphics.setColor(self.visual.preview.color)
-    local cx, cy = self.area.position.x, self.area.position.y
-    local range = self.area.range
-    local halfWidth = self.area.halfWidth
-    local startAngle = self.area.angle - halfWidth
-    local endAngle = self.area.angle + halfWidth
-    local segments = 32
-    local angleStep = (endAngle - startAngle) / segments
+    local vertices = self:calculateTrapezoidVertices(self.area)
 
-    local vertices = { cx, cy }
-    for i = 0, segments do
-        local angle = startAngle + angleStep * i
-        table.insert(vertices, cx + range * math.cos(angle))
-        table.insert(vertices, cy + range * math.sin(angle))
+    -- Desempacota os vértices para o formato que love.graphics.polygon espera
+    local points = {}
+    for _, v in ipairs(vertices) do
+        table.insert(points, v.x)
+        table.insert(points, v.y)
     end
-    table.insert(vertices, cx)
-    table.insert(vertices, cy)
 
-    love.graphics.line(unpack(vertices))
+    love.graphics.polygon("line", points)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
 --- Desenha o cone de ataque com uma textura.
 ---@param animation AnimationInstance
 function ConeSlashController:drawTexturedCone(animation)
-    local areaData = animation.data.area
-    if not areaData or areaData.range <= 0 then return end
+    local vertices = animation.data.vertices
+    if not vertices then return end
 
     local progress = animation.progress
     local alpha = 1.0 - progress -- Efeito de fade-out
     if alpha <= 0 then return end
 
-    local cx, cy = areaData.position.x, areaData.position.y
-    local range = areaData.range
-    local startAngle = areaData.angle - areaData.halfWidth
-    local endAngle = areaData.angle + areaData.halfWidth
-    local segments = 32
-
-    local vertices = {}
-    -- Ponto de origem do cone (mapeado para o centro inferior da textura)
-    table.insert(vertices, { cx, cy, 0.5, 1 })
-
-    -- Pontos do arco
-    local angleStep = (endAngle - startAngle) / segments
-    for i = 0, segments do
-        local currentAngle = startAngle + angleStep * i
-        local vertX = cx + range * math.cos(currentAngle)
-        local vertY = cy + range * math.sin(currentAngle)
-        local u = i / segments -- U vai de 0 a 1 ao longo do arco
-        local v = 0            -- V é fixo no topo da textura
-        table.insert(vertices, { vertX, vertY, u, v })
-    end
+    -- Mapeamento de UV para a textura
+    -- p2 (base-esquerda) -> (0, 1)
+    -- p1 (base-direita) -> (1, 1)
+    -- p3 (longe-direita) -> (1, 0)
+    -- p4 (longe-esquerda) -> (0, 0)
+    local meshVertices = {
+        { vertices[1].x, vertices[1].y, 0, 1 }, -- p2
+        { vertices[2].x, vertices[2].y, 1, 1 }, -- p1
+        { vertices[3].x, vertices[3].y, 1, 0 }, -- p3
+        { vertices[4].x, vertices[4].y, 0, 0 }, -- p4
+    }
 
     -- Cria e desenha a malha
-    local mesh = love.graphics.newMesh(vertices, "fan")
+    local mesh = love.graphics.newMesh(meshVertices, "fan")
     mesh:setTexture(self.attackTexture)
 
     local color = self.visual.attack.color

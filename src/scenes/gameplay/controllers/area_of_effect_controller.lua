@@ -107,4 +107,27 @@ function AreaOfEffectController:findEntitiesInLine(candidates, lineStart, lineEn
     return entitiesHit
 end
 
+---@public Filtra uma lista de entidades, retornando apenas aquelas dentro de uma área poligonal.
+---@param candidates BaseEnemy[] A lista de entidades candidatas.
+---@param vertices Vector2D[] Uma lista de vértices que definem o polígono.
+---@return BaseEnemy[] Uma nova lista (do TablePool) com as entidades atingidas.
+function AreaOfEffectController:findEntitiesInPolygon(candidates, vertices)
+    local entitiesHit = TablePool.getArray()
+    if not candidates or #candidates == 0 or not vertices or #vertices < 3 then
+        return entitiesHit
+    end
+
+    for i = 1, #candidates do
+        local entity = candidates[i]
+        if entity and entity.isAlive then
+            -- A verificação de polígono já considera a área, não precisa de raio permissivo por enquanto.
+            if CombatGeometry.isPointInPolygon(entity.position, vertices) then
+                table.insert(entitiesHit, entity)
+            end
+        end
+    end
+
+    return entitiesHit
+end
+
 return AreaOfEffectController

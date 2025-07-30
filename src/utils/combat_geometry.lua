@@ -90,6 +90,29 @@ function CombatGeometry.isPointInLineArea(pointPosition, pointRadius, lineStart,
     return distanceToLineSq <= (combinedWidth * combinedWidth)
 end
 
+---@public Verifica se um ponto está dentro de um polígono convexo.
+--- Usa o algoritmo de ray-casting (ímpar-par).
+---@param point Vector2D O ponto a ser verificado.
+---@param polygon Vector2D[] A lista de vértices do polígono em ordem.
+---@return boolean True se o ponto estiver dentro do polígono.
+function CombatGeometry.isPointInPolygon(point, polygon)
+    local x, y = point.x, point.y
+    local numVertices = #polygon
+    local isInside = false
+
+    local p1 = polygon[numVertices]
+    for i = 1, numVertices do
+        local p2 = polygon[i]
+        if (p2.y > y) ~= (p1.y > y) and
+            (x < (p1.x - p2.x) * (y - p2.y) / (p1.y - p2.y) + p2.x) then
+            isInside = not isInside
+        end
+        p1 = p2
+    end
+
+    return isInside
+end
+
 ---@public Calcula o dano com a mecânica de Super Crítico.
 --- Final Damage = Base Damage × (1 + Crit Bonus × Crit Stacks)
 ---@param baseDamage number Dano base.
