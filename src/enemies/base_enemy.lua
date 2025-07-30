@@ -71,6 +71,7 @@ BaseEnemy.SEPARATION_STRENGTH = 0.5
 BaseEnemy.UPDATE_INTERVAL = 0.1
 BaseEnemy.DEATH_DURATION = 0.6 * 15
 BaseEnemy.DAMAGE_COOLDOWN = 1
+BaseEnemy.SLOW_UPDATE_INTERVAL = 0.5
 
 --- Constructor
 --- @param position Vector2D Posição inicial (x, y).
@@ -206,6 +207,18 @@ function BaseEnemy:update(dt, playerPosition, isSlowUpdate)
     end
 
     if not self.isAlive or self.shouldRemove then return end
+
+    -- Lógica de Slow Update
+    if isSlowUpdate then
+        self.slowUpdateTimer = self.slowUpdateTimer + dt
+        -- Atualiza a cada 0.5 segundos em modo lento, por exemplo.
+        if self.slowUpdateTimer < BaseEnemy.SLOW_UPDATE_INTERVAL then
+            return -- Pula o resto da lógica deste frame.
+        end
+        -- Usa o tempo acumulado para a atualização e reseta o timer.
+        dt = self.slowUpdateTimer
+        self.slowUpdateTimer = 0
+    end
 
     -- Atualiza knockback com otimização
     if self.isUnderKnockback then

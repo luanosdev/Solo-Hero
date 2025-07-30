@@ -1,6 +1,7 @@
+local MathUtils = require("src.utils.math_utils")
+
 ---@class CullingController
 ---@description Realiza a lógica de culling (seleção de objetos visíveis) de forma stateless.
---- Este controller não possui estado e recebe todos os dados necessários por parâmetro.
 local CullingController = {}
 CullingController.__index = CullingController
 
@@ -9,7 +10,8 @@ function CullingController:new()
     return instance
 end
 
---- Verifica se uma entidade está dentro da visão da câmera, com suporte a mapas infinitos (toroidais).
+--- Verifica se uma entidade está dentro de um raio de culling ao redor do jogador, com suporte a mapas toroidais.
+--- Esta lógica é baseada na sugestão do usuário de simplificar o culling para um raio, similar ao spawn.
 ---@param entity BaseEntity A entidade a ser verificada.
 ---@param cameraData {x: number, y: number, w: number, h: number} Dados da câmera (posição e dimensões).
 ---@param worldDimensions {w: number, h: number} Dimensões do mundo em pixels.
@@ -19,47 +21,31 @@ function CullingController:isInView(entity, cameraData, worldDimensions, margin)
     margin = margin or 0
 
     local worldW, worldH = worldDimensions.w, worldDimensions.h
-    if worldW <= 0 or worldH <= 0 then
-        return true -- Não faz culling se o mundo não tiver dimensões
-    end
+    if not worldW or worldW <= 0 then return true end
+
+    -- O jogador está sempre no centro da câmera.
+    local playerX = cameraData.x + cameraData.w / 2
+    local playerY = cameraData.y + cameraData.h / 2
 
     local entityX, entityY = entity.position.x, entity.position.y
 
-    local cameraCenterX = cameraData.x + cameraData.w / 2
-    local cameraCenterY = cameraData.y + cameraData.h / 2
+    -- Calcula a menor distância vetorial entre o jogador e a entidade no mundo toroidal.
+    local dx = math.abs(entityX - playerX)
+    local dy = math.abs(entityY - playerY)
+    local shortestDistX = math.min(dx, worldW - dx)
+    local shortestDistY = math.min(dy, worldH - dy)
 
-    local dx = entityX - cameraCenterX
-    local dy = entityY - cameraCenterY
+    -- Calcula a distância real (ao quadrado para performance) a partir do vetor de menor distância.
+    local distanceSq = shortestDistX * shortestDistX + shortestDistY * shortestDistY
 
-    -- Lógica para mapa toroidal (infinito)
-    if math.abs(dx) > worldW / 2 then
-        if dx > 0 then
-            dx = dx - worldW
-        else
-            dx = dx + worldW
-        end
-    end
-    if math.abs(dy) > worldH / 2 then
-        if dy > 0 then
-            dy = dy - worldH
-        else
-            dy = dy + worldH
-        end
-    end
+    -- O raio de culling é a distância do centro da tela até um dos cantos, mais a margem.
+    -- Isso garante que tudo na tela seja incluído.
+    local cullRadius = MathUtils.vectorLength(cameraData.w / 2, cameraData.h / 2) + margin
+    local cullRadiusSq = cullRadius * cullRadius
 
-    local virtualEntityX = cameraCenterX + dx
-    local virtualEntityY = cameraCenterY + dy
-
-    local viewX1 = cameraData.x - margin
-    local viewY1 = cameraData.y - margin
-    local viewX2 = cameraData.x + cameraData.w + margin
-    local viewY2 = cameraData.y + cameraData.h + margin
-
-    return virtualEntityX >= viewX1 and virtualEntityX <= viewX2 and
-        virtualEntityY >= viewY1 and virtualEntityY <= viewY2
+    return distanceSq <= cullRadiusSq
 end
 
--- Não há estado para limpar, então o destroy pode ser vazio ou removido.
 function CullingController:destroy()
 end
 

@@ -124,9 +124,22 @@ function GameplayScene:draw()
     -- Desenha tudo que foi coletado, usando a posição do jogador como foco.
     self.renderPipeline:draw()
 
+    -- Desenha o texto de debug para o inimigo com ID
+    local enemyManager = self.registry:getEnemyManager()
+    local enemies = enemyManager.enemies
+    if enemies then
+        for _, enemy in ipairs(enemies) do
+            enemyManager:_drawEnemyId(enemy)
+        end
+    end
+
     Camera:detach()
 
-    self.registry:get("hudGameplayManager"):draw()
+    ---@type HUDGameplayManager
+    local hudGameplayManager = self.registry:get("hudGameplayManager")
+    if hudGameplayManager then
+        hudGameplayManager:draw(false)
+    end
 end
 
 function GameplayScene:keypressed(key, scancode, isrepeat)

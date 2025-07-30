@@ -20,6 +20,7 @@ local Constants = require("src.config.constants")
 local ServiceLocator = require("src.core.service_locator")
 local ResolutionUtils = require("src.utils.resolution_utils")
 local MathUtils = require("src.utils.math_utils")
+local Camera = require("src.config.camera")
 
 --- TODO: Remover o v2 quando o v1 for removido
 ---@class EnemyManager
@@ -147,9 +148,9 @@ function EnemyManager:update(dt)
         cartesianToIsometric = function(x, y) return self.mapManager:cartesianToIsometric(x, y) end,
     }
 
-    -- Culling e Preparação das Listas de Inimigos
+    -- Culling e Preparação das Listas
     local activeEnemies = {}
-    local slowUpdateEnemies = {}
+    local isEnemySlowLookup = {}
 
     for _, enemy in ipairs(self.enemies) do
         if enemy.isAlive then
@@ -161,8 +162,9 @@ function EnemyManager:update(dt)
             )
             if isInLogicView then
                 table.insert(activeEnemies, enemy)
+                isEnemySlowLookup[enemy.id] = false
             else
-                table.insert(slowUpdateEnemies, enemy)
+                isEnemySlowLookup[enemy.id] = true
             end
         end
     end
@@ -194,14 +196,14 @@ function EnemyManager:update(dt)
     -- Loop de Atualização Base e Morte (para TODOS os inimigos)
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
-        local isSlowUpdate = false
+        local isSlowUpdate = isEnemySlowLookup[enemy.id] or false
 
-        -- Encontra se o inimigo está na lista de slow-update
-        for _, slowEnemy in ipairs(slowUpdateEnemies) do
-            if slowEnemy.id == enemy.id then
-                isSlowUpdate = true
-                break
-            end
+        if enemy.id == 1 then
+            local isInView = self.cullingController:isInView(enemy, cameraData, worldDimensions,
+                CONST.LOGIC_CULLING_MARGIN)
+            Logger.debug("enemy_manager.update",
+                string.format("[EnemyManager:update] Enemy ID 1: isInView = %s, isSlowUpdate = %s",
+                    tostring(isInView), tostring(isSlowUpdate)))
         end
 
         enemy:update(dt, playerPosition, isSlowUpdate)
@@ -510,6 +512,20 @@ function EnemyManager:drawMvpBar(enemy, x, y)
     love.graphics.rectangle("line", barX, barY, barWidth, barHeight)
 
     love.graphics.setColor(1, 1, 1, 1)
+end
+
+--- Desenha o ID de um inimigo para fins de debug.
+--- Esta função não faz mais a verificação de culling. Ela assume
+--- que a cena que a chama já garantiu que o inimigo está visível.
+---@param enemy BaseEnemy
+function EnemyManager:_drawEnemyId(enemy)
+    if not enemy or not enemy.id then return end
+
+    local screenX, screenY = Camera:worldToScreen(enemy.position.x, enemy.position.y)
+
+    love.graphics.setColor(Colors.white)
+    love.graphics.setFont(Fonts.main) -- Usar uma fonte de debug se disponível
+    love.graphics.print(tostring(enemy.id), enemy.position.x, enemy.position.y - 50)
 end
 
 function EnemyManager:destroy()
