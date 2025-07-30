@@ -3,6 +3,7 @@ local AttackAnimationSystem = require("src.utils.attack_animation_system")
 local CombatGeometry = require("src.utils.combat_geometry")
 local Constants = require("src.config.constants")
 local TablePool = require("src.utils.table_pool")
+local RenderPipeline = require("src.core.render_pipeline")
 
 ---@class ConeSlashController : BaseAttackController
 ---@description Controller para a habilidade de ataque Cone Slash.
@@ -29,7 +30,7 @@ ConeSlashController.CONFIG = {
 -- Configurações visuais, separadas para clareza
 ConeSlashController.VISUAL_CONFIG = {
     preview = {
-        active = true,
+        active = false,
         lineLength = 50,
         color = { 1, 1, 1, 0.2 }
     },
@@ -168,7 +169,18 @@ function ConeSlashController:collectRenderables(renderPipeline, context)
 
     for _, animation in ipairs(self.activeAnimations) do
         if animation.delay <= 0 then
-            self:drawTexturedCone(animation)
+            -- auto-captura da animação para a closure
+            local capturedAnimation = animation
+
+            local renderable = TablePool.getArray()
+            renderable.type = "drawFunction"
+            renderable.depth = RenderPipeline.DEPTH_EFFECTS_WORLD_UI
+            -- Usamos a posição do jogador para o sort, garantindo que o efeito seja desenhado perto dele
+            renderable.sortY = context.playerPosition.y
+            renderable.drawFunction = function()
+                self:drawTexturedCone(capturedAnimation)
+            end
+            renderPipeline:add(renderable)
         end
     end
 end

@@ -216,14 +216,11 @@ function PlayerManager:collectRenderables(renderPipeline)
         local worldPosition = self.movementController:getPosition()
         self.playerSpriteController:collectRenderables(
             renderPipeline,
-            worldPosition,
-            function()
-                --- TODO: Implementar futuramente o BatchDraw
-                if self.attackController then
-                    self.attackController:collectRenderables(renderPipeline, self.attackContext)
-                end
-            end
+            worldPosition
         )
+    end
+    if self.attackController then
+        self.attackController:collectRenderables(renderPipeline, self.attackContext)
     end
 end
 

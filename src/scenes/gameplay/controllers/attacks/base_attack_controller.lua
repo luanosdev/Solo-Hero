@@ -136,7 +136,7 @@ function BaseAttackController:castSpecific(context)
     return {}
 end
 
----@protected Hook para coletar renderizáveis (previsões de ataque, etc.).
+---@public Hook para coletar renderizáveis (previsões de ataque, etc.).
 ---@param renderPipeline RenderPipeline
 ---@param context AttackContext
 function BaseAttackController:collectRenderables(renderPipeline, context)

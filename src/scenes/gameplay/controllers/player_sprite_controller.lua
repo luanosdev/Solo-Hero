@@ -62,8 +62,7 @@ end
 --- seguindo o padrão da arquitetura antiga para desacoplar o sprite do pipeline.
 ---@param renderPipeline RenderPipeline
 ---@param worldPosition Vector2D A posição atual do jogador no mundo para o cálculo do sortY.
----@param drawAttackFunction function | nil Função de desenho do ataque, se houver.
-function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition, drawAttackFunction)
+function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition)
     if not self.playerSprite then
         Logger.warn("player_sprite_controller.collect",
             "[PlayerSpriteController] Tentou coletar, mas self.playerSprite é nil.")
@@ -90,10 +89,6 @@ function PlayerSpriteController:collectRenderables(renderPipeline, worldPosition
         love.graphics.translate(worldPosition.x, worldPosition.y)
         SpritePlayer.draw(self.playerSprite)
         love.graphics.pop()
-
-        if drawAttackFunction then
-            drawAttackFunction()
-        end
     end
 
     renderPipeline:add(renderableItem)
