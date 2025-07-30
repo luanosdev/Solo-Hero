@@ -41,14 +41,18 @@ local MathUtils = require("src.utils.math_utils")
 ---@field repositionController MVPRepositionController
 ---@field periodicTasks table<number, TimerTaskRunner|FrameTaskRunner>
 ---@field spatialGrid SpatialGridIncremental
+---@field logicAccumulator number Acumulador para o timestep fixo.
 local EnemyManager = {}
 EnemyManager.__index = EnemyManager
 
 ---@class EnemyManagerConstants
 local CONST = {
     LOGIC_CULLING_MARGIN = 100, -- Margem em pixels para culling de lógica
-    DRAW_CULLING_MARGIN = 50    -- Margem para culling de desenho
+    DRAW_CULLING_MARGIN = 50,   -- Margem para culling de desenho
+    LOGIC_HZ = 30,              -- Frequência da atualização da lógica em Hertz
 }
+
+CONST.FIXED_TIMESTEP = 1 / CONST.LOGIC_HZ
 
 ---@param context GameplaySceneContext
 ---@return EnemyManager
@@ -58,6 +62,7 @@ function EnemyManager:new(context)
     local instance = setmetatable({}, EnemyManager)
     instance.context = context
     instance.enemies = {}
+    instance.logicAccumulator = 0
 
     return instance
 end
@@ -117,15 +122,36 @@ function EnemyManager:init()
     Logger.info("enemy_manager.init.success", "[EnemyManager:init] initialized successfully.")
 end
 
----@param dt number
+--- Atualiza a lógica do gerenciador. Usa um acumulador para rodar a simulação
+--- em um passo de tempo fixo (Fixed Timestep), dessincronizando a lógica da renderização.
+---@param dt number O delta time do frame (variável).
 function EnemyManager:update(dt)
+    -- Acumula o tempo do frame
+    self.logicAccumulator = self.logicAccumulator + dt
+
+    -- Executa a lógica de passo fixo quantas vezes forem necessárias
+    -- para "alcançar" o tempo real.
+    while self.logicAccumulator >= CONST.FIXED_TIMESTEP do
+        self:_fixedUpdate(CONST.FIXED_TIMESTEP)
+        self.logicAccumulator = self.logicAccumulator - CONST.FIXED_TIMESTEP
+    end
+
+    -- (Opcional) Lógica que precisa rodar a cada frame de renderização (variável)
+    -- Por exemplo, interpolação de sprites para suavizar o movimento.
+    -- Por enquanto, não temos nenhuma.
+end
+
+--- Executa a lógica de simulação do jogo em um passo de tempo fixo.
+--- Este método contém toda a lógica que antes estava no :update().
+---@param fixedDt number O delta time fixo (ex: 1/20s).
+function EnemyManager:_fixedUpdate(fixedDt)
     -- Atualizações Globais (não dependem de inimigos individuais)
     for _, task in ipairs(self.periodicTasks) do
-        task:update(dt)
+        task:update(fixedDt) -- Estes timers precisam usar o dt que avança o tempo do jogo
     end
 
     local gameTimerService = ServiceLocator.getGameTimerService()
-    self.spawnController:update(dt, gameTimerService:getTime())
+    self.spawnController:update(fixedDt, gameTimerService:getTime())
 
     -- Preparar dados para o Frame
     local playerPosition = self.playerManager:getPosition()
@@ -175,10 +201,10 @@ function EnemyManager:update(dt)
             self.spatialGrid:updateEntityInGrid(enemy)
         end
 
-        self.separationController:update(dt, activeEnemies, mapInfo)
+        self.separationController:update(fixedDt, activeEnemies, mapInfo)
 
         local playerData = { position = playerPosition, radius = Constants.PLAYER_RADIUS_COLLISION, isAlive = true }
-        local collidedEnemies = self.collisionController:update(dt, activeEnemies, playerData)
+        local collidedEnemies = self.collisionController:update(fixedDt, activeEnemies, playerData)
         for _, enemy in ipairs(collidedEnemies) do
             local damageSource = TablePool.getDamageSource()
             damageSource.name = enemy.name
@@ -189,7 +215,7 @@ function EnemyManager:update(dt)
             TablePool.releaseDamageSource(damageSource)
         end
 
-        self.movementController:update(dt, activeEnemies, playerPosition, mapInfo)
+        self.movementController:update(fixedDt, activeEnemies, playerPosition, mapInfo)
     end
 
     -- Loop de Atualização Base e Morte (para TODOS os inimigos)
@@ -197,7 +223,7 @@ function EnemyManager:update(dt)
         local enemy = self.enemies[i]
         local isSlowUpdate = isEnemySlowLookup[enemy.id] or false
 
-        enemy:update(dt, playerPosition, isSlowUpdate)
+        enemy:update(fixedDt, playerPosition, isSlowUpdate)
 
         if not enemy.isAlive then
             if not enemy.isDying then
@@ -573,6 +599,7 @@ function EnemyManager:getDebugInfo()
         total = totalCount,
         active = activeCount,
         slow = slowCount,
+        logicHz = CONST.LOGIC_HZ,
     }
 end
 
