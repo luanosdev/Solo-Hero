@@ -202,7 +202,7 @@ function love.draw()
     if DEV then
         love.graphics.setFont(fonts.main_small)
         love.graphics.setColor(1, 1, 1, 0.8)
-        love.graphics.print(string.format("FPS: %d", love.timer.getFPS()), 10, 70)
+        love.graphics.print(string.format("FPS: %d", love.timer.getFPS()), 10, ResolutionUtils.getGameHeight() - 20)
     end
 
     Logger.draw()

@@ -125,6 +125,8 @@ function GameplayScene:draw()
     self.renderPipeline:draw()
 
     Camera:detach()
+
+    self.registry:get("hudGameplayManager"):draw()
 end
 
 function GameplayScene:keypressed(key, scancode, isrepeat)

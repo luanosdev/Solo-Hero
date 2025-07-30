@@ -11,7 +11,7 @@ local DashCooldownIndicator = require("src.ui.components.dash_cooldown_indicator
 local PotionFlasksDisplay = require("src.ui.components.potion_flasks_display")
 local Colors = require("src.ui.colors")
 
----@class HUDGameplayManager
+---@class HUDGameplayManager2
 ---@field progressLevelBar ProgressLevelBar|nil Instância da barra de progresso de nível.
 ---@field playerHPBar PlayerHPBar|nil Instância da barra de HP do jogador.
 ---@field skillsDisplay ActiveSkillsDisplay|nil Instância do display de cooldowns.
@@ -401,6 +401,31 @@ function HUDGameplayManager:update(dt)
     end
 end
 
+--- Desenha o painel de debug com informações dos inimigos.
+function HUDGameplayManager:_drawEnemyDebugInfo()
+    ---@type EnemyManager
+    local enemyManager = ManagerRegistry:tryGet("enemyManager")
+    if not enemyManager then return end
+
+    local info = enemyManager:getDebugInfo()
+    if not info then return end
+
+    love.graphics.setFont(fonts.main)
+    love.graphics.setColor(1, 1, 1)
+
+    local x = 10
+    local y = 10
+    local lineHeight = fonts.main:getHeight()
+
+    love.graphics.print("--- Enemy Culling Debug ---", x, y)
+    y = y + lineHeight
+    love.graphics.print(string.format("Total: %d", info.total), x, y)
+    y = y + lineHeight
+    love.graphics.print(string.format("Active (Full Logic): %d", info.active), x, y)
+    y = y + lineHeight
+    love.graphics.print(string.format("Slow (Anim Only): %d", info.slow), x, y)
+end
+
 --- Desenha todos os elementos da UI gerenciados.
 ---@param isPaused boolean Se o jogo está pausado.
 function HUDGameplayManager:draw(isPaused)
@@ -438,6 +463,9 @@ function HUDGameplayManager:draw(isPaused)
             indicator:draw()
         end
     end
+
+    -- Desenha as informações de debug
+    self:_drawEnemyDebugInfo()
 end
 
 --- Reseta o estado do manager (se necessário).

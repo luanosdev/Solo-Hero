@@ -9,10 +9,9 @@
 -- Managers que seguem a NOVA arquitetura (baseados em classe/instância)
 local EnemyManager = require("src.scenes.gameplay.managers.enemy_manager")
 local PlayerManager = require("src.scenes.gameplay.managers.player_manager")
--- local InfinityWrapMapManager = require("src.scenes.gameplay.managers.infinity_wrap_map_manager") -- Desativado por enquanto
 local InfinityWrapMapManager = require("src.scenes.gameplay.managers.infinity_wrap_map_manager")
-local CullingManager = require("src.managers.culling_manager")
 local SceneManagerRegistry = require("src.core.scene_manager_registry")
+local HUDGameplayManager = require("src.scenes.gameplay.managers.hud_gameplay_manager")
 
 ---@class GameplayBootstrap
 local GameplayBootstrap = {}
@@ -45,10 +44,10 @@ function GameplayBootstrap.initialize(context)
     -- Definição dos managers a serem carregados em ordem explícita de inicialização.
     -- O mapa DEVE ser inicializado antes do jogador e dos inimigos.
     local managersToLoad = {
-        { key = "playerManager",  class = PlayerManager },
-        { key = "mapManager",     class = InfinityWrapMapManager },
-        { key = "cullingManager", class = CullingManager },
-        { key = "enemyManager",   class = EnemyManager },
+        { key = "playerManager",      class = PlayerManager },
+        { key = "mapManager",         class = InfinityWrapMapManager },
+        { key = "enemyManager",       class = EnemyManager },
+        { key = "hudGameplayManager", class = HUDGameplayManager },
     }
 
     ---@type table<string, any>
