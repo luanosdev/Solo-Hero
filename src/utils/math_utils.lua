@@ -59,4 +59,60 @@ function MathUtils.calculateShortestTorusVector(fromX, fromY, toX, toY, worldWid
     return dx_wrapped, dy_wrapped
 end
 
+--- Verifica se dois retângulos (AABB - Axis-Aligned Bounding Box) se intersectam.
+--- Essa função é mais precisa que o culling por raio para objetos retangulares.
+---@param rect1 {x: number, y: number, w: number, h: number} Primeiro retângulo (posição do centro + dimensões).
+---@param rect2 {x: number, y: number, w: number, h: number} Segundo retângulo (posição do centro + dimensões).
+---@return boolean true se os retângulos se intersectam, false caso contrário.
+function MathUtils.rectangleIntersection(rect1, rect2)
+    -- Converte posições do centro para cantos superiores esquerdos
+    local r1x1 = rect1.x - rect1.w / 2
+    local r1y1 = rect1.y - rect1.h / 2
+    local r1x2 = rect1.x + rect1.w / 2
+    local r1y2 = rect1.y + rect1.h / 2
+
+    local r2x1 = rect2.x - rect2.w / 2
+    local r2y1 = rect2.y - rect2.h / 2
+    local r2x2 = rect2.x + rect2.w / 2
+    local r2y2 = rect2.y + rect2.h / 2
+
+    -- Verifica se há interseção
+    return not (r1x2 < r2x1 or r2x2 < r1x1 or r1y2 < r2y1 or r2y2 < r1y1)
+end
+
+--- Verifica se dois retângulos (AABB) se intersectam em um mundo toroidal (infinito).
+--- Esta versão é altamente otimizada: ela normaliza a posição do primeiro retângulo
+--- para o "clone" mais próximo do segundo retângulo e então realiza um único teste de interseção.
+---@param rect1 {x: number, y: number, w: number, h: number} O primeiro retângulo (entidade).
+---@param rect2 {x: number, y: number, w: number, h: number} O segundo retângulo (câmera).
+---@param worldW number A largura do mundo para o wrap-around.
+---@param worldH number A altura do mundo para o wrap-around.
+---@return boolean true se os retângulos se intersectam, false caso contrário.
+function MathUtils.rectangleIntersectionToroidal(rect1, rect2, worldW, worldH)
+    -- Calcula os limites da câmera (rect2) uma única vez
+    local camLeft = rect2.x - rect2.w / 2
+    local camRight = rect2.x + rect2.w / 2
+    local camTop = rect2.y - rect2.h / 2
+    local camBottom = rect2.y + rect2.h / 2
+
+    -- Normaliza a posição central da entidade (rect1) para o clone mais próximo da câmera
+    local entX = rect1.x
+    while entX < camLeft - worldW / 2 do entX = entX + worldW end
+    while entX > camRight + worldW / 2 do entX = entX - worldW end
+
+    local entY = rect1.y
+    while entY < camTop - worldH / 2 do entY = entY + worldH end
+    while entY > camBottom + worldH / 2 do entY = entY - worldH end
+
+    -- Calcula os limites da entidade com a posição normalizada
+    local entLeft = entX - rect1.w / 2
+    local entRight = entX + rect1.w / 2
+    local entTop = entY - rect1.h / 2
+    local entBottom = entY + rect1.h / 2
+
+    -- Realiza um único teste AABB com as coordenadas normalizadas
+    -- Retorna true se houver interseção, e false caso contrário.
+    return not (entRight < camLeft or entLeft > camRight or entBottom < camTop or entTop > camBottom)
+end
+
 return MathUtils

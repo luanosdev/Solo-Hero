@@ -20,7 +20,6 @@ local Constants = require("src.config.constants")
 local ServiceLocator = require("src.core.service_locator")
 local ResolutionUtils = require("src.utils.resolution_utils")
 local MathUtils = require("src.utils.math_utils")
-local Camera = require("src.config.camera")
 
 --- TODO: Remover o v2 quando o v1 for removido
 ---@class EnemyManager
@@ -197,14 +196,6 @@ function EnemyManager:update(dt)
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
         local isSlowUpdate = isEnemySlowLookup[enemy.id] or false
-
-        if enemy.id == 1 then
-            local isInView = self.cullingController:isInView(enemy, cameraData, worldDimensions,
-                CONST.LOGIC_CULLING_MARGIN)
-            Logger.debug("enemy_manager.update",
-                string.format("[EnemyManager:update] Enemy ID 1: isInView = %s, isSlowUpdate = %s",
-                    tostring(isInView), tostring(isSlowUpdate)))
-        end
 
         enemy:update(dt, playerPosition, isSlowUpdate)
 
@@ -521,11 +512,10 @@ end
 function EnemyManager:_drawEnemyId(enemy)
     if not enemy or not enemy.id then return end
 
-    local screenX, screenY = Camera:worldToScreen(enemy.position.x, enemy.position.y)
-
     love.graphics.setColor(Colors.white)
     love.graphics.setFont(Fonts.main) -- Usar uma fonte de debug se disponível
-    love.graphics.print(tostring(enemy.id), enemy.position.x, enemy.position.y - 50)
+    love.graphics.print(tostring(enemy.id) .. " " .. tostring(enemy.isSlowUpdate), enemy.position.x,
+        enemy.position.y - 50)
 end
 
 function EnemyManager:destroy()

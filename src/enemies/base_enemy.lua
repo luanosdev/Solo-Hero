@@ -82,6 +82,7 @@ function BaseEnemy:new(position, id)
     local enemy = {}
     setmetatable(enemy, { __index = self })
 
+    enemy.isSlowUpdate = false
     -- Aloca recursos do pool usando TablePool
     enemy.position = TablePool.getVector2D(position.x or 0, position.y or 0)
     enemy.cachedDirection = TablePool.getVector2D(0, 0)
@@ -197,6 +198,7 @@ end
 --- @param playerPosition Vector2D A posição atual do jogador.
 --- @param isSlowUpdate boolean Se a atualização do inimigo deve ser lenta.
 function BaseEnemy:update(dt, playerPosition, isSlowUpdate)
+    self.isSlowUpdate = isSlowUpdate
     if self.isDying then
         local finished = AnimatedSpritesheet.update(self.unitType, self.sprite, dt, self.sprite.position)
         if finished then

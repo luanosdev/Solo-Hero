@@ -1,18 +1,28 @@
 local MathUtils = require("src.utils.math_utils")
 
+---@class BaseEntityForCulling
+---@description Interface esperada pelas entidades para o sistema de culling.
+---@field position {x: number, y: number} Posição da entidade no mundo.
+---@field size number|nil Tamanho da entidade (usado como largura e altura se presente).
+---@field radius number|nil Raio da entidade (convertido para dimensões quadradas se presente).
+---@field id number|nil ID da entidade (usado para debug).
+
 ---@class CullingController
----@description Realiza a lógica de culling (seleção de objetos visíveis) de forma stateless.
+---@description Realiza a lógica de culling (seleção de objetos visíveis) usando AABB de forma stateless.
 local CullingController = {}
 CullingController.__index = CullingController
 
+--- Cria uma nova instância do CullingController.
+---@return CullingController
 function CullingController:new()
     local instance = setmetatable({}, CullingController)
     return instance
 end
 
---- Verifica se uma entidade está dentro de um raio de culling ao redor do jogador, com suporte a mapas toroidais.
---- Esta lógica é baseada na sugestão do usuário de simplificar o culling para um raio, similar ao spawn.
----@param entity BaseEntity A entidade a ser verificada.
+--- Verifica se uma entidade está dentro da área visível usando Culling por Interseção de Bounding Box (AABB).
+--- Este método é mais preciso que o culling por raio, especialmente para objetos retangulares.
+--- Mantém suporte completo para mapas toroidais (infinitos).
+---@param entity BaseEnemy|BaseEntityForCulling A entidade a ser verificada.
 ---@param cameraData {x: number, y: number, w: number, h: number} Dados da câmera (posição e dimensões).
 ---@param worldDimensions {w: number, h: number} Dimensões do mundo em pixels.
 ---@param margin? number Uma margem extra (em pixels) para adicionar à área de visão.
@@ -21,29 +31,47 @@ function CullingController:isInView(entity, cameraData, worldDimensions, margin)
     margin = margin or 0
 
     local worldW, worldH = worldDimensions.w, worldDimensions.h
-    if not worldW or worldW <= 0 then return true end
+    if not worldW or worldH <= 0 then
+        return true
+    end
 
-    -- O jogador está sempre no centro da câmera.
-    local playerX = cameraData.x + cameraData.w / 2
-    local playerY = cameraData.y + cameraData.h / 2
+    -- Determina as dimensões da entidade
+    local entityWidth, entityHeight
+    if entity.size then
+        entityWidth = entity.size
+        entityHeight = entity.size
+    elseif entity.radius then
+        entityWidth = entity.radius * 2
+        entityHeight = entity.radius * 2
+    else
+        entityWidth = 32
+        entityHeight = 32
+    end
 
-    local entityX, entityY = entity.position.x, entity.position.y
+    -- Define o retângulo da entidade
+    local entityRect = {
+        x = entity.position.x,
+        y = entity.position.y,
+        w = entityWidth,
+        h = entityHeight,
+    }
 
-    -- Calcula a menor distância vetorial entre o jogador e a entidade no mundo toroidal.
-    local dx = math.abs(entityX - playerX)
-    local dy = math.abs(entityY - playerY)
-    local shortestDistX = math.min(dx, worldW - dx)
-    local shortestDistY = math.min(dy, worldH - dy)
+    -- Define o retângulo da área visível (câmera + margem)
+    -- Usa uma margem extra baseada no tamanho da entidade para compensar a precisão do AABB
+    local extraMargin = entityWidth * 0.5
+    local totalMargin = margin + extraMargin
 
-    -- Calcula a distância real (ao quadrado para performance) a partir do vetor de menor distância.
-    local distanceSq = shortestDistX * shortestDistX + shortestDistY * shortestDistY
+    local viewRect = {
+        x = cameraData.x + cameraData.w / 2,
+        y = cameraData.y + cameraData.h / 2,
+        w = cameraData.w + (totalMargin * 2),
+        h = cameraData.h + (totalMargin * 2),
+    }
 
-    -- O raio de culling é a distância do centro da tela até um dos cantos, mais a margem.
-    -- Isso garante que tudo na tela seja incluído.
-    local cullRadius = MathUtils.vectorLength(cameraData.w / 2, cameraData.h / 2) + margin
-    local cullRadiusSq = cullRadius * cullRadius
+    -- Usa interseção AABB toroidal para verificar se a entidade está visível
+    local result = MathUtils.rectangleIntersectionToroidal(entityRect, viewRect, worldW, worldH)
 
-    return distanceSq <= cullRadiusSq
+    return result
 end
 
 function CullingController:destroy()
