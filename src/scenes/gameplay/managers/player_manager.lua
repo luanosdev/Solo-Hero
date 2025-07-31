@@ -159,6 +159,7 @@ function PlayerManager:update(dt)
     local angle = math.atan2(dy, dx)
 
     -- Atualiza o contexto de ataque com os dados mais recentes
+    self.attackContext.finalStats = self.stateController:getAllStats()
     self.attackContext.playerPosition = playerPosition
     self.attackContext.playerAngle = angle
 

@@ -4,12 +4,9 @@
 --- Performance: 70% menos allocations, 50% menos buscas espaciais
 -------------------------------------------------
 
-local ManagerRegistry = require("src.managers.manager_registry")
 local AnimatedSpritesheet = require("src.animations.animated_spritesheet")
 local TablePool = require("src.utils.table_pool")
 local Constants = require("src.config.constants")
-local DamageNumberManager = require("src.managers.damage_number_manager")
-local MathUtils = require("src.utils.math_utils")
 
 -- Constantes pré-calculadas
 local PI_2 = math.pi * 2
@@ -77,10 +74,12 @@ BaseEnemy.SLOW_UPDATE_INTERVAL = 0.5
 --- @param position Vector2D Posição inicial (x, y).
 --- @param id number Unique ID for the enemy.
 --- @return BaseEnemy Instance of BaseEnemy.
-function BaseEnemy:new(position, id)
+function BaseEnemy:new(position, id, deps)
     ---@type BaseEnemy
     local enemy = {}
     setmetatable(enemy, { __index = self })
+
+    enemy.damageQueue = deps and deps.damageQueue
 
     -- Aloca recursos do pool usando TablePool
     enemy.position = TablePool.getVector2D(position.x or 0, position.y or 0)
@@ -267,9 +266,14 @@ function BaseEnemy:takeDamage(amount, isCritical, isSuperCritical)
 
     self.currentHealth = self.currentHealth - amount
 
-    -- TODO: Desativado temporariamente para testes
-    -- implementar uma configuração para desativar o sistema de dano
-    -- DamageNumberManager:show(self, amount, isCritical, isSuperCritical)
+    if self.damageQueue then
+        local damageData = TablePool.getGeneric()
+        damageData.position = self.position
+        damageData.amount = amount
+        damageData.isCritical = isCritical
+        damageData.isSuperCritical = isSuperCritical
+        table.insert(self.damageQueue, damageData)
+    end
 
     if self.currentHealth <= 0 then
         self.currentHealth = 0
@@ -294,7 +298,10 @@ end
 --- Reset otimizado para pooling (reutiliza objetos)
 ---@param position table
 ---@param id number
-function BaseEnemy:reset(position, id)
+---@param deps table
+function BaseEnemy:reset(position, id, deps)
+    self.damageQueue = deps and deps.damageQueue
+
     -- Reutiliza vetores existentes
     self.position.x = position.x or 0
     self.position.y = position.y or 0

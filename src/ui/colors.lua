@@ -308,7 +308,14 @@ local colors = {
         positive              = { 0.4, 1.0, 0.4, 1.0 }, -- #00FF00
         negative              = { 1.0, 0.4, 0.4, 1.0 }, -- #FF0000
         neutral               = { 1.0, 1.0, 1.0, 1.0 }, -- #FFFFFF
-    }
+    },
+
+    -- Cores para Números de Dano
+    damage_number = {
+        normal = { 1, 1, 1, 1 },             -- Branco
+        critical = { 1, 0.78, 0, 1 },        -- Laranja/Dourado
+        super_critical = { 1, 0.2, 0.6, 1 }, -- Rosa/Magenta
+    },
 }
 
 -- Cores para Botões (NOVO SISTEMA DE VARIANTES)

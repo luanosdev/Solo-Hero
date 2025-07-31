@@ -3,7 +3,7 @@
 local TablePool = require("src.utils.table_pool")
 local RenderPipeline = require("src.core.render_pipeline")
 
----@class DamageNumberAnimation
+---@class DamageNumberAnimation9
 ---@field target BaseEnemy
 ---@field amount_str string
 ---@field isCritical boolean
@@ -142,7 +142,7 @@ function DamageNumberAnimation:update(dt)
     return self.active
 end
 
----@class DamageNumberManager
+---@class DamageNumberManager1
 ---@field activeAnimations DamageNumberAnimation[]
 ---@field animationPool DamageNumberAnimation[]
 ---@field spriteSheet love.Image | nil

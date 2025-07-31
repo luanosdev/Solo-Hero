@@ -27,6 +27,7 @@ local SpawnUtils = require("src.utils.spawn_utils")
 ---@field context GameplaySceneContext
 ---@field playerManager PlayerManager
 ---@field dropManager DropManager
+---@field damageNumberManager DamageNumberManager
 ---@field cullingController CullingController
 ---@field mapManager InfinityWrapMapManager
 ---@field experienceOrbManager ExperienceOrbManager
@@ -72,6 +73,7 @@ function EnemyManager:init()
     -- Obter dependências do registry
     self.playerManager = self.context.registry:get("playerManager")
     self.mapManager = self.context.registry:get("mapManager")
+    self.damageNumberManager = self.context.registry:get("damageNumberManager")
     --self.experienceOrbManager = self.context.registry:get("experienceOrbManager")
     --self.dropManager = self.context.registry:get("dropManager")
 
@@ -340,11 +342,19 @@ function EnemyManager:spawnEnemy(enemyClass)
     local enemy = self.poolController:get(enemyClass.className)
     if enemy then
         -- Inimigo reciclado do pool
-        enemy:reset(pos, #self.enemies + 1)
+        enemy:reset(
+            pos,
+            #self.enemies + 1,
+            { damageQueue = self.damageNumberManager.damageQueue }
+        )
         Logger.debug("EnemyManager:spawnEnemy", "Reused enemy from pool: " .. enemyClass.className)
     else
         -- Pool estava vazio, cria um novo
-        enemy = enemyClass:new(pos, #self.enemies + 1)
+        enemy = enemyClass:new(
+            pos,
+            #self.enemies + 1,
+            { damageQueue = self.damageNumberManager.damageQueue }
+        )
         Logger.debug("EnemyManager:spawnEnemy", "Created new enemy (pool empty): " .. enemyClass.className)
     end
 

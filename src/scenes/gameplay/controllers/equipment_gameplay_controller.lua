@@ -99,9 +99,21 @@ function EquipmentGameplayController:_dispatchBonusesUpdatedEvent()
     for _, itemInstance in pairs(self.equippedItems) do
         if itemInstance then
             local baseItemData = self.itemDataManager:getBaseItemData(itemInstance.itemBaseId)
-            if baseItemData and baseItemData.modifiers then
-                for _, modifier in ipairs(baseItemData.modifiers) do
-                    table.insert(allModifiers, modifier)
+            if baseItemData then
+                -- Adiciona os modificadores explícitos da lista 'modifiers'
+                if baseItemData.modifiers then
+                    for _, modifier in ipairs(baseItemData.modifiers) do
+                        table.insert(allModifiers, modifier)
+                    end
+                end
+
+                -- Adiciona o dano base da arma como um modificador FLAT
+                if baseItemData.damage then
+                    table.insert(allModifiers, {
+                        stat = "damage",
+                        type = "FLAT",
+                        value = baseItemData.damage
+                    })
                 end
             end
         end

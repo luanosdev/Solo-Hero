@@ -228,14 +228,14 @@ function PlayerStateController:_triggerRecalculation()
     }
 
     -- Em um sistema real, use seu timer aqui
-    -- Timer.after(CONFIG.DEBOUNCE_TIME, function()
-    self.recalculationPending = false
-    self:_performRecalculation()
+    -- Timer.after(CONFIG.DEBOUN-CE_TIME, function()
+    --    self:_performRecalculation()
+    --    self.recalculationPending = false
     -- end)
 
     -- Por enquanto, executa imediatamente
-    self.recalaculationPending = false
     self:_performRecalculation()
+    self.recalculationPending = false
 end
 
 ---@private Executa o recálculo efetivo
