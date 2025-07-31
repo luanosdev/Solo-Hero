@@ -3,6 +3,7 @@ local ResolutionUtils = {}
 
 -- Referência global para o sistema push (será definida no main.lua)
 local push = nil
+local AdaptiveScaleManager = require("src.utils.adaptive_scale_manager")
 
 --- Inicializa o ResolutionUtils com a referência do push
 ---@param pushInstance table O objeto push inicializado
@@ -162,6 +163,87 @@ function ResolutionUtils.getSafeOffScreenDistance(buffer)
     local safeBuffer = buffer or 500 -- Buffer padrão de 500 pixels
 
     return diagonalDistance + safeBuffer
+end
+
+-- ========== FUNÇÕES ADAPTATIVAS ==========
+
+--- Aplica escala adaptativa a um valor baseado na categoria
+---@param value number Valor original
+---@param category string Categoria do elemento (ui, text, gameplay, spacing, icons, hud)
+---@return number scaledValue Valor com escala adaptativa aplicada
+function ResolutionUtils.scaleAdaptive(value, category)
+    return AdaptiveScaleManager.applyScale(value, category)
+end
+
+--- Aplica escala adaptativa para tamanhos de UI
+---@param width number Largura original
+---@param height number Altura original
+---@return number scaledWidth Largura escalada
+---@return number scaledHeight Altura escalada
+function ResolutionUtils.scaleUI(width, height)
+    local scale = AdaptiveScaleManager.getScale("ui")
+    return width * scale, height * scale
+end
+
+--- Aplica escala adaptativa para tamanhos de texto/fontes
+---@param fontSize number Tamanho da fonte original
+---@return number scaledFontSize Tamanho da fonte escalado
+function ResolutionUtils.scaleText(fontSize)
+    return AdaptiveScaleManager.applyScale(fontSize, "text")
+end
+
+--- Aplica escala adaptativa para espaçamentos e padding
+---@param spacing number Espaçamento original
+---@return number scaledSpacing Espaçamento escalado
+function ResolutionUtils.scaleSpacing(spacing)
+    return AdaptiveScaleManager.applyScale(spacing, "spacing")
+end
+
+--- Aplica escala adaptativa para ícones
+---@param iconSize number Tamanho do ícone original
+---@return number scaledIconSize Tamanho do ícone escalado
+function ResolutionUtils.scaleIcon(iconSize)
+    return AdaptiveScaleManager.applyScale(iconSize, "icons")
+end
+
+--- Centraliza um elemento na tela com escala adaptativa aplicada
+---@param elementWidth number Largura do elemento
+---@param elementHeight number Altura do elemento
+---@param category? string Categoria para escala (padrão: "ui")
+---@return number centerX Posição X centralizada
+---@return number centerY Posição Y centralizada
+function ResolutionUtils.centerElementAdaptive(elementWidth, elementHeight, category)
+    category = category or "ui"
+    local scaledWidth = ResolutionUtils.scaleAdaptive(elementWidth, category)
+    local scaledHeight = ResolutionUtils.scaleAdaptive(elementHeight, category)
+    return ResolutionUtils.centerElement(scaledWidth, scaledHeight)
+end
+
+--- Obtém informações completas sobre resolução e escala adaptativa
+---@return table adaptiveInfo Informações completas do sistema
+function ResolutionUtils.getAdaptiveInfo()
+    local baseInfo = ResolutionUtils.getScaleInfo()
+    local adaptiveScaleInfo = AdaptiveScaleManager.getScaleInfo()
+
+    return {
+        -- Informações base do sistema de resolução
+        resolution = baseInfo,
+        -- Informações do sistema adaptativo
+        adaptive = adaptiveScaleInfo,
+        -- Funções de conveniência
+        scaleFunctions = {
+            ui = function(value) return ResolutionUtils.scaleAdaptive(value, "ui") end,
+            text = function(value) return ResolutionUtils.scaleAdaptive(value, "text") end,
+            spacing = function(value) return ResolutionUtils.scaleAdaptive(value, "spacing") end,
+            icons = function(value) return ResolutionUtils.scaleAdaptive(value, "icons") end
+        }
+    }
+end
+
+--- Verifica se o dispositivo atual necessita de escala adaptativa
+---@return boolean needsAdaptiveScale
+function ResolutionUtils.needsAdaptiveScale()
+    return AdaptiveScaleManager.needsAdaptiveScale()
 end
 
 return ResolutionUtils

@@ -4,6 +4,8 @@
 -- [[ Variáveis Globais Essenciais ]] --
 local SceneManager = require("src.core.scene_manager")
 local ServiceLocator = require("src.core.service_locator")
+local AdaptiveScaleManager = require("src.utils.adaptive_scale_manager")
+local AdaptiveConfig = require("src.config.adaptive_config")
 
 local ManagerRegistry = require("src.managers.manager_registry")
 local ItemDataManager = require("src.managers.item_data_manager")
@@ -102,6 +104,7 @@ function love.load()
     _G.ResolutionUtils = ResolutionUtils
 
 
+    AdaptiveScaleManager.initialize(AdaptiveConfig.getActiveConfig())
 
     SceneManager.switchScene("bootloader_scene")
 

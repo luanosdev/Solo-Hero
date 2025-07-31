@@ -63,7 +63,9 @@ local translations = {
 
     -- === CAÇADOR ===
     hunter = {
-        unknown = "Caçador Desconhecido"
+        unknown = "Caçador Desconhecido",
+        rank = "ranking {rank}",
+        full_name_and_rank = "{name}, {t_rank}",
     },
 
     -- === ITEM ===
@@ -571,7 +573,6 @@ local translations = {
             use_details = "Detalhes de uso",
             value = "Valor: R$ {value}"
         },
-
         -- === GAME LOADING ===
         game_loading = {
             title = "Entrando no Portal",
@@ -658,9 +659,8 @@ local translations = {
             loading_progress = "{progress}% COMPLETO",
         },
 
-
         -- === GAMEPLAY ===
-        rank = "Ranking",
+        rank = "Rank {rank}",
         health = "Vida",
         mana = "Mana",
         experience = "Experiência",

@@ -154,7 +154,10 @@ function PlayerHPBar:_updateLayout()
 
     currentDrawingY = currentDrawingY + layout.hunterNameHeight + nameRankSpacing
     love.graphics.setFont(self.fontRank)
-    layout.hunterRankText = "Caçador Ranking " .. self.hunterRank
+    layout.hunterRankText = _P(
+        "hunter.full_name_and_rank",
+        { name = self.hunterName, t_rank = _P("hunter.rank", { rank = self.hu4nterRank }) }
+    )
     layout.hunterRankWidth = self.fontRank:getWidth(layout.hunterRankText)
     layout.hunterRankHeight = self.fontRank:getHeight()
     layout.hunterRankX = contentX
@@ -225,6 +228,39 @@ function PlayerHPBar:updateBaseInfo(hunterName, hunterRank, newMaxHP)
             self.hpBarAnimationDownTimer = 0
         end
     end
+    self:_updateLayout()
+end
+
+---@private Atualiza a barra com o novo valor de HP.
+---@param newMaxHP number Novo valor de HP.
+function PlayerHPBar:_updateHPBar(newMaxHP)
+    local oldMaxHP = self.maxHP
+
+    if newMaxHP ~= nil and newMaxHP ~= oldMaxHP then
+        self.maxHP = newMaxHP > 0 and newMaxHP or 1
+
+        -- Cap HP atual e visual ao novo MaxHP se MaxHP diminuiu
+        self.currentHP = math.min(self.currentHP, self.maxHP)
+        self.visualHP = math.min(self.visualHP, self.maxHP)
+
+        if self.visualHP > self.currentHP then
+            -- Isso pode acontecer se maxHP diminuiu e cortou currentHP mais do que visualHP,
+            -- ou se currentHP já era baixo e visualHP foi apenas limitado pelo novo maxHP.
+            self.isHPBarAnimatingDown = true
+            self.hpBarAnimationDownTimer = 0
+        elseif newMaxHP > oldMaxHP then
+            -- Se MaxHP aumentou, e currentHP (que será setado por setCurrentHP em breve) aumentar,
+            -- o visualHP deve acompanhar. Por enquanto, se não há rastro, alinha visual com current.
+            -- Isso evita que visualHP fique para trás momentaneamente.
+            self.visualHP = math.max(self.visualHP, self.currentHP) -- Garante que visual não fique para trás do real.
+            self.isHPBarAnimatingDown = false
+            self.hpBarAnimationDownTimer = 0
+        else
+            self.isHPBarAnimatingDown = false
+            self.hpBarAnimationDownTimer = 0
+        end
+    end
+
     self:_updateLayout()
 end
 
@@ -354,32 +390,18 @@ end
 function PlayerHPBar:draw()
     local layout = self.internalLayout
     local originalFont = love.graphics.getFont()
-    local r, g, b, a
 
     love.graphics.setFont(self.fontName)
-    r, g, b, a = unpack(self.colors.name)
-    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+    love.graphics.setColor(self.colors.name)
     love.graphics.print(layout.hunterNameText, layout.hunterNameX, layout.hunterNameY)
 
     love.graphics.setFont(self.fontRank)
-    r, g, b, a = unpack(self.colors.rank)
-    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
-    love.graphics.print(layout.hunterRankText, layout.hunterRankX, layout.hunterRankY)
+    love.graphics.setColor(self.colors.rank)
+    love.graphics.print(_P("ui.rank", { rank = self.hunterRank }), layout.hunterRankX, layout.hunterRankY)
 
     love.graphics.setFont(self.fontHPValues)
-    r, g, b, a = unpack(self.colors.hpValues)
-    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+    love.graphics.setColor(self.colors.hpValues)
     love.graphics.print(layout.hpInfoText, layout.hpInfoX, layout.hpInfoY)
-
-    local DamageNumberManager = require("src.managers.damage_number_manager")
-    for i, anim in ipairs(self.activeTextAnimations) do
-        if anim.alpha > 0 then -- Desenha apenas se estiver visível
-            local r, g, b = unpack(anim.color);
-            local textX = self.x + self.padding.left + (self.internalLayout.hpBarW / 2)
-            local textY = self.hpChangeAnimationInitialY + anim.offsetY
-            DamageNumberManager:drawText(anim.text, textX, textY, 0.6, { r, g, b }, anim.alpha)
-        end
-    end
 
     local currentHPPercentage = 0
     if self.maxHP > 0 then currentHPPercentage = math.max(0, math.min(1, self.currentHP / self.maxHP)) end
@@ -389,28 +411,41 @@ function PlayerHPBar:draw()
     if self.maxHP > 0 then visualHPPercentage = math.max(0, math.min(1, self.visualHP / self.maxHP)) end
     local visualHPFillWidth = layout.hpBarW * visualHPPercentage
 
-    r, g, b, a = unpack(self.colors.hpBarBase);
-    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+    love.graphics.setColor(self.colors.hpBarBase)
     local emptyBarY = layout.hpBarY + (layout.hpBarActualFillHeight - layout.hpBarEmptyVisualHeight)
-    love.graphics.rectangle("fill", layout.hpBarX, emptyBarY, layout.hpBarW, layout.hpBarEmptyVisualHeight)
+    love.graphics.rectangle(
+        "fill",
+        layout.hpBarX,
+        emptyBarY,
+        layout.hpBarW,
+        layout.hpBarEmptyVisualHeight
+    )
 
     if self.visualHP > self.currentHP and visualHPFillWidth > currentHPFillWidth then
         local trailWidth = visualHPFillWidth - currentHPFillWidth
-        r, g, b, a = unpack(self.colors.hpBarDamageTrail);
-        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
-        love.graphics.rectangle("fill", layout.hpBarX + currentHPFillWidth, layout.hpBarY, trailWidth,
-            layout.hpBarActualFillHeight)
+        love.graphics.setColor(self.colors.hpBarDamageTrail)
+        love.graphics.rectangle(
+            "fill",
+            layout.hpBarX + currentHPFillWidth,
+            layout.hpBarY,
+            trailWidth,
+            layout.hpBarActualFillHeight
+        )
     end
 
     if currentHPFillWidth > 0 then
-        r, g, b, a = unpack(self.colors.hpBarFill);
-        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
-        love.graphics.rectangle("fill", layout.hpBarX, layout.hpBarY, currentHPFillWidth, layout.hpBarActualFillHeight)
+        love.graphics.setColor(self.colors.hpBarFill)
+        love.graphics.rectangle(
+            "fill",
+            layout.hpBarX,
+            layout.hpBarY,
+            currentHPFillWidth,
+            layout.hpBarActualFillHeight
+        )
     end
 
     if self.segmentHPInterval and self.segmentHPInterval > 0 and self.maxHP > 0 then
-        r, g, b, a = unpack(self.colors.segmentLine)
-        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        love.graphics.setColor(self.colors.segmentLine)
         local numSegments = math.floor(self.maxHP / self.segmentHPInterval)
         for i = 1, numSegments do
             local hpVal = i * self.segmentHPInterval
