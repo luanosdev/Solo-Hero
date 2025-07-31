@@ -1,4 +1,4 @@
---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
 --- @author ReyalS
 --- @release 1.0
 --- @license MIT
@@ -661,10 +661,12 @@ local translations = {
 
         -- === GAMEPLAY ===
         rank = "Rank {rank}",
+        level = "Nível",
+
+
         health = "Vida",
         mana = "Mana",
         experience = "Experiência",
-        level = "Nível",
         inventory = "Inventário",
         equipment = "Equipamento",
         skills = "Habilidades",

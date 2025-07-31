@@ -95,6 +95,7 @@ end
 -- Cores básicas
 colors.white = colors.hex("#FFFFFF")
 colors.black = colors.hex("#000000")
+colors.gray = colors.hex("#808080")
 colors.red = colors.hex("#FF0000")
 
 -- Interface base (Solo Leveling theme)
@@ -184,6 +185,22 @@ colors.map_tint = colors.hex("#4D6699") -- Tom do mapa
 
 -- Utilidades
 colors.black_transparent_more = colors.hex("#000000", 0.7) -- Sombra de texto
+
+--- Cores das barras
+--- Vida
+local hpBarBaseColor = colors.hex("#CC4D4D", 0.95)
+colors.hpBarBase = hpBarBaseColor
+colors.hpBarFill = hpBarBaseColor
+colors.hpBarTrail = colors.hex("#CC4D4D", 0.5)
+
+--- Experiência
+local xpBarBaseColor = colors.hex("#1A334D", 0.95)
+colors.xplevelNumber = xpBarBaseColor
+colors.xpText = colors.white
+colors.xpGainText = xpBarBaseColor
+colors.xpBarBase = xpBarBaseColor
+colors.xpBarFill = xpBarBaseColor
+colors.xpBarTrail = colors.hex("#1A334D", 0.5)
 
 -- ========== SISTEMA DE RARIDADE ==========
 

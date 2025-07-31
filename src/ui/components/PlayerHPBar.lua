@@ -1,6 +1,7 @@
 local DamageNumberManager = require("src.managers.damage_number_manager")
 
 ---@class PlayerHPBar
+--- TODO: Atualizar aqui com as escalas de texto e UI
 ---@field x number Posição X do canto superior esquerdo.
 ---@field y number Posição Y do canto superior esquerdo.
 ---@field width number Largura total do componente.

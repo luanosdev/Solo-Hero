@@ -6,15 +6,15 @@
 local TablePool = require("src.utils.table_pool")
 local LevelUpModal = require("src.ui.level_up_modal")
 
----@class ExperienceController
----@field playerManager PlayerManager Referência ao PlayerManager
+---@class ExperienceController1
+---@field playerManager PlayerManager_ Referência ao PlayerManager
 ---@field pendingLevelUps number Contador para level ups pendentes
 local ExperienceController = {}
 ExperienceController.__index = ExperienceController
 
---- Cria uma nova instância do ExperienceController.
+--- Cria uma nova instância do ExperienceController. 
 ---@param playerManager PlayerManager A instância do PlayerManager
----@return ExperienceController
+---@return ExperienceController1
 function ExperienceController:new(playerManager)
     Logger.debug(
         "experience_controller.new",

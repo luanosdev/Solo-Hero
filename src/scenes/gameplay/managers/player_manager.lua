@@ -11,6 +11,8 @@ local PlayerSpriteController = require("src.scenes.gameplay.controllers.player_s
 local TargetingController = require("src.scenes.gameplay.controllers.targeting_controller")
 local AutoAttackController = require("src.scenes.gameplay.controllers.auto_attack_controller")
 local AreaOfEffectController = require("src.scenes.gameplay.controllers.area_of_effect_controller")
+local ExperienceController = require("src.scenes.gameplay.controllers.experience_controller")
+
 local CombatGeometry = require("src.utils.combat_geometry")
 local TablePool = require("src.utils.table_pool")
 
@@ -62,6 +64,7 @@ function PlayerManager:new(context)
     instance.autoAttackController = nil
     instance.attackController = nil
     instance.areaOfEffectController = nil
+    instance.experienceController = nil
 
     instance.attackContext = nil
     instance.eventListeners = {}
@@ -107,6 +110,9 @@ function PlayerManager:init()
 
     self.movementController = MovementController:new()
     self.movementController:init()
+
+    self.experienceController = ExperienceController:new(eventService)
+    self.experienceController:init()
 
     self.targetingController = TargetingController:new({
         enemyManager = enemyManager,
@@ -237,6 +243,14 @@ function PlayerManager:getPosition()
         "[PlayerManager:getPosition] MovementController não encontrado.")
     -- Retorna uma posição padrão segura se o controller não existir.
     return { x = 0, y = 0 }
+end
+
+---@public Adiciona experiência ao jogador.
+---@param amount number Quantidade de experiência a ser adicionada
+---@return number levelsGained Quantidade de levels ganhos
+function PlayerManager:addExperience(amount)
+    local expBonus = self.stateController:getStat("expBonus")
+    return self.experienceController:addExperience(amount, expBonus)
 end
 
 ---@private Orquestra a execução de uma lista de descritores de ataque.

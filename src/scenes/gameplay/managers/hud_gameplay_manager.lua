@@ -2,6 +2,7 @@ local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 
 local PlayerHPBar = require("src.ui.components.PlayerHPBar")
+local ProgressLevelBar = require("src.ui.components.ProgressLevelBar")
 
 local ManagerRegistry = require("src.managers.manager_registry")
 
@@ -9,6 +10,7 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field context GameplaySceneContext
 ---@field baseBarsWidth number
 ---@field playerHPBar PlayerHPBar
+---@field progressLevelBar ProgressLevelBar
 ---@field basePlayerHPBarWidth number
 local HUDGameplayManager = {}
 HUDGameplayManager.__index = HUDGameplayManager
@@ -47,6 +49,7 @@ function HUDGameplayManager:init()
         hunterData.name,
         hunterData.finalRankId
     )
+    self.progressLevelBar = self:_initProgressLevelBar()
 
     self:_positionElements()
 end
@@ -58,6 +61,7 @@ function HUDGameplayManager:update(dt)
     local maxHealth = playerManager.stateController:getStat("health")
 
     self:_updatePlayerHPBar(maxHealth)
+    self.progressLevelBar:update(dt)
 end
 
 --- Desenha o painel de debug com informações dos inimigos.
@@ -92,6 +96,8 @@ function HUDGameplayManager:draw(isPaused)
     self.playerHPBar:draw()
     self.playerHPBar:drawOnPlayer(playerScreenPosition.x, playerScreenPosition.y, isPaused)
 
+    self.progressLevelBar:draw()
+
     -- Desenha as informações de debug
     self:_drawEnemyDebugInfo()
 end
@@ -122,11 +128,11 @@ function HUDGameplayManager:_initPlayerHPBar(hunterName, hunterRank)
         fontHPChange = adaptiveFont.main_small,
         colors = {
             name = colors.white,
-            rank = colors.white,
-            hpValues = colors.heal,
-            hpBarBase = colors.hp_fill,
-            hpBarFill = colors.hp_fill,
-            hpBarDamageTrail = colors.hp_fill,
+            rank = colors.gray,
+            hpValues = colors.white,
+            hpBarBase = colors.hpBarBase,
+            hpBarFill = colors.hpBarFill,
+            hpBarDamageTrail = colors.hpBarTrail,
             segmentLine = colors.black
         },
         segmentHPInterval = 50,
@@ -153,6 +159,38 @@ function HUDGameplayManager:_updatePlayerHPBar(maxHealth)
     end
 end
 
+---@private Inicializa a barra de experiência do jogador.
+function HUDGameplayManager:_initProgressLevelBar()
+    local playerManager = self.context.registry:getPlayerManager()
+    local experienceController = playerManager.experienceController
+    local initialExperience = experienceController:getCurrentExperience()
+    local initialLevel = experienceController:getLevel()
+
+    local experienceBarParams = {
+        x = 0,
+        y = 0,
+        w = self.baseBarsWidth,
+        initialXP = initialExperience,
+        initialLevel = initialLevel,
+        xpForNextLevel = function(level_from_bar)
+            return experienceController:getExperienceRequiredForLevel(level_from_bar)
+        end,
+        colors = {
+            levelText = colors.xpText,
+            levelNumber = colors.xplevelNumber,
+            xpText = colors.xpText,
+            progressBarBase = colors.xpBarBase,
+            progressBarFill = colors.xpBarFill,
+            xpGainText = colors.xpGainText,
+            trailBar = colors.xpBarTrail,
+        }
+    }
+
+    local experienceBar = ProgressLevelBar:new(experienceBarParams)
+
+    return experienceBar
+end
+
 ---@private Posiciona os elemetos de UI do HUDGameplayManager.
 function HUDGameplayManager:_positionElements()
     local screenWidth = ResolutionUtils.getGameWidth()
@@ -161,6 +199,11 @@ function HUDGameplayManager:_positionElements()
     self.playerHPBar:setPosition(
         self.PADDING_FROM_SCREEN_EDGE_X,
         screenHeight - self.PADDING_FROM_SCREEN_EDGE_BOTTOM - self.playerHPBar.height
+    )
+
+    self.progressLevelBar:setPosition(
+        self.PADDING_FROM_SCREEN_EDGE_X,
+        self.playerHPBar.y - self.SPACING_BETWEEN_BARS - self.progressLevelBar.height
     )
 end
 

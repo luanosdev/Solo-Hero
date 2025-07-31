@@ -1,4 +1,5 @@
 ---@class ProgressLevelBar
+--- TODO: Atualizar aqui com as escalas de texto e UI
 ---@field x number Posição X do canto superior esquerdo.
 ---@field y number Posição Y do canto superior esquerdo.
 ---@field width number Largura total do componente.
@@ -15,6 +16,7 @@
 ---@field fontLevelNumber love.Font Fonte para o número do nível.
 ---@field fontXpGain love.Font Fonte para o texto de ganho de XP.
 ---@field fontLevelUp love.Font Fonte para o texto "LEVEL UP!".
+---@field colors table Tabela de cores.
 -- Cores (exemplo, ajuste conforme seu sistema de cores)
 ---@field colorLevelText table {r, g, b, a} Cor para "LEVEL".
 ---@field colorLevelNumber table {r, g, b, a} Cor para o número do nível.
@@ -178,7 +180,7 @@ function ProgressLevelBar:_updateLayout()
     currentDrawingY = currentDrawingY + layout.levelUpTextHeight + lineSpacing
 
     -- Linha 1: "LEVEL", Número, "XP/MAX"
-    layout.levelLabelText = "LEVEL"
+    layout.levelLabelText = _T("ui.level")
     local tempFont = love.graphics.getFont()
     love.graphics.setFont(self.fontMain)
     layout.levelLabelWidth = self.fontMain:getWidth(layout.levelLabelText)
@@ -196,8 +198,13 @@ function ProgressLevelBar:_updateLayout()
 
     layout.xpGainTextHeight = self.fontXpGain:getHeight() -- Altura do texto de ganho de XP
 
-    local firstLineMaxHeight = math.max(layout.levelLabelHeight, layout.levelNumberHeight, layout.xpInfoHeight,
-        layout.xpGainTextHeight)
+    local firstLineMaxHeight = math.max(
+        layout.levelLabelHeight,
+        layout.levelNumberHeight,
+        layout.xpInfoHeight,
+        layout.xpGainTextHeight,
+        layout.levelUpTextHeight
+    )
     layout.firstLineY = currentDrawingY -- << ATUALIZADO: Y da primeira linha agora considera a linha "LEVEL UP!" acima
 
     -- Posicionamento Linha 1
@@ -375,28 +382,24 @@ function ProgressLevelBar:draw()
     -- Linha 1
     -- "LEVEL"
     love.graphics.setFont(self.fontMain)
-    r, g, b, a = unpack(self.colors.levelText)
-    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+    love.graphics.setColor(self.colors.levelText)
     love.graphics.print(layout.levelLabelText, layout.levelLabelX, layout.levelLabelY)
 
     -- Número do Nível
     love.graphics.setFont(self.fontLevelNumber)
-    r, g, b, a = unpack(self.colors.levelNumber)
-    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+    love.graphics.setColor(self.colors.levelNumber)
     love.graphics.print(layout.levelNumberText, layout.levelNumberX, layout.levelNumberY)
 
     -- "XP atual / XP máxima"
     love.graphics.setFont(self.fontMain)
-    r, g, b, a = unpack(self.colors.xpText)
-    love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+    love.graphics.setColor(self.colors.xpText)
     love.graphics.print(layout.xpInfoText, layout.xpInfoX, layout.xpInfoY)
 
     -- Desenha texto "LEVEL UP!" se ativo
     if self.levelUpAnimation.active or self.levelUpAnimation.alpha > 0 then
         local anim = self.levelUpAnimation
         love.graphics.setFont(self.fontLevelUp)
-        r, g, b, baseAlpha = unpack(self.colors.levelUpText)
-        love.graphics.setColor(r / 255, g / 255, b / 255, (baseAlpha / 255) * (anim.alpha / 255))
+        love.graphics.setColor(self.colors.levelUpText)
         love.graphics.print(anim.text, math.floor(layout.levelUpTextX), math.floor(anim.currentY))
     end
 
@@ -419,24 +422,21 @@ function ProgressLevelBar:draw()
     local emptyPartY = layout.progressBarY + (layout.fillBarHeight - layout.emptyBarHeight)
 
     if emptyPartW > 0 then
-        r, g, b, a = unpack(self.colors.progressBarBase)
-        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        love.graphics.setColor(self.colors.progressBarBase)
         love.graphics.rectangle("fill", emptyPartX, emptyPartY, emptyPartW, layout.emptyBarHeight)
     end
 
     -- Desenha o RASTRO/BUFFER (diferença entre trailTargetXP e displayXP)
     if self.trailTargetXP > self.displayXP and trailFillWidth > displayFillWidth then
         local rastroWidth = trailFillWidth - displayFillWidth
-        r, g, b, a = unpack(self.colors.trailBar)
-        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        love.graphics.setColor(self.colors.trailBar)
         love.graphics.rectangle("fill", layout.progressBarX + displayFillWidth, layout.progressBarY, rastroWidth,
             layout.fillBarHeight)
     end
 
     -- Desenha a parte PREENCHIDA (displayXP)
     if displayFillWidth > 0 then
-        r, g, b, a = unpack(self.colors.progressBarFill)
-        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        love.graphics.setColor(self.colors.progressBarFill)
         love.graphics.rectangle("fill", layout.progressBarX, layout.progressBarY, displayFillWidth, layout.fillBarHeight)
     end
 
@@ -444,8 +444,7 @@ function ProgressLevelBar:draw()
     if self.xpGainAnimation.active or self.xpGainAnimation.alpha > 0 then -- Desenha se ativo ou ainda desaparecendo
         local anim = self.xpGainAnimation
         love.graphics.setFont(self.fontXpGain)                            -- Usa a fonte definida para o texto de ganho de XP
-        r, g, b, baseAlpha = unpack(self.colors.xpGainText)
-        love.graphics.setColor(r / 255, g / 255, b / 255, (baseAlpha / 255) * (anim.alpha / 255))
+        love.graphics.setColor(self.colors.xpGainText)
 
         local textWidth = self.fontXpGain:getWidth(anim.text)
         local textX = self.x + self.padding.left + ((self.width - self.padding.left - self.padding.right) / 2) -
