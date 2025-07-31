@@ -19,7 +19,7 @@ local DespawnController = require("src.scenes.gameplay.controllers.despawn_contr
 local Constants = require("src.config.constants")
 local ServiceLocator = require("src.core.service_locator")
 local ResolutionUtils = require("src.utils.resolution_utils")
-local MathUtils = require("src.utils.math_utils")
+local SpawnUtils = require("src.utils.spawn_utils")
 
 --- TODO: Remover o v2 quando o v1 for removido
 ---@class EnemyManager
@@ -333,15 +333,9 @@ end
 function EnemyManager:spawnEnemy(enemyClass)
     local playerPos = self.playerManager:getPosition()
 
-    -- Calcula um raio de spawn seguro, garantindo que seja sempre fora da tela.
-    local screenW, screenH = ResolutionUtils.getGameDimensions()
-    local spawnRadius = MathUtils.vectorLength(screenW / 2, screenH / 2) + 50
-
-    local angle = math.random() * 2 * math.pi
-    local pos = {
-        x = playerPos.x + spawnRadius * math.cos(angle),
-        y = playerPos.y + spawnRadius * math.sin(angle)
-    }
+    -- Usa o novo utilitário para calcular a posição de spawn fora da tela.
+    local spawnX, spawnY = SpawnUtils.calculateOffScreenSpawnPosition(playerPos)
+    local pos = { x = spawnX, y = spawnY }
 
     local enemy = self.poolController:get(enemyClass.className)
     if enemy then
