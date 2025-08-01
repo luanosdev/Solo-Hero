@@ -13,6 +13,7 @@ local InfinityWrapMapManager = require("src.scenes.gameplay.managers.infinity_wr
 local SceneManagerRegistry = require("src.core.scene_manager_registry")
 local HUDGameplayManager = require("src.scenes.gameplay.managers.hud_gameplay_manager")
 local DamageNumberManager = require("src.scenes.gameplay.managers.damage_number_manager")
+local ExperienceOrbManager = require("src.scenes.gameplay.managers.experience_orb_manager")
 
 ---@class GameplayBootstrap
 local GameplayBootstrap = {}
@@ -45,11 +46,12 @@ function GameplayBootstrap.initialize(context)
     -- Definição dos managers a serem carregados em ordem explícita de inicialização.
     -- O mapa DEVE ser inicializado antes do jogador e dos inimigos.
     local managersToLoad = {
-        { key = "playerManager",       class = PlayerManager },
-        { key = "mapManager",          class = InfinityWrapMapManager },
-        { key = "enemyManager",        class = EnemyManager },
-        { key = "hudGameplayManager",  class = HUDGameplayManager },
-        { key = "damageNumberManager", class = DamageNumberManager },
+        { key = "playerManager",        class = PlayerManager },
+        { key = "mapManager",           class = InfinityWrapMapManager },
+        { key = "enemyManager",         class = EnemyManager },
+        { key = "hudGameplayManager",   class = HUDGameplayManager },
+        { key = "damageNumberManager",  class = DamageNumberManager },
+        { key = "experienceOrbManager", class = ExperienceOrbManager },
     }
 
     ---@type table<string, any>

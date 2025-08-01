@@ -27,6 +27,7 @@ local EventService = require("src.services.event_service")
 local ItemDataService = require("src.services.item_data_service")
 local InputService = require("src.services.input_service")
 local GameStatisticsService = require("src.services.game_statistics_service")
+local AssetService = require("src.services.asset_service")
 
 local lovebird = require("src.libs.lovebird")
 local profiler = require("src.libs.profiler")
@@ -114,6 +115,7 @@ function love.load()
     ServiceLocator.register("eventService", EventService:new())
     ServiceLocator.register("inputService", InputService:new())
     ServiceLocator.register("gameStatisticsService", GameStatisticsService:new())
+    ServiceLocator.register("assetService", AssetService:new())
 
     -- Inicializa managers persistentes (que agora podem depender de serviços)
     local itemDataMgr = ItemDataManager:new() -- Mantém compatibilidade por enquanto
@@ -165,6 +167,9 @@ function love.update(dt)
     if inputService then
         inputService:beginFrame()
     end
+
+    -- Atualiza todos os serviços registrados no ServiceLocator
+    ServiceLocator.update(dt)
 
     -- Delega o update para a cena atual (se não for encerrar)
     SceneManager.update(dt)

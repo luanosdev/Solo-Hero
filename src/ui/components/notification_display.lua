@@ -1,7 +1,7 @@
 local Colors = require("src.ui.colors")
 local Fonts = require("src.ui.fonts")
 local Formatters = require("src.utils.formatters")
-local AssetManager = require("src.managers.asset_manager")
+local ServiceLocator = require("src.core.service_locator")
 
 --- Componente UI responsável por renderizar notificações com animações
 --- @class NotificationDisplay
@@ -319,7 +319,8 @@ function NotificationDisplay.showItemPickup(itemName, quantity, icon, rarity)
     local rarityColor = NotificationDisplay.getRarityColor(rarity)
 
     if type(icon) == "string" then
-        icon = AssetManager:getImage(icon)
+        local assetManager = ServiceLocator:getAssetService()
+        icon = assetManager:getImage(icon)
     end
 
     NotificationManager.show({

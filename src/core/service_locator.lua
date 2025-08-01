@@ -73,6 +73,12 @@ function ServiceLocator.getGameTimerService()
     return ServiceLocator.get("gameTimerService")
 end
 
+---@public Obtém o serviço de asset manager.
+---@return AssetService
+function ServiceLocator.getAssetService()
+    return ServiceLocator.get("assetService")
+end
+
 --- Atualiza todos os serviços registrados.
 ---@param dt number Delta time.
 function ServiceLocator.update(dt)

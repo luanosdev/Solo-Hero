@@ -40,7 +40,7 @@ function SceneManagerRegistry:get(name)
 end
 
 --- Obtem o mapManager registrado na instância da cena.
----@return InfinityWrapMapManager2
+---@return InfinityWrapMapManager
 function SceneManagerRegistry:getMapManager()
     return self:get("mapManager")
 end

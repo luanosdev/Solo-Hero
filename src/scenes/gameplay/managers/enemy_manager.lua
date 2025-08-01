@@ -71,10 +71,11 @@ end
 function EnemyManager:init()
     Logger.info("enemy_manager.init", "[EnemyManager:init] Initializing...")
     -- Obter dependências do registry
+    --- TODO: Usar somete o registry, vamos remover os managers do estado local
     self.playerManager = self.context.registry:get("playerManager")
     self.mapManager = self.context.registry:get("mapManager")
     self.damageNumberManager = self.context.registry:get("damageNumberManager")
-    --self.experienceOrbManager = self.context.registry:get("experienceOrbManager")
+    self.experienceOrbManager = self.context.registry:get("experienceOrbManager")
     --self.dropManager = self.context.registry:get("dropManager")
 
     local spawnCallback = function(enemyClass) self:spawnEnemy(enemyClass) end
@@ -85,7 +86,6 @@ function EnemyManager:init()
 
     self.poolController = EnemyPoolController:new()
     self.mvpController = MVPController:new()
-    self.cullingController = CullingController:new()
     self.despawnController = DespawnController:new()
 
     -- Criar e passar a grade para o controller de separação
@@ -98,6 +98,9 @@ function EnemyManager:init()
         cellSize,
         true -- Grid infinito
     )
+
+    self.cullingController = CullingController:new()
+    self.cullingController:init({ w = worldPixelWidth, h = worldPixelHeight })
 
     self.separationController = EnemySeparationController:new(self.spatialGrid)
     self.collisionController = EnemyCollisionController:new()
@@ -183,8 +186,7 @@ function EnemyManager:_fixedUpdate(fixedDt)
         if enemy.isAlive then
             local isInLogicView = self.cullingController:isInView(
                 enemy,
-                cameraData,
-                worldDimensions,
+                playerPosition,
                 CONST.LOGIC_CULLING_MARGIN
             )
             if isInLogicView then
@@ -312,9 +314,9 @@ end
 ---@param enemy BaseEnemy O inimigo que foi derrotado.
 function EnemyManager:_onEnemyKilled(enemy)
     -- 1. Criar Orbs de Experiência
-    -- if self.experienceOrbManager then
-    --     self.experienceOrbManager:addOrb(enemy.position.x, enemy.position.y, enemy.experienceValue)
-    -- end
+    if self.experienceOrbManager then
+        self.experienceOrbManager:addOrb(enemy.position.x, enemy.position.y, enemy.experienceValue)
+    end
 
     -- 2. Registrar Estatísticas
     local gameStatisticsManager = self.context.serviceLocator:getGameStatisticsService()
@@ -368,20 +370,12 @@ end
 function EnemyManager:collectRenderables(renderPipeline)
     -- Prepara os dados necessários para o culling, uma única vez por frame.
     local playerPos = self.playerManager:getPosition()
-    local screenW, screenH = ResolutionUtils.getGameDimensions()
-    local camX = playerPos.x - screenW / 2
-    local camY = playerPos.y - screenH / 2
-    local cameraData = { x = camX, y = camY, w = screenW, h = screenH }
-
-    local worldW, worldH = self.mapManager:getWorldPixelDimensions()
-    local worldDimensions = { w = worldW, h = worldH }
 
     for _, enemy in ipairs(self.enemies) do
         local shouldDraw = enemy.isAlive or (enemy.isDying and not enemy.isDeathAnimationComplete)
         if shouldDraw and self.cullingController:isInView(
                 enemy,
-                cameraData,
-                worldDimensions,
+                playerPos,
                 CONST.DRAW_CULLING_MARGIN
             ) then
             -- Adiciona o sprite principal do inimigo
@@ -584,19 +578,10 @@ function EnemyManager:getDebugInfo()
 
     -- Reutiliza a lógica de culling para obter as contagens
     local playerPosition = self.playerManager:getPosition()
-    local screenW, screenH = ResolutionUtils.getGameDimensions()
-    local cameraData = {
-        x = playerPosition.x - screenW / 2,
-        y = playerPosition.y - screenH / 2,
-        w = screenW,
-        h = screenH
-    }
-    local worldW, worldH = self.mapManager:getWorldPixelDimensions()
-    local worldDimensions = { w = worldW, h = worldH }
 
     for _, enemy in ipairs(self.enemies) do
         if enemy.isAlive then
-            if self.cullingController:isInView(enemy, cameraData, worldDimensions, CONST.LOGIC_CULLING_MARGIN) then
+            if self.cullingController:isInView(enemy, playerPosition, CONST.LOGIC_CULLING_MARGIN) then
                 activeCount = activeCount + 1
             else
                 slowCount = slowCount + 1

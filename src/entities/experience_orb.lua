@@ -1,10 +1,3 @@
---[[
-    Experience Orb
-    Representa um orbe de experiência que pode ser coletado pelo jogador
-    Usando spritesheet animado com otimizações de performance
-]]
-
-local ManagerRegistry = require("src.managers.manager_registry")
 local Constants = require("src.config.constants")
 
 ---@class ExperienceOrb
@@ -102,7 +95,11 @@ function ExperienceOrb:deactivate()
     self.collected = true
 end
 
-function ExperienceOrb:update(dt)
+---@public Atualiza o orbe
+---@param dt number Delta time
+---@param playerPosition Vector2D Posição do player
+---@return boolean Se o orbe foi coletado
+function ExperienceOrb:update(dt, playerPosition, finalPickupRadiusStats)
     if self.collected or not self.active then return false end
 
     local currentTime = love.timer.getTime()
@@ -115,7 +112,7 @@ function ExperienceOrb:update(dt)
 
     if shouldUpdatePhysics then
         self.lastUpdateTime = currentTime
-        return self:_updatePhysics(dt)
+        return self:_updatePhysics(dt, playerPosition, finalPickupRadiusStats)
     end
 
     return false
@@ -159,17 +156,19 @@ function ExperienceOrb:_updateAnimation(dt)
     end
 end
 
-function ExperienceOrb:_updatePhysics(dt)
-    local playerManager = ManagerRegistry:get("playerManager") ---@type PlayerManager
-    local playerPos = playerManager:getPlayerPosition()
-
+---@private Atualiza a física do orbe
+---@param dt number Delta time
+---@param playerPosition Vector2D Posição do player
+---@param finalPickupRadiusStats number Raio de coleta final do player
+---@return boolean Se o orbe foi coletado
+function ExperienceOrb:_updatePhysics(dt, playerPosition, finalPickupRadiusStats)
+    local playerPos = playerPosition
     local dx = playerPos.x - self.position.x
     local dy = playerPos.y - self.position.y
     local distance = math.sqrt(dx * dx + dy * dy)
 
     -- Área de coleta aumentada
-    local currentFinalStats = playerManager:getCurrentFinalStats()
-    local pickupRadiusInPixels = Constants.metersToPixels(currentFinalStats.pickupRadius)
+    local pickupRadiusInPixels = Constants.metersToPixels(finalPickupRadiusStats)
 
     if distance <= pickupRadiusInPixels then
         -- Coleta imediata se muito próximo

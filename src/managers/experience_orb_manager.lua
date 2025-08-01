@@ -12,7 +12,7 @@ local Camera = require("src.config.camera")
 local RenderPipeline = require("src.core.render_pipeline")
 local Colors = require("src.ui.colors")
 
----@class ExperienceOrbManager
+---@class ExperienceOrbManager1
 ---@field orbs ExperienceOrb[] Lista de orbes de experiência ativos
 ---@field orbPool ExperienceOrb[] Pool de orbes inativos para reutilização
 ---@field spriteBatch love.SpriteBatch | nil SpriteBatch para renderização eficiente
