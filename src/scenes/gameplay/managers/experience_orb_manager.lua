@@ -109,12 +109,28 @@ function ExperienceOrbManager:update(dt)
         if wasCollected then
             self:_processOrbCollection(orb)
             self:_returnOrbToPool(orb)
-            table.remove(self.orbs, i)        -- Remove da lista principal
-            table.remove(self.visibleOrbs, i) -- Remove da lista de visíveis
+
+            -- Remove da lista principal procurando o orb específico
+            for j = #self.orbs, 1, -1 do
+                if self.orbs[j] == orb then
+                    table.remove(self.orbs, j)
+                    break
+                end
+            end
+            -- Remove da lista de visíveis usando o índice correto
+            table.remove(self.visibleOrbs, i)
         elseif not orb:isActive() then
             self:_returnOrbToPool(orb)
-            table.remove(self.orbs, i)        -- Remove da lista principal
-            table.remove(self.visibleOrbs, i) -- Remove da lista de visíveis
+
+            -- Remove da lista principal procurando o orb específico
+            for j = #self.orbs, 1, -1 do
+                if self.orbs[j] == orb then
+                    table.remove(self.orbs, j)
+                    break
+                end
+            end
+            -- Remove da lista de visíveis usando o índice correto
+            table.remove(self.visibleOrbs, i)
         end
     end
 end
@@ -129,8 +145,13 @@ function ExperienceOrbManager:collectRenderables(renderPipeline)
     assert(self.spriteBatch, "SpriteBatch not initialized")
     assert(self.texture, "Texture not initialized")
 
+    -- Limpa o SpriteBatch a cada frame
+    self.spriteBatch:clear()
+
     Logger.info("experience_orb_manager.collectRenderables",
         "[ExperienceOrbManager:collectRenderables] Visible orbs: " .. #self.visibleOrbs)
+
+    -- Adiciona todos os orbs visíveis ao SpriteBatch
     for _, orb in ipairs(self.visibleOrbs) do
         local renderData = orb:getRenderData()
         if renderData then
@@ -152,27 +173,28 @@ function ExperienceOrbManager:collectRenderables(renderPipeline)
         else
             error("Failed to get render data for orb")
         end
+    end
 
-        if self.spriteBatch:getCount() > 0 then
-            local avgSortY = 0
-            for _, orb in ipairs(self.visibleOrbs) do
-                local renderData = orb:getRenderData()
-                if renderData then
-                    local isoY = (renderData.x + renderData.y) * (Constants.TILE_HEIGHT / 2)
-                    avgSortY = avgSortY + isoY
-                end
+    -- Cria um único renderableItem se houver sprites no batch
+    if self.spriteBatch:getCount() > 0 then
+        local avgSortY = 0
+        for _, orb in ipairs(self.visibleOrbs) do
+            local renderData = orb:getRenderData()
+            if renderData then
+                local isoY = (renderData.x + renderData.y) * (Constants.TILE_HEIGHT / 2)
+                avgSortY = avgSortY + isoY
             end
-            avgSortY = avgSortY / #self.visibleOrbs
-
-            local renderableItem = TablePool.getGeneric()
-            renderableItem.type = "experience_orb_batch"
-            renderableItem.sortY = avgSortY
-            renderableItem.depth = RenderPipeline.DEPTH_DROPS
-            renderableItem.drawFunction = function()
-                self:_drawSpriteBatch()
-            end
-            renderPipeline:add(renderableItem)
         end
+        avgSortY = avgSortY / #self.visibleOrbs
+
+        local renderableItem = TablePool.getGeneric()
+        renderableItem.type = "experience_orb_batch"
+        renderableItem.sortY = avgSortY
+        renderableItem.depth = RenderPipeline.DEPTH_DROPS
+        renderableItem.drawFunction = function()
+            self:_drawSpriteBatch()
+        end
+        renderPipeline:add(renderableItem)
     end
 end
 
@@ -216,7 +238,7 @@ function ExperienceOrbManager:_drawSpriteBatch()
         love.graphics.setBlendMode("add")
 
         -- Cor roxa luminosa para os orbes
-        love.graphics.setColor(colors.solo_leveling.shadow_monarch) -- Roxo brilhante
+        love.graphics.setColor(colors.solo_leveling.portal_purple) -- Roxo brilhante
         love.graphics.draw(self.spriteBatch)
 
         -- Restaura blend mode anterior
@@ -229,7 +251,7 @@ end
 ---@param orb ExperienceOrb
 function ExperienceOrbManager:_processOrbCollection(orb)
     local playerManager = self.context.registry:getPlayerManager()
-    playerManager:addExperience(orb.experience)
+    playerManager:addExperience(orb:getTotalExperience())
 end
 
 ---@private Junta os orbs que estão proximos
