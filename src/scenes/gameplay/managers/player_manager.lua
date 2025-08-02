@@ -12,6 +12,8 @@ local TargetingController = require("src.scenes.gameplay.controllers.targeting_c
 local AutoAttackController = require("src.scenes.gameplay.controllers.auto_attack_controller")
 local AreaOfEffectController = require("src.scenes.gameplay.controllers.area_of_effect_controller")
 local ExperienceController = require("src.scenes.gameplay.controllers.experience_controller")
+local HealthController = require("src.scenes.gameplay.controllers.health_controller")
+
 
 local CombatGeometry = require("src.utils.combat_geometry")
 local TablePool = require("src.utils.table_pool")
@@ -65,6 +67,7 @@ function PlayerManager:new(context)
     instance.attackController = nil
     instance.areaOfEffectController = nil
     instance.experienceController = nil
+    instance.healthController = nil
 
     instance.attackContext = nil
     instance.eventListeners = {}
@@ -113,6 +116,9 @@ function PlayerManager:init()
 
     self.experienceController = ExperienceController:new(eventService)
     self.experienceController:init()
+
+    self.healthController = HealthController:new(eventService)
+    self.healthController:init(self.stateController:getStat("maxHealth"))
 
     self.targetingController = TargetingController:new({
         enemyManager = enemyManager,

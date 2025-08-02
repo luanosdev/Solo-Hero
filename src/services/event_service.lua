@@ -1,19 +1,30 @@
 ---@class EventListener
+---@field id number um identificador unico para o listener
 ---@field callback function
 ---@field context table | nil
+
+---@class EventListenerIdentifier
+---@field event string
+---@field id number
 
 ---@class EventService
 ---@description Um gerenciador de eventos global, desacoplado e de alta performance.
 --- Permite que diferentes partes do sistema se comuniquem sem dependências diretas,
 --- seguindo o padrão publish-subscribe.
 ---@field listeners table<string, EventListener[]>
+---@field nextListenerId number
 local EventService = {}
 EventService.__index = EventService
 
 EventService.EVENTS = {
+    -- Player Events
     PLAYER_WRAPPED = 'player_wrapped',
     PLAYER_LEVELED_UP = 'player_leveled_up',
     PLAYER_XP_GAINED = 'player_xp_gained',
+    PLAYER_HEALTH_UPDATED = 'player_health_updated',
+    PLAYER_DIED = 'player_died',
+    PLAYER_STAT_UPDATED = 'player_stat_updated',
+    -- Equipment & Stats Events
     EQUIPMENT_CHANGED = 'equipment_changed',
     EQUIPMENT_BONUSES_UPDATED = 'equipment_bonuses_updated',
     ARCHETYPE_BONUSES_UPDATED = 'archetype_bonuses_updated',
@@ -30,6 +41,7 @@ end
 --- Inicializa ou reseta o sistema de eventos, limpando todos os ouvintes.
 function EventService:init()
     self.listeners = {}
+    self.nextListenerId = 1
     Logger.info("event_service.init", "[EventService] Sistema de eventos inicializado.")
 end
 
@@ -37,28 +49,32 @@ end
 ---@param eventName string O nome do evento a ser ouvido.
 ---@param callback function A função a ser executada quando o evento for emitido.
 ---@param context table|nil O contexto ('self') a ser aplicado ao callback.
+---@return EventListenerIdentifier eventIdentifier Um identificador para o listener, para remoção posterior.
 function EventService:on(eventName, callback, context)
-    if not eventName or not callback then
-        error("[EventService:on] Tentativa de registrar evento com nome ou callback nulo.")
-    end
+    assert(eventName, "[EventService:on] missing a eventName")
+    assert(callback, "[EventService:on] missing a callback")
+
+    local listenerId = self.nextListenerId
+    self.nextListenerId = self.nextListenerId + 1
 
     Logger.info("event_service.on", "[EventService:on] Registrando evento: " .. eventName)
     self.listeners[eventName] = self.listeners[eventName] or {}
-    table.insert(self.listeners[eventName], { callback = callback, context = context })
+    table.insert(self.listeners[eventName], { id = listenerId, callback = callback, context = context })
+
+    return { event = eventName, id = listenerId }
 end
 
---- Remove um ouvinte específico de um evento.
---- O callback fornecido deve ser a mesma instância da função usada em :on().
----@param eventName string O nome do evento.
----@param callback function A função de callback a ser removida.
-function EventService:off(eventName, callback)
-    if not (self.listeners and self.listeners[eventName]) then
+--- Remove um ouvinte específico de um evento usando seu identificador.
+---@param eventIdentifier EventListenerIdentifier O identificador do listener retornado por :on().
+function EventService:off(eventIdentifier)
+    if not self.listeners or not self.listeners[eventIdentifier.event] then
         return
     end
-    for i = #self.listeners[eventName], 1, -1 do
-        if self.listeners[eventName][i].callback == callback then
-            table.remove(self.listeners[eventName], i)
-            return -- Retorna após remover para evitar problemas com múltiplos registros do mesmo callback
+
+    for i = #self.listeners[eventIdentifier.event], 1, -1 do
+        if self.listeners[eventIdentifier.event][i].id == eventIdentifier.id then
+            table.remove(self.listeners[eventIdentifier.event], i)
+            return
         end
     end
 end

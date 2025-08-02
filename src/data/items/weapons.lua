@@ -156,7 +156,7 @@ local weapons = {
         modifiers = {
             { stat = "criticalChance", type = StatModifier.FLAT, value = 0.1 },
             { stat = "criticalDamage", type = StatModifier.FLAT, value = 5 },
-            { stat = "health",         type = StatModifier.FLAT, value = 50 },
+            { stat = "maxHealth",      type = StatModifier.FLAT, value = 50 },
         },
         value = 200,
     },

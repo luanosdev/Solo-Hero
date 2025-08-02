@@ -7,7 +7,7 @@ local Constants = require("src.config.constants")
 local Colors = require("src.ui.colors")
 local TablePool = require("src.utils.table_pool")
 
----@class HealthController
+---@class HealthController1
 ---@field playerManager PlayerManager Referência ao PlayerManager
 ---@field lastDamageTime number Timestamp do último dano recebido
 ---@field lastRegenTime number Timer para regeneração de vida
@@ -21,7 +21,7 @@ HealthController.__index = HealthController
 
 --- Cria uma nova instância do HealthController.
 ---@param playerManager PlayerManager A instância do PlayerManager
----@return HealthController
+---@return HealthController1
 function HealthController:new(playerManager)
     Logger.debug(
         "health_controller.new",

@@ -12,6 +12,10 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field playerHPBar PlayerHPBar
 ---@field progressLevelBar ProgressLevelBar
 ---@field basePlayerHPBarWidth number
+--- Event Listeners
+---@field playerXPGainedListener EventListenerIdentifier
+---@field playerLeveledUpListener EventListenerIdentifier
+---@field playerHealthChangedListener EventListenerIdentifier
 local HUDGameplayManager = {}
 HUDGameplayManager.__index = HUDGameplayManager
 
@@ -29,6 +33,10 @@ function HUDGameplayManager:new(context)
 
     local screenWidth = ResolutionUtils.getGameWidth()
     instance.baseBarsWidth = screenWidth * 0.25
+
+    instance.playerXPGainedListener = nil
+    instance.playerLeveledUpListener = nil
+    instance.playerHealthChangedListener = nil
 
     return instance
 end
@@ -58,11 +66,8 @@ end
 --- Atualiza todos os elementos da UI gerenciados.
 ---@param dt number Delta time.
 function HUDGameplayManager:update(dt)
-    local playerManager = self.context.registry:getPlayerManager()
-    local maxHealth = playerManager.stateController:getStat("health")
-
-    self:_updatePlayerHPBar(maxHealth)
     self.progressLevelBar:update(dt)
+    self.playerHPBar:update(dt)
 end
 
 --- Desenha todos os elementos da UI gerenciados.
@@ -98,18 +103,52 @@ function HUDGameplayManager:_onPlayerLeveledUp(data)
     self.progressLevelBar:setLevel(data.newLevel, data.currentExperience)
 end
 
+---@private É chamado quando a vida do jogador muda.
+---@param data PlayerHealthUpdatedEventData O payload do evento.
+function HUDGameplayManager:_onPlayerHealthChanged(data)
+    assert(data.current, "[HUDGameplayManager:_onPlayerHealthChanged] missing a data.current on event")
+    assert(data.max, "[HUDGameplayManager:_onPlayerHealthChanged] missing a data.max on event")
+
+    local currentHP = data.current
+    local maxHP = data.max
+
+    if maxHP ~= self.playerHPBar.maxHP then
+        local targetWidth = self.basePlayerHPBarWidth * (maxHP / self.basePlayerMaxHPForWidth)
+        targetWidth = math.max(targetWidth, self.basePlayerHPBarWidth * 0.5)
+        self.playerHPBar:setWidth(targetWidth)
+    end
+
+    self.playerHPBar:setCurrentHP(currentHP)
+    self.playerHPBar:setMaxHP(maxHP)
+end
+
 ---@private Inscreve o manager nos eventos relevantes.
 function HUDGameplayManager:_subscribeToEvents()
     local eventService = self.context.serviceLocator:getEventService()
-    eventService:on(eventService.EVENTS.PLAYER_XP_GAINED, self._onExperienceGained, self)
-    eventService:on(eventService.EVENTS.PLAYER_LEVELED_UP, self._onPlayerLeveledUp, self)
+
+    self.playerXPGainedListener = eventService:on(
+        eventService.EVENTS.PLAYER_XP_GAINED,
+        self._onExperienceGained,
+        self
+    )
+    self.playerLeveledUpListener = eventService:on(
+        eventService.EVENTS.PLAYER_LEVELED_UP,
+        self._onPlayerLeveledUp,
+        self
+    )
+    self.playerHealthChangedListener = eventService:on(
+        eventService.EVENTS.PLAYER_HEALTH_UPDATED,
+        self._onPlayerHealthChanged,
+        self
+    )
 end
 
 ---@private Cancela a inscrição dos eventos.
 function HUDGameplayManager:_unsubscribeFromEvents()
     local eventService = self.context.serviceLocator:getEventService()
-    eventService:off(eventService.EVENTS.PLAYER_XP_GAINED, self._onExperienceGained)
-    eventService:off(eventService.EVENTS.PLAYER_LEVELED_UP, self._onPlayerLeveledUp)
+    eventService:off(self.playerXPGainedListener)
+    eventService:off(self.playerLeveledUpListener)
+    eventService:off(self.playerHealthChangedListener)
 end
 
 --- Desenha o painel de debug com informações dos inimigos.
@@ -144,7 +183,7 @@ function HUDGameplayManager:_initPlayerHPBar(hunterName, hunterRank)
     assert(hunterRank, "[HUDGameplayManager:_initPlayerHPBar] missing a hunterRank")
 
     local playerManager = self.context.registry:getPlayerManager()
-    local maxHealth = playerManager.stateController:getStat("health")
+    local maxHealth = playerManager.stateController:getStat("maxHealth")
     local adaptiveFont = fonts.getAdaptive()
 
     local playerHPBarParams = {
@@ -177,19 +216,6 @@ function HUDGameplayManager:_initPlayerHPBar(hunterName, hunterRank)
     self.basePlayerMaxHPForWidth = maxHealth > 0 and maxHealth or 100
 
     return playerHPBar
-end
-
----@private Atualiza o playerHPBar.
----@param maxHealth number Vida máxima do jogador.
-function HUDGameplayManager:_updatePlayerHPBar(maxHealth)
-    if not self.playerHPBar then return end
-
-    if maxHealth ~= self.playerHPBar.maxHP then
-        local currentHPBarX = self.playerHPBar.x
-        local targetWidth = self.basePlayerHPBarWidth * (maxHealth / self.basePlayerMaxHPForWidth)
-        targetWidth = math.max(targetWidth, self.basePlayerHPBarWidth * 0.5)
-        self.playerHPBar:setWidth(targetWidth)
-    end
 end
 
 ---@private Inicializa a barra de experiência do jogador.

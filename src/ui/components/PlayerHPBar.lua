@@ -194,6 +194,35 @@ function PlayerHPBar:_updateLayout()
     layout.totalHeight = (layout.hpBarY - self.y) + layout.hpBarActualFillHeight + self.padding.bottom
 end
 
+---Atualiza o HP máximo da barra.
+---@param newMaxHP number Novo HP máximo.
+function PlayerHPBar:setMaxHP(newMaxHP)
+    self.maxHP = newMaxHP > 0 and newMaxHP or 1
+
+    -- Cap HP atual e visual ao novo MaxHP se MaxHP diminuiu
+    self.currentHP = math.min(self.currentHP, self.maxHP)
+    self.visualHP = math.min(self.visualHP, self.maxHP)
+
+    if self.visualHP > self.currentHP then
+        -- Isso pode acontecer se maxHP diminuiu e cortou currentHP mais do que visualHP,
+        -- ou se currentHP já era baixo e visualHP foi apenas limitado pelo novo maxHP.
+        self.isHPBarAnimatingDown = true
+        self.hpBarAnimationDownTimer = 0
+    elseif newMaxHP > oldMaxHP then
+        -- Se MaxHP aumentou, e currentHP (que será setado por setCurrentHP em breve) aumentar,
+        -- o visualHP deve acompanhar. Por enquanto, se não há rastro, alinha visual com current.
+        -- Isso evita que visualHP fique para trás momentaneamente.
+        self.visualHP = math.max(self.visualHP, self.currentHP)     -- Garante que visual não fique para trás do real.
+        self.isHPBarAnimatingDown = false
+        self.hpBarAnimationDownTimer = 0
+    else
+        self.isHPBarAnimatingDown = false
+        self.hpBarAnimationDownTimer = 0
+    end
+
+    self:_updateLayout()
+end
+
 --- Atualiza informações base da barra: nome, rank e MaxHP.
 --- Re-escala currentHP e visualHP proporcionalmente à mudança de MaxHP.
 --- Pode iniciar animação de rastro se MaxHP diminuir e currentHP for cortado.

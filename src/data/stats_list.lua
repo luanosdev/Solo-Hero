@@ -5,7 +5,7 @@ local ALL_STATS = {
     --- Player Stats
     "damage",
     "moveSpeed",
-    "health",
+    "maxHealth",
     "defense",
     "attackSpeed",
     "criticalChance",
