@@ -53,23 +53,35 @@ end
 ---@param expBonusMultipler number Multiplicador de experiência
 ---@return number levelsGained Quantidade de levels ganhos
 function ExperienceController:addExperience(amount, expBonusMultipler)
-    local effectAmount = amount * expBonusMultipler
+    local effectiveAmount = amount * expBonusMultipler
 
-    self.currentExperience = self.currentExperience + effectAmount
-
-    local levelsGained = 0
-
-    while self.currentExperience >= self.experienceToNextLevel do
-        self.level = self.level + 1
-        self.currentExperience = self.currentExperience - self.experienceToNextLevel
-
-        self.experienceToNextLevel = math.floor(self.baseGrowth.factor * self.level ^ self.baseGrowth.exponent)
-
-        levelsGained = levelsGained + 1
-
+    if effectiveAmount <= 0 then
+        return 0
     end
 
-    self.eventService:emit(self.eventService.EVENTS.PLAYER_LEVELED_UP, levelsGained)
+    self.currentExperience = self.currentExperience + effectiveAmount
+    self.eventService:emit(self.eventService.EVENTS.PLAYER_XP_GAINED, { amount = effectiveAmount })
+
+    local levelsGained = 0
+    local hasLeveledUp = false
+
+    local requiredXP = self:getExperienceRequiredForLevel(self.level)
+    while self.currentExperience >= requiredXP do
+        self.level = self.level + 1
+        self.currentExperience = self.currentExperience - requiredXP
+        levelsGained = levelsGained + 1
+        hasLeveledUp = true
+        requiredXP = self:getExperienceRequiredForLevel(self.level)
+        self.experienceToNextLevel = requiredXP
+    end
+
+    if hasLeveledUp then
+        self.eventService:emit(self.eventService.EVENTS.PLAYER_LEVELED_UP, {
+            newLevel = self.level,
+            levelsGained = levelsGained,
+            currentExperience = self.currentExperience,
+        })
+    end
 
     return levelsGained
 end
@@ -104,6 +116,5 @@ end
 function ExperienceController:getExperienceRequiredForLevel(level)
     return math.floor(self.baseGrowth.factor * level ^ self.baseGrowth.exponent)
 end
-
 
 return ExperienceController

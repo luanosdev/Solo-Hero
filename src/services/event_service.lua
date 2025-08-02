@@ -13,6 +13,7 @@ EventService.__index = EventService
 EventService.EVENTS = {
     PLAYER_WRAPPED = 'player_wrapped',
     PLAYER_LEVELED_UP = 'player_leveled_up',
+    PLAYER_XP_GAINED = 'player_xp_gained',
     EQUIPMENT_CHANGED = 'equipment_changed',
     EQUIPMENT_BONUSES_UPDATED = 'equipment_bonuses_updated',
     ARCHETYPE_BONUSES_UPDATED = 'archetype_bonuses_updated',

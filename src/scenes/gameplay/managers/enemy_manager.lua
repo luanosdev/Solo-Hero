@@ -43,6 +43,7 @@ local SpawnUtils = require("src.utils.spawn_utils")
 ---@field periodicTasks table<number, TimerTaskRunner|FrameTaskRunner>
 ---@field spatialGrid SpatialGridIncremental
 ---@field logicAccumulator number Acumulador para o timestep fixo.
+---@field nextEnemyId number Contador incremental para garantir IDs únicos.
 local EnemyManager = {}
 EnemyManager.__index = EnemyManager
 
@@ -64,6 +65,7 @@ function EnemyManager:new(context)
     instance.context = context
     instance.enemies = {}
     instance.logicAccumulator = 0
+    instance.nextEnemyId = 1
 
     return instance
 end
@@ -341,22 +343,16 @@ function EnemyManager:spawnEnemy(enemyClass)
     local spawnX, spawnY = SpawnUtils.calculateOffScreenSpawnPosition(playerPos)
     local pos = { x = spawnX, y = spawnY }
 
+    -- Usa contador incremental para garantir IDs únicos
+    local newId = self.nextEnemyId
+    self.nextEnemyId = self.nextEnemyId + 1
+
     local enemy = self.poolController:get(enemyClass.className)
     if enemy then
-        -- Inimigo reciclado do pool
-        enemy:reset(
-            pos,
-            #self.enemies + 1,
-            { damageQueue = self.damageNumberManager.damageQueue }
-        )
+        enemy:reset(pos, newId, { damageQueue = self.damageNumberManager.damageQueue })
         Logger.debug("EnemyManager:spawnEnemy", "Reused enemy from pool: " .. enemyClass.className)
     else
-        -- Pool estava vazio, cria um novo
-        enemy = enemyClass:new(
-            pos,
-            #self.enemies + 1,
-            { damageQueue = self.damageNumberManager.damageQueue }
-        )
+        enemy = enemyClass:new(pos, newId, { damageQueue = self.damageNumberManager.damageQueue })
         Logger.debug("EnemyManager:spawnEnemy", "Created new enemy (pool empty): " .. enemyClass.className)
     end
 

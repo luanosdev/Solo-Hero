@@ -194,13 +194,13 @@ colors.hpBarFill = hpBarBaseColor
 colors.hpBarTrail = colors.hex("#CC4D4D", 0.5)
 
 --- Experiência
-local xpBarBaseColor = colors.hex("#1A334D", 0.95)
+local xpBarBaseColor = colors.hex("#8A2BE2", 0.95)
 colors.xplevelNumber = xpBarBaseColor
 colors.xpText = colors.white
 colors.xpGainText = xpBarBaseColor
 colors.xpBarBase = xpBarBaseColor
 colors.xpBarFill = xpBarBaseColor
-colors.xpBarTrail = colors.hex("#1A334D", 0.5)
+colors.xpBarTrail = colors.hex("#8A2BE2", 0.5)
 
 -- ========== SISTEMA DE RARIDADE ==========
 

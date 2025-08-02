@@ -79,9 +79,6 @@ end
 ---@param y number Posição Y do orbe.
 ---@param experienceValue number A quantidade de experiência que o orbe contém.
 function ExperienceOrbManager:addOrb(x, y, experienceValue)
-    Logger.info("experience_orb_manager.addOrb",
-        "[ExperienceOrbManager:addOrb] Adding orb at (" ..
-        x .. ", " .. y .. ") with experience value: " .. experienceValue)
     if not experienceValue or experienceValue <= 0 then return end
 
     local orb = self:_getOrbFromPool()
@@ -148,9 +145,6 @@ function ExperienceOrbManager:collectRenderables(renderPipeline)
     -- Limpa o SpriteBatch a cada frame
     self.spriteBatch:clear()
 
-    Logger.info("experience_orb_manager.collectRenderables",
-        "[ExperienceOrbManager:collectRenderables] Visible orbs: " .. #self.visibleOrbs)
-
     -- Adiciona todos os orbs visíveis ao SpriteBatch
     for _, orb in ipairs(self.visibleOrbs) do
         local renderData = orb:getRenderData()
@@ -200,9 +194,6 @@ end
 
 ---@private Atualiza a lista de orbs visíveis na tela.
 function ExperienceOrbManager:_updateVisibleOrbs()
-    Logger.info("experience_orb_manager._updateVisibleOrbs.start",
-        "[ExperienceOrbManager:_updateVisibleOrbs] Updating visible orbs")
-
     if not self.orbs or #self.orbs == 0 then
         self.visibleOrbs = {}
         return
@@ -224,8 +215,6 @@ function ExperienceOrbManager:_updateVisibleOrbs()
         end
     end
 
-    Logger.info("experience_orb_manager._updateVisibleOrbs.end",
-        "[ExperienceOrbManager:_updateVisibleOrbs] Visible orbs: " .. #visible)
     self.visibleOrbs = visible
 end
 
@@ -250,6 +239,8 @@ end
 ---@private Processa a coleta de um orbe.
 ---@param orb ExperienceOrb
 function ExperienceOrbManager:_processOrbCollection(orb)
+    Logger.info("experience_orb_manager._processOrbCollection",
+        "[ExperienceOrbManager:_processOrbCollection] Processing orb collection")
     local playerManager = self.context.registry:getPlayerManager()
     playerManager:addExperience(orb:getTotalExperience())
 end

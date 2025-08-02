@@ -52,6 +52,7 @@ function HUDGameplayManager:init()
     self.progressLevelBar = self:_initProgressLevelBar()
 
     self:_positionElements()
+    self:_subscribeToEvents()
 end
 
 --- Atualiza todos os elementos da UI gerenciados.
@@ -62,6 +63,53 @@ function HUDGameplayManager:update(dt)
 
     self:_updatePlayerHPBar(maxHealth)
     self.progressLevelBar:update(dt)
+end
+
+--- Desenha todos os elementos da UI gerenciados.
+---@param isPaused boolean Se o jogo está pausado.
+function HUDGameplayManager:draw(isPaused)
+    local playerManager = self.context.registry:getPlayerManager()
+    local playerScreenPosition = playerManager:getPosition()
+
+    self.playerHPBar:draw()
+    self.playerHPBar:drawOnPlayer(playerScreenPosition.x, playerScreenPosition.y, isPaused)
+
+    self.progressLevelBar:draw()
+
+    -- Desenha as informações de debug
+    self:_drawEnemyDebugInfo()
+end
+
+---@private É chamado quando o jogador ganha experiência.
+---@param data table O payload do evento.
+function HUDGameplayManager:_onExperienceGained(data)
+    assert(data.amount, "[HUDGameplayManager:_onExperienceGained] missing a data.amount on event")
+    self.progressLevelBar:addXP(data.amount)
+end
+
+---@private É chamado quando o jogador sobe de nível.
+---@param data table O payload do evento.
+function HUDGameplayManager:_onPlayerLeveledUp(data)
+    assert(data.newLevel, "[HUDGameplayManager:_onPlayerLeveledUp] missing a data.newLevel on event")
+    assert(data.levelsGained, "[HUDGameplayManager:_onPlayerLeveledUp] missing a data.levelsGained on event")
+    assert(data.currentExperience, "[HUDGameplayManager:_onPlayerLeveledUp] missing a data.currentExperience on event")
+
+    -- Força a sincronização para garantir que a barra está no estado correto.
+    self.progressLevelBar:setLevel(data.newLevel, data.currentExperience)
+end
+
+---@private Inscreve o manager nos eventos relevantes.
+function HUDGameplayManager:_subscribeToEvents()
+    local eventService = self.context.serviceLocator:getEventService()
+    eventService:on(eventService.EVENTS.PLAYER_XP_GAINED, self._onExperienceGained, self)
+    eventService:on(eventService.EVENTS.PLAYER_LEVELED_UP, self._onPlayerLeveledUp, self)
+end
+
+---@private Cancela a inscrição dos eventos.
+function HUDGameplayManager:_unsubscribeFromEvents()
+    local eventService = self.context.serviceLocator:getEventService()
+    eventService:off(eventService.EVENTS.PLAYER_XP_GAINED, self._onExperienceGained)
+    eventService:off(eventService.EVENTS.PLAYER_LEVELED_UP, self._onPlayerLeveledUp)
 end
 
 --- Desenha o painel de debug com informações dos inimigos.
@@ -85,21 +133,6 @@ function HUDGameplayManager:_drawEnemyDebugInfo()
     love.graphics.print(string.format("Active (Full Logic): %d", info.active), x, y)
     y = y + lineHeight
     love.graphics.print(string.format("Slow (Anim Only): %d", info.slow), x, y)
-end
-
---- Desenha todos os elementos da UI gerenciados.
----@param isPaused boolean Se o jogo está pausado.
-function HUDGameplayManager:draw(isPaused)
-    local playerManager = self.context.registry:getPlayerManager()
-    local playerScreenPosition = playerManager:getPosition()
-
-    self.playerHPBar:draw()
-    self.playerHPBar:drawOnPlayer(playerScreenPosition.x, playerScreenPosition.y, isPaused)
-
-    self.progressLevelBar:draw()
-
-    -- Desenha as informações de debug
-    self:_drawEnemyDebugInfo()
 end
 
 ---@private Inicializa a barra de HP do jogador.
@@ -165,6 +198,7 @@ function HUDGameplayManager:_initProgressLevelBar()
     local experienceController = playerManager.experienceController
     local initialExperience = experienceController:getCurrentExperience()
     local initialLevel = experienceController:getLevel()
+    local adaptiveFont = fonts.getAdaptive()
 
     local experienceBarParams = {
         x = 0,
@@ -175,6 +209,10 @@ function HUDGameplayManager:_initProgressLevelBar()
         xpForNextLevel = function(level_from_bar)
             return experienceController:getExperienceRequiredForLevel(level_from_bar)
         end,
+        fontMain = adaptiveFont.main,
+        fontLevelNumber = adaptiveFont.main_bold,
+        fontXpGain = adaptiveFont.main_bold,
+        fontLevelUp = adaptiveFont.main_bold,
         colors = {
             levelText = colors.xpText,
             levelNumber = colors.xplevelNumber,
@@ -209,6 +247,7 @@ end
 
 function HUDGameplayManager:destroy()
     Logger.info("hud_gameplay_manager.destroy", "[HUDGameplayManager:destroy] Destroying...")
+    self:_unsubscribeFromEvents()
 end
 
 return HUDGameplayManager
