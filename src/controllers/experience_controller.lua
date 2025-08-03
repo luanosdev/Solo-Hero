@@ -12,7 +12,7 @@ local LevelUpModal = require("src.ui.level_up_modal")
 local ExperienceController = {}
 ExperienceController.__index = ExperienceController
 
---- Cria uma nova instância do ExperienceController. 
+--- Cria uma nova instância do ExperienceController.
 ---@param playerManager PlayerManager A instância do PlayerManager
 ---@return ExperienceController1
 function ExperienceController:new(playerManager)

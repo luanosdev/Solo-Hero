@@ -3,6 +3,11 @@ local GameLoadingUI = require("src.scenes.game_loading.ui.game_loading_ui")
 local AnimationLoader = require("src.animations.animation_loader")
 local Constants = require("src.config.constants")
 local RenderPipeline = require("src.core.render_pipeline")
+local ServiceLocator = require("src.core.service_locator")
+local ExperienceOrbManager = require("src.scenes.gameplay.managers.experience_orb_manager")
+
+--- Assets
+local levelUpData = require("src.data.effects.level_up_data")
 
 --- @class GameLoadingScene
 --- @description Orquestra o carregamento assíncrono de ativos e gerencia o estado do processo de carregamento.
@@ -29,6 +34,7 @@ GameLoadingScene.LOADING_TASKS = {
     ENEMY_ASSETS = "loading_enemy_assets",
     SPRITE_BATCHES = "creating_sprite_batches",
     FINISHING_LOADING = "finishing_loading",
+    IMAGE_ASSETS = "loading_image_assets",
 }
 
 function GameLoadingScene:new()
@@ -142,10 +148,19 @@ function GameLoadingScene:_loadEnemyAssets()
     end
 end
 
+--- Carrega os assets de imagem necessários para o portal atual.
+--- TODO: Da uma melhorada nessa função.
+function GameLoadingScene:_loadImageAssets()
+    local assetService = ServiceLocator:getAssetService()
+    assetService:getImage(levelUpData.baseImagePath)
+    assetService:getImage(levelUpData.overlayImagePath)
+    assetService:getImage(ExperienceOrbManager.ASSETS.exp_orb)
+end
+
 --- Lógica da corrotina que executa as tarefas de carregamento de forma explícita e sequencial.
 function GameLoadingScene:_runTasks()
     local preloadedAssets = {}
-    local totalTasks = 4 -- Aumentado de 3 para 4 para incluir os inimigos
+    local totalTasks = 5 -- Aumentado de 3 para 4 para incluir os inimigos
 
     -- Mock: Carregar o portal diretamente
     self.currentPortalData = require("src.data.portals.rank_e.001_undead_plains")
@@ -184,6 +199,12 @@ function GameLoadingScene:_runTasks()
         batchesDone = self:_createSpriteBatchesChunked()
         coroutine.yield()
     end
+
+    -- Tarefa 6: Carregar Assets de Imagem
+    self.loadingState.currentTask = GameLoadingScene.LOADING_TASKS.IMAGE_ASSETS
+    self.loadingState.progress = 4 / totalTasks
+    self:_loadImageAssets()
+    coroutine.yield()
 
     -- Finalização
     self.loadingState.progress = 1

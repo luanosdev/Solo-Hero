@@ -1,6 +1,3 @@
-local Constants = require("src.config.constants")
-local ServiceLocator = require("src.services.service_locator")
-
 ---@class CombatHelpers
 local CombatHelpers = {
     HIT_TOLERANCE_MULTIPLIER = 1.2,

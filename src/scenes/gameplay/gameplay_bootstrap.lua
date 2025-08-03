@@ -14,6 +14,7 @@ local SceneManagerRegistry = require("src.core.scene_manager_registry")
 local HUDGameplayManager = require("src.scenes.gameplay.managers.hud_gameplay_manager")
 local DamageNumberManager = require("src.scenes.gameplay.managers.damage_number_manager")
 local ExperienceOrbManager = require("src.scenes.gameplay.managers.experience_orb_manager")
+local LevelUpManager = require("src.scenes.gameplay.managers.level_up_manager")
 
 ---@class GameplayBootstrap
 local GameplayBootstrap = {}
@@ -52,6 +53,7 @@ function GameplayBootstrap.initialize(context)
         { key = "hudGameplayManager",   class = HUDGameplayManager },
         { key = "damageNumberManager",  class = DamageNumberManager },
         { key = "experienceOrbManager", class = ExperienceOrbManager },
+        { key = "levelUpManager",       class = LevelUpManager },
     }
 
     ---@type table<string, any>

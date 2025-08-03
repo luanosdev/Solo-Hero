@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------
 
 local CombatHelpers = require("src.utils.combat_helpers")
-local LevelUpEffect = require("src.effects.level_up_effect")
+local LevelUpEffect = require("src.effects.spritesheet_effect")
 local TablePool = require("src.utils.table_pool")
 local Constants = require("src.config.constants")
 
