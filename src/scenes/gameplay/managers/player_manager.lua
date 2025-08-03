@@ -202,6 +202,7 @@ function PlayerManager:update(dt)
     self.playerSpriteController:update(dt, moveSpeedInPixels, moveVector, playerPosition, angle)
     if self.autoAttackController then self.autoAttackController:update() end
     if self.targetingController then self.targetingController:update() end
+    if self.healthController then self.healthController:update(dt) end
     if self.attackController then self.attackController:update(dt, self.attackContext) end
 
     -- Lógica de orquestração de ataque.

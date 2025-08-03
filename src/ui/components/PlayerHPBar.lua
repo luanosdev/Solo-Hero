@@ -197,6 +197,7 @@ end
 ---Atualiza o HP máximo da barra.
 ---@param newMaxHP number Novo HP máximo.
 function PlayerHPBar:setMaxHP(newMaxHP)
+    local oldMaxHP = self.maxHP
     self.maxHP = newMaxHP > 0 and newMaxHP or 1
 
     -- Cap HP atual e visual ao novo MaxHP se MaxHP diminuiu
@@ -212,7 +213,7 @@ function PlayerHPBar:setMaxHP(newMaxHP)
         -- Se MaxHP aumentou, e currentHP (que será setado por setCurrentHP em breve) aumentar,
         -- o visualHP deve acompanhar. Por enquanto, se não há rastro, alinha visual com current.
         -- Isso evita que visualHP fique para trás momentaneamente.
-        self.visualHP = math.max(self.visualHP, self.currentHP)     -- Garante que visual não fique para trás do real.
+        self.visualHP = math.max(self.visualHP, self.currentHP) -- Garante que visual não fique para trás do real.
         self.isHPBarAnimatingDown = false
         self.hpBarAnimationDownTimer = 0
     else
@@ -552,18 +553,16 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
 
     -- Draw current HP fill
     if currentHPFillWidth > 0 then
-        local r, g, b, a = unpack(self.colors.hpBarFill)
-        love.graphics.setColor(r / 255, g / 255, b / 255, a / 255)
+        love.graphics.setColor(self.colors.hpBarFill)
         love.graphics.rectangle("fill", barX, barY, currentHPFillWidth, barHeight)
     end
 
     local onPlayerAnimBaseY = barY - 25 -- Inicia o texto da animação 5px acima da barra
     for i, anim in ipairs(self.activeTextAnimations) do
         if anim.alpha > 0 then          -- Desenha apenas se estiver visível
-            local r, g, b = unpack(anim.color);
             local textX = barX + (barWidth / 2)
             local textY = onPlayerAnimBaseY + anim.offsetY
-            DamageNumberManager:drawText(anim.text, textX, textY, 0.5, { r, g, b }, anim.alpha)
+            DamageNumberManager:drawText(anim.text, textX, textY, 0.5, anim.color, anim.alpha)
         end
     end
 

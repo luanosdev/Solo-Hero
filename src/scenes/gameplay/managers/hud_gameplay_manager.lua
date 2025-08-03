@@ -1,5 +1,6 @@
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
+local Camera = require("src.config.camera")
 
 local PlayerHPBar = require("src.ui.components.PlayerHPBar")
 local ProgressLevelBar = require("src.ui.components.ProgressLevelBar")
@@ -77,12 +78,14 @@ function HUDGameplayManager:draw(isPaused)
     local playerScreenPosition = playerManager:getPosition()
 
     self.playerHPBar:draw()
-    self.playerHPBar:drawOnPlayer(playerScreenPosition.x, playerScreenPosition.y, isPaused)
-
     self.progressLevelBar:draw()
 
     -- Desenha as informações de debug
     self:_drawEnemyDebugInfo()
+
+    Camera:attach()
+    self.playerHPBar:drawOnPlayer(playerScreenPosition.x, playerScreenPosition.y, isPaused)
+    Camera:detach()
 end
 
 ---@private É chamado quando o jogador ganha experiência.
