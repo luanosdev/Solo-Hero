@@ -557,9 +557,9 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
         love.graphics.rectangle("fill", barX, barY, currentHPFillWidth, barHeight)
     end
 
-    local onPlayerAnimBaseY = barY - 25 -- Inicia o texto da animação 5px acima da barra
+    local onPlayerAnimBaseY = barY - ResolutionUtils.scaleSpacing(25)
     for i, anim in ipairs(self.activeTextAnimations) do
-        if anim.alpha > 0 then          -- Desenha apenas se estiver visível
+        if anim.alpha > 0 then -- Desenha apenas se estiver visível
             local textX = barX + (barWidth / 2)
             local textY = onPlayerAnimBaseY + anim.offsetY
             DamageNumberManager:drawText(anim.text, textX, textY, 0.5, anim.color, anim.alpha)
