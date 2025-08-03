@@ -14,10 +14,7 @@ local HunterBaseStats = {
     multiAttackChance = 0.1,   -- 20%
     expBonus = 1.0,            -- 100%
     defense = 10,
-    healthRegenCooldown = 1.0, -- Seconds
-    healthPerTick = 1,
-    healthRegenDelay = 8.0,    -- Seconds after taking damage
-    cooldownReduction = 1.0,   -- Multiplier (1.0 = no reduction)
+    healthRegen = 0.5,         -- 0.2 hp por segundo
     range = 1.0,               -- Multiplier (1.0 = base weapon/skill)
     area = 1.0,                -- Multiplier (1.0 = base weapon/skill)
     pickupRadius = 3,          -- Metros - convertido automaticamente para pixels

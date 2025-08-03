@@ -127,8 +127,11 @@ function PlayerManager:init()
     self.experienceController = ExperienceController:new(eventService)
     self.experienceController:init()
 
-    self.healthController = HealthController:new(eventService)
-    self.healthController:init(self.stateController:getStat("maxHealth"))
+    self.healthController = HealthController:new(context)
+    self.healthController:init(
+        self.stateController:getStat("maxHealth"),
+        self.stateController:getStat("healthRegen")
+    )
 
     self.targetingController = TargetingController:new({
         enemyManager = enemyManager,

@@ -2,12 +2,13 @@ local BaseController = require("src.controllers.base_controller")
 
 ---@class HealthController : BaseController
 ---@description Gerencia o estado de vida do jogador (dano, cura, morte) e se comunica com outros sistemas via eventos.
----@field eventService EventService O serviço de eventos global.
 ---@field currentHealth number A vida atual do jogador.
 ---@field maxHealth number A vida máxima atual do jogador.
 ---@field isAlive boolean Se o jogador está vivo.
 ---@field isInvincible boolean Se o jogador está temporariamente invencível.
----@field eventListeners table<string, function> Tabela para armazenar os listeners de eventos.
+---@field healthRegenAccumulator number Acumulador para regeneração de vida (pontos fracionários).
+---@field healthRegenRate number Taxa de regeneração atual (pontos por segundo).
+---@field healthRegenDelay number Delay entre regenerações (segundos).
 local HealthController = setmetatable({}, { __index = BaseController })
 HealthController.__index = HealthController
 
@@ -23,19 +24,24 @@ function HealthController:new(context)
     instance.maxHealth = 0
     instance.isAlive = true
     instance.isInvincible = false
-    instance.eventListeners = {}
+    instance.healthRegenAccumulator = 0
+    instance.healthRegenRate = 0
+    instance.healthRegenDelay = 0
 
     return instance
 end
 
 ---@public Inicializa o controller.
 ---@param initialMaxHealth number A vida máxima do jogador.
-function HealthController:init(initialMaxHealth)
+---@param initialHealthRegen number A taxa inicial de regeneração de vida.
+function HealthController:init(initialMaxHealth, initialHealthRegen)
     assert(initialMaxHealth, "[HealthController:init] 'initialMaxHealth' is required.")
+    assert(initialHealthRegen, "[HealthController:init] 'initialHealthRegen' is required.")
     Logger.info("health_controller.init.start", "[HealthController] Initializing...")
 
     self.maxHealth = initialMaxHealth
     self.currentHealth = initialMaxHealth
+    self.healthRegenRate = initialHealthRegen
 
     self:_startEventListeners()
 
@@ -44,8 +50,15 @@ function HealthController:init(initialMaxHealth)
 
     Logger.info(
         "health_controller.init.end",
-        string.format("[HealthController:init] Initialized with %d/%d HP.", self.currentHealth, self.maxHealth)
+        string.format("[HealthController:init] Initialized with %d/%d HP, regen: %.2f/sec.",
+            self.currentHealth, self.maxHealth, self.healthRegenRate)
     )
+end
+
+---@public Atualiza o controller (chamado a cada frame pelo PlayerManager).
+---@param dt number Delta time desde o último frame.
+function HealthController:update(dt)
+    self:_healthRegen(dt)
 end
 
 ---@public Aplica uma quantidade de dano ao jogador.
@@ -114,7 +127,7 @@ function HealthController:setInvincible(isInvincible)
     self.isInvincible = isInvincible
 end
 
----@private Lida com as atualizações de stats do jogador, especificamente 'maxHealth'.
+---@private Lida com as atualizações de stats do jogador, especificamente 'maxHealth' e 'healthRegen'.
 ---@param eventData PlayerStatUpdatedEventData Dados do evento { stat, newValue, oldValue }.
 function HealthController:_onPlayerStatUpdated(eventData)
     assert(eventData, "[HealthController:_onPlayerStatUpdated] 'eventData' is required.")
@@ -137,7 +150,6 @@ function HealthController:_onPlayerStatUpdated(eventData)
             self.currentHealth = newMaxHealth
         end
 
-
         Logger.info(
             "health_controller.max_health_changed",
             string.format("[HealthController] Max health changed from %d to %d. Current HP: %d.", oldMaxHealth,
@@ -145,6 +157,41 @@ function HealthController:_onPlayerStatUpdated(eventData)
         )
 
         self:_emitHealthUpdate()
+    elseif eventData.stat == "healthRegen" then
+        local oldRegenRate = self.healthRegenRate
+        local newRegenRate = eventData.newValue
+        self.healthRegenRate = newRegenRate
+
+        Logger.debug(
+            "health_controller.health_regen_changed",
+            string.format("[HealthController] Health regen rate changed from %.2f to %.2f HP/sec.",
+                oldRegenRate, newRegenRate)
+        )
+    end
+end
+
+---@private Atualiza o sistema de regeneração de vida
+---@param dt number Delta time
+function HealthController:_healthRegen(dt)
+    if not self.isAlive or self.healthRegenRate <= 0 then return end
+
+    -- Acumula pontos de regeneração baseado na taxa e tempo
+    self.healthRegenAccumulator = self.healthRegenAccumulator + (self.healthRegenRate * dt)
+
+    -- Se acumulou pelo menos 1 ponto de vida, regenera
+    if self.healthRegenAccumulator >= 1.0 then
+        local pointsToHeal = math.floor(self.healthRegenAccumulator)
+        local _, healedAmount = self:heal(pointsToHeal)
+
+        -- Remove apenas o que foi realmente curado do acumulador
+        if healedAmount > 0 then
+            self.healthRegenAccumulator = self.healthRegenAccumulator - healedAmount
+            Logger.debug(
+                "health_controller.regen",
+                string.format("[HealthController] Regenerated %d HP (rate: %.2f/sec). HP: %d/%d",
+                    healedAmount, self.healthRegenRate, self.currentHealth, self.maxHealth)
+            )
+        end
     end
 end
 
