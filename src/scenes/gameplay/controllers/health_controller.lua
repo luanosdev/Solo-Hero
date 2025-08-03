@@ -13,7 +13,7 @@ local HealthController = setmetatable({}, { __index = BaseController })
 HealthController.__index = HealthController
 
 ---@public Cria uma nova instância do HealthController.
----@param context ControllerContext O contexto do controller.
+---@param context GameplayControllerContext O contexto do controller.
 ---@return HealthController
 function HealthController:new(context)
     assert(context, "[HealthController:new] 'context' dependency is missing.")
@@ -195,6 +195,15 @@ function HealthController:_healthRegen(dt)
     end
 end
 
+---@private Lida com o evento de dano recebido pelo jogador, após ter sido calculado e mitigado.
+---@param eventData PlayerTookDamageEventData Dados do evento { finalDamage, sourceEnemy }.
+function HealthController:_onPlayerTookDamage(eventData)
+    assert(eventData, "[HealthController:_onPlayerTookDamage] 'eventData' is required.")
+    assert(eventData.finalDamage, "[HealthController:_onPlayerTookDamage] 'eventData.finalDamage' is required.")
+
+    self:takeDamage(eventData.finalDamage)
+end
+
 ---@private
 --- Orquestra o que acontece quando a vida do jogador chega a zero.
 function HealthController:_die()
@@ -223,6 +232,10 @@ function HealthController:_startEventListeners()
     self:_listen(
         self.context.services.eventService.EVENTS.PLAYER_STAT_UPDATED,
         self._onPlayerStatUpdated
+    )
+    self:_listen(
+        self.context.services.eventService.EVENTS.PLAYER_TOOK_DAMAGE,
+        self._onPlayerTookDamage
     )
 end
 

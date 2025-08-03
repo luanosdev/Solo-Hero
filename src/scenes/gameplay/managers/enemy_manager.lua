@@ -212,13 +212,7 @@ function EnemyManager:_fixedUpdate(fixedDt)
         local playerData = { position = playerPosition, radius = Constants.PLAYER_RADIUS_COLLISION, isAlive = true }
         local collidedEnemies = self.collisionController:update(fixedDt, activeEnemies, playerData)
         for _, enemy in ipairs(collidedEnemies) do
-            local damageSource = TablePool.getDamageSource()
-            damageSource.name = enemy.name
-            damageSource.isBoss = enemy.isBoss
-            damageSource.isMVP = enemy.isMVP
-            damageSource.unitType = enemy.unitType
-            -- self.playerManager:receiveDamage(enemy.damage, damageSource)
-            TablePool.releaseDamageSource(damageSource)
+            self.playerManager:handleEnemyCollision(enemy)
         end
 
         self.movementController:update(fixedDt, activeEnemies, playerPosition, mapInfo)

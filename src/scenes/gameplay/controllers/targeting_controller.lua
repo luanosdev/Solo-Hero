@@ -13,7 +13,7 @@ TargetingController.__index = TargetingController
 TargetingController.TARGETING_RADIUS = 300
 
 ---@public
----@param context ControllerContext
+---@param context GameplayControllerContext
 ---@return TargetingController
 function TargetingController:new(context)
     assert(context, "[TargetingController:new] 'context' dependency is missing.")

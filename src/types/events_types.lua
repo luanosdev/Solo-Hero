@@ -1,4 +1,3 @@
-
 ---@class PlayerWrappedEventData
 ---@field player table O objeto do jogador que atravessou.
 ---@field newPosition Vector2D A nova posição do jogador.
@@ -32,3 +31,7 @@
 ---@field stat StatKey O nome do stat que foi atualizado.
 ---@field newValue number O novo valor do stat.
 ---@field oldValue number O valor anterior do stat.
+
+---@class PlayerTookDamageEventData
+---@field finalDamage number O dano final que o jogador sofreu.
+---@field sourceEnemy BaseEnemy O inimigo que causou o dano.

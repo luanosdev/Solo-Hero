@@ -13,6 +13,7 @@ local AutoAttackController = require("src.scenes.gameplay.controllers.auto_attac
 local AreaOfEffectController = require("src.scenes.gameplay.controllers.area_of_effect_controller")
 local ExperienceController = require("src.scenes.gameplay.controllers.experience_controller")
 local HealthController = require("src.scenes.gameplay.controllers.health_controller")
+local CollisionResolutionController = require("src.scenes.gameplay.controllers.collision_resolution_controller")
 
 local CombatGeometry = require("src.utils.combat_geometry")
 local TablePool = require("src.utils.table_pool")
@@ -35,6 +36,7 @@ local TablePool = require("src.utils.table_pool")
 ---@field targetingController TargetingController
 ---@field attackController BaseAttackController
 ---@field areaOfEffectController AreaOfEffectController
+---@field collisionResolutionController CollisionResolutionController
 ---@field eventListeners table<string, function>
 ---@field attackContext AttackContext
 local PlayerManager = {}
@@ -67,6 +69,7 @@ function PlayerManager:new(context)
     instance.areaOfEffectController = nil
     instance.experienceController = nil
     instance.healthController = nil
+    instance.collisionResolutionController = nil
 
     instance.attackContext = nil
     instance.eventListeners = {}
@@ -97,6 +100,7 @@ function PlayerManager:init()
     local hunterStats = hunterManager:getHunterFinalStats(hunterId)
     local hunterEquipment = hunterManager:getEquippedItems(hunterId)
 
+    ---@type GameplayControllerContext
     local context = {
         services = {
             eventService = self.context.serviceLocator.getEventService(),
@@ -104,6 +108,7 @@ function PlayerManager:init()
             inputService = self.context.serviceLocator.getInputService(),
             assetService = self.context.serviceLocator.getAssetService(),
             gameStatisticsService = self.context.serviceLocator.getGameStatisticsService(),
+            gameTimerService = self.context.serviceLocator.getGameTimerService(),
         }
     }
 
@@ -140,6 +145,9 @@ function PlayerManager:init()
 
     self.areaOfEffectController = AreaOfEffectController:new()
     self.areaOfEffectController:init()
+
+    self.collisionResolutionController = CollisionResolutionController:new(context)
+    self.collisionResolutionController:init()
 
     self.attackContext = {
         finalStats = self.stateController:getAllStats(),
@@ -271,6 +279,17 @@ end
 function PlayerManager:addExperience(amount)
     local expBonus = self.stateController:getStat("expBonus")
     return self.experienceController:addExperience(amount, expBonus)
+end
+
+--- Lida com a detecção de colisão entre o jogador e um inimigo.
+--- Este método atua como um orquestrador, coletando os dados necessários (estatísticas do jogador)
+--- e delegando a lógica de resolução da colisão para o controller especializado.
+---@param enemy BaseEnemy O inimigo que colidiu com o jogador.
+function PlayerManager:handleEnemyCollision(enemy)
+    if not self.collisionResolutionController then return end
+
+    local playerStats = self.stateController:getAllStats()
+    self.collisionResolutionController:processCollision(enemy, playerStats)
 end
 
 ---@private Orquestra a execução de uma lista de descritores de ataque.
@@ -473,6 +492,7 @@ function PlayerManager:destroy()
     if self.playerSpriteController then self.playerSpriteController:destroy() end
     if self.targetingController then self.targetingController:destroy() end
     if self.autoAttackController then self.autoAttackController:destroy() end
+    if self.collisionResolutionController then self.collisionResolutionController:destroy() end
 end
 
 return PlayerManager

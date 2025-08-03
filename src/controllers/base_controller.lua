@@ -3,22 +3,22 @@
 ---@field assetService AssetService
 ---@field inputService InputService
 ---@field itemDataService ItemDataService
+---@field gameTimerService GameTimerService
 
-
----@class ControllerContext
+---@class GameplayControllerContext
 ---@field services ControllerServices
 
 ---@class BaseController
 ---@description Classe base para todos os controllers do jogo.
 --- Fornece uma estrutura comum para inicialização, atualização e destruição,
 --- além de acesso padronizado aos serviços globais.
----@field context ControllerContext Tabela contendo todos os serviços globais.
+---@field context GameplayControllerContext Tabela contendo todos os serviços globais.
 ---@field eventListeners EventListenerIdentifier[] Tabela para armazenar os listeners de eventos.
 local BaseController = {}
 BaseController.__index = BaseController
 
 --- Cria uma nova instância de um controller.
----@param context ControllerContext Uma tabela contendo todos os serviços disponíveis.
+---@param context GameplayControllerContext Uma tabela contendo todos os serviços disponíveis.
 ---@return any
 function BaseController:new(context)
     local instance = setmetatable({}, self)
@@ -56,11 +56,13 @@ function BaseController:destroy()
     self.eventListeners = {}
 end
 
----@protected Registra um listener de evento.
+---@protected Registra um listener de evento, garantindo que o `self` do controller seja passado para o callback.
 ---@param event string Nome do evento.
 ---@param callback function Callback para o evento.
 function BaseController:_listen(event, callback)
-    local listener = self.context.services.eventService:on(event, callback)
+    local listener = self.context.services.eventService:on(event, function(...)
+        callback(self, ...)
+    end)
     table.insert(self.eventListeners, listener)
 end
 

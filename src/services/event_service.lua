@@ -24,6 +24,7 @@ EventService.EVENTS = {
     PLAYER_HEALTH_UPDATED = 'player_health_updated',
     PLAYER_DIED = 'player_died',
     PLAYER_STAT_UPDATED = 'player_stat_updated',
+    PLAYER_TOOK_DAMAGE = 'player_took_damage',
     -- Equipment & Stats Events
     EQUIPMENT_CHANGED = 'equipment_changed',
     EQUIPMENT_BONUSES_UPDATED = 'equipment_bonuses_updated',

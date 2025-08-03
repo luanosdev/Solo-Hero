@@ -9,7 +9,7 @@ local AutoAttackController = setmetatable({}, { __index = BaseController })
 AutoAttackController.__index = AutoAttackController
 
 ---@public
----@param context ControllerContext
+---@param context GameplayControllerContext
 ---@return AutoAttackController
 function AutoAttackController:new(context)
     local instance = BaseController.new(self, context)

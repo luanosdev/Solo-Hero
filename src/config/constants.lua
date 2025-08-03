@@ -236,4 +236,15 @@ Constants.STAT_MODIFIERS = {
     PERCENTAGE = "PERCENTAGE",
 }
 
+
+------------------------------------------------
+--- Novo padrao de configurações de constantes
+------------------------------------------------
+Constants.GAMEPLAY_CONFIG = {
+    PLAYER_DAMAGE_COOLDOWN_SECONDS = 0.5,
+    DEFENSE_DAMAGE_REDUCTION_K = 52,
+    MAX_DAMAGE_REDUCTION = 0.8,
+}
+
+
 return Constants
