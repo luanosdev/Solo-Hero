@@ -98,7 +98,17 @@ function PlayerManager:init()
     local hunterStats = hunterManager:getHunterFinalStats(hunterId)
     local hunterEquipment = hunterManager:getEquippedItems(hunterId)
 
-    self.stateController = PlayerStateController:new(eventService)
+    local context = {
+        services = {
+            eventService = self.context.serviceLocator.getEventService(),
+            itemDataService = self.context.serviceLocator.getItemDataService(),
+            inputService = self.context.serviceLocator.getInputService(),
+            assetService = self.context.serviceLocator.getAssetService(),
+            gameStatisticsService = self.context.serviceLocator.getGameStatisticsService(),
+        }
+    }
+
+    self.stateController = PlayerStateController:new(context.services.eventService)
     self.stateController:init()
 
     self.archetypeGameplayController = ArchetypeGameplayController:new(self.context.args.hunterId)

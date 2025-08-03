@@ -1,4 +1,6 @@
----@class HealthController
+local BaseController = require("src.controllers.base_controller")
+
+---@class HealthController : BaseController
 ---@description Gerencia o estado de vida do jogador (dano, cura, morte) e se comunica com outros sistemas via eventos.
 ---@field eventService EventService O serviço de eventos global.
 ---@field currentHealth number A vida atual do jogador.
@@ -6,18 +8,16 @@
 ---@field isAlive boolean Se o jogador está vivo.
 ---@field isInvincible boolean Se o jogador está temporariamente invencível.
 ---@field eventListeners table<string, function> Tabela para armazenar os listeners de eventos.
-local HealthController = {}
+local HealthController = setmetatable({}, { __index = BaseController })
 HealthController.__index = HealthController
 
 ---@public Cria uma nova instância do HealthController.
----@param eventService EventService O serviço de eventos global.
+---@param context ControllerContext O contexto do controller.
 ---@return HealthController
-function HealthController:new(eventService)
-    assert(eventService, "[HealthController:new] 'eventService' dependency is missing.")
-
-    local instance = setmetatable({}, HealthController)
-
-    instance.eventService = eventService
+function HealthController:new(context)
+    assert(context, "[HealthController:new] 'context' dependency is missing.")
+    ---@type HealthController
+    local instance = BaseController:new(context)
 
     instance.currentHealth = 0
     instance.maxHealth = 0
@@ -52,6 +52,8 @@ end
 ---@param amount number A quantidade de dano a ser aplicada.
 ---@return boolean, number|nil `true` se o dano foi aplicado, junto com a quantidade, ou `false` se o jogador estava invencível.
 function HealthController:takeDamage(amount)
+    assert(amount, "[HealthController:takeDamage] 'amount' is required.")
+
     if not self.isAlive or self.isInvincible or amount <= 0 then
         return false
     end
@@ -83,6 +85,8 @@ end
 ---@param amount number A quantidade de vida a ser restaurada.
 ---@return boolean, number|nil `true` se a cura foi aplicada, junto com a quantidade, ou `false` se a cura não foi aplicada.
 function HealthController:heal(amount)
+    assert(amount, "[HealthController:heal] 'amount' is required.")
+
     if not self.isAlive or amount <= 0 then
         return false
     end
@@ -105,6 +109,8 @@ end
 ---@public Define o estado de invencibilidade do jogador.
 ---@param isInvincible boolean
 function HealthController:setInvincible(isInvincible)
+    assert(isInvincible, "[HealthController:setInvincible] 'isInvincible' is required.")
+
     self.isInvincible = isInvincible
 end
 
@@ -112,6 +118,9 @@ end
 ---@param eventData PlayerStatUpdatedEventData Dados do evento { stat, newValue, oldValue }.
 function HealthController:_onPlayerStatUpdated(eventData)
     assert(eventData, "[HealthController:_onPlayerStatUpdated] 'eventData' is required.")
+    assert(eventData.stat, "[HealthController:_onPlayerStatUpdated] 'eventData.stat' is required.")
+    assert(eventData.newValue, "[HealthController:_onPlayerStatUpdated] 'eventData.newValue' is required.")
+    assert(eventData.oldValue, "[HealthController:_onPlayerStatUpdated] 'eventData.oldValue' is required.")
 
     if eventData.stat == "maxHealth" then
         local oldMaxHealth = self.maxHealth
@@ -165,23 +174,6 @@ end
 ---@private Inicia as instancias de eventos
 function HealthController:_startEventListeners()
     self:_listen(self.eventService.EVENTS.PLAYER_STAT_UPDATED, self._onPlayerStatUpdated)
-end
-
----@private Registra um listener de eventos.
----@param event string
----@param handler function
-function HealthController:_listen(event, handler)
-    local listener = self.eventService:on(event, function(data) handler(self, data) end)
-    table.insert(self.eventListeners, listener)
-end
-
---- Limpa os recursos e se desregistra de eventos para evitar memory leaks.
-function HealthController:destroy()
-    Logger.info("health_controller.destroy", "[HealthController] Destroying...")
-    for _, listener in ipairs(self.eventListeners) do
-        self.eventService:off(listener.event, listener.id)
-    end
-    self.eventListeners = {}
 end
 
 return HealthController
