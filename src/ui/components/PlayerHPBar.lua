@@ -538,18 +538,18 @@ function PlayerHPBar:drawOnPlayer(entityX, entityY, isPaused)
         return
     end
 
-    local barWidth = 60
-    local barHeight = 5
+    local paddingPlayer = ResolutionUtils.scaleSpacing(40)
+    local barWidth, barHeight = ResolutionUtils.scaleUI(60, 8)
     local barX = entityX - (barWidth / 2)
-    local barY = entityY - barHeight - 40 -- 40 pixels above the entity's top
+    local barY = entityY - barHeight - paddingPlayer
 
     -- Percentages
     local currentHPPercentage = self.currentHP / self.maxHP
     local currentHPFillWidth = barWidth * currentHPPercentage
 
     -- Draw base/background
-    love.graphics.setColor(0, 0, 0, 0.4)
-    love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
+    love.graphics.setColor(self.colors.hpBarFill)
+    love.graphics.rectangle("fill", barX, barY + barHeight - 1, barWidth, 1)
 
     -- Draw current HP fill
     if currentHPFillWidth > 0 then
