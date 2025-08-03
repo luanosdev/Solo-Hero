@@ -5,7 +5,7 @@
 
 local TablePool = require("src.utils.table_pool")
 
----@class AutoAttackController
+---@class AutoAttackController1
 ---@field playerManager PlayerManager Referência ao PlayerManager
 ---@field autoAttack boolean Estado atual do auto-attack
 ---@field autoAttackEnabled boolean Configuração de auto-attack habilitado

@@ -1,35 +1,29 @@
+local BaseController = require("src.controllers.base_controller")
 local ActionTypes = require("src.types.action_types")
 
----@class AutoAttackController
+---@class AutoAttackController : BaseController
 ---@description Gerencia o estado de "auto-ataque" (ligado/desligado).
 ---@field autoAttackEnabled boolean
----@field inputService InputService
 ---@field isOverridden boolean
-local AutoAttackController = {}
+local AutoAttackController = setmetatable({}, { __index = BaseController })
 AutoAttackController.__index = AutoAttackController
 
 ---@public
----@param inputService InputService
+---@param context ControllerContext
 ---@return AutoAttackController
-function AutoAttackController:new(inputService)
-    local instance = setmetatable({}, AutoAttackController)
+function AutoAttackController:new(context)
+    local instance = BaseController.new(self, context)
 
     instance.autoAttackEnabled = false
-    instance.inputService = inputService
     instance.isOverridden = false
 
     return instance
 end
 
----@public Inicializa o AutoAttackController.
-function AutoAttackController:init()
-    Logger.info("auto_attack_controller.init", "[AutoAttackController:init] Inicializando AutoAttackController")
-end
-
 ---@public
 --- Apenas um placeholder, a lógica de checagem é feita pelo PlayerManager.
 function AutoAttackController:update()
-    if self.inputService:wasActionPressed(ActionTypes.TOGGLE_AUTO_ATTACK) then
+    if self.context.services.inputService:wasActionPressed(ActionTypes.TOGGLE_AUTO_ATTACK) then
         self:toggleAutoAttack()
     end
     -- No futuro, pode conter lógica de cooldown/timer para o auto-ataque.

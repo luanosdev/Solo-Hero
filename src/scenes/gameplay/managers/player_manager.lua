@@ -14,7 +14,6 @@ local AreaOfEffectController = require("src.scenes.gameplay.controllers.area_of_
 local ExperienceController = require("src.scenes.gameplay.controllers.experience_controller")
 local HealthController = require("src.scenes.gameplay.controllers.health_controller")
 
-
 local CombatGeometry = require("src.utils.combat_geometry")
 local TablePool = require("src.utils.table_pool")
 
@@ -133,14 +132,10 @@ function PlayerManager:init()
         self.stateController:getStat("healthRegen")
     )
 
-    self.targetingController = TargetingController:new({
-        enemyManager = enemyManager,
-        inputService = inputService,
-        camera = camera,
-    })
+    self.targetingController = TargetingController:new(context)
     self.targetingController:init()
 
-    self.autoAttackController = AutoAttackController:new(inputService)
+    self.autoAttackController = AutoAttackController:new(context)
     self.autoAttackController:init()
 
     self.areaOfEffectController = AreaOfEffectController:new()
@@ -162,8 +157,9 @@ end
 ---@param dt number O tempo delta desde o último frame.
 function PlayerManager:update(dt)
     local inputService = self.context.serviceLocator.getInputService()
+    local enemyManager = self.context.registry:getEnemyManager()
 
-    if not self.stateController or not self.movementController then return end
+    if not self.stateController or not self.movementController or not self.targetingController then return end
 
     -- Orquestração do Movimento e Animação
     local moveSpeed = self.stateController:getStat("moveSpeed")
@@ -177,7 +173,11 @@ function PlayerManager:update(dt)
     local isHoldingAttack = inputService:isActionDown(ActionTypes.ATTACK)
 
     -- Força a mira no mouse se o jogador estiver segurando o botão de ataque.
-    local targetPosition = self.targetingController:getTargetPosition(playerPosition, isHoldingAttack)
+    local targetPosition = self.targetingController:getTargetPosition(
+        playerPosition,
+        enemyManager.spatialGrid,
+        isHoldingAttack
+    )
 
     local dx = targetPosition.x - playerPosition.x
     local dy = targetPosition.y - playerPosition.y
@@ -193,6 +193,7 @@ function PlayerManager:update(dt)
     -- Atualiza os controllers com os dados orquestrados
     self.playerSpriteController:update(dt, moveSpeedInPixels, moveVector, playerPosition, angle)
     if self.autoAttackController then self.autoAttackController:update() end
+    if self.targetingController then self.targetingController:update() end
     if self.attackController then self.attackController:update(dt, self.attackContext) end
 
     -- Lógica de orquestração de ataque.

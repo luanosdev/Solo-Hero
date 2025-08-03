@@ -13,10 +13,6 @@
 --- Fornece uma estrutura comum para inicialização, atualização e destruição,
 --- além de acesso padronizado aos serviços globais.
 ---@field context ControllerContext Tabela contendo todos os serviços globais.
----@field eventService EventService Atalho para o serviço de eventos.
----@field assetService AssetService Atalho para o serviço de assets.
----@field inputService InputService Atalho para o serviço de input.
----@field itemDataService ItemDataService Atalho para o serviço de dados de itens.
 ---@field eventListeners EventListenerIdentifier[] Tabela para armazenar os listeners de eventos.
 local BaseController = {}
 BaseController.__index = BaseController
@@ -25,7 +21,7 @@ BaseController.__index = BaseController
 ---@param context ControllerContext Uma tabela contendo todos os serviços disponíveis.
 ---@return any
 function BaseController:new(context)
-    local instance = setmetatable({}, BaseController)
+    local instance = setmetatable({}, self)
     assert(context, "[BaseController:new] Missing context.")
     assert(context.services, "[BaseController:new] Missing conservices.")
 
@@ -55,7 +51,7 @@ end
 ---@public Hook para limpeza de recursos.
 function BaseController:destroy()
     for _, listener in ipairs(self.eventListeners) do
-        self.eventService:off(listener)
+        self.context.services.eventService:off(listener)
     end
     self.eventListeners = {}
 end
@@ -64,7 +60,7 @@ end
 ---@param event string Nome do evento.
 ---@param callback function Callback para o evento.
 function BaseController:_listen(event, callback)
-    local listener = self.eventService:on(event, callback)
+    local listener = self.context.services.eventService:on(event, callback)
     table.insert(self.eventListeners, listener)
 end
 

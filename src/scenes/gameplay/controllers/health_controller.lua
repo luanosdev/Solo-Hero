@@ -18,7 +18,7 @@ HealthController.__index = HealthController
 function HealthController:new(context)
     assert(context, "[HealthController:new] 'context' dependency is missing.")
     ---@type HealthController
-    local instance = BaseController:new(context)
+    local instance = BaseController.new(self, context)
 
     instance.currentHealth = 0
     instance.maxHealth = 0
@@ -204,23 +204,26 @@ function HealthController:_die()
     Logger.info("health_controller.death", "[HealthController] Player has died.")
 
     -- TODO: Adicionar dados relevantes sobre a morte, se necessário
-    self.eventService:emit(self.eventService.EVENTS.PLAYER_DIED, {
-        -- Adicionar dados relevantes sobre a morte, se necessário
-    })
 end
 
 ---@private
 --- Emite o evento de atualização de vida para notificar outros sistemas (como a UI).
 function HealthController:_emitHealthUpdate()
-    self.eventService:emit(self.eventService.EVENTS.PLAYER_HEALTH_UPDATED, {
-        current = self.currentHealth,
-        max = self.maxHealth,
-    })
+    self.context.services.eventService:emit(
+        self.context.services.eventService.EVENTS.PLAYER_HEALTH_UPDATED,
+        {
+            current = self.currentHealth,
+            max = self.maxHealth,
+        }
+    )
 end
 
 ---@private Inicia as instancias de eventos
 function HealthController:_startEventListeners()
-    self:_listen(self.eventService.EVENTS.PLAYER_STAT_UPDATED, self._onPlayerStatUpdated)
+    self:_listen(
+        self.context.services.eventService.EVENTS.PLAYER_STAT_UPDATED,
+        self._onPlayerStatUpdated
+    )
 end
 
 return HealthController
