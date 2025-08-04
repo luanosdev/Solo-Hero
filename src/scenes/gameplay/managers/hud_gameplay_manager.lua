@@ -1,7 +1,7 @@
 local fonts = require("src.ui.fonts")
 local colors = require("src.ui.colors")
 local Camera = require("src.config.camera")
-
+local LevelUpModal = require("src.scenes.gameplay.ui.level_up_modal")
 local PlayerHPBar = require("src.ui.components.PlayerHPBar")
 local ProgressLevelBar = require("src.ui.components.ProgressLevelBar")
 
@@ -13,10 +13,8 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field playerHPBar PlayerHPBar
 ---@field progressLevelBar ProgressLevelBar
 ---@field basePlayerHPBarWidth number
---- Event Listeners
----@field playerXPGainedListener EventListenerIdentifier
----@field playerLeveledUpListener EventListenerIdentifier
----@field playerHealthChangedListener EventListenerIdentifier
+---@field eventListeners table<string, EventListenerIdentifier>
+---@field levelUpModal LevelUpModal
 local HUDGameplayManager = {}
 HUDGameplayManager.__index = HUDGameplayManager
 
@@ -31,13 +29,11 @@ function HUDGameplayManager:new(context)
 
     local instance = setmetatable({}, HUDGameplayManager)
     instance.context = context
+    instance.eventListeners = {}
+    instance.levelUpModal = LevelUpModal:new()
 
     local screenWidth = ResolutionUtils.getGameWidth()
     instance.baseBarsWidth = screenWidth * 0.25
-
-    instance.playerXPGainedListener = nil
-    instance.playerLeveledUpListener = nil
-    instance.playerHealthChangedListener = nil
 
     return instance
 end
@@ -54,10 +50,7 @@ function HUDGameplayManager:init()
     local hunterId = self.context.args.hunterId
     local hunterData = hunterManager:getHunterData(hunterId)
 
-    self.playerHPBar = self:_initPlayerHPBar(
-        hunterData.name,
-        hunterData.finalRankId
-    )
+    self.playerHPBar = self:_initPlayerHPBar(hunterData.name, hunterData.finalRankId)
     self.progressLevelBar = self:_initProgressLevelBar()
 
     self:_positionElements()
@@ -69,12 +62,15 @@ end
 function HUDGameplayManager:update(dt)
     self.progressLevelBar:update(dt)
     self.playerHPBar:update(dt)
+    self.levelUpModal:update(dt)
 end
 
 --- Desenha todos os elementos da UI gerenciados.
----@param isPaused boolean Se o jogo está pausado.
-function HUDGameplayManager:draw(isPaused)
+function HUDGameplayManager:draw()
     local playerManager = self.context.registry:getPlayerManager()
+    local gameStateManager = self.context.registry:get("gameStateManager")
+
+    local isPaused = gameStateManager:isPaused()
     local playerScreenPosition = playerManager:getPosition()
 
     self.playerHPBar:draw()
@@ -86,12 +82,36 @@ function HUDGameplayManager:draw(isPaused)
     Camera:attach()
     self.playerHPBar:drawOnPlayer(playerScreenPosition.x, playerScreenPosition.y, isPaused)
     Camera:detach()
+
+    self.levelUpModal:draw()
 end
 
----@private É chamado quando o jogador ganha experiência.
----@param data table O payload do evento.
+---@private Chama na tela o modal de level up.
+function HUDGameplayManager:_onRequestLevelUpModal()
+    Logger.info("hud_gameplay_manager.request_modal",
+        "[HUDGameplayManager] Recebido pedido para mostrar o modal de level up.")
+
+    local playerManager = self.context.registry:getPlayerManager()
+    local options = playerManager:generateLevelUpOptions()
+
+    -- TODO: Conectar a lógica de aplicar o bônus escolhido.
+    self.levelUpModal:show(options, function(selectedBonus)
+        Logger.info("hud_gameplay_manager.bonus_selected",
+            "[HUDGameplayManager] Bônus selecionado: " .. selectedBonus.name)
+        -- Aqui virá a chamada para o PlayerManager aplicar o bônus.
+        -- Ex: playerManager:applyLevelUpBonus(selectedBonus.id)
+
+        -- Após a escolha, o modal se fecha e emite o evento para despausar o jogo.
+        -- O LevelUpManager ouvirá o evento LEVEL_UP_MODAL_CLOSED para continuar a fila.
+        local eventService = self.context.serviceLocator:getEventService()
+        eventService:emit(eventService.EVENTS.LEVEL_UP_MODAL_CLOSED)
+    end)
+end
+
+---@private Atualiza a barra de experiência.
+---@param data PlayerXPGainedEventData
 function HUDGameplayManager:_onExperienceGained(data)
-    assert(data.amount, "[HUDGameplayManager:_onExperienceGained] missing a data.amount on event")
+    assert(data.amount, "[HUDGameplayManager:_onExperienceGained] missing data.amount on event")
     self.progressLevelBar:addXP(data.amount)
 end
 
@@ -102,7 +122,6 @@ function HUDGameplayManager:_onPlayerLeveledUp(data)
     assert(data.levelsGained, "[HUDGameplayManager:_onPlayerLeveledUp] missing a data.levelsGained on event")
     assert(data.currentExperience, "[HUDGameplayManager:_onPlayerLeveledUp] missing a data.currentExperience on event")
 
-    -- Força a sincronização para garantir que a barra está no estado correto.
     self.progressLevelBar:setLevel(data.newLevel, data.currentExperience)
 end
 
@@ -116,7 +135,7 @@ function HUDGameplayManager:_onPlayerHealthChanged(data)
     local maxHP = data.max
 
     if maxHP ~= self.playerHPBar.maxHP then
-        local targetWidth = self.basePlayerHPBarWidth * (maxHP / self.basePlayerMaxHPForWidth)
+        local targetWidth = self.basePlayerHPBarWidth * (maxHP / self.baseBarsWidth)
         targetWidth = math.max(targetWidth, self.basePlayerHPBarWidth * 0.5)
         self.playerHPBar:setWidth(targetWidth)
     end
@@ -128,30 +147,32 @@ end
 ---@private Inscreve o manager nos eventos relevantes.
 function HUDGameplayManager:_subscribeToEvents()
     local eventService = self.context.serviceLocator:getEventService()
+    self:_listen(eventService.EVENTS.PLAYER_XP_GAINED, self._onExperienceGained)
+    self:_listen(eventService.EVENTS.PLAYER_LEVELED_UP, self._onPlayerLeveledUp)
+    self:_listen(eventService.EVENTS.PLAYER_HEALTH_UPDATED, self._onPlayerHealthChanged)
+    self:_listen(eventService.EVENTS.REQUEST_LEVEL_UP_MODAL, self._onRequestLevelUpModal)
+end
 
-    self.playerXPGainedListener = eventService:on(
-        eventService.EVENTS.PLAYER_XP_GAINED,
-        self._onExperienceGained,
-        self
-    )
-    self.playerLeveledUpListener = eventService:on(
-        eventService.EVENTS.PLAYER_LEVELED_UP,
-        self._onPlayerLeveledUp,
-        self
-    )
-    self.playerHealthChangedListener = eventService:on(
-        eventService.EVENTS.PLAYER_HEALTH_UPDATED,
-        self._onPlayerHealthChanged,
-        self
+---@private Registra um listener de evento.
+---@param event string Nome do evento.
+---@param callback function Callback para o evento.
+function HUDGameplayManager:_listen(event, callback)
+    local eventService = self.context.serviceLocator:getEventService()
+    self.eventListeners[event] = eventService:on(
+        event,
+        function(...)
+            callback(self, ...)
+        end
     )
 end
 
 ---@private Cancela a inscrição dos eventos.
 function HUDGameplayManager:_unsubscribeFromEvents()
     local eventService = self.context.serviceLocator:getEventService()
-    eventService:off(self.playerXPGainedListener)
-    eventService:off(self.playerLeveledUpListener)
-    eventService:off(self.playerHealthChangedListener)
+    for _, listener in pairs(self.eventListeners) do
+        eventService:off(listener)
+    end
+    self.eventListeners = {}
 end
 
 --- Desenha o painel de debug com informações dos inimigos.
@@ -189,7 +210,7 @@ function HUDGameplayManager:_initPlayerHPBar(hunterName, hunterRank)
     local maxHealth = playerManager.stateController:getStat("maxHealth")
     local adaptiveFont = fonts.getAdaptive()
 
-    local playerHPBarParams = {
+    local params = {
         x = 0,
         y = 0,
         w = self.baseBarsWidth,
@@ -214,8 +235,8 @@ function HUDGameplayManager:_initPlayerHPBar(hunterName, hunterRank)
         hpBarAnimationSpeed = 50
     }
 
-    local playerHPBar = PlayerHPBar:new(playerHPBarParams)
-    self.basePlayerHPBarWidth = playerHPBarParams.w
+    local playerHPBar = PlayerHPBar:new(params)
+    self.basePlayerHPBarWidth = params.w
     self.basePlayerMaxHPForWidth = maxHealth > 0 and maxHealth or 100
 
     return playerHPBar
@@ -229,7 +250,7 @@ function HUDGameplayManager:_initProgressLevelBar()
     local initialLevel = experienceController:getLevel()
     local adaptiveFont = fonts.getAdaptive()
 
-    local experienceBarParams = {
+    local params = {
         x = 0,
         y = 0,
         w = self.baseBarsWidth,
@@ -253,9 +274,7 @@ function HUDGameplayManager:_initProgressLevelBar()
         }
     }
 
-    local experienceBar = ProgressLevelBar:new(experienceBarParams)
-
-    return experienceBar
+    return ProgressLevelBar:new(params)
 end
 
 ---@private Posiciona os elemetos de UI do HUDGameplayManager.
@@ -274,6 +293,7 @@ function HUDGameplayManager:_positionElements()
     )
 end
 
+---@public Destrói o HUDGameplayManager.
 function HUDGameplayManager:destroy()
     Logger.info("hud_gameplay_manager.destroy", "[HUDGameplayManager:destroy] Destroying...")
     self:_unsubscribeFromEvents()

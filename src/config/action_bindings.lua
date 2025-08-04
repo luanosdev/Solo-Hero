@@ -18,7 +18,8 @@ local bindings = {
     [ActionTypes.MOVE_LEFT] = { "a", "left" },
     [ActionTypes.MOVE_RIGHT] = { "d", "right" },
 
-    -- Ações de Botão
+    -- Ações de Botão e UI
+    [ActionTypes.UI_SELECT] = { "mouse1" },
     [ActionTypes.CONFIRM] = { "return", "kpenter" },
     [ActionTypes.CANCEL] = { "escape" },
     [ActionTypes.USE_POTION] = { "q" },

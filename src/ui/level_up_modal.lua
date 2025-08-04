@@ -4,7 +4,7 @@ local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
 local Formatters = require("src.utils.formatters")
 local lume = require("src.libs.lume")
 
----@class LevelUpModal
+---@class LevelUpModal1
 ---@field visible boolean
 ---@field options table
 ---@field selectedOption number|nil
@@ -36,7 +36,7 @@ local LevelUpModal = {
     appearanceSequenceCompleted = false,
 }
 
----@class LevelUpCard
+---@class LevelUpCard1
 ---@field rect {x: number, y: number, w: number, h: number}
 ---@field optionData LevelUpBonus
 ---@field alpha number
@@ -629,8 +629,8 @@ function LevelUpModal:show(onCloseCallback)
     -- Verifica se as imagens estão pré-carregadas, se não, carrega agora
     self:_ensureImagesLoaded()
 
-    self:generateOptions()
-    self:createCards()
+    -- self:generateOptions()
+    -- self:createCards()
 
     Logger.debug("level_up_modal.show", "[LevelUpModal] Modal aberto com animação sequencial")
 end

@@ -11,8 +11,8 @@ local ActionTypes = require("src.types.action_types")
 ---@field bindings ActionBindings O mapeamento de teclas para ações.
 ---@field keyboardBindings table<string, love.KeyConstant[]>
 ---@field mouseBindings table<string, number[]>
----@field reverseKeyboardBindings table<love.KeyConstant, string> Mapeamento reverso para busca rápida.
----@field reverseMouseBindings table<number, string> Mapeamento reverso para busca rápida.
+---@field reverseKeyboardBindings table<love.KeyConstant, string[]> Mapeamento reverso para busca rápida (tecla -> lista de ações).
+---@field reverseMouseBindings table<number, string[]> Mapeamento reverso para busca rápida (botão -> lista de ações).
 ---@field actionsDown table<string, boolean> Ações que estão atualmente ativas (tecla segurada).
 ---@field actionsPressed table<string, boolean> Ações que foram pressionadas neste frame.
 ---@field actionsReleased table<string, boolean> Ações que foram soltas neste frame.
@@ -51,14 +51,21 @@ function InputService:_buildReverseBindings()
         for _, key in ipairs(keys) do
             if type(key) == "string" and key:match("mouse") then
                 -- É um botão do mouse, ex: "mouse1"
-                -- Adicionado parêntese extra para pegar apenas o primeiro retorno do gsub
                 local buttonIndex = tonumber((key:gsub("mouse", "")))
                 table.insert(self.mouseBindings[action], buttonIndex)
-                self.reverseMouseBindings[buttonIndex] = action
+                -- Garante que a lista de ações exista para este botão
+                if not self.reverseMouseBindings[buttonIndex] then
+                    self.reverseMouseBindings[buttonIndex] = {}
+                end
+                table.insert(self.reverseMouseBindings[buttonIndex], action)
             else
                 -- É uma tecla do teclado
                 table.insert(self.keyboardBindings[action], key)
-                self.reverseKeyboardBindings[key] = action
+                -- Garante que a lista de ações exista para esta tecla
+                if not self.reverseKeyboardBindings[key] then
+                    self.reverseKeyboardBindings[key] = {}
+                end
+                table.insert(self.reverseKeyboardBindings[key], action)
             end
         end
     end
@@ -97,18 +104,22 @@ end
 ---@public Manipula o evento love.keypressed
 ---@param key love.KeyConstant
 function InputService:handleKeyPressed(key)
-    local action = self.reverseKeyboardBindings[key]
-    if action then
-        self.actionsPressed[action] = true
+    local actions = self.reverseKeyboardBindings[key]
+    if actions then
+        for _, action in ipairs(actions) do
+            self.actionsPressed[action] = true
+        end
     end
 end
 
 ---@public Manipula o evento love.keyreleased
 ---@param key love.KeyConstant
 function InputService:handleKeyReleased(key)
-    local action = self.reverseKeyboardBindings[key]
-    if action then
-        self.actionsReleased[action] = true
+    local actions = self.reverseKeyboardBindings[key]
+    if actions then
+        for _, action in ipairs(actions) do
+            self.actionsReleased[action] = true
+        end
     end
 end
 
@@ -117,9 +128,11 @@ end
 ---@param y number
 ---@param button number
 function InputService:handleMousePressed(x, y, button)
-    local action = self.reverseMouseBindings[button]
-    if action then
-        self.actionsPressed[action] = true
+    local actions = self.reverseMouseBindings[button]
+    if actions then
+        for _, action in ipairs(actions) do
+            self.actionsPressed[action] = true
+        end
     end
 end
 
@@ -128,9 +141,11 @@ end
 ---@param y number
 ---@param button number
 function InputService:handleMouseReleased(x, y, button)
-    local action = self.reverseMouseBindings[button]
-    if action then
-        self.actionsReleased[action] = true
+    local actions = self.reverseMouseBindings[button]
+    if actions then
+        for _, action in ipairs(actions) do
+            self.actionsReleased[action] = true
+        end
     end
 end
 

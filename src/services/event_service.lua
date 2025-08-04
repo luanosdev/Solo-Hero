@@ -29,6 +29,12 @@ EventService.EVENTS = {
     EQUIPMENT_CHANGED = 'equipment_changed',
     EQUIPMENT_BONUSES_UPDATED = 'equipment_bonuses_updated',
     ARCHETYPE_BONUSES_UPDATED = 'archetype_bonuses_updated',
+    -- Level Up Events
+    REQUEST_LEVEL_UP_MODAL = 'request_level_up_modal',
+    LEVEL_UP_MODAL_CLOSED = 'level_up_modal_closed',
+    -- Game State
+    REQUEST_GAME_PAUSE = 'request_game_pause',
+    REQUEST_GAME_UNPAUSE = 'request_game_unpause',
 }
 
 --- Cria uma nova instância do EventService.

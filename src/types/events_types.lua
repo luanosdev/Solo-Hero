@@ -35,3 +35,15 @@
 ---@class PlayerTookDamageEventData
 ---@field finalDamage number O dano final que o jogador sofreu.
 ---@field sourceEnemy BaseEnemy O inimigo que causou o dano.
+
+---@class RequestLevelUpModalEventData
+---@description Evento emitido para solicitar a abertura do modal de level up. Sem dados.
+
+---@class LevelUpModalClosedEventData
+---@description Evento emitido quando o modal de level up é fechado. Sem dados.
+
+---@class RequestGamePauseEventData
+---@description Evento emitido para solicitar a pausa do jogo. Sem dados.
+
+---@class RequestGameUnpauseEventData
+---@description Evento emitido para solicitar que o jogo seja despausado. Sem dados.

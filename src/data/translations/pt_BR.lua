@@ -553,6 +553,22 @@ local translations = {
         }
     },
 
+    -- === MELHORIAS DE LEVEL UP ===
+    bonuses = {
+        vitality_base = {
+            name = "Vitalidade",
+            description = "Aumenta a [stat]Vida Máxima[/stat] base em [value_positive]+{value}[/value_positive]."
+        }
+    },
+
+    -- === ATRIBUTOS DO JOGADOR ===
+    player_stats = {
+        maxHealth = {
+            name = "Vida Máxima"
+        }
+        -- Adicione outros stats aqui conforme necessário
+    },
+
     -- === PORTALS ===
     portals = {
         title = "Portal Ranking {rank}",

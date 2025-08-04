@@ -12,7 +12,6 @@ local ServiceLocator = require("src.core.service_locator")
 --- TODO: Remover o v2 quando o v1 for removido
 ---@class GameplaySceneV2
 ---@field registry SceneManagerRegistry|nil
----@field isPaused boolean
 --- Propriedades que virão da cena de carregamento
 ---@field renderPipeline RenderPipeline
 ---@field preloadedAssets table
@@ -23,8 +22,6 @@ GameplayScene.__index = GameplayScene
 function GameplayScene:load(args)
     Logger.info("gameplay_scene.load.start", "[GameplayScene:load] Starting gameplay scene loading...")
     assert(args and args.preloadedAssets, "GameplayScene requires 'preloadedAssets' in loading arguments.")
-
-    self.isPaused = false
 
     -- Inicia o timer global da sessão de jogo
     local gameTimerService = ServiceLocator.getGameTimerService()
@@ -92,12 +89,12 @@ function GameplayScene:update(dt)
         return
     end
 
-    -- A lógica de pause será reimplementada aqui, controlando o update do registry
-    if not self.isPaused then
+    ---@type GameStateManager A pausa do jogo é controlada pelo GameStateManager.
+    local gameStateManager = self.registry:get("gameStateManager")
+    if not gameStateManager:isPaused() then
         self.registry:updateAll(dt)
 
-        ---@type PlayerManagerV2
-        local playerManager = self.registry:get("playerManager")
+        local playerManager = self.registry:getPlayerManager()
         if playerManager then
             Camera:follow(playerManager:getPosition(), dt)
         end
@@ -138,7 +135,7 @@ function GameplayScene:draw()
     ---@type HUDGameplayManager
     local hudGameplayManager = self.registry:get("hudGameplayManager")
     if hudGameplayManager then
-        hudGameplayManager:draw(false)
+        hudGameplayManager:draw()
     end
 end
 
@@ -150,14 +147,6 @@ function GameplayScene:keypressed(key, scancode, isrepeat)
         --     mapManager:toggleDebug()
         -- end
     end
-end
-
-function GameplayScene:mousepressed(x, y, button, istouch, presses)
-    -- A lógica de input será delegada para o InputManager através do registry
-end
-
-function GameplayScene:mousereleased(x, y, button, istouch, presses)
-    -- A lógica de input será delegada para o InputManager através do registry
 end
 
 function GameplayScene:unload()

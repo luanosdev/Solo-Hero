@@ -14,6 +14,7 @@ local AreaOfEffectController = require("src.scenes.gameplay.controllers.area_of_
 local ExperienceController = require("src.scenes.gameplay.controllers.experience_controller")
 local HealthController = require("src.scenes.gameplay.controllers.health_controller")
 local CollisionResolutionController = require("src.scenes.gameplay.controllers.collision_resolution_controller")
+local LevelUpBonusController = require("src.scenes.gameplay.controllers.level_up_bonus_controller")
 
 local CombatGeometry = require("src.utils.combat_geometry")
 local TablePool = require("src.utils.table_pool")
@@ -37,6 +38,7 @@ local TablePool = require("src.utils.table_pool")
 ---@field attackController BaseAttackController
 ---@field areaOfEffectController AreaOfEffectController
 ---@field collisionResolutionController CollisionResolutionController
+---@field levelUpBonusController LevelUpBonusController
 ---@field eventListeners table<string, function>
 ---@field attackContext AttackContext
 local PlayerManager = {}
@@ -70,6 +72,7 @@ function PlayerManager:new(context)
     instance.experienceController = nil
     instance.healthController = nil
     instance.collisionResolutionController = nil
+    instance.levelUpBonusController = nil
 
     instance.attackContext = nil
     instance.eventListeners = {}
@@ -149,6 +152,9 @@ function PlayerManager:init()
     self.collisionResolutionController = CollisionResolutionController:new(context)
     self.collisionResolutionController:init()
 
+    self.levelUpBonusController = LevelUpBonusController:new(context)
+    self.levelUpBonusController:init()
+
     self.attackContext = {
         finalStats = self.stateController:getAllStats(),
         playerPosition = self.movementController:getPosition(),
@@ -159,6 +165,24 @@ function PlayerManager:init()
     }
 
     Logger.info("player_manager_v2.init.success", "[PlayerManager:init] Successfully initialized.")
+end
+
+--- Gera e retorna um conjunto de opções de bônus de level up.
+--- Delega a lógica para o controller especializado, atuando como orquestrador.
+--- No futuro, irá coletar dados contextuais (traits de arma, etc.) e passá-los.
+---@return LevelUpBonus[]
+function PlayerManager:generateLevelUpOptions()
+    -- TODO: Coletar e passar o `contextualBonusContext` quando os controllers
+    -- de arma e runa estiverem implementados no novo PlayerManager.
+    local contextualBonusContext = nil -- Placeholder
+    return self.levelUpBonusController:generateOptions(contextualBonusContext)
+end
+
+--- Aplica um bônus de level up escolhido.
+--- Delega a lógica para o controller especializado.
+---@param chosenBonus LevelUpBonus O bônus escolhido.
+function PlayerManager:applyLevelUpBonus(chosenBonus)
+    self.levelUpBonusController:applyLevelUpBonus(chosenBonus)
 end
 
 --- Atualiza todos os controllers do jogador.
@@ -204,6 +228,7 @@ function PlayerManager:update(dt)
     if self.targetingController then self.targetingController:update() end
     if self.healthController then self.healthController:update(dt) end
     if self.attackController then self.attackController:update(dt, self.attackContext) end
+    if self.levelUpBonusController then self.levelUpBonusController:update(dt) end
 
     -- Lógica de orquestração de ataque.
     -- Para uma explicação detalhada das regras, consulte: docs/SISTEMA_DE_ATAQUE.md
@@ -494,6 +519,7 @@ function PlayerManager:destroy()
     if self.targetingController then self.targetingController:destroy() end
     if self.autoAttackController then self.autoAttackController:destroy() end
     if self.collisionResolutionController then self.collisionResolutionController:destroy() end
+    if self.levelUpBonusController then self.levelUpBonusController:destroy() end
 end
 
 return PlayerManager

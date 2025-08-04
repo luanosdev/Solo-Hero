@@ -11,14 +11,12 @@ local Colors = require("src.ui.colors")
 ---@field value number
 
 ---@class LevelUpBonus
----@field id string
----@field name string
----@field description string
+---@field id string -- Chave única, usada para construir as chaves de localização
+---@field base_bonuses string[]|nil
 ---@field image_path string
 ---@field max_level number
 ---@field modifiers_per_level BonusPerLevel[]
 ---@field is_ultimate? boolean
----@field color Color
 
 ---@class LevelUpBonusesData
 ---@field Bonuses LevelUpBonus[]
@@ -27,8 +25,6 @@ local Colors = require("src.ui.colors")
 ---@field GetBonusColor fun(bonusData: LevelUpBonus): table
 local LevelUpBonusesData = {}
 local tempIconPath = "assets/images/skills/attack.png"
-
--- Cores por categoria de melhoria
 
 -- Cores para palavras-chave nas descrições (estilo LoL)
 LevelUpBonusesData.KeywordColors = {
@@ -71,14 +67,11 @@ LevelUpBonusesData.Bonuses = {
     -- Bônus de Vida
     vitality_base = {
         id = "vitality_base",
-        name = "Vitalidade",
-        description = "Aumenta a |Vida Máxima| base em |30|.",
         image_path = "assets/images/skills/vitality.png",
         max_level = 10,
         modifiers_per_level = {
             { stat = "maxHealth", type = "base", value = 30 }
         },
-        color = Colors.attribute_colors.max_health
     },
     vitality_percent = {
         id = "vitality_percent",
@@ -1004,7 +997,8 @@ LevelUpBonusesData.Bonuses = {
     ultimate_dash_cooldown_reduction = {
         id = "ultimate_dash_cooldown_reduction",
         name = "Passo Instantâneo",
-        description = "A velocidade absoluta. Aumenta a |Recarga do Dash| em |-40%| e a |Velocidade de Movimento| em |20%|. Como um raio.",
+        description =
+        "A velocidade absoluta. Aumenta a |Recarga do Dash| em |-40%| e a |Velocidade de Movimento| em |20%|. Como um raio.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1033,7 +1027,8 @@ LevelUpBonusesData.Bonuses = {
     ultimate_dash_extra_charge = {
         id = "ultimate_dash_extra_charge",
         name = "Carga Infinita",
-        description = "Cargas ilimitadas. Aumenta a |Cargas de Dash| base em |3| e a |Recarga do Dash| em |-20%|. A mobilidade perfeita.",
+        description =
+        "Cargas ilimitadas. Aumenta a |Cargas de Dash| base em |3| e a |Recarga do Dash| em |-20%|. A mobilidade perfeita.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1049,7 +1044,8 @@ LevelUpBonusesData.Bonuses = {
     ultimate_potion_capacity_base = {
         id = "ultimate_potion_capacity_base",
         name = "Capacidade Ilimitada",
-        description = "Frascos infinitos. Aumenta a |Capacidade de Poção| base em |3| e o |Bônus de Cura| em |30%|. Nunca fique sem recursos.",
+        description =
+        "Frascos infinitos. Aumenta a |Capacidade de Poção| base em |3| e o |Bônus de Cura| em |30%|. Nunca fique sem recursos.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1063,7 +1059,8 @@ LevelUpBonusesData.Bonuses = {
     ultimate_potion_potency_base = {
         id = "ultimate_potion_potency_base",
         name = "Poções Divinas",
-        description = "A cura suprema. Aumenta a |Cura da Poção| base em |75| HP e o |Bônus de Cura| em |25%|. Elixires dos deuses.",
+        description =
+        "A cura suprema. Aumenta a |Cura da Poção| base em |75| HP e o |Bônus de Cura| em |25%|. Elixires dos deuses.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,
@@ -1095,7 +1092,8 @@ LevelUpBonusesData.Bonuses = {
     ultimate_regeneration_base = {
         id = "ultimate_regeneration_base",
         name = "Recuperação Suprema",
-        description = "A regeneração divina. Aumenta a |Regeneração de Vida| base em |2.5| e a |Vida Máxima| em |30%|. A vida eterna.",
+        description =
+        "A regeneração divina. Aumenta a |Regeneração de Vida| base em |2.5| e a |Vida Máxima| em |30%|. A vida eterna.",
         image_path = tempIconPath,
         max_level = 1,
         is_ultimate = true,

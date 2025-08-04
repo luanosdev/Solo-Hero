@@ -23,6 +23,7 @@ LevelUpManager.__index = LevelUpManager
 LevelUpManager.STATES = {
     IDLE = "idle",
     EFFECT_PLAYING = "effect_playing",
+    AWAITING_MODAL = "awaiting_modal",
     WAITING = "waiting",
 }
 
@@ -62,6 +63,7 @@ end
 ---@private Registra os listeners de eventos.
 function LevelUpManager:_registerEventListeners()
     self:_listen(EventService.EVENTS.PLAYER_LEVELED_UP, self.onPlayerLeveledUp)
+    self:_listen(EventService.EVENTS.LEVEL_UP_MODAL_CLOSED, self.onLevelUpModalClosed)
 end
 
 --- Manipulador para o evento de level up do jogador.
@@ -81,6 +83,14 @@ function LevelUpManager:onPlayerLeveledUp(eventData)
 
     if self.currentState == LevelUpManager.STATES.IDLE then
         self:processNextInQueue()
+    end
+end
+
+--- Chamado quando o modal de level up é fechado.
+function LevelUpManager:onLevelUpModalClosed()
+    if self.currentState == LevelUpManager.STATES.AWAITING_MODAL then
+        Logger.info("level_up_manager.modal_closed", "[LevelUpManager] Modal fechado, continuando a fila.")
+        self.currentState = LevelUpManager.STATES.WAITING -- Inicia o período de espera
     end
 end
 
@@ -181,12 +191,15 @@ function LevelUpManager:update(dt)
     end
 end
 
---- Finaliza o efeito e transita para o estado de espera.
+--- Finaliza o efeito, solicita o modal e transita para o estado de espera.
 function LevelUpManager:finishEffect()
-    Logger.info("level_up_manager.effect.finished", "[LevelUpManager] Efeito de level up finalizado.")
     self.activeEffect = nil
-    self.currentState = LevelUpManager.STATES.WAITING
-    -- Futuramente: EventService:dispatch(EventService.EVENTS.SHOW_LEVEL_UP_MODAL)
+    self.currentState = LevelUpManager.STATES.AWAITING_MODAL
+
+    local eventService = self.context.serviceLocator:getEventService()
+    eventService:emit(EventService.EVENTS.REQUEST_LEVEL_UP_MODAL)
+
+    Logger.info("level_up_manager.effect.finished", "[LevelUpManager] Efeito finalizado, solicitando modal.")
 end
 
 --- Coleta os renderizáveis do efeito ativo.

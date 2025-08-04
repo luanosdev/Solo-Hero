@@ -10,6 +10,7 @@
 ---@field MOVE_DOWN "move_down"
 ---@field MOVE_LEFT "move_left"
 ---@field MOVE_RIGHT "move_right"
+---@field UI_SELECT "ui_select" Ação genérica para selecionar/clicar em um elemento de UI.
 ---@field CONFIRM "confirm" Ação de confirmar (UI)
 ---@field CANCEL "cancel" Ação de cancelar/voltar (UI)
 ---@field USE_POTION "use_potion" Usar poção de cura
@@ -25,7 +26,8 @@ local ActionTypes = {
     MOVE_LEFT = "move_left",
     MOVE_RIGHT = "move_right",
 
-    -- Ações de Botão (eventos discretos)
+    -- Ações de UI e Botões
+    UI_SELECT = "ui_select",
     CONFIRM = "confirm",
     CANCEL = "cancel",
     USE_POTION = "use_potion",

@@ -15,6 +15,7 @@ local HUDGameplayManager = require("src.scenes.gameplay.managers.hud_gameplay_ma
 local DamageNumberManager = require("src.scenes.gameplay.managers.damage_number_manager")
 local ExperienceOrbManager = require("src.scenes.gameplay.managers.experience_orb_manager")
 local LevelUpManager = require("src.scenes.gameplay.managers.level_up_manager")
+local GameStateManager = require("src.scenes.gameplay.managers.game_state_manager")
 
 ---@class GameplayBootstrap
 local GameplayBootstrap = {}
@@ -47,6 +48,7 @@ function GameplayBootstrap.initialize(context)
     -- Definição dos managers a serem carregados em ordem explícita de inicialização.
     -- O mapa DEVE ser inicializado antes do jogador e dos inimigos.
     local managersToLoad = {
+        { key = "gameStateManager",     class = GameStateManager },
         { key = "playerManager",        class = PlayerManager },
         { key = "mapManager",           class = InfinityWrapMapManager },
         { key = "enemyManager",         class = EnemyManager },
