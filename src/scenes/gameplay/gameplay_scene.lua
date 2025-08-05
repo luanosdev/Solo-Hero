@@ -89,18 +89,22 @@ function GameplayScene:update(dt)
         return
     end
 
-    ---@type GameStateManager A pausa do jogo é controlada pelo GameStateManager.
-    local gameStateManager = self.registry:get("gameStateManager")
-    if not gameStateManager:isPaused() then
-        self.registry:updateAll(dt)
+    -- Atualiza managers que nunca pausam (como HUD, GameState)
+    self.registry:updateAlways(dt)
 
+    ---@type GameStateManager
+    local gameStateManager = self.registry:get("gameStateManager")
+
+    if not gameStateManager:isPaused() then
+        -- Atualiza managers que pausam com o jogo (como Player, Enemies)
+        self.registry:updatePausable(dt)
+
+        -- Atualiza a câmera para seguir o jogador
         local playerManager = self.registry:getPlayerManager()
         if playerManager then
             Camera:follow(playerManager:getPosition(), dt)
         end
     end
-
-    -- Lógica de UI (LevelUpModal, Inventory, etc.) será adicionada aqui depois
 end
 
 function GameplayScene:draw()

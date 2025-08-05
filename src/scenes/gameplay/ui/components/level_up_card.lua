@@ -4,6 +4,14 @@ local Formatters = require("src.utils.formatters")
 local LevelUpBonusesData = require("src.data.level_up_bonuses_data")
 local lume = require("src.libs.lume")
 local adaptiveFonts = Fonts.getAdaptive()
+local Constants = require("src.config.constants")
+
+local BonusTypeColors = {
+    common = Colors.text_muted,
+    weapon = Colors.rarity.A,
+    rune = Colors.rarity.B,
+    ultimate = Colors.rarity.S,
+}
 
 ---@class LevelUpCard
 --------------------------------------------------------------------------------
@@ -100,11 +108,29 @@ function LevelUpCard:update(dt, mx, my)
     self.scale = lume.lerp(self.scale, targetScale, dt * 8.0)
 end
 
+---@private Retorna a cor apropriada para o bônus com base em seu tipo.
+---@return table Cor no formato LÖVE {r, g, b, a}.
+function LevelUpCard:_getBonusColor()
+    if self.data.is_ultimate then
+        return BonusTypeColors.ultimate
+    end
+    -- A categoria será "weapon", "rune", ou "common" (se não for nenhum dos outros)
+    local bonusType = self:_getImprovementType()
+    if bonusType == "Melhoria de Arma" then
+        return BonusTypeColors.weapon
+    elseif bonusType == "Melhoria de Runa" then
+        return BonusTypeColors.rune
+    else
+        return BonusTypeColors.common
+    end
+end
+
 ---Desenha o card na tela.
 function LevelUpCard:draw()
     if self.alpha <= 0 then return end
 
     local isUltimate = self.data.is_ultimate
+    local categoryColor = self:_getBonusColor()
 
     love.graphics.push()
     love.graphics.translate(self.x + self.width / 2, self.y + self.height / 2)
@@ -113,7 +139,7 @@ function LevelUpCard:draw()
 
     -- Efeito especial para melhorias ultimate
     if isUltimate then
-        self:_drawUltimateEffects(self.alpha)
+        self:_drawUltimateEffects(self.alpha, categoryColor)
     end
 
     -- Fundo do card (apenas para não-ultimate)
@@ -124,12 +150,10 @@ function LevelUpCard:draw()
     end
 
     -- Borda do card
-    local categoryColor = self.data.color
     local borderColor = categoryColor
     local borderWidth = LevelUpCard.BORDER_WIDTH
 
     if isUltimate then
-        borderColor = categoryColor
         borderWidth = 3
         love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], self.alpha * 0.7)
         love.graphics.setLineWidth(borderWidth + 2)
@@ -141,14 +165,16 @@ function LevelUpCard:draw()
     love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
 
     -- Conteúdo do card
-    self:_drawContent(self.alpha)
+    self:_drawContent(self.alpha, categoryColor)
 
     love.graphics.pop()
 end
 
-function LevelUpCard:_drawUltimateEffects(cardAlpha)
+---@private Desenha os efeitos especiais para melhorias ultimate.
+---@param cardAlpha number Alfa do card.
+---@param categoryColor table Cor da categoria do bônus.
+function LevelUpCard:_drawUltimateEffects(cardAlpha, categoryColor)
     local time = love.timer.getTime()
-    local categoryColor = self.data.color or { 1, 1, 1 }
     local ultimateGlow = categoryColor
     local ultimateBright = { categoryColor[1] * 1.2, categoryColor[2] * 1.2, categoryColor[3] * 1.2, 1.0 }
 
@@ -201,10 +227,12 @@ function LevelUpCard:_drawUltimateEffects(cardAlpha)
     )
 end
 
-function LevelUpCard:_drawContent(alpha)
+---@private Desenha o conteúdo do card.
+---@param alpha number Alfa do card.
+---@param categoryColor table Cor da categoria do bônus.
+function LevelUpCard:_drawContent(alpha, categoryColor)
     local _, headerHeight = ResolutionUtils.scaleUI(LevelUpCard.WIDTH, 72)
     local currentY = self.y
-    local categoryColor = self.data.color
 
     love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha * 0.8)
     love.graphics.rectangle("fill", self.x, currentY, self.width, headerHeight)
@@ -257,7 +285,7 @@ function LevelUpCard:_drawContent(alpha)
     local contentWidth = self.width - (LevelUpCard.PADDING * 2)
 
     love.graphics.setFont(adaptiveFonts.title_large)
-    local nameText = self.data.name .. " " .. Formatters.formatRomanNumber(nextLevel)
+    local nameText = _T("bonuses." .. self.data.id .. ".name") .. " " .. Formatters.formatRomanNumber(nextLevel)
 
     if self.data.is_ultimate then
         local time = love.timer.getTime()
@@ -288,6 +316,13 @@ function LevelUpCard:_drawContent(alpha)
     love.graphics.setColor(categoryColor[1], categoryColor[2], categoryColor[3], alpha)
     local improvementType = self:_getImprovementType()
     love.graphics.printf(improvementType, contentX, currentY, contentWidth, "center")
+    currentY = currentY + adaptiveFonts.main_small:getHeight() + 8
+
+    local conceptTextColor = Colors.text_main
+    love.graphics.setFont(adaptiveFonts.main_small)
+    love.graphics.setColor(conceptTextColor[1], conceptTextColor[2], conceptTextColor[3], alpha)
+    local conceptText = _T("bonuses." .. self.data.id .. ".concept")
+    love.graphics.printf(conceptText, contentX, currentY, contentWidth, "center")
     currentY = currentY + adaptiveFonts.main_small:getHeight() + 8
 
     love.graphics.setFont(adaptiveFonts.main_large)
@@ -322,14 +357,10 @@ function LevelUpCard:_getModifiersData()
             local valueString = ""
             local prefix = (mod.value >= 0) and "+" or ""
 
-            if mod.type == "fixed" then
+            if mod.type == Constants.STAT_MODIFIERS.FLAT then
                 valueString = prefix .. string.format("%.1f", mod.value):gsub("%.0$", "")
-            elseif mod.type == "percentage" then
+            elseif mod.type == Constants.STAT_MODIFIERS.PERCENTAGE then
                 valueString = prefix .. string.format("%.1f", mod.value):gsub("%.0$", "") .. "%"
-            elseif mod.type == "fixed_percentage_as_fraction" then
-                valueString = prefix .. string.format("%.1f", mod.value * 100):gsub("%.0$", "") .. "%"
-            else
-                valueString = prefix .. tostring(mod.value)
             end
 
             if mod.stat then
@@ -359,77 +390,101 @@ function LevelUpCard:_getImprovementType()
 end
 
 function LevelUpCard:_drawColoredDescription(x, y, width, alpha)
-    local description = self.data.description or ""
+    -- 1. Obter o template de descrição traduzido
+    local descriptionTemplate = _T("bonuses." .. self.data.id .. ".description")
+
+    -- 2. Substituir placeholders pelos valores dos modificadores
+    local finalDescription = descriptionTemplate
+    if self.data.modifiers_per_level then
+        for i, mod in ipairs(self.data.modifiers_per_level) do
+            local valueString = ""
+            local absValue = math.abs(mod.value)
+
+            if mod.type == Constants.STAT_MODIFIERS.FLAT then
+                valueString = string.format("%.1f", absValue):gsub("%.0$", "")
+            elseif mod.type == Constants.STAT_MODIFIERS.PERCENTAGE then
+                valueString = string.format("%.1f", absValue):gsub("%.0$", "") .. "%"
+            end
+
+            finalDescription = finalDescription:gsub("{value_" .. i .. "}", valueString)
+            if i == 1 then
+                finalDescription = finalDescription:gsub("{value}", valueString)
+            end
+        end
+    end
+
+    -- 3. Parsear e desenhar
     local fontNormal = adaptiveFonts.main_large
     local fontBold = adaptiveFonts.main_large_bold
     local lineHeight = math.max(fontNormal:getHeight(), fontBold:getHeight())
     local currentY = 0
+
     local segments = {}
-    local currentPos = 1
-    while currentPos <= #description do
-        local pipeStart = description:find("|", currentPos)
-        if not pipeStart then
-            if currentPos <= #description then
-                table.insert(segments,
-                    { text = description:sub(currentPos), colored = false })
-            end
+    local textToParse = finalDescription
+    while #textToParse > 0 do
+        local s, e, tag, content = textToParse:find("%[(.-)%](.-)%[/%1%]")
+        if s then
+            if s > 1 then table.insert(segments, { text = textToParse:sub(1, s - 1) }) end
+            table.insert(segments, { text = content, tag = tag })
+            textToParse = textToParse:sub(e + 1)
+        else
+            table.insert(segments, { text = textToParse })
             break
         end
-        if pipeStart > currentPos then
-            table.insert(segments,
-                { text = description:sub(currentPos, pipeStart - 1), colored = false })
-        end
-        local pipeEnd = description:find("|", pipeStart + 1)
-        if not pipeEnd then
-            table.insert(segments, { text = description:sub(pipeStart), colored = false })
-            break
-        end
-        local keyword = description:sub(pipeStart + 1, pipeEnd - 1)
-        table.insert(segments, { text = keyword, colored = true, keyword = keyword })
-        currentPos = pipeEnd + 1
     end
 
-    local currentLine = ""
     local lineSegments = {}
+    local currentLineWidth = 0
+
+    local function renderLine()
+        local currentX = x
+        for _, seg in ipairs(lineSegments) do
+            local font = seg.tag and fontBold or fontNormal
+            love.graphics.setFont(font)
+
+            local color = Colors.text_main
+            if seg.tag == "stat" then
+                color = Colors.text_highlight
+            elseif seg.tag == "value_positive" then
+                color = Colors.feedback.success
+            elseif seg.tag == "value_negative" then
+                color = Colors.feedback.error
+            end
+            love.graphics.setColor(color[1], color[2], color[3], alpha)
+
+            love.graphics.print(seg.text, currentX, y + currentY)
+            currentX = currentX + font:getWidth(seg.text)
+        end
+        currentY = currentY + lineHeight
+        lineSegments = {}
+        currentLineWidth = 0
+    end
+
     for _, segment in ipairs(segments) do
         local words = {}
         for word in segment.text:gmatch("%S+") do table.insert(words, word) end
-        for i, word in ipairs(words) do
-            local wordFont = segment.colored and fontBold or fontNormal
-            local testLineWidth = 0
-            local testSegments = {}
-            for _, seg in ipairs(lineSegments) do table.insert(testSegments, seg) end
-            if #testSegments > 0 and testSegments[#testSegments].colored == segment.colored then
-                local lastSeg = testSegments[#testSegments]
-                lastSeg.text = lastSeg.text .. " " .. word
+
+        for _, word in ipairs(words) do
+            local font = segment.tag and fontBold or fontNormal
+            local wordWidth = font:getWidth(word .. " ")
+
+            if currentLineWidth + wordWidth > width and #lineSegments > 0 then
+                renderLine()
+            end
+
+            if #lineSegments > 0 and lineSegments[#lineSegments].tag == segment.tag then
+                lineSegments[#lineSegments].text = lineSegments[#lineSegments].text .. " " .. word
             else
-                table.insert(testSegments,
-                    {
-                        text = (#currentLine > 0 and " " or "") .. word,
-                        colored = segment.colored,
-                        keyword = segment
-                            .keyword
-                    })
+                table.insert(lineSegments, { text = word, tag = segment.tag })
             end
-            for _, seg in ipairs(testSegments) do
-                local segFont = seg.colored and fontBold or fontNormal
-                testLineWidth = testLineWidth + segFont:getWidth(seg.text)
-            end
-            if testLineWidth > width and #currentLine > 0 then
-                self:_renderColoredLine(x, y + currentY, lineSegments, alpha)
-                currentY = currentY + lineHeight
-                currentLine = word
-                lineSegments = { { text = word, colored = segment.colored, keyword = segment.keyword } }
-            else
-                currentLine = currentLine .. (#currentLine > 0 and " " or "") .. word
-                lineSegments = testSegments
-            end
+            currentLineWidth = currentLineWidth + font:getWidth(word) + font:getWidth(" ")
         end
     end
+
     if #lineSegments > 0 then
-        self:_renderColoredLine(x, y + currentY, lineSegments, alpha)
-        currentY = currentY + lineHeight
+        renderLine()
     end
+
     return currentY + 8
 end
 

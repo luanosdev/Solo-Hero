@@ -3,19 +3,16 @@
 ---------------------------------------------------------------------------------
 
 local Colors = require("src.ui.colors")
+local Constants = require("src.config.constants")
 
----@class BonusPerLevel
----@field stat_key string
----@field stat string
----@field type "base" | "percentage"
----@field value number
+local ModifierType = Constants.STAT_MODIFIERS
 
 ---@class LevelUpBonus
 ---@field id string -- Chave única, usada para construir as chaves de localização
 ---@field base_bonuses string[]|nil
 ---@field image_path string
 ---@field max_level number
----@field modifiers_per_level BonusPerLevel[]
+---@field modifiers_per_level StatModifier[]
 ---@field is_ultimate? boolean
 
 ---@class LevelUpBonusesData
@@ -63,98 +60,148 @@ LevelUpBonusesData.KeywordColors = {
     ["neutro"] = Colors.attribute_colors.neutral,
 }
 
+---@type table<string, LevelUpBonus>
 LevelUpBonusesData.Bonuses = {
     -- Bônus de Vida
-    vitality_base = {
-        id = "vitality_base",
+    vitality_flat = {
+        id = "vitality_flat",
         image_path = "assets/images/skills/vitality.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "maxHealth", type = "base", value = 30 }
+            { stat = "maxHealth", type = ModifierType.FLAT, value = 30 }
+        },
+    },
+    ultimate_vitality_flat = {
+        id = "ultimate_vitality_flat",
+        image_path = "assets/images/skills/ultimate_vitality_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "vitality_flat" },
+        modifiers_per_level = {
+            { stat = "maxHealth",   type = ModifierType.FLAT, value = 100 },
+            { stat = "healthRegen", type = ModifierType.FLAT, value = 2.0 }
         },
     },
     vitality_percent = {
         id = "vitality_percent",
-        name = "Fortitude",
-        description = "Aumenta a |Vida Máxima| em |10%|.",
         image_path = "assets/images/skills/vitality.png",
-        max_level = 5,
+        max_level = 10,
         modifiers_per_level = {
-            { stat = "maxHealth", type = "percentage", value = 10 }
+            { stat = "maxHealth", type = ModifierType.PERCENTAGE, value = 10 },
         },
-        color = Colors.attribute_colors.max_health
+    },
+    ultimate_vitality_percent = {
+        id = "ultimate_vitality_percent",
+        image_path = "assets/images/skills/ultimate_vitality_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "vitality_percent" },
+        modifiers_per_level = {
+            { stat = "maxHealth", type = ModifierType.PERCENTAGE, value = 50 },
+            { stat = "defense",   type = ModifierType.PERCENTAGE, value = 50 },
+        },
     },
     risky_vitality = {
         id = "risky_vitality",
-        name = "Pacto de Sangue",
-        description = "Aumenta a |Vida Máxima| base em |50|, mas reduz a |Defesa| em |-15%|.",
         image_path = "assets/images/skills/vitality.png",
         max_level = 5,
         modifiers_per_level = {
-            { stat = "maxHealth", type = "base",       value = 50 },
-            { stat = "defense",   type = "percentage", value = -5 }
+            { stat = "damage",    type = ModifierType.FLAT, value = 20 },
+            { stat = "maxHealth", type = ModifierType.FLAT, value = -20 }
         },
-        color = Colors.attribute_colors.max_health
+    },
+    ultimate_risky_vitality = {
+        id = "ultimate_risky_vitality",
+        image_path = "assets/images/skills/ultimate_risky_vitality.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "risky_vitality" },
+        modifiers_per_level = {
+            { stat = "maxHealth",      type = ModifierType.FLAT,       value = 150 },
+            { stat = "criticalDamage", type = ModifierType.PERCENTAGE, value = 50 }
+        },
     },
 
     -- Bônus de Força
-    strength_base = {
-        id = "strength_base",
-        name = "Musculação",
-        description = "Aumenta a |Força| base em |10|.",
+    strength_flat = {
+        id = "strength_flat",
         image_path = "assets/images/skills/strength.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "strength", type = "base", value = 10 }
+            { stat = "strength", type = ModifierType.FLAT, value = 10 }
         },
-        color = Colors.attribute_colors.strength
+    },
+    ultimate_strength_flat = {
+        id = "ultimate_strength_flat",
+        image_path = "assets/images/skills/ultimate_strength_base.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "strength_flat" },
+        modifiers_per_level = {
+            { stat = "strength", type = ModifierType.FLAT, value = 20 },
+            { stat = "damage",   type = ModifierType.FLAT, value = 30 }
+        },
     },
     strength_percent = {
         id = "strength_percent",
-        name = "Calistenia",
-        description = "Aumenta a |Força| em |10%|.",
         image_path = "assets/images/skills/strength.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "strength", type = "percentage", value = 10 }
+            { stat = "strength", type = ModifierType.PERCENTAGE, value = 10 }
         },
-        color = Colors.attribute_colors.strength
     },
-    strength_combo = {
-        id = "strength_combo",
-        name = "Explosão de Força",
-        description = "Aumenta |Força| base em |5| e |Defesa| base em |5|.",
-        image_path = "assets/images/skills/strength_combo.png",
-        max_level = 5,
+    ultimate_strength_percent = {
+        id = "ultimate_strength_percent",
+        image_path = "assets/images/skills/ultimate_strength_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "strength_percent" },
         modifiers_per_level = {
-            { stat = "strength", type = "base", value = 5 },
-            { stat = "defense",  type = "base", value = 5 }
+            { stat = "strength",    type = ModifierType.PERCENTAGE, value = 50 },
+            { stat = "attackSpeed", type = ModifierType.PERCENTAGE, value = 20 }
         },
-        color = Colors.attribute_colors.strength
     },
+
     -- Bônus de Dano/Ataque
+    damage_flat = {
+        id = "damage_flat",
+        image_path = "assets/images/skills/damage.png",
+        max_level = 10,
+        modifiers_per_level = {
+            { stat = "damage", type = ModifierType.FLAT, value = 20 }
+        },
+    },
+    ultimate_damage_flat = {
+        id = "ultimate_damage_flat",
+        image_path = "assets/images/skills/ultimate_damage_flat.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "damage_flat" },
+        modifiers_per_level = {
+            { stat = "damage",         type = ModifierType.FLAT, value = 30 },
+            { stat = "criticalDamage", type = ModifierType.FLAT, value = 1.0 },
+        },
+    },
     damage_percent = {
         id = "damage_percent",
-        name = "Raiva",
-        description = "Aumenta o |Dano| em |10%|.",
         image_path = "assets/images/skills/damage.png",
         max_level = 10,
         modifiers_per_level = {
-            { stat = "damage", type = "percentage", value = 10 }
+            { stat = "damage", type = ModifierType.PERCENTAGE, value = 10 }
         },
-        color = Colors.attribute_colors.damage
     },
-    damage_base = {
-        id = "damage_base",
-        name = "Fúria",
-        description = "Aumenta o |Dano| base em |20|.",
-        image_path = "assets/images/skills/damage.png",
-        max_level = 10,
+    ultimate_damage_percent = {
+        id = "ultimate_damage_percent",
+        image_path = "assets/images/skills/ultimate_damage_percent.png",
+        max_level = 1,
+        is_ultimate = true,
+        base_bonuses = { "damage_percent" },
         modifiers_per_level = {
-            { stat = "damage", type = "base", value = 20 }
+            { stat = "damage",         type = ModifierType.PERCENTAGE, value = 50 },
+            { stat = "criticalChance", type = ModifierType.PERCENTAGE, value = 50 }
         },
-        color = Colors.attribute_colors.damage
     },
+    --[[
     attack_speed_percent = {
         id = "attack_speed_percent",
         name = "Agilidade",
@@ -527,130 +574,11 @@ LevelUpBonusesData.Bonuses = {
     -- Melhorias especiais desbloqueadas quando o jogador atinge max level em uma melhoria específica (um-para-um)
 
     -- Ultimates de Vida
-    ultimate_vitality_base = {
-        id = "ultimate_vitality_base",
-        name = "Vigor Supremo",
-        description =
-        "O domínio absoluto da vitalidade. Aumenta a |Vida Máxima| base em |100| e a |Regeneração de Vida| base em |2|.",
-        image_path = "assets/images/skills/ultimate_vitality_base.png",
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "vitality_base" },
-        modifiers_per_level = {
-            { stat = "maxHealth",     type = "base", value = 100 },
-            { stat = "healthPerTick", type = "base", value = 2 }
-        },
-        color = Colors.rankDetails.S.text
-    },
-    ultimate_vitality_percent = {
-        id = "ultimate_vitality_percent",
-        name = "Fortitude Eterna",
-        description =
-        "A resistência transcendente. Aumenta a |Vida Máxima| em |50%| e o |Bônus de Cura| em |30%|.",
-        image_path = "assets/images/skills/ultimate_vitality_percent.png",
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "vitality_percent" },
-        modifiers_per_level = {
-            { stat = "maxHealth",    type = "percentage", value = 50 },
-            { stat = "healingBonus", type = "percentage", value = 30 }
-        },
-        color = Colors.rankDetails.S.text
-    },
-    ultimate_risky_vitality = {
-        id = "ultimate_risky_vitality",
-        name = "Pacto Imortal",
-        description =
-        "O sangue derramado retorna como poder. Aumenta a |Vida Máxima| base em |150|, a |Defesa| em |50%| e o |Dano| em |30%|.",
-        image_path = "assets/images/skills/ultimate_risky_vitality.png",
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "risky_vitality" },
-        modifiers_per_level = {
-            { stat = "maxHealth", type = "base",       value = 150 },
-            { stat = "defense",   type = "percentage", value = 50 },
-            { stat = "damage",    type = "percentage", value = 30 }
-        },
-        color = Colors.rankDetails.S.text
-    },
+
+
 
     -- Ultimates de Força
-    ultimate_strength_base = {
-        id = "ultimate_strength_base",
-        name = "Aptidão Física",
-        description =
-        "O ápice do condicionamento físico. Aumenta a |Força| base em |20| e a |Velocidade de Ataque| base em |1.0|.",
-        image_path = "assets/images/skills/ultimate_strength_base.png",
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "strength_base" },
-        modifiers_per_level = {
-            { stat = "strength",    type = "base", value = 20 },
-            { stat = "attackSpeed", type = "base", value = 1.0 }
-        },
-        color = Colors.rankDetails.S.text
-    },
-    ultimate_strength_percent = {
-        id = "ultimate_strength_percent",
-        name = "Força Suprema",
-        description = "A força sem limites. Aumenta a |Força| em |50%| e o |Dano| em |20%|.",
-        image_path = "assets/images/skills/ultimate_strength_percent.png",
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "strength_percent" },
-        modifiers_per_level = {
-            { stat = "strength", type = "percentage", value = 50 },
-            { stat = "damage",   type = "percentage", value = 20 }
-        },
-        color = Colors.rankDetails.S.text
-    },
-    ultimate_strength_combo = {
-        id = "ultimate_strength_combo",
-        name = "Explosão Suprema",
-        description =
-        "A combinação perfeita de força e defesa. Aumenta a |Força| base em |30|, a |Defesa| base em |30| e o |Dano| em |25%|.",
-        image_path = "assets/images/skills/ultimate_strength_combo.png",
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "strength_combo" },
-        modifiers_per_level = {
-            { stat = "strength", type = "base",       value = 30 },
-            { stat = "defense",  type = "base",       value = 30 },
-            { stat = "damage",   type = "percentage", value = 25 }
-        },
-        color = Colors.rankDetails.S.text
-    },
 
-    -- Ultimates de Dano
-    ultimate_damage_percent = {
-        id = "ultimate_damage_percent",
-        name = "Odio Eterno",
-        description = "O ódio no seu mais puro aspecto. Aumenta o |Dano| em |50%| e a |Chance de Crítico| em |30%|.",
-        image_path = "assets/images/skills/ultimate_damage_percent.png",
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "damage_percent" },
-        modifiers_per_level = {
-            { stat = "damage",     type = "percentage", value = 50 },
-            { stat = "critChance", type = "percentage", value = 30 }
-        },
-        color = Colors.rankDetails.S.text
-    },
-    ultimate_damage_base = {
-        id = "ultimate_damage_base",
-        name = "Dia de Fúria",
-        description =
-        "A fúria que nunca se extingue. Aumenta o |Dano| base em |50| e a |Chance de Crítico| base em |0.5|.",
-        image_path = "assets/images/skills/ultimate_damage_base.png",
-        max_level = 1,
-        is_ultimate = true,
-        base_bonuses = { "damage_base" },
-        modifiers_per_level = {
-            { stat = "damage",     type = "base", value = 50 },
-            { stat = "critChance", type = "base", value = 0.5 }
-        },
-        color = Colors.rankDetails.S.text
-    },
     ultimate_speed_attack_percent = {
         id = "ultimate_speed_attack_percent",
         name = "Agilidade Suprema",
@@ -1119,6 +1047,7 @@ LevelUpBonusesData.Bonuses = {
         },
         color = Colors.rankDetails.S.text
     },
+    --]]
 }
 
 --- Função auxiliar para aplicar modificadores ao PlayerStateController

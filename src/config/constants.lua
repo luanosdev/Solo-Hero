@@ -230,7 +230,6 @@ function Constants.knockbackPowerToText(knockbackPower)
 end
 
 --- Tipos de modificadores de stats
----@alias StatModifierType "FLAT" | "PERCENTAGE"
 Constants.STAT_MODIFIERS = {
     FLAT = "FLAT",
     PERCENTAGE = "PERCENTAGE",

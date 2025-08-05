@@ -63,4 +63,9 @@
 
 ---@alias AttackDescriptor CircleAttackDescriptor | ConeAttackDescriptor | LineAttackDescriptor | PolygonAttackDescriptor
 
+---@class LevelUpBonusOption : LevelUpBonus
+---@field current_level_for_display number
+---@field is_weapon_trait? boolean
+---@field is_rune_upgrade? boolean
+
 return {}

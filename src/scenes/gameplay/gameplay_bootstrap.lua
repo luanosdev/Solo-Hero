@@ -48,14 +48,46 @@ function GameplayBootstrap.initialize(context)
     -- Definição dos managers a serem carregados em ordem explícita de inicialização.
     -- O mapa DEVE ser inicializado antes do jogador e dos inimigos.
     local managersToLoad = {
-        { key = "gameStateManager",     class = GameStateManager },
-        { key = "playerManager",        class = PlayerManager },
-        { key = "mapManager",           class = InfinityWrapMapManager },
-        { key = "enemyManager",         class = EnemyManager },
-        { key = "hudGameplayManager",   class = HUDGameplayManager },
-        { key = "damageNumberManager",  class = DamageNumberManager },
-        { key = "experienceOrbManager", class = ExperienceOrbManager },
-        { key = "levelUpManager",       class = LevelUpManager },
+        {
+            key = "gameStateManager",
+            class = GameStateManager,
+            isPausable = false,
+        },
+        {
+            key = "playerManager",
+            class = PlayerManager,
+            isPausable = true,
+        },
+        {
+            key = "mapManager",
+            class = InfinityWrapMapManager,
+            isPausable = true,
+        },
+        {
+            key = "enemyManager",
+            class = EnemyManager,
+            isPausable = true,
+        },
+        {
+            key = "damageNumberManager",
+            class = DamageNumberManager,
+            isPausable = true,
+        },
+        {
+            key = "experienceOrbManager",
+            class = ExperienceOrbManager,
+            isPausable = true,
+        },
+        {
+            key = "levelUpManager",
+            class = LevelUpManager,
+            isPausable = true,
+        },
+        {
+            key = "hudGameplayManager",
+            class = HUDGameplayManager,
+            isPausable = false,
+        },
     }
 
     ---@type table<string, any>
@@ -77,8 +109,8 @@ function GameplayBootstrap.initialize(context)
         "gameplay_bootstrap.initialize.phase_2",
         "[GameplayBootstrap:initialize] Registering manager instances..."
     )
-    for key, instance in pairs(instances) do
-        registry:register(key, instance)
+    for _, def in ipairs(managersToLoad) do
+        registry:register(def.key, instances[def.key], def.isPausable)
     end
 
     --== FASE 3: INICIALIZAÇÃO (init) ==--

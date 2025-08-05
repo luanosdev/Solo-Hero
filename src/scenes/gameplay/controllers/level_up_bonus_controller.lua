@@ -149,7 +149,7 @@ end
 ---@public Aplica um bônus de level up escolhido.
 ---@description Atualiza o estado interno de bônus aprendidos. Futuramente, irá
 ---@description disparar um evento para notificar o PlayerStateController.
----@param chosenBonus LevelUpBonus O bônus que foi escolhido pelo jogador.
+---@param chosenBonus LevelUpBonusOption O bônus que foi escolhido pelo jogador.
 function LevelUpBonusController:applyLevelUpBonus(chosenBonus)
     assert(chosenBonus, "[LevelUpBonusController:applyLevelUpBonus] chosenBonus is required.")
     assert(chosenBonus.id, "[LevelUpBonusController:applyLevelUpBonus] chosenBonus.id is required.")

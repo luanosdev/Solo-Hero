@@ -1,153 +1,218 @@
---------------------------------------------------------------------------------
--- LevelUpModal (UI Container)
--- @description Container da UI para a seleção de bônus de level up.
--- Responsável por orquestrar a exibição dos cards de bônus e gerenciar o
--- estado geral do modal (visibilidade, animações).
---------------------------------------------------------------------------------
-
-local ServiceLocator = require("src.core.service_locator")
-local Colors = require("src.ui.colors")
 local Fonts = require("src.ui.fonts")
+local colors = require("src.ui.colors")
 local LevelUpCard = require("src.scenes.gameplay.ui.components.level_up_card")
-local ActionTypes = require("src.types.action_types")
+local adaptiveFonts = Fonts.getAdaptive()
 
 ---@class LevelUpModal
----@field isVisible boolean Se o modal está visível ou não.
----@field cards LevelUpCard[] Os cards de bônus a serem exibidos.
----@field onChoice fun(choice: LevelUpBonus):nil Callback a ser chamado quando uma escolha é feita.
+---@field visible boolean
+---@field options LevelUpBonusOption[]
+---@field selectedOption number|nil
+---@field hoveredOption number|nil
+---@field onChoiceCallback fun(chosenBonus: LevelUpBonusOption)|nil
+---@field cards LevelUpCard[]
+---@field scales table<number, number>
+---@field backgroundColors Color[]
+---@field cardAnimationTimer number
+---@field cardsAnimated number
+---@field canChoose boolean
+---@field appearanceSequenceCompleted boolean
+---@field inputService InputService
+---@field eventService EventService
+---@field assetService AssetService
 local LevelUpModal = {}
 LevelUpModal.__index = LevelUpModal
 
-LevelUpModal.CARD_SPACING = ResolutionUtils.scaleSpacing(50)
+---@public Cria uma nova instância do LevelUpModal.
+---@param inputService InputService
+---@param eventService EventService
+---@param assetService AssetService
+function LevelUpModal:new(inputService, eventService, assetService)
+    assert(inputService, "[LevelUpModal] missing inputService")
+    assert(eventService, "[LevelUpModal] missing eventService")
+    assert(assetService, "[LevelUpModal] missing assetService")
 
----@public Cria uma nova instância do modal de level up.
----@return LevelUpModal
-function LevelUpModal:new()
     local instance = setmetatable({}, LevelUpModal)
 
-    instance.isVisible = false
+    instance.visible = false
+    instance.options = {}
+    instance.selectedOption = nil
+    instance.hoveredOption = nil
+    instance.onChoiceCallback = nil
     instance.cards = {}
-    instance.onChoice = function() end -- Callback padrão vazio
+    instance.scales = {}
+    instance.backgroundColors = {}
+    instance.cardAnimationTimer = 0.0
+    instance.cardsAnimated = 0
+    instance.canChoose = false
+    instance.appearanceSequenceCompleted = false
+
+    instance.inputService = inputService
+    instance.eventService = eventService
+    instance.assetService = assetService
 
     return instance
 end
 
----@public Mostra o modal com um conjunto de opções de bônus.
----@param options LevelUpBonus[] Uma tabela contendo os dados das opções de bônus.
----@param onChoiceCallback fun(choice: LevelUpBonus) Callback para quando uma opção é escolhida.
+---@public Mostra o modal de level up.
+---@param options LevelUpBonus[]
+---@param onChoiceCallback fun(chosenBonus: LevelUpBonusOption)|nil
 function LevelUpModal:show(options, onChoiceCallback)
-    if self.isVisible then return end
-    if not options or #options == 0 then
-        Logger.warn("LevelUpModal:show", "[LevelUpModal:show] Tentou mostrar o modal sem opções válidas.")
-        return
-    end
+    self.visible = true
+    self.options = options or {}
+    self.selectedOption = nil
+    self.hoveredOption = nil
+    self.canChoose = false
+    self.appearanceSequenceCompleted = false
+    self.cardAnimationTimer = 0.0
+    self.cardsAnimated = 0
+    self.onChoiceCallback = onChoiceCallback
+    self.cards = {}
+    self.scales = {}
+    self.backgroundColors = {}
 
-    Logger.info("LevelUpModal:show", "[LevelUpModal:show] Exibindo modal de level up.")
-    self.isVisible = true
-    self.onChoice = onChoiceCallback
+    self:_ensureImagesLoaded()
+    self:_createCards()
 
-    self.cards = {} -- Limpa cards antigos
-
-    -- Calcula a posição inicial para centralizar o conjunto de cards
-    local totalCardsWidth = (#options * LevelUpCard.WIDTH) + ((#options - 1) * LevelUpModal.CARD_SPACING)
-    local startX = (ResolutionUtils.getGameWidth() - totalCardsWidth) / 2
-    local startY = (ResolutionUtils.getGameHeight() - LevelUpCard.HEIGHT) / 2
-
-    for i, optionData in ipairs(options) do
-        local cardX = startX + ((i - 1) * (LevelUpCard.WIDTH + LevelUpModal.CARD_SPACING))
-        local assetService = ServiceLocator.getAssetService()
-        local image = assetService:getImage(optionData.image_path)
-        local card = LevelUpCard:new(
-            cardX,
-            startY,
-            optionData,
-            image,
-            optionData.current_level_for_display
-        )
-
-        -- Define o callback para quando este card específico for selecionado
-        card:setOnSelect(function()
-            if self.onChoice then
-                self.onChoice(optionData)
-            end
-            self:hide() -- Esconde o modal após a escolha
-        end)
-
-        table.insert(self.cards, card)
-    end
-
-    -- Dispara evento para pausar o jogo
-    local eventService = ServiceLocator.getEventService()
-    eventService:emit(eventService.EVENTS.REQUEST_GAME_PAUSE)
+    self.eventService:emit(self.eventService.EVENTS.REQUEST_GAME_PAUSE)
+    Logger.debug("level_up_modal.show", "[LevelUpModal] Modal aberto com " .. #self.options .. " opções.")
 end
 
----@public Esconde o modal.
-function LevelUpModal:hide()
-    if not self.isVisible then return end
-
-    Logger.info("LevelUpModal:hide", "[LevelUpModal:hide] Escondendo modal de level up.")
-    self.isVisible = false
-    self.cards = {} -- Limpa os cards
-
-    -- Dispara evento para despausar o jogo
-    local eventService = ServiceLocator.getEventService()
-    eventService:emit(eventService.EVENTS.REQUEST_GAME_UNPAUSE)
+---@private Esconde o modal de level up.
+function LevelUpModal:_hide()
+    self.visible = false
+    self.eventService:emit(self.eventService.EVENTS.REQUEST_GAME_UNPAUSE)
+    self.eventService:emit(self.eventService.EVENTS.LEVEL_UP_MODAL_CLOSED)
 end
 
----@public Atualiza o estado do modal e de seus componentes.
----@param dt number Delta time.
+---@private Garante que as imagens dos bônus estejam carregadas.
+function LevelUpModal:_ensureImagesLoaded()
+    for _, option in ipairs(self.options) do
+        if option.image_path then
+            self.assetService:getImage(option.image_path)
+        end
+    end
+end
+
+---@private Cria os cards de bônus.
+function LevelUpModal:_createCards()
+    local screenW, screenH = ResolutionUtils.getGameDimensions()
+    local numOptions = #self.options
+
+    if numOptions == 0 then return end
+
+    local cardWidth = LevelUpCard.WIDTH
+    local cardHeight = LevelUpCard.HEIGHT
+    local cardGap = ResolutionUtils.scaleSpacing(40)
+    local totalWidth = (cardWidth * numOptions) + (cardGap * (numOptions - 1))
+    local startX = (screenW - totalWidth) / 2
+    local startY = (screenH - cardHeight) / 2
+
+    for i, optionData in ipairs(self.options) do
+        local cardX = startX + (i - 1) * (cardWidth + cardGap)
+
+        local image = nil
+        if optionData.image_path then
+            image = self.assetService:getImage(optionData.image_path)
+        end
+        local card = LevelUpCard:new(cardX, startY, optionData, image, optionData.current_level_for_display)
+        self.cards[i] = card
+        self.scales[i] = 1.0
+        local r, g, b = unpack(colors.window_bg)
+        self.backgroundColors[i] = { r, g, b }
+    end
+end
+
 function LevelUpModal:update(dt)
-    if not self.isVisible then return end
+    if not self.visible then return end
 
-    local inputService = ServiceLocator.getInputService()
-    local mx, my = inputService:getMousePosition()
+    if not self.appearanceSequenceCompleted then
+        self.cardAnimationTimer = self.cardAnimationTimer + dt
+        local cardAppearanceDelay = 0.15
+        local targetCardsAnimated = math.floor(self.cardAnimationTimer / cardAppearanceDelay) + 1
 
-    -- Atualiza os cards (para efeito de hover)
-    for _, card in ipairs(self.cards) do
-        card:update(dt, mx, my)
+        for i = self.cardsAnimated + 1, math.min(targetCardsAnimated, #self.cards) do
+            self.cardsAnimated = i
+        end
+
+        local allAnimated = true
+        for i = 1, self.cardsAnimated do
+            if self.cards[i] then
+                self.cards[i]:update(dt, 0, 0) -- Passando 0,0 para mouse pois o hover só ativa depois
+                if not self.cards[i].animationComplete then
+                    allAnimated = false
+                end
+            end
+        end
+
+        if self.cardsAnimated >= #self.cards and allAnimated then
+            self.appearanceSequenceCompleted = true
+            self.canChoose = true
+        end
     end
 
-    -- Verifica se a ação de selecionar UI foi pressionada
-    if inputService:wasActionPressed(ActionTypes.UI_SELECT) then
-        for _, card in ipairs(self.cards) do
-            if card:isHovered(mx, my) then
-                card.onSelect() -- Aciona o callback do card
-                break           -- Impede que múltiplos cards sejam selecionados no mesmo frame
+    if self.canChoose and self.inputService then
+        local mouseX, mouseY = self.inputService:getMousePosition()
+        self.hoveredOption = self:getCardAtPosition(mouseX, mouseY)
+
+        for i = 1, #self.cards do
+            self.cards[i]:update(dt, mouseX, mouseY)
+        end
+
+        if self.inputService:wasActionPressed("ui_select") then
+            local clickedCardIndex = self:getCardAtPosition(mouseX, mouseY)
+            if clickedCardIndex then
+                self.selectedOption = clickedCardIndex
+                local chosenBonus = self.options[clickedCardIndex]
+
+                if self.onChoiceCallback then
+                    self.onChoiceCallback(chosenBonus)
+                end
+
+                self:_hide()
+                Logger.debug("level_up_modal.mouse_click",
+                    string.format("Card %d (%s) clicado e aplicado", clickedCardIndex, chosenBonus.id))
             end
         end
     end
 end
 
----Desenha o modal e seus componentes.
-function LevelUpModal:draw()
-    if not self.isVisible then return end
-
-    -- Desenha um fundo escuro semi-transparente para pausar a ação
-    love.graphics.setColor(0, 0, 0, 0.8)
-    love.graphics.rectangle("fill", 0, 0, ResolutionUtils.getGameWidth(), ResolutionUtils.getGameHeight())
-
-    love.graphics.setColor(Colors.white)
-    love.graphics.setFont(Fonts.main_bold)
-    love.graphics.printf("VOCÊ SUBIU DE NÍVEL!", 0, 100, ResolutionUtils.getGameWidth(), "center")
-    love.graphics.setFont(Fonts.main)
-    love.graphics.printf("Escolha uma melhoria", 0, 150, ResolutionUtils.getGameWidth(), "center")
-
-
-    -- Desenha os cards
-    for _, card in ipairs(self.cards) do
-        card:draw()
+function LevelUpModal:getCardAtPosition(x, y)
+    for i, card in ipairs(self.cards) do
+        if i <= self.cardsAnimated and card:isHovered(x, y) then
+            return i
+        end
     end
+    return nil
 end
 
----Processa inputs de teclado.
----@param key love.KeyConstant Tecla pressionada.
-function LevelUpModal:keypressed(key)
-    if not self.isVisible then return end
+function LevelUpModal:draw()
+    if not self.visible then return end
 
-    if key == "escape" then
-        -- Não permite fechar, o jogador DEVE escolher um bônus.
-        return
+    local gameW, gameH = ResolutionUtils.getGameDimensions()
+    love.graphics.setColor(0, 0, 0, 0.8)
+    love.graphics.rectangle("fill", 0, 0, gameW, gameH)
+
+    love.graphics.setFont(adaptiveFonts.title_large)
+    love.graphics.setColor(colors.text_title)
+    love.graphics.printf("Você subiu de nível!", 0, gameH * 0.1, gameW, "center")
+    love.graphics.setFont(adaptiveFonts.main_large)
+    love.graphics.setColor(colors.text_main)
+    love.graphics.printf("Escolha uma melhoria", 0, gameH * 0.1 + 60, gameW, "center")
+
+    for i = 1, self.cardsAnimated do
+        local card = self.cards[i]
+        if card then
+            card:draw()
+        end
     end
+
+    if not self.canChoose then
+        love.graphics.setFont(adaptiveFonts.main)
+        love.graphics.setColor(colors.text_default[1], colors.text_default[2], colors.text_default[3], 0.8)
+        love.graphics.printf("Aguarde...", 0, gameH - 50, gameW, "center")
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 return LevelUpModal

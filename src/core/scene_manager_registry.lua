@@ -1,14 +1,22 @@
+---@class ManagerInfo
+---@field instance any
+---@field drawInCamera boolean
+
 ---@class SceneManagerRegistry
----@field managers table<string, {instance: any, drawInCamera: boolean}>
+---@field managers table<string, ManagerInfo>
+---@field pausableUpdateOrder string[]
+---@field alwaysUpdateOrder string[]
 local SceneManagerRegistry = {}
 SceneManagerRegistry.__index = SceneManagerRegistry
 
--- Cria uma nova instância de um registro de manager.
--- Cada cena deve ter sua própria instância.
+--- Cria uma nova instância de um registro de manager.
+--- Cada cena deve ter sua própria instância.
 ---@return SceneManagerRegistry
 function SceneManagerRegistry:new()
     local instance = setmetatable({}, SceneManagerRegistry)
     instance.managers = {}
+    instance.pausableUpdateOrder = {}
+    instance.alwaysUpdateOrder = {}
     Logger.debug("scene_manager_registry.new.success", "SceneManagerRegistry instance created.")
     return instance
 end
@@ -16,18 +24,27 @@ end
 --- Registra um novo manager na instância da cena.
 ---@param name string
 ---@param manager table
-function SceneManagerRegistry:register(name, manager)
+---@param isPausable boolean
+---@param drawInCamera boolean|nil
+function SceneManagerRegistry:register(name, manager, isPausable, drawInCamera)
     if self.managers[name] then
         Logger.warn(
             "scene_manager_registry.register.warning",
-            string.format("Manager '%s' already registered in this scene.", name)
+            ("Manager '%s' already registered in this scene."):format(name)
         )
         return
     end
 
     self.managers[name] = {
         instance = manager,
+        drawInCamera = drawInCamera or false,
     }
+
+    if isPausable then
+        table.insert(self.pausableUpdateOrder, name)
+    else
+        table.insert(self.alwaysUpdateOrder, name)
+    end
 end
 
 --- Obtém um manager registrado na instância da cena.
@@ -35,7 +52,7 @@ end
 ---@return any
 function SceneManagerRegistry:get(name)
     local managerData = self.managers[name]
-    assert(managerData, string.format("Manager '%s' not found in this scene's registry.", name))
+    assert(managerData, ("Manager '%s' not found in this scene's registry."):format(name))
     return managerData.instance
 end
 
@@ -77,11 +94,23 @@ function SceneManagerRegistry:getAll()
     return all
 end
 
--- Itera sobre todos os managers e chama seu método update, se existir.
+--- Atualiza apenas os managers que devem sempre rodar.
 ---@param dt number
-function SceneManagerRegistry:updateAll(dt)
-    for _, managerData in pairs(self.managers) do
-        if managerData.instance and managerData.instance.update then
+function SceneManagerRegistry:updateAlways(dt)
+    for _, name in ipairs(self.alwaysUpdateOrder) do
+        local managerData = self.managers[name]
+        if managerData and managerData.instance.update then
+            managerData.instance:update(dt)
+        end
+    end
+end
+
+--- Atualiza apenas os managers que podem ser pausados.
+---@param dt number
+function SceneManagerRegistry:updatePausable(dt)
+    for _, name in ipairs(self.pausableUpdateOrder) do
+        local managerData = self.managers[name]
+        if managerData and managerData.instance.update then
             managerData.instance:update(dt)
         end
     end
@@ -125,6 +154,8 @@ function SceneManagerRegistry:clear()
     end
     -- Depois limpa a tabela
     self.managers = {}
+    self.pausableUpdateOrder = {}
+    self.alwaysUpdateOrder = {}
     Logger.info("scene_manager_registry.clear.success", "SceneManagerRegistry cleared and managers destroyed.")
 end
 
@@ -133,16 +164,26 @@ end
 function SceneManagerRegistry:unregister(name)
     if self.managers[name] and self.managers[name].instance.destroy then
         self.managers[name].instance:destroy()
-    else
-        Logger.error(
-            "scene_manager_registry.unregister.error",
-            string.format("Manager '%s' not found in this scene's registry.", name)
-        )
     end
     self.managers[name] = nil
+
+    for i, n in ipairs(self.pausableUpdateOrder) do
+        if n == name then
+            table.remove(self.pausableUpdateOrder, i)
+            break
+        end
+    end
+
+    for i, n in ipairs(self.alwaysUpdateOrder) do
+        if n == name then
+            table.remove(self.alwaysUpdateOrder, i)
+            break
+        end
+    end
+
     Logger.info(
         "scene_manager_registry.unregister.success",
-        string.format("Manager '%s' unregistered from this scene's registry.", name)
+        ("Manager '%s' unregistered from this scene's registry."):format(name)
     )
 end
 

@@ -13,8 +13,8 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field playerHPBar PlayerHPBar
 ---@field progressLevelBar ProgressLevelBar
 ---@field basePlayerHPBarWidth number
----@field eventListeners table<string, EventListenerIdentifier>
 ---@field levelUpModal LevelUpModal
+---@field eventListeners table<string, EventListenerIdentifier>
 local HUDGameplayManager = {}
 HUDGameplayManager.__index = HUDGameplayManager
 
@@ -30,8 +30,6 @@ function HUDGameplayManager:new(context)
     local instance = setmetatable({}, HUDGameplayManager)
     instance.context = context
     instance.eventListeners = {}
-    instance.levelUpModal = LevelUpModal:new()
-
     local screenWidth = ResolutionUtils.getGameWidth()
     instance.baseBarsWidth = screenWidth * 0.25
 
@@ -52,6 +50,7 @@ function HUDGameplayManager:init()
 
     self.playerHPBar = self:_initPlayerHPBar(hunterData.name, hunterData.finalRankId)
     self.progressLevelBar = self:_initProgressLevelBar()
+    self.levelUpModal = self:_initLevelUpModal()
 
     self:_positionElements()
     self:_subscribeToEvents()
@@ -92,19 +91,20 @@ function HUDGameplayManager:_onRequestLevelUpModal()
         "[HUDGameplayManager] Recebido pedido para mostrar o modal de level up.")
 
     local playerManager = self.context.registry:getPlayerManager()
+    assert(playerManager, "[HUDGameplayManager:_onRequestLevelUpModal] missing playerManager")
+
     local options = playerManager:generateLevelUpOptions()
 
-    -- TODO: Conectar a lógica de aplicar o bônus escolhido.
-    self.levelUpModal:show(options, function(selectedBonus)
-        Logger.info("hud_gameplay_manager.bonus_selected",
-            "[HUDGameplayManager] Bônus selecionado: " .. selectedBonus.name)
-        -- Aqui virá a chamada para o PlayerManager aplicar o bônus.
-        -- Ex: playerManager:applyLevelUpBonus(selectedBonus.id)
-
-        -- Após a escolha, o modal se fecha e emite o evento para despausar o jogo.
-        -- O LevelUpManager ouvirá o evento LEVEL_UP_MODAL_CLOSED para continuar a fila.
+    if not options or #options == 0 then
+        Logger.warn("hud_gameplay_manager.request_modal", "Nenhuma opção de level up gerada. Fechando o fluxo.")
         local eventService = self.context.serviceLocator:getEventService()
         eventService:emit(eventService.EVENTS.LEVEL_UP_MODAL_CLOSED)
+        return
+    end
+
+    self.levelUpModal:show(options, function(chosenBonus)
+        Logger.info("hud_gameplay_manager.bonus_selected", "[HUDGameplayManager] Bônus selecionado: " .. chosenBonus.id)
+        playerManager:applyLevelUpBonus(chosenBonus)
     end)
 end
 
@@ -275,6 +275,14 @@ function HUDGameplayManager:_initProgressLevelBar()
     }
 
     return ProgressLevelBar:new(params)
+end
+
+---@private Inicializa o modal de level up.
+function HUDGameplayManager:_initLevelUpModal()
+    local inputService = self.context.serviceLocator:getInputService()
+    local eventService = self.context.serviceLocator:getEventService()
+    local assetService = self.context.serviceLocator:getAssetService()
+    return LevelUpModal:new(inputService, eventService, assetService)
 end
 
 ---@private Posiciona os elemetos de UI do HUDGameplayManager.

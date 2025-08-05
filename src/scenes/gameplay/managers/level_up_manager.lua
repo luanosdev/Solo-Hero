@@ -60,15 +60,42 @@ function LevelUpManager:init()
     Logger.info("level_up_manager.init", "[LevelUpManager] Inicializado e pronto.")
 end
 
----@private Registra os listeners de eventos.
-function LevelUpManager:_registerEventListeners()
-    self:_listen(EventService.EVENTS.PLAYER_LEVELED_UP, self.onPlayerLeveledUp)
-    self:_listen(EventService.EVENTS.LEVEL_UP_MODAL_CLOSED, self.onLevelUpModalClosed)
+---@public Coleta os renderizáveis do efeito ativo.
+---@param renderPipeline RenderPipeline
+function LevelUpManager:collectRenderables(renderPipeline)
+    if self.activeEffect then
+        self.activeEffect:collectRenderables(renderPipeline)
+    end
 end
 
---- Manipulador para o evento de level up do jogador.
+---@public Atualiza a máquina de estados.
+---@param dt number Delta time.
+function LevelUpManager:update(dt)
+    if self.currentState == LevelUpManager.STATES.EFFECT_PLAYING then
+        if self.activeEffect and not self.activeEffect.isFinished then
+            self.activeEffect:update(dt)
+        else
+            self:_finishEffect()
+        end
+    elseif self.currentState == LevelUpManager.STATES.WAITING then
+        self.waitTimer = self.waitTimer + dt
+        if self.waitTimer >= self.waitDuration then
+            self.waitTimer = 0
+            self.currentState = LevelUpManager.STATES.IDLE
+            self:_processNextInQueue()
+        end
+    end
+end
+
+---@private Registra os listeners de eventos.
+function LevelUpManager:_registerEventListeners()
+    self:_listen(EventService.EVENTS.PLAYER_LEVELED_UP, self._onPlayerLeveledUp)
+    self:_listen(EventService.EVENTS.LEVEL_UP_MODAL_CLOSED, self._onLevelUpModalClosed)
+end
+
+---@private Manipulador para o evento de level up do jogador.
 ---@param eventData PlayerLeveledUpEventData
-function LevelUpManager:onPlayerLeveledUp(eventData)
+function LevelUpManager:_onPlayerLeveledUp(eventData)
     assert(eventData, "[LevelUpManager] missing eventData")
     assert(eventData.levelsGained, "[LevelUpManager] missing levelsGained")
 
@@ -82,20 +109,20 @@ function LevelUpManager:onPlayerLeveledUp(eventData)
     end
 
     if self.currentState == LevelUpManager.STATES.IDLE then
-        self:processNextInQueue()
+        self:_processNextInQueue()
     end
 end
 
---- Chamado quando o modal de level up é fechado.
-function LevelUpManager:onLevelUpModalClosed()
+---@private Chamado quando o modal de level up é fechado.
+function LevelUpManager:_onLevelUpModalClosed()
     if self.currentState == LevelUpManager.STATES.AWAITING_MODAL then
         Logger.info("level_up_manager.modal_closed", "[LevelUpManager] Modal fechado, continuando a fila.")
         self.currentState = LevelUpManager.STATES.WAITING -- Inicia o período de espera
     end
 end
 
---- Processa o próximo item da fila de level up.
-function LevelUpManager:processNextInQueue()
+---@private Processa o próximo item da fila de level up.
+function LevelUpManager:_processNextInQueue()
     if #self.levelUpQueue == 0 then
         self.currentState = LevelUpManager.STATES.IDLE
         Logger.info("level_up_manager.queue.empty", "[LevelUpManager] Fila de level ups vazia.")
@@ -110,11 +137,11 @@ function LevelUpManager:processNextInQueue()
         string.format("[LevelUpManager] Processando level up. Restantes na fila: %d", #self.levelUpQueue)
     )
 
-    self:triggerEffect()
+    self:_triggerEffect()
 end
 
---- Dispara o efeito visual e o knockback.
-function LevelUpManager:triggerEffect()
+---@private Dispara o efeito visual e o knockback.
+function LevelUpManager:_triggerEffect()
     local playerManager = self.context.registry:getPlayerManager()
     local playerPosition = playerManager:getPosition()
 
@@ -134,13 +161,13 @@ function LevelUpManager:triggerEffect()
     }
 
     self.activeEffect = SpritesheetEffect:new(effectConfig)
-    self:applyKnockback(playerPosition, knockbackRadiusPixels)
+    self:_applyKnockback(playerPosition, knockbackRadiusPixels)
 end
 
---- Aplica knockback em área ao redor do jogador.
+---@private Aplica knockback em área ao redor do jogador.
 ---@param center Vector2D O centro da área de knockback.
 ---@param radius number O raio da área de knockback em pixels.
-function LevelUpManager:applyKnockback(center, radius)
+function LevelUpManager:_applyKnockback(center, radius)
     local playerManager = self.context.registry:getPlayerManager()
     local enemyManager = self.context.registry:getEnemyManager()
 
@@ -156,13 +183,17 @@ function LevelUpManager:applyKnockback(center, radius)
             local distance = math.sqrt(dx * dx + dy * dy)
 
             if distance > 0 then
-                enemy:applyKnockback(dx / distance, dy / distance, Constants.GAMEPLAY_CONFIG.LEVEL_UP_KNOCKBACK_FORCE)
+                enemy:applyKnockback(
+                    dx / distance,
+                    dy / distance,
+                    Constants.GAMEPLAY_CONFIG.LEVEL_UP_KNOCKBACK_FORCE_METERS
+                )
             else
                 local randomAngle = math.random() * 2 * math.pi
                 enemy:applyKnockback(
                     math.cos(randomAngle),
                     math.sin(randomAngle),
-                    Constants.GAMEPLAY_CONFIG.LEVEL_UP_KNOCKBACK_FORCE
+                    Constants.GAMEPLAY_CONFIG.LEVEL_UP_KNOCKBACK_FORCE_METERS
                 )
             end
         end
@@ -172,27 +203,8 @@ function LevelUpManager:applyKnockback(center, radius)
     TablePool.releaseArray(enemiesHit)
 end
 
---- Atualiza a máquina de estados.
----@param dt number Delta time.
-function LevelUpManager:update(dt)
-    if self.currentState == LevelUpManager.STATES.EFFECT_PLAYING then
-        if self.activeEffect and not self.activeEffect.isFinished then
-            self.activeEffect:update(dt)
-        else
-            self:finishEffect()
-        end
-    elseif self.currentState == LevelUpManager.STATES.WAITING then
-        self.waitTimer = self.waitTimer + dt
-        if self.waitTimer >= self.waitDuration then
-            self.waitTimer = 0
-            self.currentState = LevelUpManager.STATES.IDLE
-            self:processNextInQueue()
-        end
-    end
-end
-
---- Finaliza o efeito, solicita o modal e transita para o estado de espera.
-function LevelUpManager:finishEffect()
+---@private Finaliza o efeito, solicita o modal e transita para o estado de espera.
+function LevelUpManager:_finishEffect()
     self.activeEffect = nil
     self.currentState = LevelUpManager.STATES.AWAITING_MODAL
 
@@ -200,14 +212,6 @@ function LevelUpManager:finishEffect()
     eventService:emit(EventService.EVENTS.REQUEST_LEVEL_UP_MODAL)
 
     Logger.info("level_up_manager.effect.finished", "[LevelUpManager] Efeito finalizado, solicitando modal.")
-end
-
---- Coleta os renderizáveis do efeito ativo.
----@param renderPipeline RenderPipeline
-function LevelUpManager:collectRenderables(renderPipeline)
-    if self.activeEffect then
-        self.activeEffect:collectRenderables(renderPipeline)
-    end
 end
 
 ---@private Registra um listener de evento de forma segura.
@@ -221,7 +225,7 @@ function LevelUpManager:_listen(event, callback)
     table.insert(self.eventListeners, listener)
 end
 
---- Encerra o manager, removendo os listeners.
+---@public Encerra o manager, removendo os listeners.
 function LevelUpManager:destroy()
     local eventService = self.context.serviceLocator:getEventService()
     for _, listener in ipairs(self.eventListeners) do

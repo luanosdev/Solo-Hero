@@ -32,12 +32,16 @@
 ---@field time number O tempo decorrido na partida em segundos.
 
 ---@alias BonusFunction fun(finalStats: table<StatKey, number>, context: GameplayContext):number
+---@alias StatSource "base" | "equipment" | "levelUp" | "archetypes"
+---@alias StatModifierType "FLAT" | "PERCENTAGE"
 
 ---@class StatModifier
 ---@field stat StatKey O stat a ser modificado.
----@field type "FLAT" | "PERCENTAGE" O tipo de modificação.
+---@field type StatModifierType O tipo de modificação.
 ---@field value number | BonusFunction O valor do bônus (um número ou uma função para calcular o bônus).
----@field source string O ID da fonte do bônus (ex: "ARCHETYPE_TANK").
+
+---@class StatModifierObtained : StatModifier
+---@field source StatSource
 
 ---@alias StatKey "damage" | "moveSpeed" | "potionFillRate" | "maxHealth" | "defense" | "attackSpeed" | "criticalChance" | "criticalDamage" | "healthRegen" | "multiAttackChance" | "runeSlots" | "strength" | "expBonus" | "pickupRadius" | "range" | "luck" | "area" | "cooldownReduction" | "dashCharges" | "dashCooldown" | "dashDistance" | "dashDuration" | "potionFlasks" | "potionHealAmount" | "potionFillRate" | "piercing" | "angle" | "fireRate"
 
