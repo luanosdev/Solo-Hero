@@ -41,7 +41,7 @@ function LevelUpManager:new(context)
     instance.activeEffect = nil
     instance.eventListeners = {}
     instance.waitTimer = 0
-    instance.waitDuration = Constants.GAMEPLAY_CONFIG.LEVEL_INTERVAL_BETWEEN_LEVEL_UPS
+    instance.waitDuration = Constants.GAMEPLAY_CONFIG.LEVEL_UP_EFFECT_INTERVAL_SECONDS
 
     Logger.info("level_up_manager.new", "[LevelUpManager] Instância criada.")
     return instance
