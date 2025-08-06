@@ -169,8 +169,45 @@ function LevelUpBonusController:applyLevelUpBonus(chosenBonus)
     Logger.info("LevelUpBonusController:applyLevelUpBonus",
         string.format("Bônus '%s' aplicado. Novo nível: %d", bonusId, self.learnedBonuses[bonusId]))
 
-    -- TODO: Próximo passo é converter todos os bônus aprendidos em StatModifiers
-    -- e disparar o evento "LEVEL_UP_BONUSES_UPDATED".
+    self:_dispatchBonusesUpdate()
+end
+
+---@private Converte os bônus aprendidos em StatModifiers e dispara um evento.
+---@description Esta função é o ponto central que notifica outros sistemas, como o
+---@description PlayerStateController, sobre as mudanças nos stats do jogador
+---@description decorrentes dos bônus de level up.
+function LevelUpBonusController:_dispatchBonusesUpdate()
+    ---@type StatModifier[]
+    local statModifiers = {}
+    local bonusData = LevelUpBonusesData.Bonuses
+
+    for bonusId, level in pairs(self.learnedBonuses) do
+        local currentBonusData = bonusData[bonusId]
+        if currentBonusData and currentBonusData.modifiers_per_level then
+            -- Aplica os modificadores para cada nível aprendido
+            for i = 1, level do
+                for _, modifier in ipairs(currentBonusData.modifiers_per_level) do
+                    -- Adiciona o modificador à lista
+                    table.insert(statModifiers, {
+                        stat = modifier.stat,
+                        type = modifier.type,
+                        value = modifier.value,
+                        source = "LevelUp:" .. bonusId
+                    })
+                end
+            end
+        end
+    end
+
+    self.context.services.eventService:emit(
+        self.context.services.eventService.EVENTS.LEVEL_UP_BONUSES_UPDATED,
+        {
+            modifiers = statModifiers
+        }
+    )
+
+    Logger.info("LevelUpBonusController:_dispatchBonusesUpdate",
+        string.format("Evento LEVEL_UP_BONUSES_UPDATED disparado com %d modificadores.", #statModifiers))
 end
 
 function LevelUpBonusController:destroy()

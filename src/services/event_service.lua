@@ -32,6 +32,7 @@ EventService.EVENTS = {
     -- Level Up Events
     REQUEST_LEVEL_UP_MODAL = 'request_level_up_modal',
     LEVEL_UP_MODAL_CLOSED = 'level_up_modal_closed',
+    LEVEL_UP_BONUSES_UPDATED = 'level_up_bonuses_updated',
     -- Game State
     REQUEST_GAME_PAUSE = 'request_game_pause',
     REQUEST_GAME_UNPAUSE = 'request_game_unpause',

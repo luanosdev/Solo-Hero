@@ -1,5 +1,6 @@
 local HunterBaseStats = require("src.data.hunter_base_stats")
 local ALL_STATS = require("src.data.stats_list")
+local Constants = require("src.config.constants")
 
 --- Configurações do sistema
 ---@type table
@@ -103,7 +104,7 @@ function PlayerStateController:_registerEventListeners()
     local events = self.eventService.EVENTS
     self:_listen(events.ARCHETYPE_BONUSES_UPDATED, self._onArchetypeBonusesUpdated)
     self:_listen(events.EQUIPMENT_BONUSES_UPDATED, self._onEquipmentBonusesUpdated)
-    -- TODO: Adicionar listeners para LevelUp
+    self:_listen(events.LEVEL_UP_BONUSES_UPDATED, self._onLevelUpBonusesUpdated)
 end
 
 ---@private Registra um listener de evento
@@ -139,6 +140,20 @@ function PlayerStateController:_onEquipmentBonusesUpdated(data)
         "[PlayerStateController] Equipment bonuses updated.")
 
     self.sources.equipment = data.modifiers
+    self:_triggerRecalculation()
+end
+
+---@private Handler para atualização de bônus de level up
+---@param data table Dados do evento com modificadores
+function PlayerStateController:_onLevelUpBonusesUpdated(data)
+    if not self:_validateEventData(data, "level up") then
+        return
+    end
+
+    Logger.info("player_state_controller.level_up_updated",
+        "[PlayerStateController] Level up bonuses updated.")
+
+    self.sources.levelUp = data.modifiers
     self:_triggerRecalculation()
 end
 
@@ -183,7 +198,7 @@ function PlayerStateController:_validateModifier(modifier)
         return false
     end
 
-    if not modifier.type or (modifier.type ~= "FLAT" and modifier.type ~= "PERCENTAGE") then
+    if not modifier.type or (modifier.type ~= Constants.STAT_MODIFIERS.FLAT and modifier.type ~= Constants.STAT_MODIFIERS.PERCENTAGE) then
         Logger.error("player_state_controller",
             string.format("Invalid modifier type '%s'", tostring(modifier.type)))
         return false
