@@ -339,11 +339,18 @@ function LevelUpCard:_drawColoredModifiers(x, y, width, modifiers, alpha)
     local lineHeight = adaptiveFonts.main_small_bold:getHeight()
     local currentY = 0
     for _, modifier in ipairs(modifiers) do
-        if modifier.value >= 0 then
-            love.graphics.setColor(0.4, 1.0, 0.4, alpha) -- Verde
+        local color = Colors.attribute_colors[modifier.stat]
+        if color then
+            love.graphics.setColor(color[1], color[2], color[3], alpha)
         else
-            love.graphics.setColor(1.0, 0.4, 0.4, alpha) -- Vermelho
+            -- Fallback para o sistema antigo de verde/vermelho se a cor não for encontrada
+            if modifier.value >= 0 then
+                love.graphics.setColor(0.4, 1.0, 0.4, alpha) -- Verde
+            else
+                love.graphics.setColor(1.0, 0.4, 0.4, alpha) -- Vermelho
+            end
         end
+
         love.graphics.printf(modifier.text, x, y + currentY, width, "left")
         currentY = currentY + lineHeight
     end
@@ -368,7 +375,11 @@ function LevelUpCard:_getModifiersData()
                 if statName == mod.stat then
                     statName = mod.stat:gsub("_", " "):gsub("(%a)(%w*)", function(a, b) return a:upper() .. b end)
                 end
-                table.insert(modifiers, { text = valueString .. " " .. statName, value = mod.value })
+                table.insert(modifiers, {
+                    text = valueString .. " " .. statName,
+                    value = mod.value,
+                    stat = mod.stat
+                })
             end
         end
     end
