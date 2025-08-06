@@ -180,7 +180,7 @@ end
 
 --- Aplica um bônus de level up escolhido.
 --- Delega a lógica para o controller especializado.
----@param chosenBonus LevelUpBonus O bônus escolhido.
+---@param chosenBonus LevelUpBonusOption bônus escolhido.
 function PlayerManager:applyLevelUpBonus(chosenBonus)
     self.levelUpBonusController:applyLevelUpBonus(chosenBonus)
 end
