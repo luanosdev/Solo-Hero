@@ -558,81 +558,81 @@ local translations = {
         vitality_flat = {
             name = "Vitalidade",
             concept = "A vontade extra de sobreviver nas mais cruéis caçadas.",
-            description = "Aumenta a sua [stat]Vida Máxima[/stat] base em [value_positive]+{value}[/value_positive]."
+            description = "Aumenta a sua [maxHealth] base em [value_positive]{value}[/value_positive]"
         },
         ultimate_vitality_flat = {
             name = "Vigor Sobre-Humano",
             concept = "Um corpo que desconhece seus limites.",
             description =
-            "Aumenta a sua [stat]Vida Máxima[/stat] base em [value_positive]+{value}[/value_positive] e a sua [stat]Regeneração de Vida[/stat] base em [value_positive]+{value}[/value_positive]/s."
+            "Aumenta a sua [maxHealth] base em [value_positive]{value}[/value_positive] e a sua [healthRegen] base em [value_positive]{value}[/value_positive]/s"
         },
         vitality_percent = {
             name = "Fortitude",
             concept = "O equilíbrio entre o corpo e a mente.",
             description =
-            "Aumenta a sua [stat]Vida Máxima[/stat] em [value_positive]+{value}[/value_positive] e a sua [stat]Defesa[/stat] em [value_positive]+{value}%[/value_positive]."
+            "Aumenta a sua [maxHealth] em [value_positive]{value}[/value_positive]"
         },
         ultimate_vitality_percent = {
             name = "Titã Colosso",
             concept = "Uma muralha viva inquebrável.",
             description =
-            "Aumenta a sua [stat]Vida Máxima[/stat] em [value_positive]+{value}[/value_positive] e a sua [stat]Regeneração de Vida[/stat] em [value_positive]+{value}%[/value_positive]/s."
+            "Aumenta a sua [maxHealth] em [value_positive]{value}[/value_positive] e a sua [healthRegen] em [value_positive]{value}[/value_positive]/s"
         },
         risky_vitality = {
             name = "Pacto de Sangue",
             concept = "Quando a vitória vale mais que a própria vida.",
             description =
-            "Aumenta o seu [stat]Dano[/stat] base em [value_positive]+{value}[/value_positive], mas reduz a sua [stat]Vida Máxima[/stat] base em [value_negative]-{value}[/value_negative]."
+            "Aumenta o seu [damage] base em [value_positive]{value}[/value_positive], mas reduz a sua [maxHealth] base em [value_negative]{value}[/value_negative]"
         },
         ultimate_risky_vitality = {
             name = "Pacto Imortal",
             concept = "Só quem arrisca sabe o verdadeiro sabor do poder.",
             description =
-            "Aumenta a sua [stat]Vida Máxima[/stat] base em [value_positive]+{value}[/value_positive] e o seu [stat]Dano Crítico[/stat] em [value_positive]+{value}%[/value_positive]."
+            "Aumenta a sua [maxHealth] base em [value_positive]{value}[/value_positive] e o seu [criticalDamage] em [value_positive]{value}[/value_positive]"
         },
         strength_flat = {
             name = "Musculação",
             concept = "O treino intenso moldando músculos de aço.",
-            description = "Aumenta a sua [stat]Força[/stat] base em [value_positive]+{value}[/value_positive]."
+            description = "Aumenta a sua [strength] base em [value_positive]{value}[/value_positive]"
         },
         ultimate_strength_flat = {
             name = "Fisiculturismo",
             concept = "O corpo no seu auge da forma fisica indo além dos limites da natureza.",
             description =
-            "Aumenta a sua [stat]Força[/stat] base em [value_positive]+{value}[/value_positive] e o seu [stat]Dano[/stat] base em [value_positive]+{value}[/value_positive]."
+            "Aumenta a sua [strength] base em [value_positive]{value}[/value_positive] e o seu [damage] base em [value_positive]{value}[/value_positive]"
         },
         strength_percent = {
             name = "Calistenia",
             concept = "Usando a disciplina para fortalecer o corpo.",
-            description = "Aumenta a sua [stat]Força[/stat] em [value_positive]+{value}%[/value_positive]."
+            description = "Aumenta a sua [strength] em [value_positive]{value}[/value_positive]"
         },
         ultimate_strength_percent = {
             name = "Mestre do Corpo",
             concept = "O domínio absoluto do próprio corpo.",
             description =
-            "Aumenta a sua [stat]Força[/stat] em [value_positive]+{value}%[/value_positive] e a sua [stat]Velocidade de Ataque[/stat] em [value_positive]+{value}%[/value_positive]."
+            "Aumenta a sua [strength] em [value_positive]{value}[/value_positive] e a sua [attacksSpeed] em [value_positive]{value}[/value_positive]"
         },
         damage_flat = {
             name = "Fúria",
             concept = "A chama que alimenta a vontade de matar.",
-            description = "Aumenta o seu [stat]Dano[/stat] base em [value_positive]+{value}[/value_positive]."
+            description = "Aumenta o seu [damage] base em [value_positive]{value}[/value_positive]"
         },
         ultimate_damage_flat = {
             name = "Dia de Fúria",
             concept = "Cada golpe desferido tenta arrancar a alma do inimigo.",
             description =
-            "Aumenta o seu [stat]Dano[/stat] base em [value_positive]+{value}[/value_positive] e o seu [stat]Dano Crítico[/stat] base em [value_positive]+{value}[/value_positive]."
+            "Aumenta o seu [damage] base em [value_positive]{value}[/value_positive] e o seu [criticalDamage] base em [value_positive]{value}[/value_positive]"
         },
         damage_percent = {
             name = "Raiva",
             concept = "A frustação se torna um combustível.",
-            description = "Aumenta o seu [stat]Dano[/stat] em [value_positive]+{value}%[/value_positive]."
+            description = "Aumenta o seu [damage] em [value_positive]{value}[/value_positive]"
         },
         ultimate_damage_percent = {
             name = "Ira Eterna",
             concept = "Sua mente foi consumida, você não sente mais nada.",
             description =
-            "Aumenta o seu [stat]Dano[/stat] em [value_positive]+{value}%[/value_positive] e a sua [stat]Chance de Crítico[/stat] em [value_positive]+{value}%[/value_positive]."
+            "Aumenta o seu [damage] em [value_positive]{value}[/value_positive] e a sua [criticalChance] em [value_positive]{value}[/value_positive]"
         }
     },
 
@@ -640,6 +640,27 @@ local translations = {
     player_stats = {
         maxHealth = {
             name = "Vida Máxima"
+        },
+        healthRegen = {
+            name = "Regeneração de Vida"
+        },
+        defense = {
+            name = "Defesa"
+        },
+        criticalDamage = {
+            name = "Dano Crítico"
+        },
+        criticalChance = {
+            name = "Chance de Crítico"
+        },
+        attacksSpeed = {
+            name = "Velocidade de Ataque"
+        },
+        strength = {
+            name = "Força"
+        },
+        damage = {
+            name = "Dano"
         }
         -- Adicione outros stats aqui conforme necessário
     },

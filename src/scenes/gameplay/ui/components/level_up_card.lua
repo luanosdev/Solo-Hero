@@ -328,7 +328,7 @@ function LevelUpCard:_drawContent(alpha, categoryColor)
     love.graphics.setFont(adaptiveFonts.main_large)
     currentY = currentY + self:_drawColoredDescription(contentX, currentY, contentWidth, alpha)
 
-    love.graphics.setFont(adaptiveFonts.main_small_bold)
+    love.graphics.setFont(adaptiveFonts.main_bold)
     local modifiers = self:_getModifiersData()
     if modifiers and #modifiers > 0 then
         currentY = currentY + self:_drawColoredModifiers(contentX, currentY, contentWidth, modifiers, alpha)
@@ -336,19 +336,14 @@ function LevelUpCard:_drawContent(alpha, categoryColor)
 end
 
 function LevelUpCard:_drawColoredModifiers(x, y, width, modifiers, alpha)
-    local lineHeight = adaptiveFonts.main_small_bold:getHeight()
+    local lineHeight = adaptiveFonts.main_bold:getHeight()
     local currentY = 0
     for _, modifier in ipairs(modifiers) do
-        local color = Colors.attribute_colors[modifier.stat]
-        if color then
-            love.graphics.setColor(color[1], color[2], color[3], alpha)
+        -- Fallback para o sistema antigo de verde/vermelho se a cor não for encontrada
+        if modifier.value >= 0 then
+            love.graphics.setColor(0.4, 1.0, 0.4, alpha) -- Verde
         else
-            -- Fallback para o sistema antigo de verde/vermelho se a cor não for encontrada
-            if modifier.value >= 0 then
-                love.graphics.setColor(0.4, 1.0, 0.4, alpha) -- Verde
-            else
-                love.graphics.setColor(1.0, 0.4, 0.4, alpha) -- Vermelho
-            end
+            love.graphics.setColor(1.0, 0.4, 0.4, alpha) -- Vermelho
         end
 
         love.graphics.printf(modifier.text, x, y + currentY, width, "left")
@@ -371,10 +366,7 @@ function LevelUpCard:_getModifiersData()
             end
 
             if mod.stat then
-                local statName = Formatters.getStatDisplayName(mod.stat) or mod.stat
-                if statName == mod.stat then
-                    statName = mod.stat:gsub("_", " "):gsub("(%a)(%w*)", function(a, b) return a:upper() .. b end)
-                end
+                local statName = _T("player_stats." .. mod.stat .. ".name")
                 table.insert(modifiers, {
                     text = valueString .. " " .. statName,
                     value = mod.value,
@@ -401,99 +393,176 @@ function LevelUpCard:_getImprovementType()
 end
 
 function LevelUpCard:_drawColoredDescription(x, y, width, alpha)
-    -- 1. Obter o template de descrição traduzido
     local descriptionTemplate = _T("bonuses." .. self.data.id .. ".description")
-
-    -- 2. Substituir placeholders pelos valores dos modificadores
-    local finalDescription = descriptionTemplate
-    if self.data.modifiers_per_level then
-        for i, mod in ipairs(self.data.modifiers_per_level) do
-            local valueString = ""
-            local absValue = math.abs(mod.value)
-
-            if mod.type == Constants.STAT_MODIFIERS.FLAT then
-                valueString = string.format("%.1f", absValue):gsub("%.0$", "")
-            elseif mod.type == Constants.STAT_MODIFIERS.PERCENTAGE then
-                valueString = string.format("%.1f", absValue):gsub("%.0$", "") .. "%"
-            end
-
-            finalDescription = finalDescription:gsub("{value_" .. i .. "}", valueString)
-            if i == 1 then
-                finalDescription = finalDescription:gsub("{value}", valueString)
-            end
-        end
+    -- Debug apenas para bônus com múltiplos modificadores
+    if self.data.modifiers_per_level and #self.data.modifiers_per_level > 1 then
+        Logger.debug("level_up_card._drawColoredDescription.multi_mod",
+            "[LevelUpCard] MULTI-MOD: " .. self.data.id .. " - Template: " .. descriptionTemplate)
+        Logger.debug("level_up_card._drawColoredDescription.multi_mod_data",
+            "[LevelUpCard] Modifiers: " .. Logger.dumpTable(self.data.modifiers_per_level))
     end
 
-    -- 3. Parsear e desenhar
-    local fontNormal = adaptiveFonts.main_large
-    local fontBold = adaptiveFonts.main_large_bold
-    local lineHeight = math.max(fontNormal:getHeight(), fontBold:getHeight())
-    local currentY = 0
+    -- 1. Tokenizer: Separa o texto em partes (texto, tags, valores)
+    local tokens = {}
+    local textToParse = descriptionTemplate
+    local lastPos = 1
+    local valueIndex = 1
 
-    local segments = {}
-    local textToParse = finalDescription
-    while #textToParse > 0 do
-        local s, e, tag, content = textToParse:find("%[(.-)%](.-)%[/%1%]")
-        if s then
-            if s > 1 then table.insert(segments, { text = textToParse:sub(1, s - 1) }) end
-            table.insert(segments, { text = content, tag = tag })
-            textToParse = textToParse:sub(e + 1)
-        else
-            table.insert(segments, { text = textToParse })
+    -- Loop para encontrar todas as tags ([...])
+    while true do
+        local s, e, tag_content = textToParse:find("%[([^]]+)%]", lastPos)
+        if not s then
+            if lastPos <= #textToParse then
+                table.insert(tokens, { type = "text", content = textToParse:sub(lastPos) })
+            end
             break
         end
-    end
 
-    local lineSegments = {}
-    local currentLineWidth = 0
-
-    local function renderLine()
-        local currentX = x
-        for _, seg in ipairs(lineSegments) do
-            local font = seg.tag and fontBold or fontNormal
-            love.graphics.setFont(font)
-
-            local color = Colors.text_main
-            if seg.tag == "stat" then
-                color = Colors.text_highlight
-            elseif seg.tag == "value_positive" then
-                color = Colors.feedback.success
-            elseif seg.tag == "value_negative" then
-                color = Colors.feedback.error
-            end
-            love.graphics.setColor(color[1], color[2], color[3], alpha)
-
-            love.graphics.print(seg.text, currentX, y + currentY)
-            currentX = currentX + font:getWidth(seg.text)
+        if s > lastPos then
+            table.insert(tokens, { type = "text", content = textToParse:sub(lastPos, s - 1) })
         end
-        currentY = currentY + lineHeight
-        lineSegments = {}
-        currentLineWidth = 0
+
+        if tag_content:sub(1, 1) == '/' then
+            table.insert(tokens, { type = "close_tag", content = tag_content:sub(2) })
+        else
+            table.insert(tokens, { type = "open_tag", content = tag_content })
+        end
+        lastPos = e + 1
     end
+
+    -- Processa os placeholders {value} dentro dos tokens de texto
+    local final_tokens = {}
+    for _, token in ipairs(tokens) do
+        if token.type == "text" then
+            local chunk = token.content
+            local chunkLastPos = 1
+            while true do
+                local s_val, e_val = chunk:find("{value}", chunkLastPos)
+                if not s_val then
+                    if chunkLastPos <= #chunk then
+                        table.insert(final_tokens, { type = "text", content = chunk:sub(chunkLastPos) })
+                    end
+                    break
+                end
+                if s_val > chunkLastPos then
+                    table.insert(final_tokens, { type = "text", content = chunk:sub(chunkLastPos, s_val - 1) })
+                end
+                table.insert(final_tokens, { type = "value", index = valueIndex })
+                valueIndex = valueIndex + 1
+                chunkLastPos = e_val + 1
+            end
+        else
+            table.insert(final_tokens, token)
+        end
+    end
+
+    -- 2. Segment Builder: Constrói segmentos desenháveis a partir dos tokens
+    local segments = {}
+    local colorStack = { Colors.text_main }
+    local StyleColors = {
+        value_positive = Colors.feedback.success,
+        value_negative = Colors.feedback.error,
+    }
+
+    for _, token in ipairs(final_tokens) do
+        local currentColor = colorStack[#colorStack]
+        if token.type == "text" then
+            if token.content and #token.content > 0 then
+                table.insert(segments, { text = token.content, color = currentColor, font = adaptiveFonts.main_large })
+            end
+        elseif token.type == "value" then
+            local mod = self.data.modifiers_per_level and self.data.modifiers_per_level[token.index]
+            if mod then
+                -- Formatação com sinais e porcentagem direto no código
+                local value = mod.value or 0
+                local sign = value >= 0 and "+" or ""
+                local valueString
+
+                if mod.type == Constants.STAT_MODIFIERS.PERCENTAGE then
+                    valueString = string.format("%s%.0f%%", sign, value)
+                else
+                    valueString = string.format("%s%.0f", sign, value)
+                end
+
+                table.insert(segments, { text = valueString, color = currentColor, font = adaptiveFonts.main_large_bold })
+            else
+                Logger.debug("level_up_card._drawColoredDescription.value_missing",
+                    string.format("[LevelUpCard] MISSING VALUE for index %s in %s", tostring(token.index), self.data.id))
+            end
+        elseif token.type == "open_tag" then
+            local styleColor = StyleColors[token.content]
+            local statColor = Colors.attribute_colors[token.content]
+            if styleColor then
+                table.insert(colorStack, styleColor)
+            elseif statColor then
+                local statName = _T("player_stats." .. token.content .. ".name") or token.content
+                table.insert(segments, { text = statName, color = statColor, font = adaptiveFonts.main_large_bold })
+            else
+                -- Tenta traduzir o stat usando o sistema de localização
+                local statName = _T("player_stats." .. token.content .. ".name")
+                if statName and statName ~= ("player_stats." .. token.content .. ".name") then
+                    table.insert(segments,
+                        { text = statName, color = Colors.text_highlight, font = adaptiveFonts.main_large_bold })
+                else
+                    table.insert(segments,
+                        { text = "[" .. token.content .. "]", color = currentColor, font = adaptiveFonts.main_large })
+                end
+            end
+        elseif token.type == "close_tag" then
+            if #colorStack > 1 then
+                table.remove(colorStack)
+            end
+        end
+    end
+    -- Debug segments apenas para multi-modificadores
+    if self.data.modifiers_per_level and #self.data.modifiers_per_level > 1 then
+        Logger.debug("level_up_card._drawColoredDescription.multi_segments",
+            "[LevelUpCard] Multi-mod segments count: " .. tostring(#segments))
+    end
+
+    -- 3. Line Builder & Drawer
+    local lines = {}
+    local currentLine = {}
+    local currentLineWidth = 0
+    local lineHeight = adaptiveFonts.main_large:getHeight()
 
     for _, segment in ipairs(segments) do
+        -- Divide em palavras individuais e espaços
         local words = {}
-        for word in segment.text:gmatch("%S+") do table.insert(words, word) end
+        for word in segment.text:gmatch("%S+") do
+            table.insert(words, word)
+        end
 
         for _, word in ipairs(words) do
-            local font = segment.tag and fontBold or fontNormal
-            local wordWidth = font:getWidth(word .. " ")
-
-            if currentLineWidth + wordWidth > width and #lineSegments > 0 then
-                renderLine()
+            local wordWidth = segment.font:getWidth(word)
+            if currentLineWidth + wordWidth > width and #currentLine > 0 then
+                table.insert(lines, currentLine)
+                currentLine = {}
+                currentLineWidth = 0
             end
+            table.insert(currentLine, { text = word, font = segment.font, color = segment.color })
+            currentLineWidth = currentLineWidth + wordWidth
 
-            if #lineSegments > 0 and lineSegments[#lineSegments].tag == segment.tag then
-                lineSegments[#lineSegments].text = lineSegments[#lineSegments].text .. " " .. word
-            else
-                table.insert(lineSegments, { text = word, tag = segment.tag })
+            -- Adiciona espaço após a palavra (exceto se for a última)
+            local spaceWidth = segment.font:getWidth(" ")
+            if currentLineWidth + spaceWidth <= width then
+                table.insert(currentLine, { text = " ", font = segment.font, color = segment.color })
+                currentLineWidth = currentLineWidth + spaceWidth
             end
-            currentLineWidth = currentLineWidth + font:getWidth(word) + font:getWidth(" ")
         end
     end
+    if #currentLine > 0 then table.insert(lines, currentLine) end
 
-    if #lineSegments > 0 then
-        renderLine()
+    local currentY = 0
+    for _, line in ipairs(lines) do
+        local currentX = x
+        for _, seg in ipairs(line) do
+            love.graphics.setFont(seg.font)
+            love.graphics.setColor(seg.color[1], seg.color[2], seg.color[3], alpha)
+            love.graphics.print(seg.text, currentX, y + currentY)
+            currentX = currentX + seg.font:getWidth(seg.text)
+        end
+        currentY = currentY + lineHeight
     end
 
     return currentY + 8

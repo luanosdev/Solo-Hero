@@ -278,52 +278,41 @@ colors.potion = colors.palette({
 -- ========== CORES DE ATRIBUTOS ==========
 
 colors.attribute_colors = colors.palette({
-    -- Atributos fundamentais (Rosa Dragão)
-    max_health = "#FF00FF",
-    defense = "#FF00FF",
+    -- Ofensivo - Tons de Vermelho/Laranja
+    damage = "#FF4136",            -- Vermelho Fogo
+    attack_speed = "#FF851B",      -- Laranja
+    criticalChance = "#FFC43D",    -- Amarelo Dourado
+    criticalDamage = "#FFD700",    -- Dourado Brilhante
+    multiAttackChance = "#FFAA00", -- Laranja Âmbar
 
-    -- Recuperação (Verde Esmeralda)
-    health_per_tick = "#00FF80",
-    health_regen_cooldown = "#00FF80",
-    health_regen_delay = "#00FF80",
+    -- Defensivo - Tons de Azul/Ciano
+    maxHealth = "#0074D9",   -- Azul Intenso
+    defense = "#7FDBFF",     -- Azul Céu
+    healthRegen = "#39CCCC", -- Ciano
 
-    -- Poder de ataque (Vermelho Sangue)
-    damage = "#E60026",
+    -- Mobilidade - Tons de Verde/Lima
+    moveSpeed = "#2ECC40",    -- Verde
+    dashCharges = "#A1E533",  -- Verde Lima
+    dashCooldown = "#01FF70", -- Verde Elétrico
+    dashDistance = "#BEEF9E", -- Verde Claro
+    dashDuration = "#89AC76", -- Verde Musgo
 
-    -- Golpes críticos (Dourado Monarca)
-    crit_chance = "#FFD700",
-    crit_damage = "#FFD700",
+    -- Utilitário e Suporte - Tons de Roxo/Magenta
+    pickupRadius = "#B10DC9",      -- Roxo
+    luck = "#F012BE",              -- Magenta
+    expBonus = "#E374FF",          -- Lilás
+    cooldownReduction = "#D462FF", -- Violeta
 
-    -- Cadência de ataque (Laranja Meteoro)
-    attack_speed = "#FF8C00",
-    multi_attack_chance = "#FF8C00",
+    -- Poções - Tons de Marrom/Cobre
+    potionFlasks = "#D2691E",     -- Chocolate
+    potionHealAmount = "#B87333", -- Cobre
+    potionFillRate = "#8B4513",   -- Marrom Sela
 
-    -- Controle e alcance (Azul Tático)
-    range = "#2471A3",
-    attack_area = "#2471A3",
-    strength = "#2471A3",
-
-    -- Mobilidade (Ciano Elétrico)
-    move_speed = "#00FFFF",
-    dash_charges = "#00FFFF",
-    dash_cooldown = "#00FFFF",
-    dash_distance = "#00FFFF",
-    dash_duration = "#00FFFF",
-
-    -- Arcano (Violeta Sombrio)
-    cooldown_reduction = "#9400D3",
-    healing_bonus = "#9400D3",
-    rune_slots = "#9400D3",
-
-    -- Sorte (Verde Dragão)
-    luck = "#00FF00",
-    exp_bonus = "#00FF00",
-
-    -- Utilidades (Couro Artesão)
-    pickup_radius = "#8B572A",
-    potion_flasks = "#8B572A",
-    potion_heal_amount = "#8B572A",
-    potion_fill_rate = "#8B572A",
+    -- Especial - Tons Cinza/Branco
+    range = "#DDDDDD",     -- Cinza Claro
+    area = "#F5F5F5",      -- Branco Neve
+    strength = "#FFFFFF",  -- Branco Puro
+    runeSlots = "#92E594", -- Verde Cura
 })
 
 -- ========== CORES DE INIMIGOS ==========
