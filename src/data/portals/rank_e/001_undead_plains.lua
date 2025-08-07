@@ -26,8 +26,8 @@ local portalData = {
             {
                 duration = 120,
                 spawnPatterns = {
-                    { type = "Wave", enemyClass = ZombieRunnerMale1,   interval = 8, count = 5, maxConcurrent = 50, strategy = "offscreen" },
-                    { type = "Wave", enemyClass = ZombieRunnerFemale1, interval = 8, count = 5, maxConcurrent = 50, strategy = "offscreen" },
+                    { type = "Wave", enemyClass = ZombieRunnerMale1,   interval = 5, count = 5, maxConcurrent = 50, strategy = "offscreen" },
+                    { type = "Wave", enemyClass = ZombieRunnerFemale1, interval = 5, count = 5, maxConcurrent = 50, strategy = "offscreen" },
                 }
             },
             -- Fase 2: Introduzindo Runners (2-5 minutos)
