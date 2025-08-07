@@ -17,8 +17,8 @@ local Constants = require("src.config.constants")
 ---@field quadCache table<number, love.Quad>
 ---@field mergeGrid table<string, ExperienceOrb[]>
 ---@field gameTimerService GameTimerService
----@field visibleOrbs ExperienceOrb[]
----@field cullingTimerId string|nil
+---@field needsVisibilityUpdate boolean
+---@field lastCullingUpdate number
 local ExperienceOrbManager = {}
 ExperienceOrbManager.__index = ExperienceOrbManager
 
@@ -27,9 +27,8 @@ ExperienceOrbManager.ASSETS = {
 }
 ExperienceOrbManager.MAX_SPRITE_BATCH_SIZE = 100
 ExperienceOrbManager.MAX_POOL_SIZE = 100
-ExperienceOrbManager.CULLING_INTERVAL = 0.2      -- Atualiza a visibilidade 5x por segundo
-ExperienceOrbManager.CULLING_MARGIN_UPDATE = 200 -- Margem extra para atualização
-ExperienceOrbManager.CULLING_MARGIN_MERGE = 100  -- Margem extra para merge
+ExperienceOrbManager.CULLING_INTERVAL = 0.1      -- Atualiza a visibilidade 10x por segundo (mais responsivo)
+ExperienceOrbManager.CULLING_MARGIN = 200        -- Margem única para consistência
 
 ---@public Cria uma nova instância do ExperienceOrbManager.
 ---@param context GameplaySceneContext
@@ -41,8 +40,8 @@ function ExperienceOrbManager:new(context)
     instance.orbPool = {}
     instance.quadCache = {}
     instance.mergeGrid = {}
-    instance.visibleOrbs = {}
-    instance.cullingTimerId = nil
+    instance.needsVisibilityUpdate = true
+    instance.lastCullingUpdate = 0
     return instance
 end
 
@@ -57,21 +56,24 @@ function ExperienceOrbManager:init()
     local worldW, worldH = mapManager:getWorldPixelDimensions()
     local worldDimensions = { w = worldW, h = worldH }
     self.cullingController:init(worldDimensions)
-
-    -- Agenda a atualização de culling para rodar em intervalos regulares
-    self.cullingTimerId = self.gameTimerService:addRecurringTimer(
-        ExperienceOrbManager.CULLING_INTERVAL,
-        function() self:_updateVisibleOrbs() end
-    )
 end
 
 ---@public Destrói o manager e limpa os recursos.
 function ExperienceOrbManager:destroy()
-    if self.cullingTimerId and self.gameTimerService then
-        self.gameTimerService:removeTimer(self.cullingTimerId)
-        self.cullingTimerId = nil
+    -- Limpeza dos recursos
+    if self.spriteBatch then
+        self.spriteBatch:release()
+        self.spriteBatch = nil
     end
-    -- Limpeza adicional se necessário
+    
+    -- Retorna todos os orbs ao pool
+    for _, orb in ipairs(self.orbs) do
+        self:_returnOrbToPool(orb)
+    end
+    self.orbs = {}
+    self.orbPool = {}
+    self.quadCache = {}
+    self.mergeGrid = {}
 end
 
 ---@public Adiciona um novo orbe de experiência no mundo.
@@ -85,6 +87,7 @@ function ExperienceOrbManager:addOrb(x, y, experienceValue)
     orb:reset(x, y, experienceValue)
 
     table.insert(self.orbs, orb)
+    self.needsVisibilityUpdate = true
 end
 
 ---@public Atualiza o ExperienceOrbManager.
@@ -92,42 +95,38 @@ end
 function ExperienceOrbManager:update(dt)
     if not self.orbs or #self.orbs == 0 then return end
 
+    -- Atualiza culling periodicamente
+    self.lastCullingUpdate = self.lastCullingUpdate + dt
+    if self.lastCullingUpdate >= ExperienceOrbManager.CULLING_INTERVAL or self.needsVisibilityUpdate then
+        self.needsVisibilityUpdate = false
+        self.lastCullingUpdate = 0
+    end
+
     self:_performLazyMerge()
 
     local playerManager = self.context.registry:getPlayerManager()
     local playerPosition = playerManager:getPosition()
     local finalPickupRadiusStats = playerManager.stateController:getStat("pickupRadius")
 
-    -- Atualiza apenas os orbes visíveis
-    for i = #self.visibleOrbs, 1, -1 do
-        local orb = self.visibleOrbs[i]
-        local wasCollected = orb:update(dt, playerPosition, finalPickupRadiusStats)
-
-        if wasCollected then
-            self:_processOrbCollection(orb)
+    -- Processa TODOS os orbs (não apenas os visíveis)
+    -- O culling é aplicado apenas na renderização
+    for i = #self.orbs, 1, -1 do
+        local orb = self.orbs[i]
+        
+        -- Verifica se o orb ainda é válido
+        if not orb:isActive() then
             self:_returnOrbToPool(orb)
+            table.remove(self.orbs, i)
+            self.needsVisibilityUpdate = true
+        else
+            local wasCollected = orb:update(dt, playerPosition, finalPickupRadiusStats)
 
-            -- Remove da lista principal procurando o orb específico
-            for j = #self.orbs, 1, -1 do
-                if self.orbs[j] == orb then
-                    table.remove(self.orbs, j)
-                    break
-                end
+            if wasCollected then
+                self:_processOrbCollection(orb)
+                self:_returnOrbToPool(orb)
+                table.remove(self.orbs, i)
+                self.needsVisibilityUpdate = true
             end
-            -- Remove da lista de visíveis usando o índice correto
-            table.remove(self.visibleOrbs, i)
-        elseif not orb:isActive() then
-            self:_returnOrbToPool(orb)
-
-            -- Remove da lista principal procurando o orb específico
-            for j = #self.orbs, 1, -1 do
-                if self.orbs[j] == orb then
-                    table.remove(self.orbs, j)
-                    break
-                end
-            end
-            -- Remove da lista de visíveis usando o índice correto
-            table.remove(self.visibleOrbs, i)
         end
     end
 end
@@ -135,51 +134,53 @@ end
 ---@public Coleta os renderables
 ---@param renderPipeline RenderPipeline
 function ExperienceOrbManager:collectRenderables(renderPipeline)
-    if not self.orbs or #self.orbs == 0 or #self.visibleOrbs == 0 then
-        return
-    end
+    if not self.orbs or #self.orbs == 0 then return end
 
     assert(self.spriteBatch, "SpriteBatch not initialized")
     assert(self.texture, "Texture not initialized")
+
+    -- Calcula orbs visíveis dinamicamente
+    local visibleOrbs = self:_getVisibleOrbs()
+    if #visibleOrbs == 0 then return end
 
     -- Limpa o SpriteBatch a cada frame
     self.spriteBatch:clear()
 
     -- Adiciona todos os orbs visíveis ao SpriteBatch
-    for _, orb in ipairs(self.visibleOrbs) do
-        local renderData = orb:getRenderData()
-        if renderData then
-            local frameIndex = renderData.frameX + renderData.frameY * ExperienceOrb.SPRITE_COLS + 1
-            local quad = self.quadCache[frameIndex]
+    local totalSortY = 0
+    local validRenderCount = 0
 
-            if quad then
-                self.spriteBatch:add(
-                    quad,
-                    renderData.x,
-                    renderData.y,
-                    renderData.rotation,
-                    renderData.scale,
-                    renderData.scale,
-                    self.frameWidth / 2,
-                    self.frameHeight / 2
-                )
+    for _, orb in ipairs(visibleOrbs) do
+        if orb:isActive() then -- Validação adicional
+            local renderData = orb:getRenderData()
+            if renderData then
+                local frameIndex = renderData.frameX + renderData.frameY * ExperienceOrb.SPRITE_COLS + 1
+                local quad = self.quadCache[frameIndex]
+
+                if quad then
+                    self.spriteBatch:add(
+                        quad,
+                        renderData.x,
+                        renderData.y,
+                        renderData.rotation,
+                        renderData.scale,
+                        renderData.scale,
+                        self.frameWidth / 2,
+                        self.frameHeight / 2
+                    )
+
+                    -- Calcula sortY para o pipeline de renderização
+                    local isoY = (renderData.x + renderData.y) * (Constants.TILE_HEIGHT / 2)
+                    totalSortY = totalSortY + isoY
+                    validRenderCount = validRenderCount + 1
+                end
             end
-        else
-            error("Failed to get render data for orb")
         end
     end
 
     -- Cria um único renderableItem se houver sprites no batch
-    if self.spriteBatch:getCount() > 0 then
-        local avgSortY = 0
-        for _, orb in ipairs(self.visibleOrbs) do
-            local renderData = orb:getRenderData()
-            if renderData then
-                local isoY = (renderData.x + renderData.y) * (Constants.TILE_HEIGHT / 2)
-                avgSortY = avgSortY + isoY
-            end
-        end
-        avgSortY = avgSortY / #self.visibleOrbs
+    if self.spriteBatch:getCount() > 0 and validRenderCount > 0 then
+        local avgSortY = totalSortY / validRenderCount
 
         local renderableItem = TablePool.getGeneric()
         renderableItem.type = "experience_orb_batch"
@@ -192,36 +193,37 @@ function ExperienceOrbManager:collectRenderables(renderPipeline)
     end
 end
 
----@private Atualiza a lista de orbs visíveis na tela.
-function ExperienceOrbManager:_updateVisibleOrbs()
-    if not self.orbs or #self.orbs == 0 then
-        self.visibleOrbs = {}
-        return
-    end
+---@private Calcula e retorna os orbs visíveis na tela.
+---@return ExperienceOrb[]
+function ExperienceOrbManager:_getVisibleOrbs()
+    if not self.orbs or #self.orbs == 0 then return {} end
 
     local playerManager = self.context.registry:getPlayerManager()
     local playerPosition = playerManager:getPosition()
 
     local visible = {}
     for _, orb in ipairs(self.orbs) do
-        local isOnView = self.cullingController:isInView(
-            orb,
-            playerPosition,
-            ExperienceOrbManager.CULLING_MARGIN_MERGE
-        )
+        if orb:isActive() then -- Sempre verifica se o orb está ativo
+            local isOnView = self.cullingController:isInView(
+                orb,
+                playerPosition,
+                ExperienceOrbManager.CULLING_MARGIN
+            )
 
-        if orb:isActive() and isOnView then
-            table.insert(visible, orb)
+            if isOnView then
+                table.insert(visible, orb)
+            end
         end
     end
 
-    self.visibleOrbs = visible
+    return visible
 end
 
 ---@private Desenha o SpriteBatch dos orbes
 function ExperienceOrbManager:_drawSpriteBatch()
     if self.spriteBatch and self.spriteBatch:getCount() > 0 then
         local previousBlendMode = love.graphics.getBlendMode()
+        local r, g, b, a = love.graphics.getColor()
 
         -- Usa blend mode "add" para tornar áreas pretas transparentes e criar efeito luminoso
         love.graphics.setBlendMode("add")
@@ -230,9 +232,9 @@ function ExperienceOrbManager:_drawSpriteBatch()
         love.graphics.setColor(colors.solo_leveling.portal_purple) -- Roxo brilhante
         love.graphics.draw(self.spriteBatch)
 
-        -- Restaura blend mode anterior
+        -- Restaura estado anterior
         love.graphics.setBlendMode(previousBlendMode)
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setColor(r, g, b, a)
     end
 end
 
@@ -245,33 +247,36 @@ function ExperienceOrbManager:_processOrbCollection(orb)
     playerManager:addExperience(orb:getTotalExperience())
 end
 
----@private Junta os orbs que estão proximos
+---@private Junta os orbs que estão próximos
 function ExperienceOrbManager:_performLazyMerge()
-    -- Limpa grid apenas quando necessário
+    -- Limpa grid
     self.mergeGrid = {}
 
     local playerManager = self.context.registry:getPlayerManager()
     local playerPosition = playerManager:getPosition()
 
-    --- Processa obs fora da tela
+    -- Agrupa orbs por célula do grid (apenas os visíveis para otimização)
     for _, orb in ipairs(self.orbs) do
-        local isOnView = self.cullingController:isInView(
-            orb,
-            playerPosition,
-            ExperienceOrbManager.CULLING_MARGIN_MERGE
-        )
-        if orb:isActive() and not orb.isMoving and not orb.isMerged and isOnView then
-            local gridKey = self:_getGridKey(orb.position.x, orb.position.y)
-            if not self.mergeGrid[gridKey] then
-                self.mergeGrid[gridKey] = {}
+        if orb:isActive() and not orb.isMoving and not orb.isMerged then
+            local isNearView = self.cullingController:isInView(
+                orb,
+                playerPosition,
+                ExperienceOrbManager.CULLING_MARGIN * 1.5 -- Margem maior para merge
+            )
+            
+            if isNearView then
+                local gridKey = self:_getGridKey(orb.position.x, orb.position.y)
+                if not self.mergeGrid[gridKey] then
+                    self.mergeGrid[gridKey] = {}
+                end
+                table.insert(self.mergeGrid[gridKey], orb)
             end
-            table.insert(self.mergeGrid[gridKey], orb)
         end
     end
 
     -- Executa merge apenas em células com muitos orbes
     for gridKey, orbsInCell in pairs(self.mergeGrid) do
-        if #orbsInCell >= 5 then -- Threshold mais alto = mais lazy
+        if #orbsInCell >= 5 then -- Threshold para merge
             self:_mergeOrbsInCell(orbsInCell)
         end
     end
@@ -280,33 +285,48 @@ end
 ---@private Junta os orbs em uma célula específica.
 ---@param orbs ExperienceOrb[]
 function ExperienceOrbManager:_mergeOrbsInCell(orbs)
+    if not orbs or #orbs < 2 then return end
+
     local representativeOrb = orbs[1]
+    if not representativeOrb or not representativeOrb:isActive() then return end
+
     local totalExperience = representativeOrb.experience
     local mergedCount = 1
 
+    -- Lista de orbs para remover
+    local orbsToRemove = {}
+
     -- Coleta experiência de todos os outros orbes
     for i = 2, #orbs do
-        totalExperience = totalExperience + orbs[i].experience
-        mergedCount = mergedCount + 1
+        local orb = orbs[i]
+        if orb and orb:isActive() then
+            totalExperience = totalExperience + orb.experience
+            mergedCount = mergedCount + 1
+            table.insert(orbsToRemove, orb)
+        end
     end
 
-    -- Configura o orbe representante
-    representativeOrb.isMerged = true
-    representativeOrb.mergedExperience = totalExperience
-    representativeOrb.mergedCount = mergedCount
+    -- Só faz merge se realmente há orbs para unir
+    if #orbsToRemove > 0 then
+        -- Configura o orbe representante
+        representativeOrb.isMerged = true
+        representativeOrb.mergedExperience = totalExperience
+        representativeOrb.mergedCount = mergedCount
 
-    -- Remove orbes excedentes de forma eficiente
-    for i = 2, #orbs do
-        local orbToRemove = orbs[i]
-        self:_returnOrbToPool(orbToRemove)
+        -- Remove orbes excedentes de forma eficiente
+        for _, orbToRemove in ipairs(orbsToRemove) do
+            self:_returnOrbToPool(orbToRemove)
 
-        -- Remove da lista principal (busca reversa para eficiência)
-        for j = #self.orbs, 1, -1 do
-            if self.orbs[j] == orbToRemove then
-                table.remove(self.orbs, j)
-                break
+            -- Remove da lista principal (busca reversa para eficiência)
+            for j = #self.orbs, 1, -1 do
+                if self.orbs[j] == orbToRemove then
+                    table.remove(self.orbs, j)
+                    break
+                end
             end
         end
+
+        self.needsVisibilityUpdate = true
     end
 end
 
@@ -334,6 +354,8 @@ end
 ---@private Retorna um orbe ao pool.
 ---@param orb ExperienceOrb
 function ExperienceOrbManager:_returnOrbToPool(orb)
+    if not orb then return end
+    
     orb:deactivate()
 
     -- Limita o tamanho do pool
