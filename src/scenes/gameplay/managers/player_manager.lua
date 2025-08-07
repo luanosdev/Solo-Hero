@@ -44,7 +44,7 @@ local TablePool = require("src.utils.table_pool")
 local PlayerManager = {}
 PlayerManager.__index = PlayerManager
 
-PlayerManager.PLAYER_RADIUS = 10
+PlayerManager.PLAYER_RADIUS = 5
 
 --- Cria uma nova instância do PlayerManager.
 --- O construtor é leve e apenas inicializa a estrutura da tabela.
