@@ -182,6 +182,10 @@ Constants.POTION_SYSTEM = {
     MIN_FILL_RATE = 0.5,
     -- Taxa máxima de preenchimento (não pode ser maior que 300%)
     MAX_FILL_RATE = 3.0,
+    -- Bonus de progresso por inimigo derrotado
+    BOSS_KILL_BONUS = 99, -- Instantaneo
+    MVP_KILL_BONUS = 3,
+    NORMAL_KILL_BONUS = 1.0,
 }
 
 --- Configurações para o sistema de spawn de inimigos.

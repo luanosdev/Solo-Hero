@@ -1,220 +1,179 @@
-------------------------------------------------------------------------------------------------
--- Componente UI para Exibição dos Frascos de Poção
---
--- Mostra frascos de poção com progresso de preenchimento visual,
--- estado pronto/não pronto, e animações sutis.
-------------------------------------------------------------------------------------------------
-
-local fonts = require("src.ui.fonts")
 local Colors = require("src.ui.colors")
 
 ---@class PotionFlasksDisplay
 ---@field x number Posição X
 ---@field y number Posição Y
----@field width number Largura total do componente
----@field height number Altura total do componente
----@field flaskWidth number Largura de cada frasco individual
----@field flaskHeight number Altura de cada frasco individual
----@field spacing number Espaçamento entre frascos
----@field animationTimer number Timer para animações
----@field lastReadyCount number Último número de frascos prontos (para detectar mudanças)
----@field readyFlashTimer number Timer para flash quando frasco fica pronto
+---@field flasks PotionFlask[] Informações atuais dos frascos
+---@field totalFlasks number Número total de frascos
+---@field flaskImageEmpty love.Image Imagem do frasco vazio
+---@field flaskImageFull love.Image Imagem do frasco cheio
+---@field auraImage love.Image Imagem para a aura de carregamento
+---@field glowImage love.Image Imagem para o brilho do frasco pronto
+---@field flaskWidth number Largura de uma imagem de frasco
+---@field flaskHeight number Largura de uma imagem de frasco
+---@field spacing number Espaçamento entre os frascos
+---@field animationTimer number Timer para as animações de pulsação
 local PotionFlasksDisplay = {}
 PotionFlasksDisplay.__index = PotionFlasksDisplay
+
+PotionFlasksDisplay.SPACE_BETWEEN_FLASKS = ResolutionUtils.scaleSpacing(2)
+PotionFlasksDisplay.FLASK_STATES = {
+    EMPTY = "empty",
+    FILLING = "filling",
+    READY = "ready"
+}
+
+PotionFlasksDisplay.FLASK_SCALE = 0.2
+PotionFlasksDisplay.FLASK_SCALE_GLOW = 0.3
 
 ---@class PotionFlasksDisplayConfig
 ---@field x? number Posição X
 ---@field y? number Posição Y
----@field flaskWidth number Largura de cada frasco individual
----@field flaskHeight number Altura de cada frasco individual
----@field spacing number Espaçamento entre frascos
+---@field flaskImageEmpty love.Image|nil Imagem do frasco vazio
+---@field flaskImageFull love.Image|nil Imagem do frasco cheio
+---@field auraImage love.Image|nil Imagem para a aura de carregamento
+---@field glowImage love.Image|nil Imagem para o brilho do frasco pronto
 
---- Cria uma nova instância do display de frascos
+---@public Cria uma nova instância do display de frascos
 ---@param config PotionFlasksDisplayConfig Configuração inicial
 ---@return PotionFlasksDisplay
 function PotionFlasksDisplay:new(config)
-    config = config or {}
-
     local instance = setmetatable({}, PotionFlasksDisplay)
     instance.x = config.x or 0
     instance.y = config.y or 0
-    instance.flaskWidth = config.flaskWidth or 32
-    instance.flaskHeight = config.flaskHeight or 48
-    instance.spacing = config.spacing or 8
-    instance.width = 0 -- Será calculado dinamicamente
-    instance.height = instance.flaskHeight
+    instance.flasks = {}
+    instance.totalFlasks = 0
+
+    -- Carrega as imagens
+    instance.flaskImageEmpty = config.flaskImageEmpty
+    instance.flaskImageFull = config.flaskImageFull
+    instance.auraImage = config.auraImage
+    instance.glowImage = config.glowImage
+
+    assert(instance.flaskImageEmpty, "Imagem do frasco vazio não encontrada.")
+    assert(instance.flaskImageFull, "Imagem do frasco cheio não encontrada.")
+    assert(instance.auraImage, "Imagem da aura não encontrada.")
+    assert(instance.glowImage, "Imagem do brilho não encontrada.")
+
+    instance.flaskWidth = instance.flaskImageEmpty:getWidth()
+    instance.flaskHeight = instance.flaskImageEmpty:getHeight()
+    instance.spacing = PotionFlasksDisplay.SPACE_BETWEEN_FLASKS
     instance.animationTimer = 0
-    instance.lastReadyCount = 0
-    instance.readyFlashTimer = 0
 
     return instance
 end
 
---- Define a posição do componente
----@param x number Nova posição X
----@param y number Nova posição Y
+---@public Atualiza o estado do componente (principalmente para animações)
+---@param dt number Delta time
+function PotionFlasksDisplay:update(dt)
+    self.animationTimer = self.animationTimer + dt
+end
+
+---@public Define a posição do componente na tela
+---@param x number Posição X
+---@param y number Posição Y
 function PotionFlasksDisplay:setPosition(x, y)
     self.x = x
     self.y = y
 end
 
---- Atualiza o componente
----@param dt number Delta time
----@param readyFlasks number Número de frascos prontos
----@param totalFlasks number Número total de frascos
----@param flasksInfo table Informações detalhadas de cada frasco
-function PotionFlasksDisplay:update(dt, readyFlasks, totalFlasks, flasksInfo)
-    self.animationTimer = self.animationTimer + dt
-
-    -- Detecta quando um frasco fica pronto para fazer flash
-    if readyFlasks > self.lastReadyCount then
-        self.readyFlashTimer = 0.5 -- Flash por 0.5 segundos
-    end
-    self.lastReadyCount = readyFlasks
-
-    if self.readyFlashTimer > 0 then
-        self.readyFlashTimer = self.readyFlashTimer - dt
-    end
-
-    -- Calcula largura total baseada no número de frascos
-    self.width = totalFlasks * self.flaskWidth + (totalFlasks - 1) * self.spacing
+---@public Atualiza os dados dos frascos a serem exibidos.
+---@param flasksData PotionFlask[] Tabela com o estado atual de todos os frascos.
+function PotionFlasksDisplay:setFlasks(flasksData)
+    self.flasks = flasksData or {}
+    self.totalFlasks = #self.flasks
 end
 
---- Desenha o componente
----@param readyFlasks number Número de frascos prontos
----@param totalFlasks number Número total de frascos
----@param flasksInfo PotionFlask[] Informações detalhadas de cada frasco
-function PotionFlasksDisplay:draw(readyFlasks, totalFlasks, flasksInfo)
-    if totalFlasks <= 0 then return end
+---@public Desenha o componente
+function PotionFlasksDisplay:draw()
+    if self.totalFlasks <= 0 then
+        return
+    end
 
     love.graphics.push()
     love.graphics.translate(self.x, self.y)
 
-    -- Desenha cada frasco individualmente respeitando a fila
-    for i = 1, totalFlasks do
+    for i = 1, self.totalFlasks do
         local flaskX = (i - 1) * (self.flaskWidth + self.spacing)
-        local flaskInfo = flasksInfo[i] or { progress = 0, isReady = false }
+        local flaskInfo = self.flasks[i]
 
-        self:drawSingleFlask(flaskX, 0, flaskInfo, i)
+        if flaskInfo then
+            self:_drawSingleFlask(flaskX, 0, flaskInfo)
+        end
     end
 
     love.graphics.pop()
 end
 
---- Desenha um frasco individual
----@param x number Posição X do frasco
----@param y number Posição Y do frasco
----@param flaskInfo PotionFlask Informações do frasco
----@param flaskIndex number Índice do frasco (para animações individuais)
-function PotionFlasksDisplay:drawSingleFlask(x, y, flaskInfo, flaskIndex)
-    local progress = flaskInfo.progress or 0
-    local isReady = flaskInfo.isReady or false
-
-    -- Flash effect quando frasco fica pronto
-    local flashIntensity = 0
-    if self.readyFlashTimer > 0 and isReady then
-        flashIntensity = math.sin(self.readyFlashTimer * 15) * 0.3 + 0.3
-    end
-
-    -- Desenha o contorno do frasco
-    love.graphics.setLineWidth(2)
-    if isReady then
-        -- Verde quando pronto, com possível flash
-        if flashIntensity > 0 then
-            love.graphics.setColor(Colors.potion.flask_border_ready_flash)
-        else
-            love.graphics.setColor(Colors.potion.flask_border_ready)
-        end
-    else
-        -- Cinza quando não pronto
-        if progress > 0 then
-            love.graphics.setColor(Colors.potion.flask_border_filling)
-        else
-            love.graphics.setColor(Colors.potion.flask_border_empty)
-        end
-    end
-
-    -- Forma do frasco (retângulo arredondado simulando uma garrafa)
-    local flaskBodyWidth = self.flaskWidth - 6
-    local flaskBodyHeight = self.flaskHeight - 10
-    local flaskBodyX = x + 3
-    local flaskBodyY = y + 8
-
-    -- Corpo do frasco
-    love.graphics.rectangle("line", flaskBodyX, flaskBodyY, flaskBodyWidth, flaskBodyHeight, 4, 4)
-
-    -- Gargalo do frasco
-    local neckWidth = flaskBodyWidth * 0.3
-    local neckHeight = 8
-    local neckX = flaskBodyX + (flaskBodyWidth - neckWidth) / 2
-    local neckY = y
-    love.graphics.rectangle("line", neckX, neckY, neckWidth, neckHeight, 2, 2)
-
-    -- Preenchimento do líquido
-    if progress > 0 then
-        local liquidHeight = (flaskBodyHeight - 4) * progress
-        local liquidY = flaskBodyY + flaskBodyHeight - liquidHeight - 2
-
-        if isReady then
-            -- Líquido verde quando pronto
-            if flashIntensity > 0 then
-                love.graphics.setColor(Colors.potion.liquid_ready_flash)
-            else
-                love.graphics.setColor(Colors.potion.liquid_ready)
-            end
-        else
-            -- Líquido vermelho gradual quando enchendo
-            if progress < 0.5 then
-                love.graphics.setColor(Colors.potion.liquid_healing)
-            else
-                love.graphics.setColor(Colors.potion.liquid_healing_bright)
-            end
-        end
-
-        love.graphics.rectangle("fill", flaskBodyX + 2, liquidY, flaskBodyWidth - 4, liquidHeight, 2, 2)
-
-        -- Efeito de brilho no líquido
-        if isReady then
-            love.graphics.setColor(Colors.potion.liquid_ready_glow)
-            love.graphics.rectangle("fill", flaskBodyX + 2, liquidY, flaskBodyWidth - 4, 3, 2, 2)
-        end
-    end
-
-    -- Efeito de sombra animada para frascos prontos (intercala opacidade simulando brilho)
-    if isReady then
-        local glowTime = self.animationTimer * 2 + (flaskIndex - 1) * 0.3 -- Offset por frasco
-        local glowIntensity = (math.sin(glowTime) + 1) * 0.5              -- 0 a 1
-
-        -- Sombra interna com opacidade variável
-        local shadowOpacity = 0.3 + glowIntensity * 0.4
-        love.graphics.setColor(Colors.potion.liquid_ready_glow[1],
-            Colors.potion.liquid_ready_glow[2],
-            Colors.potion.liquid_ready_glow[3],
-            shadowOpacity)
-
-        -- Desenha sombra cobrindo toda a área do líquido
-        if progress > 0 then
-            local liquidHeight = (flaskBodyHeight - 4) * progress
-            local liquidY = flaskBodyY + flaskBodyHeight - liquidHeight - 2
-            love.graphics.rectangle("fill", flaskBodyX + 2, liquidY, flaskBodyWidth - 4, liquidHeight, 2, 2)
-        end
-    end
-
-    -- Ícone de "pronto" quando disponível (sem porcentagem)
-    if isReady then
-        love.graphics.setFont(fonts.main_small)
-        love.graphics.setColor(Colors.potion.ready_icon)
-        local readyText = "✓"
-        local textWidth = fonts.main_small:getWidth(readyText)
-        love.graphics.print(readyText, x + (self.flaskWidth - textWidth) / 2, y + self.flaskHeight / 2 - 4)
-    end
-end
-
---- Retorna as dimensões atuais do componente
+---@public Retorna as dimensões totais do componente
 ---@return number width Largura atual
 ---@return number height Altura atual
 function PotionFlasksDisplay:getDimensions()
-    return self.width, self.height
+    local scaledWidth = self.flaskWidth * PotionFlasksDisplay.FLASK_SCALE
+    local scaledHeight = self.flaskHeight * PotionFlasksDisplay.FLASK_SCALE
+    local totalWidth = self.totalFlasks * scaledWidth + math.max(0, self.totalFlasks - 1) * self.spacing
+    return totalWidth, scaledHeight
+end
+
+---@private Desenha um único frasco com base no seu estado
+---@param x number Posição X do frasco
+---@param y number Posição Y do frasco
+---@param flaskInfo PotionFlask Informação do frasco
+function PotionFlasksDisplay:_drawSingleFlask(x, y, flaskInfo)
+    local flaskImage = self.flaskImageEmpty
+    local state = PotionFlasksDisplay.FLASK_STATES.EMPTY
+
+    if flaskInfo.isReady then
+        flaskImage = self.flaskImageFull
+        state = PotionFlasksDisplay.FLASK_STATES.READY
+    elseif flaskInfo.progress > 0 then
+        state = PotionFlasksDisplay.FLASK_STATES.FILLING
+    end
+
+    -- Calcula as dimensões e centro do frasco escalado
+    local scaledFlaskWidth = self.flaskWidth * PotionFlasksDisplay.FLASK_SCALE
+    local scaledFlaskHeight = self.flaskHeight * PotionFlasksDisplay.FLASK_SCALE
+    local centerX = x + scaledFlaskWidth / 2
+    local centerY = y + scaledFlaskHeight / 2
+
+    -- Desenha a aura/brilho por trás
+    local pulse = (math.sin(self.animationTimer * 4) + 1) / 2 -- Varia de 0 a 1
+    local effectScale = PotionFlasksDisplay.FLASK_SCALE_GLOW + pulse * 0.15
+    local effectAlpha = pulse * 0.8
+
+    love.graphics.setColor(1, 1, 1, 1)
+
+    if state == PotionFlasksDisplay.FLASK_STATES.READY then
+        -- Desenha brilho vermelho pulsante
+        love.graphics.setColor(Colors.red[1], Colors.red[2], Colors.red[3], effectAlpha)
+        love.graphics.draw(
+            self.glowImage,
+            centerX,
+            centerY,
+            0,
+            effectScale,
+            effectScale,
+            self.glowImage:getWidth() / 2,
+            self.glowImage:getHeight() / 2
+        )
+    elseif state == PotionFlasksDisplay.FLASK_STATES.FILLING then
+        -- Desenha aura cinza pulsante
+        love.graphics.setColor(Colors.gray[1], Colors.gray[2], Colors.gray[3], effectAlpha)
+        love.graphics.draw(
+            self.auraImage,
+            centerX,
+            centerY,
+            0,
+            effectScale,
+            effectScale,
+            self.auraImage:getWidth() / 2,
+            self.auraImage:getHeight() / 2
+        )
+    end
+
+    -- Desenha a imagem do frasco por cima
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(flaskImage, x, y, 0, PotionFlasksDisplay.FLASK_SCALE, PotionFlasksDisplay.FLASK_SCALE)
 end
 
 return PotionFlasksDisplay

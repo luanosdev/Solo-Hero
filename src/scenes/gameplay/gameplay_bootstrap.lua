@@ -54,6 +54,11 @@ function GameplayBootstrap.initialize(context)
             isPausable = false,
         },
         {
+            key = "hudGameplayManager",
+            class = HUDGameplayManager,
+            isPausable = false,
+        },
+        {
             key = "playerManager",
             class = PlayerManager,
             isPausable = true,
@@ -82,11 +87,6 @@ function GameplayBootstrap.initialize(context)
             key = "levelUpManager",
             class = LevelUpManager,
             isPausable = true,
-        },
-        {
-            key = "hudGameplayManager",
-            class = HUDGameplayManager,
-            isPausable = false,
         },
     }
 

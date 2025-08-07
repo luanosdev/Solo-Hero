@@ -224,6 +224,14 @@ function PlayerHPBar:setMaxHP(newMaxHP)
     self:_updateLayout()
 end
 
+---@public Atualiza o nome e o rank do caçador.
+---@param hunterName string Novo nome do caçador.
+---@param hunterRank string Novo rank do caçador.
+function PlayerHPBar:setHunterInfo(hunterName, hunterRank)
+    self.hunterName = hunterName or self.hunterName
+    self.hunterRank = hunterRank or self.hunterRank
+end
+
 --- Atualiza informações base da barra: nome, rank e MaxHP.
 --- Re-escala currentHP e visualHP proporcionalmente à mudança de MaxHP.
 --- Pode iniciar animação de rastro se MaxHP diminuir e currentHP for cortado.

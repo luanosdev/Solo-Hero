@@ -32,6 +32,17 @@
 ---@field newValue number O novo valor do stat.
 ---@field oldValue number O valor anterior do stat.
 
+---@class PlayerStateInitializedEventData
+---@description Evento emitido uma única vez quando o PlayerManager está totalmente inicializado.
+---@field maxHealth number
+---@field currentHealth number
+---@field currentLevel number
+---@field currentXP number
+---@field flasks PotionFlask[]
+---@field totalFlasks number
+---@field hunterName string
+---@field hunterRank string
+
 ---@class PlayerTookDamageEventData
 ---@field finalDamage number O dano final que o jogador sofreu.
 ---@field sourceEnemy BaseEnemy O inimigo que causou o dano.
@@ -47,3 +58,15 @@
 
 ---@class RequestGameUnpauseEventData
 ---@description Evento emitido para solicitar que o jogo seja despausado. Sem dados.
+
+---@class PotionStateUpdatedEventData
+---@description Evento emitido quando o estado dos frascos de poção muda.
+---@field flasks PotionFlask[] O estado atual de todos os frascos.
+---@field totalFlasks number Número total de frascos
+
+---@class PotionUseRequestedEventData
+---@description Evento emitido para solicitar o uso de uma poção. Sem dados.
+
+---@class EnemyKilledEventData
+---@description Evento emitido quando um inimigo é eliminado.
+---@field enemy BaseEnemy O inimigo que foi eliminado.

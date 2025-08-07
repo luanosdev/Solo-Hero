@@ -470,6 +470,14 @@ function ProgressLevelBar:setLevel(level, currentXPInNewLevel)
     self:_updateLayout()
 end
 
+--- Define a função para calcular o XP necessário para o próximo nível.
+---@param func function Função que retorna o XP necessário para o próximo nível.
+function ProgressLevelBar:setXpForNextLevel(func)
+    self.xpForNextLevelFunc = func
+    self.maxXP = self.xpForNextLevelFunc(self.currentLevel)
+    self:_updateLayout()
+end
+
 --- Define a posição da barra de progresso.
 ---@param x number Nova posição X.
 ---@param y number Nova posição Y.

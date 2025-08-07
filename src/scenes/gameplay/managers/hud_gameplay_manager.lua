@@ -4,6 +4,7 @@ local Camera = require("src.config.camera")
 local LevelUpModal = require("src.scenes.gameplay.ui.level_up_modal")
 local PlayerHPBar = require("src.ui.components.PlayerHPBar")
 local ProgressLevelBar = require("src.ui.components.ProgressLevelBar")
+local PotionFlasksDisplay = require("src.ui.components.potion_flasks_display")
 
 local ManagerRegistry = require("src.managers.manager_registry")
 
@@ -12,15 +13,16 @@ local ManagerRegistry = require("src.managers.manager_registry")
 ---@field baseBarsWidth number
 ---@field playerHPBar PlayerHPBar
 ---@field progressLevelBar ProgressLevelBar
+---@field potionFlasksDisplay PotionFlasksDisplay
 ---@field basePlayerHPBarWidth number
 ---@field levelUpModal LevelUpModal
 ---@field eventListeners table<string, EventListenerIdentifier>
 local HUDGameplayManager = {}
 HUDGameplayManager.__index = HUDGameplayManager
 
-HUDGameplayManager.SPACING_BETWEEN_BARS = 10
-HUDGameplayManager.PADDING_FROM_SCREEN_EDGE_X = 10
-HUDGameplayManager.PADDING_FROM_SCREEN_EDGE_BOTTOM = 20
+HUDGameplayManager.SPACING_BETWEEN_BARS = ResolutionUtils.scaleSpacing(10)
+HUDGameplayManager.PADDING_FROM_SCREEN_EDGE_X = ResolutionUtils.scaleSpacing(10)
+HUDGameplayManager.PADDING_FROM_SCREEN_EDGE_BOTTOM = ResolutionUtils.scaleSpacing(20)
 
 ---@param context GameplaySceneContext
 ---@return HUDGameplayManager
@@ -39,21 +41,20 @@ end
 --- Configura o HUDGameplayManager para o gameplay com base nos dados de um caçador específico.
 --- Chamado pela GameplayScene após a inicialização dos managers.
 function HUDGameplayManager:init()
-    local screenWidth = ResolutionUtils.getGameWidth()
-    local screenHeight = ResolutionUtils.getGameHeight()
+    Logger.info("hud_gameplay_manager.init", "[HUDGameplayManager:init] Initializing...")
 
-    --- TODO: Transformar hunterManager em um serviço
-    ---@type HunterManager
-    local hunterManager = ManagerRegistry:get("hunterManager")
-    local hunterId = self.context.args.hunterId
-    local hunterData = hunterManager:getHunterData(hunterId)
-
-    self.playerHPBar = self:_initPlayerHPBar(hunterData.name, hunterData.finalRankId)
+    -- Inicializa os componentes da UI com estado "em branco"
+    self.playerHPBar = self:_initPlayerHPBar("---", "---")
     self.progressLevelBar = self:_initProgressLevelBar()
     self.levelUpModal = self:_initLevelUpModal()
+    self.potionFlasksDisplay = self:_initPotionFlasksDisplay()
 
     self:_positionElements()
     self:_subscribeToEvents()
+    Logger.info(
+        "hud_gameplay_manager.init",
+        "[HUDGameplayManager:init] Successfully initialized and waiting for player state."
+    )
 end
 
 --- Atualiza todos os elementos da UI gerenciados.
@@ -62,11 +63,15 @@ function HUDGameplayManager:update(dt)
     self.progressLevelBar:update(dt)
     self.playerHPBar:update(dt)
     self.levelUpModal:update(dt)
+    self.potionFlasksDisplay:update(dt)
 end
 
 --- Desenha todos os elementos da UI gerenciados.
 function HUDGameplayManager:draw()
-    local playerManager = self.context.registry:getPlayerManager()
+    ---@type PlayerManager
+    local playerManager = self.context.registry:tryGet("playerManager")
+    if not playerManager then return end -- Guarda para evitar erro se o player não estiver pronto
+
     local gameStateManager = self.context.registry:get("gameStateManager")
 
     local isPaused = gameStateManager:isPaused()
@@ -74,6 +79,7 @@ function HUDGameplayManager:draw()
 
     self.playerHPBar:draw()
     self.progressLevelBar:draw()
+    self.potionFlasksDisplay:draw()
 
     -- Desenha as informações de debug
     self:_drawEnemyDebugInfo()
@@ -147,10 +153,45 @@ end
 ---@private Inscreve o manager nos eventos relevantes.
 function HUDGameplayManager:_subscribeToEvents()
     local eventService = self.context.serviceLocator:getEventService()
+    self:_listen(eventService.EVENTS.PLAYER_STATE_INITIALIZED, self._onPlayerStateInitialized)
     self:_listen(eventService.EVENTS.PLAYER_XP_GAINED, self._onExperienceGained)
     self:_listen(eventService.EVENTS.PLAYER_LEVELED_UP, self._onPlayerLeveledUp)
     self:_listen(eventService.EVENTS.PLAYER_HEALTH_UPDATED, self._onPlayerHealthChanged)
     self:_listen(eventService.EVENTS.REQUEST_LEVEL_UP_MODAL, self._onRequestLevelUpModal)
+    self:_listen(eventService.EVENTS.POTION_STATE_UPDATED, self._onPotionStateUpdated)
+end
+
+---@private Atualiza a UI com os dados iniciais do jogador.
+---@param data PlayerStateInitializedEventData
+function HUDGameplayManager:_onPlayerStateInitialized(data)
+    Logger.debug("hud_gameplay_manager.player_state_init",
+        "[EVENT] HUDGameplayManager recebendo estado inicial do jogador.")
+    -- Atualiza a barra de HP
+    self.playerHPBar:setHunterInfo(data.hunterName, data.hunterRank)
+    self.playerHPBar:setMaxHP(data.maxHealth)
+    self.playerHPBar:setWidth(self.baseBarsWidth)
+    self.playerHPBar:setCurrentHP(data.currentHealth)
+
+    -- Atualiza a barra de XP
+    self.progressLevelBar:setLevel(data.currentLevel, data.currentXP)
+    self.progressLevelBar:setXpForNextLevel(function(level)
+        local playerManager = self.context.registry:getPlayerManager()
+        return playerManager.experienceController:getExperienceRequiredForLevel(level)
+    end)
+
+    -- Atualiza os frascos de poção
+    self.potionFlasksDisplay:setFlasks(data.flasks)
+end
+
+---@private Atualiza a UI dos frascos de poção.
+---@param data PotionStateUpdatedEventData
+function HUDGameplayManager:_onPotionStateUpdated(data)
+    assert(data.flasks, "[HUDGameplayManager:_onPotionStateUpdated] 'data.flasks' é obrigatório.")
+    Logger.debug(
+        "hud_gameplay_manager.potion_state_updated",
+        "[EVENT] [HUDGameplayManager:_onPotionStateUpdated] Atualizando estado dos frascos de poção"
+    )
+    self.potionFlasksDisplay:setFlasks(data.flasks)
 end
 
 ---@private Registra um listener de evento.
@@ -203,21 +244,15 @@ end
 ---@param hunterRank string Rank do caçador.
 ---@return PlayerHPBar
 function HUDGameplayManager:_initPlayerHPBar(hunterName, hunterRank)
-    assert(hunterName, "[HUDGameplayManager:_initPlayerHPBar] missing a hunterName")
-    assert(hunterRank, "[HUDGameplayManager:_initPlayerHPBar] missing a hunterRank")
-
-    local playerManager = self.context.registry:getPlayerManager()
-    local maxHealth = playerManager.stateController:getStat("maxHealth")
     local adaptiveFont = fonts.getAdaptive()
-
     local params = {
         x = 0,
         y = 0,
         w = self.baseBarsWidth,
-        initialHP = maxHealth,
-        initialMaxHP = maxHealth,
-        hunterName = hunterName,
-        hunterRank = hunterRank,
+        initialHP = 0,
+        initialMaxHP = 0,
+        hunterName = "---",
+        hunterRank = "---",
         fontName = adaptiveFont.main,
         fontRank = adaptiveFont.main_small,
         fontHPValues = adaptiveFont.resource_value,
@@ -234,30 +269,25 @@ function HUDGameplayManager:_initPlayerHPBar(hunterName, hunterRank)
         segmentHPInterval = 50,
         hpBarAnimationSpeed = 50
     }
-
     local playerHPBar = PlayerHPBar:new(params)
     self.basePlayerHPBarWidth = params.w
-    self.basePlayerMaxHPForWidth = maxHealth > 0 and maxHealth or 100
+    playerHPBar:setWidth(self.basePlayerHPBarWidth)
 
     return playerHPBar
 end
 
 ---@private Inicializa a barra de experiência do jogador.
 function HUDGameplayManager:_initProgressLevelBar()
-    local playerManager = self.context.registry:getPlayerManager()
-    local experienceController = playerManager.experienceController
-    local initialExperience = experienceController:getCurrentExperience()
-    local initialLevel = experienceController:getLevel()
     local adaptiveFont = fonts.getAdaptive()
 
     local params = {
         x = 0,
         y = 0,
         w = self.baseBarsWidth,
-        initialXP = initialExperience,
-        initialLevel = initialLevel,
-        xpForNextLevel = function(level_from_bar)
-            return experienceController:getExperienceRequiredForLevel(level_from_bar)
+        initialXP = 0,
+        initialLevel = 1, -- Valores padrão
+        xpForNextLevel = function()
+            return 999999
         end,
         fontMain = adaptiveFont.main,
         fontLevelNumber = adaptiveFont.main_bold,
@@ -285,16 +315,43 @@ function HUDGameplayManager:_initLevelUpModal()
     return LevelUpModal:new(inputService, eventService, assetService)
 end
 
+---@private Inicializa o display de frascos de poção.
+---@return PotionFlasksDisplay
+function HUDGameplayManager:_initPotionFlasksDisplay()
+    local assetService = self.context.serviceLocator:getAssetService()
+    return PotionFlasksDisplay:new({
+        flaskImageEmpty = assetService:getImage("assets/images/potion/potion_empty.png"),
+        flaskImageFull = assetService:getImage("assets/images/potion/potion_full.png"),
+        auraImage = assetService:getImage("assets/images/potion/potion_empty_glow.png"),
+        glowImage = assetService:getImage("assets/images/potion/potion_full_glow.png"),
+    })
+end
+
 ---@private Posiciona os elemetos de UI do HUDGameplayManager.
 function HUDGameplayManager:_positionElements()
+    Logger.info(
+        "hud_gameplay_manager.position_elements",
+        "[HUDGameplayManager:_positionElements] Posicionando elementos..."
+    )
+
     local screenWidth = ResolutionUtils.getGameWidth()
     local screenHeight = ResolutionUtils.getGameHeight()
 
-    self.playerHPBar:setPosition(
-        self.PADDING_FROM_SCREEN_EDGE_X,
-        screenHeight - self.PADDING_FROM_SCREEN_EDGE_BOTTOM - self.playerHPBar.height
+    -- 1. Posiciona o display de poções na parte inferior da tela.
+    local _, flasksHeight = self.potionFlasksDisplay:getDimensions()
+    local extraXPadding = (self.potionFlasksDisplay.flaskWidth * self.potionFlasksDisplay.FLASK_SCALE) / 2
+    self.potionFlasksDisplay:setPosition(
+        self.PADDING_FROM_SCREEN_EDGE_X + extraXPadding,
+        screenHeight - self.PADDING_FROM_SCREEN_EDGE_BOTTOM - flasksHeight
     )
 
+    -- 2. Posiciona a barra de HP acima do display de poções.
+    self.playerHPBar:setPosition(
+        self.PADDING_FROM_SCREEN_EDGE_X,
+        self.potionFlasksDisplay.y - self.SPACING_BETWEEN_BARS - self.playerHPBar.height
+    )
+
+    -- 3. Posiciona a barra de progresso acima da barra de HP.
     self.progressLevelBar:setPosition(
         self.PADDING_FROM_SCREEN_EDGE_X,
         self.playerHPBar.y - self.SPACING_BETWEEN_BARS - self.progressLevelBar.height

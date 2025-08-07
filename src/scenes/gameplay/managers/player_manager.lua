@@ -15,6 +15,7 @@ local ExperienceController = require("src.scenes.gameplay.controllers.experience
 local HealthController = require("src.scenes.gameplay.controllers.health_controller")
 local CollisionResolutionController = require("src.scenes.gameplay.controllers.collision_resolution_controller")
 local LevelUpBonusController = require("src.scenes.gameplay.controllers.level_up_bonus_controller")
+local PotionController = require("src.scenes.gameplay.controllers.potion_controller")
 
 local CombatGeometry = require("src.utils.combat_geometry")
 local TablePool = require("src.utils.table_pool")
@@ -39,6 +40,7 @@ local TablePool = require("src.utils.table_pool")
 ---@field areaOfEffectController AreaOfEffectController
 ---@field collisionResolutionController CollisionResolutionController
 ---@field levelUpBonusController LevelUpBonusController
+---@field potionController PotionController
 ---@field eventListeners table<string, function>
 ---@field attackContext AttackContext
 local PlayerManager = {}
@@ -73,6 +75,7 @@ function PlayerManager:new(context)
     instance.healthController = nil
     instance.collisionResolutionController = nil
     instance.levelUpBonusController = nil
+    instance.potionController = nil
 
     instance.attackContext = nil
     instance.eventListeners = {}
@@ -155,6 +158,12 @@ function PlayerManager:init()
     self.levelUpBonusController = LevelUpBonusController:new(context)
     self.levelUpBonusController:init()
 
+    self.potionController = PotionController:new(context)
+    self.potionController:init(
+        self.stateController:getStat("potionFlasks"),
+        self.stateController:getStat("potionFillRate")
+    )
+
     self.attackContext = {
         finalStats = self.stateController:getAllStats(),
         playerPosition = self.movementController:getPosition(),
@@ -164,7 +173,34 @@ function PlayerManager:init()
         targetPosition = { x = 0, y = 0 },
     }
 
+    self:_emitInitialState()
+
     Logger.info("player_manager_v2.init.success", "[PlayerManager:init] Successfully initialized.")
+end
+
+---@private Emite o estado inicial completo do jogador para outros sistemas (como a HUD).
+function PlayerManager:_emitInitialState()
+    local hunterManager = ManagerRegistry:get("hunterManager")
+    local hunterId = self.context.args.hunterId
+    local hunterData = hunterManager:getHunterData(hunterId)
+    local state = self.stateController:getAllStats()
+
+    local eventData = {
+        maxHealth = state.maxHealth,
+        currentHealth = self.healthController.currentHealth,
+        currentLevel = self.experienceController:getLevel(),
+        currentXP = self.experienceController:getCurrentExperience(),
+        flasks = self.potionController.flasks,
+        totalFlasks = self.potionController.totalFlasks,
+        hunterName = hunterData.name,
+        hunterRank = hunterData.finalRankId,
+    }
+
+    local eventService = self.context.serviceLocator:getEventService()
+    eventService:emit(
+        eventService.EVENTS.PLAYER_STATE_INITIALIZED,
+        eventData
+    )
 end
 
 --- Gera e retorna um conjunto de opções de bônus de level up.
@@ -229,6 +265,7 @@ function PlayerManager:update(dt)
     if self.healthController then self.healthController:update(dt) end
     if self.attackController then self.attackController:update(dt, self.attackContext) end
     if self.levelUpBonusController then self.levelUpBonusController:update(dt) end
+    if self.potionController then self.potionController:update(dt) end
 
     -- Lógica de orquestração de ataque.
     -- Para uma explicação detalhada das regras, consulte: docs/SISTEMA_DE_ATAQUE.md
@@ -520,6 +557,7 @@ function PlayerManager:destroy()
     if self.autoAttackController then self.autoAttackController:destroy() end
     if self.collisionResolutionController then self.collisionResolutionController:destroy() end
     if self.levelUpBonusController then self.levelUpBonusController:destroy() end
+    if self.potionController then self.potionController:destroy() end
 end
 
 return PlayerManager

@@ -9,11 +9,8 @@ local Constants = require("src.config.constants")
 local Colors = require("src.ui.colors")
 local TablePool = require("src.utils.table_pool")
 
----@class PotionFlask
----@field progress number Progresso do frasco (0-1)
----@field isReady boolean Indica se o frasco está pronto para uso
 
----@class PotionController
+---@class PotionController1
 ---@field playerManager PlayerManager Referência ao PlayerManager
 ---@field flasks PotionFlask[] Array de frascos
 ---@field totalFlasks number Número total de frascos disponíveis
@@ -22,7 +19,7 @@ local PotionController = {}
 PotionController.__index = PotionController
 
 ---@param playerManager PlayerManager
----@return PotionController
+---@return PotionController1
 function PotionController:new(playerManager)
     Logger.debug(
         "potion_controller.new",
@@ -43,7 +40,7 @@ end
 
 --- Atualiza a configuração dos frascos baseado nos stats atuais do jogador
 function PotionController:updateFlaskConfiguration()
-    local finalStats = self.playerManager:getCurrentFinalStats()
+    -- local finalStats = self.playerManager:getCurrentFinalStats()
     local newTotalFlasks = math.max(1, math.floor(finalStats.potionFlasks))
     local newFillRate = math.max(
         Constants.POTION_SYSTEM.MIN_FILL_RATE,

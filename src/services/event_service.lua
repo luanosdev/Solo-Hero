@@ -21,10 +21,12 @@ EventService.EVENTS = {
     PLAYER_WRAPPED = 'player_wrapped',
     PLAYER_LEVELED_UP = 'player_leveled_up',
     PLAYER_XP_GAINED = 'player_xp_gained',
+    
     PLAYER_HEALTH_UPDATED = 'player_health_updated',
     PLAYER_DIED = 'player_died',
     PLAYER_STAT_UPDATED = 'player_stat_updated',
     PLAYER_TOOK_DAMAGE = 'player_took_damage',
+    PLAYER_STATE_INITIALIZED = 'player_state_initialized',
     -- Equipment & Stats Events
     EQUIPMENT_CHANGED = 'equipment_changed',
     EQUIPMENT_BONUSES_UPDATED = 'equipment_bonuses_updated',
@@ -36,6 +38,11 @@ EventService.EVENTS = {
     -- Game State
     REQUEST_GAME_PAUSE = 'request_game_pause',
     REQUEST_GAME_UNPAUSE = 'request_game_unpause',
+    -- Potion Events
+    POTION_STATE_UPDATED = 'potion_state_updated',
+    POTION_USED = 'potion_used',
+    -- Enemy Events
+    ENEMY_KILLED = 'enemy_killed',
 }
 
 --- Cria uma nova instância do EventService.
