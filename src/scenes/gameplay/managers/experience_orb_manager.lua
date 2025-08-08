@@ -102,7 +102,8 @@ function ExperienceOrbManager:update(dt)
         self.lastCullingUpdate = 0
     end
 
-    self:_performLazyMerge()
+    -- TODO: Validar futuramente o merge lazy pois esta contecendo de forma instantanea
+    -- self:_performLazyMerge()
 
     local playerManager = self.context.registry:getPlayerManager()
     local playerPosition = playerManager:getPosition()
