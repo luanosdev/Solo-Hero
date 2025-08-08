@@ -229,10 +229,10 @@ function PlayerManager:update(dt)
 
     if not self.stateController or not self.movementController or not self.targetingController then return end
 
-    -- Orquestração do Movimento e Animação
-    local moveSpeed = self.stateController:getStat("moveSpeed")
+    -- Stats desse frame
+    local stats = self.stateController:getAllStats()
 
-    local moveSpeedInPixels = Constants.moveSpeedToPixels(moveSpeed)
+    local moveSpeedInPixels = Constants.moveSpeedToPixels(stats.moveSpeed)
     local moveVector = inputService:getMovementVector()
     self.movementController:update(dt, moveSpeedInPixels, moveVector)
 
@@ -252,7 +252,7 @@ function PlayerManager:update(dt)
     local angle = math.atan2(dy, dx)
 
     -- Atualiza o contexto de ataque com os dados mais recentes
-    self.attackContext.finalStats = self.stateController:getAllStats()
+    self.attackContext.finalStats = stats
     self.attackContext.playerPosition = playerPosition
     self.attackContext.playerAngle = angle
 
@@ -304,6 +304,14 @@ function PlayerManager:update(dt)
 
         -- Libera a tabela de descritores de volta para o pool
         TablePool.releaseArray(attackDescriptors)
+    end
+
+    -- Tenta usar uma poção se o jogador tiver frascos prontos
+    if inputService:wasActionPressed(ActionTypes.USE_POTION) then
+        local hasUsedPotion = self.potionController:tryUsePotion()
+        if hasUsedPotion then
+            self.healthController:heal(stats.potionHealAmount)
+        end
     end
 end
 

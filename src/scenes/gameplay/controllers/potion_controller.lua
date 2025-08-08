@@ -165,8 +165,18 @@ function PotionController:_emitStateUpdate()
     )
 end
 
----@private Consome o último frasco de poção pronto e emite uma atualização.
-function PotionController:_onPotionIsUsed()
+---@private Emite o evento de uso de poção.
+function PotionController:_emitPotionUsed()
+    self.context.services.eventService:emit(self.context.services.eventService.EVENTS.POTION_USED)
+    Logger.debug(
+        "potion_controller.used",
+        "[EVENT] [PotionController:_emitPotionUsed] Emitindo evento de uso de poção"
+    )
+end
+
+---@public Tenta consumir o último frasco de poção pronto e emite uma atualização.
+---@return boolean hasUsedPotion true se uma poção foi usada com sucesso
+function PotionController:tryUsePotion()
     local consumed = false
     -- Itera de trás para frente para encontrar o último frasco pronto
     for i = self.totalFlasks, 1, -1 do
@@ -180,7 +190,10 @@ function PotionController:_onPotionIsUsed()
 
     if consumed then
         self:_emitStateUpdate()
+        self:_emitPotionUsed()
     end
+
+    return consumed
 end
 
 ---@private Usa a poção
@@ -200,7 +213,6 @@ end
 ---@private Inicia as instancias de eventos
 function PotionController:_startEventListeners()
     self:_listen(self.context.services.eventService.EVENTS.ENEMY_KILLED, self._onEnemyKilled)
-    self:_listen(self.context.services.eventService.EVENTS.POTION_USED, self._onPotionIsUsed)
     self:_listen(self.context.services.eventService.EVENTS.PLAYER_STAT_UPDATED, self._onPlayerStatUpdated)
 end
 
