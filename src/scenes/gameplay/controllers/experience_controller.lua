@@ -1,7 +1,7 @@
 ---@class ExperienceController
 ---@description Controlador para gerenciar experiência e level ups do jogador.
 ---@field eventService EventService Serviço de eventos
----@field bas
+---@field baseGrowth ExperienceBaseGrowth Configuração de crescimento base
 ---@field pendingLevelUps number Contador para level ups pendentes
 ---@field currentExperience number Experiência atual do jogador
 ---@field experienceToNextLevel number Experiência necessária para o próximo level
