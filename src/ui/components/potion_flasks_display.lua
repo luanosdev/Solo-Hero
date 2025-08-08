@@ -16,7 +16,7 @@ local Colors = require("src.ui.colors")
 local PotionFlasksDisplay = {}
 PotionFlasksDisplay.__index = PotionFlasksDisplay
 
-PotionFlasksDisplay.SPACE_BETWEEN_FLASKS = ResolutionUtils.scaleSpacing(2)
+PotionFlasksDisplay.SPACE_BETWEEN_FLASKS = ResolutionUtils.scaleSpacing(8)
 PotionFlasksDisplay.FLASK_STATES = {
     EMPTY = "empty",
     FILLING = "filling",
@@ -24,7 +24,7 @@ PotionFlasksDisplay.FLASK_STATES = {
 }
 
 PotionFlasksDisplay.FLASK_SCALE = 0.2
-PotionFlasksDisplay.FLASK_SCALE_GLOW = 0.3
+PotionFlasksDisplay.FLASK_SCALE_GLOW = 0.22
 
 ---@class PotionFlasksDisplayConfig
 ---@field x? number Posição X
@@ -94,7 +94,7 @@ function PotionFlasksDisplay:draw()
     love.graphics.translate(self.x, self.y)
 
     for i = 1, self.totalFlasks do
-        local flaskX = (i - 1) * (self.flaskWidth + self.spacing)
+        local flaskX = (i - 1) * (self.flaskWidth * PotionFlasksDisplay.FLASK_SCALE + self.spacing)
         local flaskInfo = self.flasks[i]
 
         if flaskInfo then
